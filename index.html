@@ -976,7 +976,7 @@ async function sendInvite(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn primary" href="${href}" target="_blank" rel="noopener" style="background:#25D366;border-color:#25D366;text-decoration:none">📲 فتح واتساب وإرسال</a><button type="button" class="btn" onclick="copyText(document.getElementById('invMsg').innerText)">نسخ الرسالة</button><button type="button" class="btn ghost" onclick="newPin('${uid}')">كلمة سر جديدة</button></div>`,async()=>null,"تم")}
 async function newPin(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const pin=genPin();
   try{await SBA.fn("reset",{user_id:uid,password:pin});await savePin(uid,{pin,username:p.username});toast("اتعملت كلمة سر جديدة");setTimeout(()=>sendInvite(uid),300)}catch(e){toast(SBA.ar(e))}}
-function meMenu(){openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p><div class="form">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
+function meMenuBase(){openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p><div class="form">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
   <button type="button" class="btn danger" style="margin-top:14px" onclick="SB.auth.signOut()">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
 function settleInvites(){}
 // reminders
@@ -1602,7 +1602,7 @@ async function renderForm(T,vals,opt={}){
   }
   out.sigMissing=sigMissing;return out;
 }
-async function renderPermitPages(p){return renderForm(p.type,ptwValues(p))}
+async function renderPermitPagesBase(p){return renderForm(p.type,ptwValues(p))}
 async function permitPdfBlob(pages){
   const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4",orientation:pages[0].width>pages[0].height?"landscape":"portrait",compress:true});
   pages.forEach((c,i)=>{const land=c.width>c.height,PW=land?297:210,PH=land?210:297;if(i)doc.addPage("a4",land?"landscape":"portrait");const m=4,aw=PW-2*m,ah=PH-2*m,r=Math.min(aw/c.width,ah/c.height),w=c.width*r,h=c.height*r;doc.addImage(c.toDataURL("image/jpeg",0.9),"JPEG",(PW-w)/2,(PH-h)/2,w,h)});
@@ -1907,7 +1907,7 @@ async function printPermit(id){
   const draft=["requested","supok","rejected"].includes(p.status);
   const V=openViewer(`${p.number} · ${PTW_TYPES[p.type]?.ar||""}`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""}.pdf`,
     note:draft?"ده لسه طلب ما اتعتمدش من السلامة، التصريح بيطلع برقم بعد اعتماد مسؤول السلامة.":(miss.length?`ناقص في التصريح: ${miss.join("، ")}. <button type="button" class="btn sm" onclick="pvClose();ptwForm('${p.id}')">كمّل البيانات</button>`:""),
-    extra:canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:""});
+    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+(!draft&&myNameIn([v.req,v.site,v.hse,v.sup])?(p.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")});
   try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
@@ -1915,7 +1915,9 @@ async function printRecord(id){
   const spec=(await loadForms2())[r.form];await sigData();
   const canAp=CAN_SIGN&&SIG_FIELDS[r.form];
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
-  const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
+  const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
+  const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
+  const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext2,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
 
@@ -1931,13 +1933,13 @@ function sigRect(spec,nf){const [x,y,w,h]=nf.rect;const pg=nf.page||0;
   return [x,d.rect[1]+gap-h*0.15,w,h*1.3]}
 async function renderGeneric(fid,rec){
   const pages=await renderGenericBase(fid,rec);
-  if(!rec?.approved||!SIG_FIELDS[fid])return pages;
+  if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages);
   const spec=(await loadForms2())[fid];const src=await sigSrc();
   for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(!isLeaderName(recVal(spec,rec,nk)))continue;
     const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const [rx,ry,rw,rh]=sigRect(spec,nf);const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
     if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}
     else{g.save();g.fillStyle="#1f4f8f";g.textAlign="center";g.textBaseline="middle";g.direction="rtl";g.font=`700 ${Math.max(14,bh*0.42)}px "IBM Plex Sans Arabic",Arial`;g.fillText("✔ اعتمد إلكترونياً",bx+bw/2,by+bh/2);g.restore()}}
-  return pages}
+  return renderGenericSigned(fid,rec,pages)}
 async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;const f={...(r.f||{})};
   for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=LEADER();const e=S.employees.find(x=>isLeaderName(x.name));if(e)f[k+"_id"]=e.id}
   if(await write(()=>upsert("records",id,{f,approved:{by:ME.id,at:Date.now(),name:LEADER()}}),"اتعتمد بتوقيعك ✔")){setTimeout(()=>printRecord(id),300)}}
@@ -2533,9 +2535,10 @@ async function mrView(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;await
     <table><tbody><tr><td class="gray" style="width:28mm">رقم الطلب</td><td><b>MR-${r.serial}</b></td><td class="gray" style="width:24mm">التاريخ</td><td>${fmtDate(r.date)}</td></tr><tr><td class="gray">نوع الطلب</td><td>${MR_KIND[r.kind]||""}</td><td class="gray">الأولوية</td><td>${r.urgent?"<b>عاجل</b>":"عادي"}</td></tr><tr><td class="gray">الطالب</td><td>${esc(r.reqName||"")}</td><td class="gray">الموقع</td><td>${esc(r.site||"")}</td></tr></tbody></table>
     <table style="margin-top:4mm"><thead><tr><th class="num">م</th><th>الصنف</th><th style="width:28mm">الكود</th><th style="width:20mm">الكمية</th><th style="width:20mm">الوحدة</th><th style="width:30mm">ملاحظات</th></tr></thead><tbody class="tall2">${rows.map((l,i)=>`<tr><td>${i+1}</td><td class="r">${l?esc(l.name):""}</td><td>${l?esc(l.code||""):""}</td><td>${l?num(l.qty):""}</td><td>${l?esc(l.unit||""):""}</td><td></td></tr>`).join("")}</tbody></table>
     <p><b>السبب / ملاحظات:</b> ${esc(r.note||"")}</p>${r.status==="rejected"?`<p style="color:#b42318"><b>مرفوض:</b> ${esc(r.rejNote||"")}</p>`:""}${r.status==="issued"?`<p><b>اتصرف بتاريخ:</b> ${fmtDate(r.issuedAt||"")} ${r.issueRef?`— مستند رقم ${esc(r.issueRef)}`:""}</p>`:""}
-    <table style="margin-top:auto"><thead><tr><th>الطالب</th><th>اعتماد مسئول السلامة</th><th>أمين المخزن</th></tr></thead><tbody><tr><td>${esc(r.reqName||"")}</td><td>${r.status==="approved"||r.status==="issued"?esc(r.approved?.name||r.apName||""):""}</td><td>${esc(r.issuedBy||"")}</td></tr><tr style="height:16mm"><td></td><td>${sig}</td><td></td></tr></tbody></table></div></div>`;
-  const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:CAN_SIGN&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:""});V.setHtml(html)}
+    <table style="margin-top:auto"><thead><tr><th>الطالب</th><th>اعتماد مسئول السلامة</th><th>أمين المخزن</th></tr></thead><tbody><tr><td>${esc(r.reqName||"")}</td><td>${r.status==="approved"||r.status==="issued"?esc(r.approved?.name||r.apName||""):""}</td><td>${esc(r.issuedBy||"")}</td></tr><tr style="height:16mm"><td>${await personSig(r,r.reqName)}</td><td>${sig}</td><td>${await personSig(r,r.issuedBy)}</td></tr></tbody></table></div></div>`;
+  const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:(CAN_SIGN&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:"")+(!isLeaderName(myEmpName())&&myNameIn([r.reqName,r.issuedBy])?(r.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('matreq','${r.id}',()=>mrView('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('matreq','${r.id}',{reopen:()=>mrView('${r.id}')})">✍ توقيعي</button>`):"")});V.setHtml(html)}
 async function mrSign(id){const r=S.matreq.find(x=>x.id===id);const d={approved:{by:ME.id,at:Date.now(),name:LEADER()}};if(r.status==="new")Object.assign(d,{status:"approved",apName:myEmpName(),apAt:Date.now()});if(await write(()=>upsert("matreq",id,d),"اتعتمد ✔"))setTimeout(()=>mrView(id),300)}
+async function personSig(r,name){const s=signsOf(r).find(x=>name&&normName(x.name)===normName(name));if(!s)return "";const mine=s.uid===ME.id?await mySig():"";return mine?`<img class="sigimg" src="${mine}" alt="">`:`<span class="stamp">✔ اعتمد إلكترونياً</span>`}
 
 /* ---------- send document on WhatsApp + nearest printer ---------- */
 function pdfFile(blob,filename){try{return new File([blob],filename,{type:"application/pdf"})}catch(e){return null}}
@@ -2603,6 +2606,62 @@ async function printerLocate(id){const q=await myPos(true);if(!q){toast("مقد�
 function printerDel(id){const p=printers().find(x=>x.id===id);confirmSheet("حذف الطابعة",`«${p?.name||""}» هتتشال من القايمة.`,()=>savePrinters(printers().filter(x=>x.id!==id),"اتحذفت"),"احذف")}
 {const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.call(this);if(myAccess()?.role==="admin"&&$("setBody")&&!$("prnCard")){const d=document.createElement("div");d.id="prnCard";d.innerHTML=printersCardHTML();$("setBody").appendChild(d)}}}
 {const _of=VIEWS.office.fill;VIEWS.office.fill=function(){_of.call(this);if(tabLevel("office")!=="view"&&$("offBody")){const d=document.createElement("div");d.innerHTML=printersCardHTML();$("offBody").appendChild(d)}}}
+
+/* ---------- personal signature for every user ---------- */
+let MYSIG=null;
+async function mySig(){if(MYSIG!==null)return MYSIG;if(!db||!ME.id)return "";MYSIG="";
+  try{const s=await db.doc("private/sig_"+ME.id).get();if(s.exists)MYSIG=s.data()?.img||""}catch(e){}
+  if(!MYSIG&&isOwner){try{MYSIG=await sigSrc()}catch(e){}}return MYSIG}
+const signsOf=x=>Object.values(x?.signs||{});
+const isDateField=f=>/date|^d\d|^d[AB]/i.test(f.k)||f.type==="date"||f.auto==="date";
+function signRect(fields,nf,getR,isDate,mode){const [x,y,w,h]=getR(nf);const pg=nf.page||0;
+  const dates=fields.filter(f=>f!==nf&&(f.page||0)===pg&&isDate(f)&&getR(f)[1]>y+h*0.5&&getR(f)[1]<y+h*4&&Math.min(x+w,getR(f)[0]+getR(f)[2])-Math.max(x,getR(f)[0])>w*0.5).sort((a,b)=>getR(a)[1]-getR(b)[1]);
+  const d=dates[0];if(!d)return null;const dy=getR(d)[1],gap=dy-y;if(mode==="after"){const rh=gap>h*1.75?gap/2:gap;return [x,dy+rh-h*0.15,w,h*1.3]}if(gap>h*1.75)return [x,y+gap/2-h*0.15,w,h*1.3];return [x,dy+gap-h*0.15,w,h*1.3]}
+async function stampOn(cv,r,src,s){if(!cv||!r)return;const g=cv.getContext("2d");const W=cv.width,H=cv.height;const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
+  if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const k=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*k,h=im.height*k;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);return}catch(e){}}
+  g.save();g.fillStyle="#1f4f8f";g.textAlign="center";g.textBaseline="middle";g.direction="rtl";const fs=Math.max(12,Math.min(bh*0.36,bw/16));g.font=`700 ${fs}px "IBM Plex Sans Arabic",Arial`;
+  g.fillText(`✔ اعتمد إلكترونياً ${s?.at?fmtDate(new Date(s.at).toISOString().slice(0,10)):""}`,bx+bw/2,by+bh/2);g.restore()}
+const NAME_KEY=/^(sig\d|tName|lecName|lecturer|trainer|mgr|officer|writer|gh|inspector|reporter|clinic|lead|corrBy|orig|sup|checker)(_\d)?$/;
+async function renderGenericSigned(fid,rec,pages){const L=signsOf(rec).filter(s=>!(rec.approved&&isLeaderName(s.name)));if(!L.length)return pages;
+  const spec=(await loadForms2())[fid];const mine=await mySig();
+  for(const s of L){const done=new Set();for(const f of spec.fields){if(f.type==="check"||!(f.type==="emp"||NAME_KEY.test(f.k)))continue;const v=recVal(spec,rec,f.k);if(!v||normName(v)!==normName(s.name))continue;
+    const r=signRect(spec.fields,f,x=>x.rect,isDateField);if(!r)continue;const key=(f.page||0)+":"+r.map(n=>n.toFixed(3)).join(",");if(done.has(key))continue;done.add(key);
+    await stampOn(pages[f.page||0],r,s.uid===ME.id?mine:"",s)}}
+  return pages}
+async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);const L=signsOf(p);if(!L.length)return pages;
+  const F=(await loadForms())[p.type];const vals=ptwValues(p);const mine=await mySig();const R=b=>[b.x,b.y,b.w,b.h];const isD=b=>/date/i.test(b.field||"");
+  for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=signRect(F.boxes,b,R,isD,"after");if(r)await stampOn(pages[b.page||0],r,s.uid===ME.id?mine:"",s)}
+  return pages}
+function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(v=>normName(v)===n)}
+async function signDoc(col,id,{reopen}={}){const src=await mySig();if(!src){toast("ضيف توقيعك الأول من 👤 حسابي ← ✍ توقيعي");sigEditor();return}
+  const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;const signs={...(x.signs||{}),[ME.id]:{uid:ME.id,name:myEmpName(),at:Date.now()}};
+  if(await write(()=>upsert(col,id,{signs}),"اتوقّع ✔"))setTimeout(()=>reopen&&reopen(),300)}
+async function unsignDoc(col,id,reopen){const x=current(col,id)||S.matreq.find(r=>r.id===id);const signs={...(x?.signs||{})};delete signs[ME.id];if(await write(()=>upsert(col,id,{signs}),"اتشال توقيعك"))setTimeout(()=>reopen&&reopen(),300)}
+/* editor */
+function sigEditor(){
+  openSheet("✍ توقيعي",`<p class="muted" style="margin-top:0;font-size:13.5px">ارسم توقيعك بصباعك أو بالماوس جوه المربع، أو صوّر توقيعك على ورقة بيضا وارفعه.</p>
+    <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="sgC" width="900" height="300" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="sgClr">🗑 مسح</button><label class="btn sm" style="cursor:pointer">📷 صورة توقيعي<input type="file" accept="image/*" id="sgFile" hidden></label></div>
+    <p class="muted" style="font-size:12.5px">🔒 توقيعك بيتحفظ لحسابك بس. محدش غيرك يقدر يشوفه أو يستخدمه، وبيظهر في الطباعة بس لما تطبع أنت. أي حد تاني بيشوف مكانه «✔ اعتمد إلكترونياً».</p>`,
+  async()=>{const img=exportSig();if(!img)return "ارسم توقيعك الأول";
+    try{await db.doc("private/sig_"+ME.id).set({img,at:Date.now()})}catch(e){return "الحفظ فشل"}MYSIG=img;toast("اتحفظ توقيعك ✔");return null},"حفظ التوقيع");
+  const c=$("sgC"),g=c.getContext("2d");let drawing=false,dirty=false,last=null;
+  const pt=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
+  g.lineCap="round";g.lineJoin="round";g.strokeStyle="#16306b";g.lineWidth=6;
+  c.onpointerdown=e=>{drawing=true;dirty=true;last=pt(e);c.setPointerCapture(e.pointerId)};
+  c.onpointermove=e=>{if(!drawing)return;const p=pt(e);g.beginPath();g.moveTo(...last);g.lineTo(...p);g.stroke();last=p};
+  c.onpointerup=c.onpointercancel=()=>{drawing=false};
+  $("sgClr").onclick=()=>{g.clearRect(0,0,c.width,c.height);dirty=false};
+  mySig().then(s=>{if(s&&!dirty){const im=new Image();im.onload=()=>{const k=Math.min(c.width*0.9/im.width,c.height*0.9/im.height);g.drawImage(im,(c.width-im.width*k)/2,(c.height-im.height*k)/2,im.width*k,im.height*k);dirty=true};im.src=s}});
+  $("sgFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const bmp=await createImageBitmap(f);const k=Math.min(c.width/bmp.width,c.height/bmp.height);g.clearRect(0,0,c.width,c.height);const w=bmp.width*k,h=bmp.height*k;
+    const t=document.createElement("canvas");t.width=c.width;t.height=c.height;const tg=t.getContext("2d");tg.drawImage(bmp,(c.width-w)/2,(c.height-h)/2,w,h);const d=tg.getImageData(0,0,t.width,t.height);const a=d.data;
+    let sum=0,n=0;for(let i=0;i<a.length;i+=16){sum+=a[i]*.3+a[i+1]*.59+a[i+2]*.11;n++}const thr=Math.min(200,sum/n*0.72);
+    for(let i=0;i<a.length;i+=4){const L=a[i]*.3+a[i+1]*.59+a[i+2]*.11;if(L>thr)a[i+3]=0;else{a[i]=22;a[i+1]=48;a[i+2]=107;a[i+3]=255}}g.putImageData(d,0,0);dirty=true}catch(err){toast("مقدرتش أقرا الصورة")}};
+  function exportSig(){if(!dirty)return "";const d=g.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=0,y1=0;
+    for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){if(d[(y*c.width+x)*4+3]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+    if(x1<=x0||y1<=y0)return "";const pad=10;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(c.width,x1+pad);y1=Math.min(c.height,y1+pad);
+    const o=document.createElement("canvas");const s=Math.min(1,420/(x1-x0));o.width=Math.round((x1-x0)*s);o.height=Math.round((y1-y0)*s);o.getContext("2d").drawImage(c,x0,y0,x1-x0,y1-y0,0,0,o.width,o.height);return o.toDataURL("image/png")}
+}
 
 /* ---------- professional dashboard ---------- */
 function greet(){const h=new Date().getHours();return h<12?"صباح الخير":h<17?"نهارك سعيد":"مساء الخير"}
@@ -2701,6 +2760,48 @@ function syncRoleTabs(){if(_roleSynced||myAccess()?.role!=="admin"||!(S.profiles
     if(JSON.stringify(p.tabs||{})!==JSON.stringify(r.tabs))SB.from("profiles").update({tabs:r.tabs}).eq("user_id",p.id).then(()=>{},()=>{})}}
 function form_role_toggle(){const s=document.querySelector('#shForm [name="role"]');if(s)s.onchange=()=>{$("cust").hidden=s.value!=="custom";const sc=document.querySelector('#shForm [name="scope"]');if(sc)sc.value=s.value==="eng"?"own":"all"}}
 function refresh(){refreshBase();clearTimeout(window._navT);window._navT=setTimeout(mobileNav,120)}
+
+/* ---------- daily reminders (07:45 · 12:55 · 15:00) ---------- */
+const NOTIFY_URL=()=>(window.SB_URL||"")+"/functions/v1/notify";
+async function notifyCall(body,auth){const h={"Content-Type":"application/json",apikey:window.SB_KEY||""};if(auth){const {data:{session}}=await SB.auth.getSession();if(session)h.Authorization="Bearer "+session.access_token}
+  const r=await fetch(NOTIFY_URL(),{method:"POST",headers:h,body:JSON.stringify(body)});const x=await r.json().catch(()=>({}));if(!r.ok||x.error)throw new Error(x.error||("http_"+r.status));return x}
+const pushSupported=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
+function b64u(s){const p="=".repeat((4-s.length%4)%4);const b=atob((s+p).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from(b,c=>c.charCodeAt(0))}
+async function pushState(){if(!pushSupported())return "unsupported";if(Notification.permission==="denied")return "denied";try{const reg=await navigator.serviceWorker.getRegistration();const s=await reg?.pushManager.getSubscription();return s&&Notification.permission==="granted"?"on":"off"}catch(e){return "off"}}
+async function enablePush(){
+  if(!pushSupported()){toast(isIOS()?"على الآيفون: ثبّت المنظومة على الشاشة الرئيسية الأول (مشاركة ← Add to Home Screen) وافتحها من الأيقونة":"المتصفح ده مش بيدعم التنبيهات");return false}
+  const perm=await Notification.requestPermission();if(perm!=="granted"){toast("التنبيهات اترفضت. فعّلها من إعدادات المتصفح للموقع ده");return false}
+  try{const reg=await navigator.serviceWorker.register("sw.js");await navigator.serviceWorker.ready;const {pub}=await notifyCall({action:"pubkey"});
+    let sub=await reg.pushManager.getSubscription();if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(pub)});
+    const {error}=await SB.from("push_subs").upsert({endpoint:sub.endpoint,sub:sub.toJSON(),ua:navigator.userAgent.slice(0,200)});if(error)throw error;
+    toast("اتفعلت التنبيهات اليومية ✔");refresh();return true}catch(e){console.error(e);toast("مقدرتش أفعّل التنبيهات دلوقتي، جرّب تاني");return false}}
+async function disablePush(){try{const reg=await navigator.serviceWorker.getRegistration();const s=await reg?.pushManager.getSubscription();if(s){await SB.from("push_subs").delete().eq("endpoint",s.endpoint);await s.unsubscribe()}toast("اتقفلت التنبيهات");refresh()}catch(e){toast("حصلت مشكلة")}}
+async function testPush(){try{const x=await notifyCall({action:"test",slot:"morning"},true);toast(x.sent?"اتبعت تنبيه تجربة ✔":"مفيش جهاز متفعل عليه التنبيهات")}catch(e){toast("التجربة فشلت")}}
+/* in-app fallback while the app is open */
+const SLOT_T=[["morning",465],["break",775],["end",900]];
+function cairoMin(){const p=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",weekday:"short",year:"numeric",month:"2-digit",day:"2-digit",hour12:false}).formatToParts(new Date()).map(x=>[x.type,x.value]));return {min:(+p.hour%24)*60+ +p.minute,day:`${p.year}-${p.month}-${p.day}`,wd:p.weekday}}
+async function inAppTick(){if(!booted||!db||!ME.id)return;const c=cairoMin();if(c.wd==="Fri")return;const s=SLOT_T.find(([,m])=>c.min>=m&&c.min<m+20);if(!s)return;
+  const key=`hse.n.${c.day}.${s[0]}`;try{if(localStorage.getItem(key))return;localStorage.setItem(key,"1")}catch(e){return}
+  let msg;try{msg=await notifyCall({action:"msg",slot:s[0]},true)}catch(e){return}showReminder(msg)}
+function showReminder(m){$("remBanner")?.remove();const d=document.createElement("div");d.id="remBanner";d.setAttribute("role","status");
+  d.style.cssText="position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:35;width:min(560px,calc(100% - 24px));background:var(--surface);border:1px solid var(--line);border-inline-start:5px solid var(--accent);border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:14px 16px;direction:rtl";
+  d.innerHTML=`<div style="display:flex;gap:10px;align-items:flex-start"><div class="grow"><div style="font:700 16px var(--f-display)">${esc(m.title)}</div><div style="white-space:pre-line;font-size:14px;margin-top:4px">${esc(m.body)}</div></div><button class="btn ghost sm" aria-label="قفل">✕</button></div>`;
+  d.querySelector("button").onclick=()=>d.remove();document.body.appendChild(d);setTimeout(()=>d.remove(),60000)}
+setInterval(inAppTick,30000);setTimeout(inAppTick,8000);
+/* account menu: signature + reminders */
+async function meMenu(){meMenuBase();const form=$("shForm");if(!form)return;const st=await pushState();const sg=await mySig();
+  const box=document.createElement("div");box.className="card";box.style.cssText="margin-top:14px;padding:12px";
+  box.innerHTML=`<div class="li" style="border:0"><div class="grow"><div class="t">✍ توقيعي</div><div class="s">${sg?"متسجل — بيظهر لما تطبع أنت بس":"لسه ما ضفتش توقيعك"}</div></div>${sg?`<img src="${sg}" alt="" style="height:34px;max-width:120px;background:#fff;border-radius:6px;padding:2px">`:""}<button type="button" class="btn sm" id="mmSig">${sg?"تغيير":"إضافة توقيع"}</button></div>
+    <div class="li"><div class="grow"><div class="t">🔔 التنبيهات اليومية</div><div class="s">7:45 صباحاً · 12:55 الضهر · 3:00 العصر${st==="unsupported"?(isIOS()?" — ثبّت المنظومة على الشاشة الرئيسية الأول":" — المتصفح مش بيدعمها"):st==="denied"?" — مقفولة من إعدادات المتصفح":""}</div></div>${st==="on"?`<button type="button" class="btn ghost sm" id="mmTest">تجربة</button><button type="button" class="btn ghost sm" id="mmOff">إيقاف</button>`:st==="off"?`<button type="button" class="btn sm primary" id="mmOn">تفعيل</button>`:""}</div>`;
+  form.insertBefore(box,form.querySelector("#shMsg"));
+  $("mmSig").onclick=()=>sigEditor();if($("mmOn"))$("mmOn").onclick=async()=>{if(await enablePush())meMenu()};if($("mmOff"))$("mmOff").onclick=async()=>{await disablePush();meMenu()};if($("mmTest"))$("mmTest").onclick=testPush}
+async function remindCardHTML(){const st=await pushState();let dis=false;try{dis=localStorage.getItem("hse.pushAsk")==="no"}catch(e){}
+  if(st==="on"||st==="denied"||dis)return "";
+  return `<div class="card" style="margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-inline-start:4px solid var(--accent)"><div style="font-size:26px">🔔</div><div class="grow" style="min-width:200px"><b>فعّل تنبيهات اليوم</b><div class="muted" style="font-size:13px">صباح الفل الساعة 7:45 ومعاه نصيحة شغلك · تنبيه البريك 12:55 · ملخص آخر اليوم 3:00.${st==="unsupported"&&isIOS()?" على الآيفون ثبّت المنظومة على الشاشة الرئيسية الأول.":""}</div></div>${st==="off"?`<button class="btn primary keep" onclick="enablePush()">تفعيل</button>`:""}<button class="btn ghost sm" onclick="try{localStorage.setItem('hse.pushAsk','no')}catch(e){};this.closest('.card').remove()">مش دلوقتي</button></div>`}
+{const _df=VIEWS.dash.fill;VIEWS.dash.fill=function(){_df.call(this);remindCardHTML().then(h=>{const el=$("dRem");if(el&&h&&!document.getElementById("pushAsk")){el.insertAdjacentHTML("afterbegin",`<div id="pushAsk">${h}</div>`)}});
+  mySig().then(sg=>{const el=$("dRem");if(el&&!sg&&!$("sigAsk")&&ME.id)el.insertAdjacentHTML("afterbegin",`<div class="banner" id="sigAsk" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="grow">✍ ضيف توقيعك عشان تقدر تعتمد التصاريح والنماذج اللي اسمك عليها.</span><button class="btn sm" onclick="sigEditor()">إضافة توقيعي</button></div>`)})}}
+
 
 
 show(tab);
