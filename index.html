@@ -1854,7 +1854,7 @@ async function sigBox(approved){if(!approved)return "";const src=CAN_SIGN?await 
 function pvClose(){$("pvRoot")?.remove();document.body.style.overflow=""}
 function openViewer(title,{filename="document.pdf",note="",extra=""}={}){
   pvClose();const root=document.createElement("div");root.id="pvRoot";root.className="pvov";root.setAttribute("role","dialog");root.setAttribute("aria-modal","true");
-  root.innerHTML=`<div class="pvbar"><button class="btn ghost" data-x aria-label="رجوع">✕</button><h2>${esc(title)}</h2><div style="display:flex;gap:6px;flex-wrap:wrap" id="pvAct">${extra}<button class="btn primary" data-print disabled>🖨 طباعة</button><button class="btn" data-pdf disabled>⬇ PDF</button></div></div><div id="pvNote">${note?`<div class="pvnote">${note}</div>`:""}</div><div class="pvbody" id="pvBody"><div class="empty" style="color:#fff">بيجهّز…</div></div>`;
+  root.innerHTML=`<div class="pvbar"><button class="btn ghost" data-x aria-label="رجوع">✕</button><h2>${esc(title)}</h2><div style="display:flex;gap:6px;flex-wrap:wrap" id="pvAct">${extra}<button class="btn primary" data-print disabled>🖨 طباعة</button><button class="btn" data-wa disabled style="color:#128C7E">📲 واتساب</button><button class="btn" data-pdf disabled>⬇ PDF</button></div></div><div id="pvWa"></div><div id="pvPrn"></div><div id="pvNote">${note?`<div class="pvnote">${note}</div>`:""}</div><div class="pvbody" id="pvBody"><div class="empty" style="color:#fff">بيجهّز…</div></div>`;
   document.body.appendChild(root);document.body.style.overflow="hidden";
   const st={pages:null,html:null,land:false};
   root.querySelector("[data-x]").onclick=pvClose;
@@ -1865,8 +1865,10 @@ function openViewer(title,{filename="document.pdf",note="",extra=""}={}){
     if(st.pages){if(isMobile()){const w=window.open("","_blank");try{const b=await permitPdfBlob(st.pages);const u=URL.createObjectURL(b);if(w)w.location=u;else location.href=u}catch(e){w?.close();toast("معرفتش أجهز الطباعة")}}else printCanvases(st.pages)}
     else if(st.html){if(isMobile()){const w=window.open("","_blank");try{const b=await htmlPdf(st.html);const u=URL.createObjectURL(b);if(w)w.location=u;else location.href=u}catch(e){w?.close();printHTMLDoc(st.html)}}else printHTMLDoc(st.html)}};
   root.querySelector("[data-pdf]").onclick=async e=>{const b=e.currentTarget;b.disabled=true;const t=b.textContent;b.textContent="بيجهز…";
-    try{const blob=st.pages?await permitPdfBlob(st.pages):await htmlPdf(st.html);const dl=await window.claude?.use?.("downloads");await dl.save({filename,data:blob});toast("اتنزل الملف")}catch(err){console.error(err);toast("معرفتش أعمل PDF")}b.disabled=false;b.textContent=t};
-  const enable=()=>root.querySelectorAll("[data-print],[data-pdf]").forEach(b=>b.disabled=false);
+    try{const blob=await getPdf();const dl=await window.claude?.use?.("downloads");await dl.save({filename,data:blob});toast("اتنزل الملف")}catch(err){console.error(err);toast("معرفتش أعمل PDF")}b.disabled=false;b.textContent=t};
+  const enable=()=>{root.querySelectorAll("[data-print],[data-pdf],[data-wa]").forEach(b=>b.disabled=false);st.pdf=null;if(isMobile())setTimeout(()=>getPdf().catch(()=>{}),400);printerHint(root,{getPdf,filename,title})};
+  const getPdf=()=>st.pdf||(st.pdf=(st.pages?permitPdfBlob(st.pages):htmlPdf(st.html)));
+  root.querySelector("[data-wa]").onclick=()=>waShare({getPdf,filename,title});
   return {root,body,
     setPages(pages){st.pages=pages;st.html=null;body.innerHTML="";pages.forEach(c=>body.appendChild(c));if(pages.length>1)body.insertAdjacentHTML("beforeend",`<div class="pvcount">${pages.length} صفحة · دوس على الصفحة عشان تكبّرها</div>`);enable()},
     setHtml(html){st.html=html;st.pages=null;body.innerHTML=`<div class="docs">${html}</div>`;scaleDocs(body);enable()},
@@ -2534,6 +2536,73 @@ async function mrView(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;await
     <table style="margin-top:auto"><thead><tr><th>الطالب</th><th>اعتماد مسئول السلامة</th><th>أمين المخزن</th></tr></thead><tbody><tr><td>${esc(r.reqName||"")}</td><td>${r.status==="approved"||r.status==="issued"?esc(r.approved?.name||r.apName||""):""}</td><td>${esc(r.issuedBy||"")}</td></tr><tr style="height:16mm"><td></td><td>${sig}</td><td></td></tr></tbody></table></div></div>`;
   const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:CAN_SIGN&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:""});V.setHtml(html)}
 async function mrSign(id){const r=S.matreq.find(x=>x.id===id);const d={approved:{by:ME.id,at:Date.now(),name:LEADER()}};if(r.status==="new")Object.assign(d,{status:"approved",apName:myEmpName(),apAt:Date.now()});if(await write(()=>upsert("matreq",id,d),"اتعتمد ✔"))setTimeout(()=>mrView(id),300)}
+
+/* ---------- send document on WhatsApp + nearest printer ---------- */
+function pdfFile(blob,filename){try{return new File([blob],filename,{type:"application/pdf"})}catch(e){return null}}
+async function shareFile(file,title,text){if(!file||!navigator.canShare||!navigator.canShare({files:[file]}))return "unsupported";
+  try{await navigator.share({files:[file],title,text});return "ok"}catch(e){return e?.name==="AbortError"?"cancel":(e?.name==="NotAllowedError"?"gesture":"fail")}}
+function pvPanel(html){const el=$("pvWa");if(el)el.innerHTML=html?`<div class="pvnote ok" style="background:var(--surface);color:var(--ink);border-bottom:1px solid var(--line)">${html}</div>`:""}
+async function waShare({getPdf,filename,title}){
+  const msg=`${title}\n${S.settings.project||""}`.trim();
+  if(navigator.canShare){pvPanel("بيجهّز الملف…");let blob;try{blob=await getPdf()}catch(e){pvPanel("");toast("معرفتش أجهز الملف");return}
+    const file=pdfFile(blob,filename);let r=await shareFile(file,title,msg);
+    if(r==="gesture"){pvPanel(`الملف جاهز. <button class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" id="waNow">📲 ابعته دلوقتي</button>`);$("waNow").onclick=async()=>{const r2=await shareFile(file,title,msg);if(r2==="ok"||r2==="cancel")pvPanel("")};return}
+    if(r==="ok"||r==="cancel"){pvPanel("");return}}
+  // desktop / no file sharing: download the PDF then open WhatsApp with a ready message
+  pvPanel(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>ابعت لـ</b><input id="waTo" list="empListAll" placeholder="اسم الموظف أو رقم الموبايل" style="flex:1;min-width:200px" autocomplete="off"><button class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" id="waGo">📲 فتح واتساب</button><button class="btn ghost sm" id="waX">✕</button></div><div class="muted" style="font-size:12.5px;margin-top:6px">الملف هينزل على جهازك، وواتساب هيفتح برسالة جاهزة — اسحب الملف جوه المحادثة.</div>${empDatalist2()}`);
+  $("waX").onclick=()=>pvPanel("");
+  $("waGo").onclick=async()=>{const v=$("waTo").value.trim();const e=resolveEmp(v);const ph=e?.phone||(/^[\d+\s-]{8,}$/.test(v)?v:"");
+    const w=window.open("","_blank");try{const blob=await getPdf();const dl=await window.claude?.use?.("downloads");await dl.save({filename,data:blob})}catch(err){}
+    const url=`https://wa.me/${ph?waPhone(ph):""}?text=${encodeURIComponent(msg+"\n(مرفق ملف PDF)")}`;if(w)w.location=url;else window.open(url,"_blank");pvPanel("")}}
+
+/* printers */
+const PRN_T={wifi:"واي فاي / شبكة",eprint:"ليها إيميل (HP ePrint وغيره)",pc:"متوصلة بكمبيوتر",usb:"USB / بلوتوث"};
+const printers=()=>(S.office.find(x=>x.id==="printers")?.list)||[];
+function distM(a,b){const R=6371e3,r=x=>x*Math.PI/180;const dLat=r(b.lat-a.lat),dLng=r(b.lng-a.lng);const h=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const fmtDist=m=>m<1000?`${Math.round(m)} متر`:`${(m/1000).toFixed(1)} كم`;
+function myPos(prompt){return new Promise(async res=>{if(!navigator.geolocation)return res(null);
+  try{if(!prompt&&navigator.permissions){const s=await navigator.permissions.query({name:"geolocation"});if(s.state!=="granted")return res(null)}}catch(e){}
+  navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy}),()=>res(null),{enableHighAccuracy:true,timeout:8000,maximumAge:60000})})}
+function lastPrinter(){try{return localStorage.getItem("hse.printer")||""}catch(e){return ""}}
+function setLastPrinter(id){try{localStorage.setItem("hse.printer",id)}catch(e){}}
+function sortedPrinters(pos){const L=printers().map(p=>({...p,d:pos&&p.lat?distM(pos,p):null}));const last=lastPrinter();
+  return L.sort((a,b)=>(a.d??1e12)-(b.d??1e12)||(b.id===last)-(a.id===last))}
+async function printerHint(root,ctx){const L=printers();const el=root.querySelector("#pvPrn");if(!el||!L.length)return;
+  const draw=(pos)=>{const P=sortedPrinters(pos);const p=P[0];
+    el.innerHTML=`<div class="pvnote ok" style="background:var(--surface);color:var(--ink);border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>🖨 ${pos&&p.d!=null?"أقرب طابعة ليك":"الطابعة"}: <b>${esc(p.name)}</b>${p.place?` — ${esc(p.place)}`:""}${p.d!=null?` · <span class="muted">${fmtDist(p.d)}</span>`:""}</span><button class="btn sm primary" data-prsend="${p.id}">📤 ابعت للطابعة</button>${P.length>1?`<button class="btn ghost sm" data-prall>كل الطابعات (${P.length})</button>`:""}${!pos?`<button class="btn ghost sm" data-prloc>📍 حدّد الأقرب لمكاني</button>`:""}</div><div id="prAll" hidden style="background:var(--surface);border-bottom:1px solid var(--line);padding:4px 14px">${P.map(x=>`<div class="li"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc([x.place,PRN_T[x.type],x.d!=null&&fmtDist(x.d)].filter(Boolean).join(" · "))}</div></div><button class="btn sm" data-prsend="${x.id}">📤 ابعت</button></div>`).join("")}</div>`};
+  draw(await myPos(false));
+  el.onclick=async e=>{const b=e.target.closest("button");if(!b)return;
+    if(b.dataset.prall!==undefined){const a=el.querySelector("#prAll");a.hidden=!a.hidden;return}
+    if(b.dataset.prloc!==undefined){b.textContent="بيحدد مكانك…";const pos=await myPos(true);if(!pos){toast("مقدرتش أعرف مكانك — فعّل الموقع (GPS) للمتصفح");b.textContent="📍 حدّد الأقرب لمكاني";return}draw(pos);return}
+    if(b.dataset.prsend)sendToPrinter(printers().find(x=>x.id===b.dataset.prsend),ctx)}}
+async function sendToPrinter(p,{getPdf,filename,title}){if(!p)return;setLastPrinter(p.id);
+  const b=await getPdf().catch(()=>null);if(!b){toast("معرفتش أجهز الملف");return}const file=pdfFile(b,filename);
+  if(p.type==="eprint"&&p.email){const r=isMobile()?await shareFile(file,title,""):"unsupported";
+    if(r==="unsupported"||r==="fail"){const dl=await window.claude?.use?.("downloads");try{await dl.save({filename,data:b})}catch(e){}location.href=`mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent(title)}&body=${encodeURIComponent("الملف المرفق للطباعة: "+filename)}`;toast("الملف نزل — ضيفه مرفق في الإيميل وابعته")}
+    else if(r==="ok")toast(`اختار تطبيق الإيميل وابعته لـ ${p.email}`);return}
+  if(isMobile()){const r=await shareFile(file,title,"");if(r==="ok"||r==="cancel")return;
+    if(r==="gesture"){pvPanel(`الملف جاهز. <button class="btn sm primary" id="prNow">📤 ابعت لـ ${esc(p.name)}</button>`);$("prNow").onclick=async()=>{await shareFile(file,title,"");pvPanel("")};return}
+    const u=URL.createObjectURL(b);window.open(u,"_blank");toast("افتح الملف واختار «طباعة» من القايمة");return}
+  // desktop: open the system print dialog (network printers show up there)
+  document.querySelector("#pvRoot [data-print]")?.click();toast(`اختار «${p.name}» من قايمة الطابعات`)}
+function printersCardHTML(){const L=printers();
+  return `<div class="card" style="margin-top:14px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h3 class="grow" style="margin:0">🖨 طابعات الموقع</h3><button class="btn" onclick="printerForm()">+ طابعة</button></div>
+  <p class="muted" style="font-size:13px">سجّل كل طابعة ومكانها. من موبايلك وأنت جنب الطابعة دوس «📍 سجّل مكانها»، وبعد كده أي حد بيفتح نموذج المنظومة بتقوله أقرب طابعة ليه وتبعتله الملف عليها.</p>
+  ${L.length?`<div class="list">${L.map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">${esc([p.place,PRN_T[p.type],p.email,p.lat?"📍 مكانها متسجل":"⚠ مكانها مش متسجل"].filter(Boolean).join(" · "))}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="printerLocate('${p.id}')">📍 سجّل مكانها</button><button class="btn ghost sm" onclick="printerForm('${p.id}')">تعديل</button><button class="btn ghost sm danger" onclick="printerDel('${p.id}')">حذف</button></div></div>`).join("")}</div>`:emptyState("لسه مفيش طابعات","")}</div>`}
+async function savePrinters(list,msg){return write(()=>db.doc("office/printers").set({kind:"printers",list,updatedAt:Date.now()}),msg)}
+function printerForm(id){const p=id?printers().find(x=>x.id===id):{type:"wifi"};let pos=p.lat?{lat:p.lat,lng:p.lng,acc:p.acc}:null;
+  openSheet(id?"تعديل طابعة":"طابعة جديدة",`<div class="form">${f("اسم الطابعة","name",{value:p.name||"",req:true,attrs:'placeholder="مثلاً: HP مكتب السلامة"'})}${f("مكانها","place",{value:p.place||"",attrs:'placeholder="مثلاً: كرفان السلامة - البوابة 2"'})}
+    ${f("نوعها","type",{value:p.type,opts:Object.entries(PRN_T)})}${f("إيميل الطابعة (لو ليها)","email",{type:"email",value:p.email||"",attrs:'dir="ltr" placeholder="xxxx@hpeprint.com"'})}
+    ${f("ملاحظات","notes",{value:p.notes||"",full:true,attrs:'placeholder="مثلاً: اسمها على الواي فاي، أو الكمبيوتر المتوصلة بيه"'})}
+    <div class="full"><button type="button" class="btn sm" id="prLoc">📍 سجّل مكانها من موقعي دلوقتي</button> <span class="muted" id="prLocMsg" style="font-size:13px">${pos?`متسجل (دقة ${Math.round(pos.acc||0)} م)`:"اقف جنب الطابعة ودوس الزرار"}</span></div></div>`,async fd=>{
+    if(!fd.name.trim())return "اكتب اسم الطابعة";const L=printers().filter(x=>x.id!==id);
+    const item={id:id||("p"+Date.now().toString(36)),name:fd.name.trim(),place:(fd.place||"").trim(),type:fd.type,email:(fd.email||"").trim(),notes:(fd.notes||"").trim(),...(pos?{lat:pos.lat,lng:pos.lng,acc:pos.acc}:{})};
+    return (await savePrinters([...L,item],"اتحفظت الطابعة"))?null:"الحفظ فشل"});
+  $("prLoc").onclick=async()=>{$("prLocMsg").textContent="بيحدد مكانك…";const q=await myPos(true);if(!q){$("prLocMsg").textContent="مقدرتش — فعّل الموقع للمتصفح";return}pos=q;$("prLocMsg").textContent=`اتسجل ✔ (دقة ${Math.round(q.acc)} م)`}}
+async function printerLocate(id){const q=await myPos(true);if(!q){toast("مقدرتش أعرف مكانك — فعّل الموقع (GPS)");return}const L=printers().map(x=>x.id===id?{...x,lat:q.lat,lng:q.lng,acc:q.acc}:x);await savePrinters(L,`اتسجل مكان الطابعة ✔ (دقة ${Math.round(q.acc)} م)`)}
+function printerDel(id){const p=printers().find(x=>x.id===id);confirmSheet("حذف الطابعة",`«${p?.name||""}» هتتشال من القايمة.`,()=>savePrinters(printers().filter(x=>x.id!==id),"اتحذفت"),"احذف")}
+{const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.call(this);if(myAccess()?.role==="admin"&&$("setBody")&&!$("prnCard")){const d=document.createElement("div");d.id="prnCard";d.innerHTML=printersCardHTML();$("setBody").appendChild(d)}}}
+{const _of=VIEWS.office.fill;VIEWS.office.fill=function(){_of.call(this);if(tabLevel("office")!=="view"&&$("offBody")){const d=document.createElement("div");d.innerHTML=printersCardHTML();$("offBody").appendChild(d)}}}
 
 /* ---------- professional dashboard ---------- */
 function greet(){const h=new Date().getHours();return h<12?"صباح الخير":h<17?"نهارك سعيد":"مساء الخير"}
