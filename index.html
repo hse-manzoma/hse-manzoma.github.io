@@ -309,6 +309,7 @@ table.ed input,table.ed textarea{width:100%}
       </div>
       <nav class="tabs" role="tablist" id="tabs">
         <button role="tab" data-tab="dash">الرئيسية</button>
+        <button role="tab" data-tab="follow">متابعة الفريق</button>
         <button role="tab" data-tab="actions">المتابعة</button>
         <button role="tab" data-tab="ptw">تصاريح العمل</button>
         <button role="tab" data-tab="ppe">مخزن المهمات</button>
@@ -321,6 +322,8 @@ table.ed input,table.ed textarea{width:100%}
         <button role="tab" data-tab="report">التقرير الشهري</button>
         <button role="tab" data-tab="office">مكتب السلامة</button>
         <button role="tab" data-tab="forms">النماذج والسجلات</button>
+        <button role="tab" data-tab="chat">💬 الشات</button>
+        <button role="tab" data-tab="me">ملفي</button>
         <button role="tab" data-tab="settings">الإعدادات</button>
       </nav>
     </div>
@@ -889,8 +892,8 @@ function myMember(){return (S.members||[]).find(m=>m.id===ME.id)}
 function myProfile(){return (S.profiles||[]).find(p=>p.id===ME.id)||window.SBA?.profile||null}
 function myAccess(){const p=myProfile();if(!p||p.disabled)return null;if(p.role==="admin")return {role:"admin",tabs:allTabs("full"),scope:"all",empId:p.emp_id};
   let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{dash:"view"});return {role:p.role,tabs:tb,scope:p.scope||"all",empId:p.emp_id}}
-function allowedTabs(){const a=myAccess();if(!a)return null;const t=Object.keys(a.tabs).filter(x=>VIEWS[x]&&(x!=="settings"||a.role==="admin"));return t.length?t:["dash"]}
-function tabLevel(tb){const a=myAccess();if(!a)return "view";if(a.role==="admin")return "full";return a.tabs[tb]||"view"}
+function allowedTabsBase(){const a=myAccess();if(!a)return null;const t=Object.keys(a.tabs).filter(x=>VIEWS[x]&&(x!=="settings"||a.role==="admin"));return t.length?t:["dash"]}
+function tabLevelBase(tb){const a=myAccess();if(!a)return "view";if(a.role==="admin")return "full";return a.tabs[tb]||"view"}
 function profRows(){return (S.profiles||[]).slice().sort((x,y)=>(x.role==="admin"?0:1)-(y.role==="admin"?0:1)||String(x.username).localeCompare(String(y.username)))}
 async function usersCardHTML(){
   const rows=profRows();
@@ -1979,18 +1982,21 @@ function ptwForm(id){
     const V=openViewer(`معاينة ${p.number}`,{filename:`${p.number}.pdf`,note:"معاينة قبل الحفظ."});try{V.setPages(await renderForm(t,ptwValues(p)))}catch(e){console.error(e);V.fail()}});
 }
 
-/* ---------- permit request workflow: engineer → supervisor → safety ---------- */
-function ptwRole(){const a=myAccess();if(!a)return {};const r=a.role;const final=r==="admin"||r==="hse"||a.tabs?.ptw==="full";return {final,sup:final||r==="sup",role:r}}
-function flowSteps(p){const L=["طلب المهندس","اعتماد المشرف","اعتماد السلامة"];let cls;
-  if(p.status==="rejected"){const at=p.rejectedAt==="sup"?1:2;cls=L.map((_,j)=>j<at?"on":j===at?"no":"")}
-  else{const i={requested:1,supok:2}[p.status];const done=i===undefined?3:i;cls=L.map((_,j)=>j<done?"on":j===done?"cur":"")}
-  return `<div class="flowsteps">${L.map((l,j)=>`<span class="${cls[j]}">${cls[j]==="on"?"✔ ":cls[j]==="no"?"✕ ":""}${l}</span>`).join("")}</div>`}
+/* ---------- permit request workflow: engineer → (execution supervisor ∥ safety) → start work ---------- */
+const HSE_FINAL_ROLES=["admin","hse","hsesup","officer"];
+function ptwRole(){const a=myAccess();if(!a)return {};const r=a.role;const final=HSE_FINAL_ROLES.includes(r)||a.tabs?.ptw==="full";return {final,sup:r==="sup",role:r}}
+const isSupOk=p=>!!(p.supOk||p.status==="supok");
+const isReq=p=>p.status==="requested"||p.status==="supok";
+function flowSteps(p){const S1=[["req","طلب المهندس",true],["sup","مشرف التنفيذ",isSupOk(p)],["hse","مسؤول السلامة",!!p.hseOk||!isReq(p)&&p.status!=="rejected"],["go","بدء العمل",!isReq(p)&&p.status!=="rejected"]];
+  if(!isReq(p)&&p.status!=="rejected"){S1[1][2]=true}
+  return `<div class="flowsteps">${S1.map(([k,l,ok])=>{const no=p.status==="rejected"&&p.rejectedAt===k;return `<span class="${no?"no":ok?"on":isReq(p)&&k!=="go"?"cur":""}">${no?"✕ ":ok?"✔ ":""}${l}</span>`}).join("")}</div>`}
 function supProfiles(){return (S.profiles||[]).filter(p=>p.role==="sup"&&!p.disabled)}
-function hseProfiles(){return (S.profiles||[]).filter(p=>(p.role==="hse"||p.role==="admin")&&!p.disabled)}
+function hseProfiles(){return (S.profiles||[]).filter(p=>HSE_FINAL_ROLES.includes(p.role)&&!p.disabled)}
 function pendingForMe(){const R=ptwRole();const out={sup:[],final:[],mine:[]};
-  for(const p of S.permits){if(p.status==="requested"&&R.sup&&(R.final||!p.supUid||p.supUid===ME.id))out.sup.push(p);
-    if(p.status==="supok"&&R.final)out.final.push(p);
-    if(p.createdBy===ME.id&&["requested","supok","rejected"].includes(p.status))out.mine.push(p)}
+  for(const p of S.permits){const rq=isReq(p);
+    if(rq&&!isSupOk(p)&&(p.supUid===ME.id||(!p.supUid&&(R.sup||R.role==="admin"))))out.sup.push(p);
+    if(rq&&!p.hseOk&&R.final&&(p.hseUid===ME.id||!p.hseUid||R.role==="admin"&&!hseProfiles().some(x=>x.id===p.hseUid)))out.final.push(p);
+    if(p.createdBy===ME.id&&(rq||p.status==="rejected"))out.mine.push(p)}
   return out}
 const ptwDraft=p=>["requested","supok","rejected"].includes(p.status);
 function waLink(phone,msg){return `https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`}
@@ -2003,46 +2009,69 @@ function permitMsg(p,head){return `${head}
 
 افتح المنظومة: ${appUrl()}`}
 function notifySheet(title,people,msg){
-  openSheet(title,`<p style="margin-top:0">ابعت تنبيه على واتساب:</p><div class="list">${people.map(x=>`<div class="li"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s num">${esc(x.phone||"مفيش رقم")}</div></div><a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none" target="_blank" rel="noopener" href="${waLink(x.phone,msg)}">📲 واتساب</a></div>`).join("")||'<p class="muted">مفيش أرقام مسجلة.</p>'}</div>
-  <a class="btn" style="margin-top:10px;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">اختار من واتساب</a>`,async()=>null,"تم")}
+  openSheet(title,`<p style="margin-top:0">الإشعار وصلهم جوه المنظومة وعلى الموبايل. لو حابب تبعت كمان على واتساب:</p><div class="list">${people.map(x=>`<div class="li"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s num">${esc(x.phone||"مفيش رقم")}</div></div><a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none" target="_blank" rel="noopener" href="${waLink(x.phone,msg)}">📲 واتساب</a></div>`).join("")||'<p class="muted">مفيش أرقام مسجلة.</p>'}</div>`,async()=>null,"تم")}
+const profPeople=L=>L.map(s=>({name:profName(s),phone:emp(s.emp_id)?.phone}));
 function ptwRequestForm(id){
   const p=id?S.permits.find(x=>x.id===id):{type:"COLD",date:today(),startDate:today(),risk:"med"};
-  const sups=supProfiles();
-  openSheet(id?"تعديل طلب التصريح":"طلب تصريح عمل",`<p class="muted" style="margin-top:0;font-size:13px">الطلب بيروح للمشرف يعتمده، وبعدين لمسؤول السلامة يراجع الاشتراطات ويدي إذن بدء العمل برقم التصريح.</p><div class="form">
+  const sups=supProfiles(),hses=hseProfiles();
+  openSheet(id?"تعديل طلب التصريح":"طلب تصريح عمل",`<p class="muted" style="margin-top:0;font-size:13px">اختار مشرف التنفيذ ومسؤول السلامة. الطلب بيوصلهم هما الاتنين: المشرف يعتمد مكان العمل ويضيف العاملين، ومسؤول السلامة يراجع الاشتراطات. لما الاتنين يعتمدوا التصريح بياخد رقمه.</p><div class="form">
     ${f("نوع التصريح","type",{value:p.type,opts:Object.entries(PTW_TYPES).map(([k,v])=>[k,`${v.ar} · ${v.en}`])})}
     ${f("تاريخ بداية الشغل","startDate",{type:"date",value:p.startDate||p.date||today(),req:true})}
     ${f("من الساعة","from",{type:"time",value:p.from||""})}${f("لحد الساعة","to",{type:"time",value:p.to||""})}
+    ${f("مشرف التنفيذ","supUid",{value:p.supUid||"",opts:[["",sups.length?"— اختار —":"— مفيش مشرفين متسجلين —"],...sups.map(s=>[s.id,profName(s)])]})}
+    ${f("مسؤول السلامة","hseUid",{value:p.hseUid||"",opts:[["","— أي مسؤول سلامة —"],...hses.map(s=>[s.id,`${profName(s)} · ${ROLES_ALL()[s.role]?.ar||""}`])]})}
     ${f("مكان العمل","location",{value:p.location||"",full:true,req:true,attrs:'placeholder="مثلاً: عمارة 7 - الدور الأرضي"'})}
     ${f("وصف الشغل","desc",{type:"textarea",value:p.desc||"",full:true,req:true})}
     ${f("المقاول / الشركة","contractor",{value:p.contractor||"",attrs:'list="ctrList" autocomplete="off"'})}<datalist id="ctrList">${S.contractors.filter(c=>c.active!==false).map(c=>`<option value="${esc(c.name)}">`).join("")}</datalist>
-    ${f("عدد العمال","workers",{type:"number",value:p.workers||"",attrs:'min="0" inputmode="numeric"'})}
-    ${f("المشرف اللي هيعتمد","supUid",{value:p.supUid||"",opts:[["","— أي مشرف —"],...sups.map(s=>[s.id,profName(s)])]})}
-    ${f("مشرف التنفيذ / المقاول (على النموذج)","supervisor",{value:p.supervisor||"",attrs:'list="ptwAuthList"'})}<datalist id="ptwAuthList">${S.employees.filter(e=>e.ptwAuth).map(e=>`<option value="${esc(e.name)}">`).join("")}</datalist>
+    ${f("عدد العمال (تقريبي)","workers",{type:"number",value:p.workers||"",attrs:'min="0" inputmode="numeric"'})}
     ${f("درجة الخطورة","risk",{value:p.risk||"med",opts:Object.entries(RISK)})}
     <div class="full form" id="excBox" ${p.type==="EXC"?"":"hidden"}>${f("عرض الحفر (م)","excW",{value:p.excW||""})}${f("طول الحفر (م)","excL",{value:p.excL||""})}${f("عمق الحفر (م)","excD",{value:p.excD||""})}</div>
-    ${f("ملاحظات للمشرف والسلامة","notes",{type:"textarea",value:p.notes||"",full:true})}</div>`,
+    ${f("ملاحظات","notes",{type:"textarea",value:p.notes||"",full:true})}</div>`,
   async fd=>{
     if(!fd.location?.trim())return "اكتب مكان العمل";if(!fd.desc?.trim())return "اكتب وصف الشغل";
-    const me=myEmpName();const data={type:fd.type,date:fd.startDate,startDate:fd.startDate,endDate:"",from:fd.from,to:fd.to,location:fd.location.trim(),desc:fd.desc.trim(),contractor:(fd.contractor||"").trim(),workers:num(fd.workers)||null,supUid:fd.supUid||"",supervisor:(fd.supervisor||"").trim(),risk:fd.risk,notes:(fd.notes||"").trim(),excW:fd.excW||"",excL:fd.excL||"",excD:fd.excD||"",updatedAt:Date.now()};
-    if(id){const ok=await write(()=>upsert("permits",id,{...data,status:"requested",flow:[...(p.flow||[]),{st:"edited",by:ME.id,name:me,at:Date.now()}]}),"اتعدل الطلب");return ok?null:"الحفظ فشل"}
+    const me=myEmpName();const data={type:fd.type,date:fd.startDate,startDate:fd.startDate,endDate:"",from:fd.from,to:fd.to,location:fd.location.trim(),desc:fd.desc.trim(),contractor:(fd.contractor||"").trim(),workers:num(fd.workers)||null,supUid:fd.supUid||"",hseUid:fd.hseUid||"",risk:fd.risk,notes:(fd.notes||"").trim(),excW:fd.excW||"",excL:fd.excL||"",excD:fd.excD||"",updatedAt:Date.now()};
+    const targets=[...(data.supUid?[data.supUid]:supProfiles().map(x=>x.id)),...(data.hseUid?[data.hseUid]:hseProfiles().map(x=>x.id))];
+    if(id){const ok=await write(()=>upsert("permits",id,{...data,status:"requested",supOk:false,hseOk:false,rejectedAt:"",rejectNote:"",flow:[...(p.flow||[]),{st:"edited",by:ME.id,name:me,at:Date.now()}]}),"اتعدل الطلب واتبعت تاني");
+      if(ok)notifyUsers(targets,"🟠 طلب تصريح اتعدل",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · من ${me}`,`?go=ptw&id=${id}`);return ok?null:"الحفظ فشل"}
     const rid="REQ-"+Date.now().toString(36).toUpperCase();
-    Object.assign(data,{status:"requested",number:"طلب "+rid.slice(4),requester:me,siteEng:me,reqEmpId:myEmpId()||"",reqBy:ME.id,createdBy:ME.id,createdAt:Date.now(),flow:[{st:"requested",by:ME.id,name:me,at:Date.now()}]});
-    const ok=await write(()=>db.collection("permits").doc(rid).set(data),"اتبعت الطلب للمشرف");
-    if(ok){const sp=data.supUid?[(S.profiles||[]).find(x=>x.id===data.supUid)].filter(Boolean):supProfiles();
-      setTimeout(()=>notifySheet("بلّغ المشرف",sp.map(s=>({name:profName(s),phone:emp(s.emp_id)?.phone})),permitMsg(data,`🟠 طلب تصريح جديد محتاج اعتمادك`)),400)}
-    return ok?null:"الحفظ فشل"},id?"حفظ":"إرسال الطلب");
+    Object.assign(data,{status:"requested",supOk:false,hseOk:false,number:"طلب "+rid.slice(4),requester:me,siteEng:me,reqEmpId:myEmpId()||"",reqBy:ME.id,createdBy:ME.id,createdAt:Date.now(),flow:[{st:"requested",by:ME.id,name:me,at:Date.now()}]});
+    const ok=await write(()=>db.collection("permits").doc(rid).set(data),"اتبعت الطلب لمشرف التنفيذ ومسؤول السلامة");
+    if(ok){notifyUsers(targets,"🟠 طلب تصريح جديد محتاج اعتمادك",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · من ${me}`,`?go=ptw&id=${rid}`);
+      const people=(S.profiles||[]).filter(x=>targets.includes(x.id));setTimeout(()=>notifySheet("اتبعت الطلب ✔",profPeople(people),permitMsg(data,"🟠 طلب تصريح جديد محتاج اعتمادك")),400)}
+    return ok?null:"الحفظ فشل"},id?"حفظ وإعادة إرسال":"إرسال الطلب");
   $("f_type").onchange=e=>{$("excBox").hidden=e.target.value!=="EXC"};
 }
+async function activateIfReady(id,patch,okMsg){const p=S.permits.find(x=>x.id===id);if(!p)return false;const m={...p,...patch};const me=myEmpName();
+  if(isSupOk(m)&&m.hseOk){const t=m.type,serial=nextSerial(t);Object.assign(patch,{status:"approved",serial,number:`${t}-${serial}`,approvedAt:Date.now(),approvedBy:ME.id,flow:[...(m.flow||[]),{st:"approved",by:ME.id,name:me,at:Date.now()}]});
+    const ok=await write(()=>upsert("permits",id,patch),`اتعتمد التصريح ${t}-${serial} ✔ ابدأ الشغل`);
+    if(ok){notifyUsers([p.reqBy,p.supUid,p.hseUid],`✅ التصريح ${t}-${serial} اتعتمد`,`${PTW_TYPES[t]?.ar||""} — ${m.location} · ابدأ الشغل`,`?go=ptw&id=${id}`);setTimeout(()=>printPermit(id),400)}return ok}
+  patch.status="requested";const ok=await write(()=>upsert("permits",id,patch),okMsg);
+  if(ok){const other=patch.supOk?(p.hseUid?[p.hseUid]:hseProfiles().map(x=>x.id)):(p.supUid?[p.supUid]:supProfiles().map(x=>x.id));
+    notifyUsers([p.reqBy],`${patch.supOk?"مشرف التنفيذ":"مسؤول السلامة"} اعتمد طلبك`,`${PTW_TYPES[p.type]?.ar||""} — ${m.location} · مستني ${patch.supOk?"مسؤول السلامة":"مشرف التنفيذ"}`,`?go=ptw&id=${id}`);
+    notifyUsers(other,"⏳ طلب تصريح مستنيك",`${PTW_TYPES[p.type]?.ar||""} — ${m.location} · ${me} اعتمده`,`?go=ptw&id=${id}`)}
+  return ok}
 function ptwSupDecide(id,ok){const p=S.permits.find(x=>x.id===id);if(!p)return;const me=myEmpName();
-  if(ok){openSheet("اعتماد طلب التصريح",`<p style="margin-top:0"><b>${esc(PTW_TYPES[p.type]?.ar||"")}</b> — ${esc(p.location||"")}<br><span class="muted">${esc(p.desc||"")}</span></p><div class="form">${f("مشرف التنفيذ (على النموذج)","supervisor",{value:p.supervisor||me,full:true})}${f("ملاحظة للسلامة","note",{full:true})}</div>`,async fd=>{
-      const d={status:"supok",supervisor:(fd.supervisor||me).trim(),supName:me,supAt:Date.now(),supUidDone:ME.id,flow:[...(p.flow||[]),{st:"supok",by:ME.id,name:me,at:Date.now(),note:(fd.note||"").trim()}]};
-      const done=await write(()=>upsert("permits",id,d),"اتعتمد واتبعت للسلامة");
-      if(done)setTimeout(()=>notifySheet("بلّغ مسؤول السلامة",hseProfiles().map(s=>({name:profName(s),phone:emp(s.emp_id)?.phone})),permitMsg({...p,...d},"🔵 طلب تصريح اعتمده المشرف ومستني مراجعة السلامة")),400);
-      return done?null:"الحفظ فشل"},"اعتماد")}
-  else ptwReject(id,"sup")}
+  if(!ok){ptwReject(id,"sup");return}
+  const cid=S.contractors.find(c=>normName(c.name)===normName(p.contractor||""))?.id;
+  const pool=S.employees.filter(e=>e.active!==false&&e.group!=="hse"&&(!cid||e.contractorId===cid)).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+  const chosen=new Set((p.crew||[]).map(c=>c.id));
+  openSheet("اعتماد مكان العمل والعاملين",`<p style="margin-top:0">${typeChip(p.type)} — طالب التصريح: <b>${esc(p.requester||"")}</b></p><div class="form">
+    ${f("مكان العمل بالظبط","location",{value:p.location||"",full:true,req:true})}
+    ${f("طبيعة العمل","desc",{type:"textarea",value:p.desc||"",full:true,req:true})}
+    ${f("مشرف التنفيذ (على النموذج)","supervisor",{value:p.supervisor||me,full:true})}
+    <div class="field full"><label>العاملين في التصريح ${cid?`(عمالة ${esc(p.contractor)})`:""}</label><input type="search" id="crQ" placeholder="ابحث بالاسم أو الكود" autocomplete="off"><div id="crList" style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:2px 10px;margin-top:6px">${pool.map(e=>`<label class="chk" data-n="${esc(normName(e.name+" "+(e.code||"")))}"><input type="checkbox" name="crew" value="${e.id}" ${chosen.has(e.id)?"checked":""}> ${esc(e.name)} <span class="muted" style="font-size:12px">${esc([e.code,e.job].filter(Boolean).join(" · "))}</span></label>`).join("")||'<p class="muted">مفيش عمال متسجلين للمقاول ده.</p>'}</div><small class="muted" id="crN"></small></div>
+    ${f("عمال تانيين مش متسجلين (اسم في كل سطر)","extra",{type:"textarea",value:(p.crew||[]).filter(c=>!c.id).map(c=>c.name).join("\n"),full:true})}
+    ${f("ملاحظة لمسؤول السلامة","note",{full:true})}</div>`,async(fd,form)=>{
+      const ids=[...form.querySelectorAll("[name=crew]:checked")].map(i=>i.value);const crew=[...ids.map(i=>{const e=emp(i);return {id:i,name:e?.name||"",job:e?.job||""}}),...(fd.extra||"").split(/\n/).map(x=>x.trim()).filter(Boolean).map(n=>({id:"",name:n,job:""}))];
+      if(!crew.length)return "اختار العاملين في التصريح";
+      const patch={supOk:true,supName:me,supAt:Date.now(),supUidDone:ME.id,supervisor:(fd.supervisor||me).trim(),location:fd.location.trim(),desc:fd.desc.trim(),crew,workers:crew.length,flow:[...(p.flow||[]),{st:"supok",by:ME.id,name:me,at:Date.now(),note:(fd.note||"").trim()}]};
+      return (await activateIfReady(id,patch,"اتعتمد مكان العمل ✔ مستني مسؤول السلامة"))?null:"الحفظ فشل"},"اعتماد");
+  const upd=()=>{$("crN").textContent=`${document.querySelectorAll("#crList [name=crew]:checked").length} عامل متحدد`};upd();
+  $("crList").addEventListener("change",upd);$("crQ").oninput=e=>{const q=normName(e.target.value);document.querySelectorAll("#crList [data-n]").forEach(l=>l.hidden=q&&!l.dataset.n.includes(q))}}
 function ptwReject(id,at){const p=S.permits.find(x=>x.id===id);const me=myEmpName();
   openSheet("رفض الطلب",`<div class="form">${f("سبب الرفض","note",{type:"textarea",full:true,req:true})}</div>`,async fd=>{if(!fd.note.trim())return "اكتب السبب";
-    return (await write(()=>upsert("permits",id,{status:"rejected",rejectedAt:at,rejectNote:fd.note.trim(),flow:[...(p.flow||[]),{st:"rejected",by:ME.id,name:me,at:Date.now(),note:fd.note.trim()}]}),"اترفض الطلب"))?null:"الحفظ فشل"},"رفض")}
+    const ok=await write(()=>upsert("permits",id,{status:"rejected",rejectedAt:at,rejectNote:fd.note.trim(),flow:[...(p.flow||[]),{st:"rejected",by:ME.id,name:me,at:Date.now(),note:fd.note.trim()}]}),"اترفض الطلب");
+    if(ok)notifyUsers([p.reqBy],"❌ طلب التصريح اترفض",`${me}: ${fd.note.trim()}`,`?go=ptw&id=${id}`);return ok?null:"الحفظ فشل"},"رفض")}
 const PRECAUTIONS={common:["اتشرحت مخاطر الشغل للعمال (TBT)","مهمات الوقاية الشخصية موجودة ومستخدمة","المنطقة متأمنة بحواجز وعلامات تحذيرية","طفاية حريق مناسبة جنب الشغل","العمال متدربين على الشغل ده"],
   HOT:["إزالة المواد القابلة للاشتعال لمسافة 11 متر","مراقب حريق (Fire watch) طول الشغل وبعده بنص ساعة","فحص ماكينة اللحام والكابلات والوصلات","ستارة / بطانية حريق"],
   HEIGHT:["السقالة معتمدة وعليها كارت أخضر","حزام أمان كامل ونقطة تثبيت آمنة","تأمين الحواف والفتحات","منطقة تحت الشغل متأمنة من سقوط الأجسام"],
@@ -2052,24 +2081,22 @@ const PRECAUTIONS={common:["اتشرحت مخاطر الشغل للعمال (TBT
   ELEC:["فصل وعزل مصدر الطاقة (LOTO)","أدوات وعدد معزولة","فني كهرباء مختص"],COLD:[]};
 function ptwFinalForm(id){
   const p=S.permits.find(x=>x.id===id);if(!p)return;const me=myEmpId();const hs=hseTeam();
-  const L=[...PRECAUTIONS.common,...(PRECAUTIONS[p.type]||[])];const t=p.type;
-  openSheet("مراجعة السلامة وبدء العمل",`<div class="card" style="margin-bottom:12px;padding:12px"><div class="t" style="font-weight:600">${typeChip(t)} · ${esc(p.location||"")}</div><div class="muted" style="font-size:13px;margin-top:4px">${esc(p.desc||"")}</div>
-      <div style="font-size:13px;margin-top:6px">طالب التصريح: <b>${esc(p.requester||"")}</b> · المشرف: <b>${esc(p.supName||p.supervisor||"")}</b>${p.contractor?` · المقاول: ${esc(p.contractor)}`:""}${p.workers?` · ${p.workers} عامل`:""}</div>${p.notes?`<div class="muted" style="font-size:12.5px;margin-top:4px">ملاحظات: ${esc(p.notes)}</div>`:""}</div>
+  const L=[...PRECAUTIONS.common,...(PRECAUTIONS[p.type]||[])];const t=p.type;const sOk=isSupOk(p);
+  openSheet("مراجعة السلامة واعتماد التصريح",`<div class="card" style="margin-bottom:12px;padding:12px"><div class="t" style="font-weight:600">${typeChip(t)} · ${esc(p.location||"")}</div><div class="muted" style="font-size:13px;margin-top:4px">${esc(p.desc||"")}</div>
+      <div style="font-size:13px;margin-top:6px">طالب التصريح: <b>${esc(p.requester||"")}</b>${p.contractor?` · المقاول: ${esc(p.contractor)}`:""} · مشرف التنفيذ: <b>${esc(p.supName||profName((S.profiles||[]).find(x=>x.id===p.supUid))||"—")}</b> ${sOk?'<span class="pill p-appr">✔ اعتمد</span>':'<span class="pill p-susp">لسه</span>'}</div>
+      ${(p.crew||[]).length?`<div style="font-size:12.5px;margin-top:6px">👷 العاملين (${p.crew.length}): ${p.crew.map(c=>esc(c.name)).join("، ")}</div>`:""}${p.notes?`<div class="muted" style="font-size:12.5px;margin-top:4px">ملاحظات: ${esc(p.notes)}</div>`:""}</div>
     <div class="form">
-    <div class="field"><label>رقم التصريح</label><div class="serial">${t}-${nextSerial(t)}</div></div>
+    <div class="field"><label>رقم التصريح</label><div class="serial">${sOk?`${t}-${nextSerial(t)}`:"بعد اعتماد المشرف"}</div></div>
     ${f("مسؤول السلامة","safetyId",{value:p.safetyId||(hs.some(e=>e.id===me)?me:""),opts:empOpts(hs,"— من فريق السلامة —"),req:true})}
     ${f("تاريخ البداية","startDate",{type:"date",value:p.startDate||p.date||today()})}${f("تاريخ النهاية","endDate",{type:"date",value:p.endDate||ptwEnd({...p,date:p.startDate||p.date})})}
     ${f("من الساعة","from",{type:"time",value:p.from||""})}${f("لحد الساعة","to",{type:"time",value:p.to||""})}
     ${t==="CONF"||t==="HOT"?f("قراءة الغازات (O2 / LEL / H2S / CO)","gas",{value:p.gas||"",full:true,attrs:'placeholder="مثلاً: O2 20.9% · LEL 0% · H2S 0 · CO 0"'}):""}
-    <div class="field full"><label>الاشتراطات اللي اتراجعت في الموقع</label><div>${L.map((x,i)=>`<label class="chk"><input type="checkbox" name="pc" value="${esc(x)}" ${(p.precautions||[]).includes(x)?"checked":""}> ${esc(x)}</label>`).join("")}</div><button type="button" class="btn sm" style="margin-top:6px" onclick="document.querySelectorAll('#shForm [name=pc]').forEach(i=>i.checked=true)">علّم الكل</button></div>
+    <div class="field full"><label>اتأكدت من سلامة بيئة العمل والعامل</label><div>${L.map(x=>`<label class="chk"><input type="checkbox" name="pc" value="${esc(x)}" ${(p.precautions||[]).includes(x)?"checked":""}> ${esc(x)}</label>`).join("")}</div><button type="button" class="btn sm" style="margin-top:6px" onclick="document.querySelectorAll('#shForm [name=pc]').forEach(i=>i.checked=true)">علّم الكل</button></div>
     ${f("اشتراطات إضافية / ملاحظات","notes",{type:"textarea",value:p.notes||"",full:true})}</div>`,
   async(fd,form)=>{
-    if(!fd.safetyId)return "اختار مسؤول السلامة";const pc=[...form.querySelectorAll("[name=pc]:checked")].map(i=>i.value);
-    const serial=nextSerial(t);const meN=myEmpName();
-    const d={status:"approved",serial,number:`${t}-${serial}`,date:fd.startDate||p.date,startDate:fd.startDate,endDate:fd.endDate||"",from:fd.from,to:fd.to,safetyId:fd.safetyId,gas:(fd.gas||"").trim(),precautions:pc,notes:(fd.notes||"").trim(),approvedAt:Date.now(),approvedBy:ME.id,flow:[...(p.flow||[]),{st:"approved",by:ME.id,name:meN,at:Date.now()}]};
-    const ok=await write(()=>upsert("permits",id,d),`اتعتمد التصريح ${t}-${serial} ✔ ابدأ الشغل`);
-    if(ok){setTimeout(()=>printPermit(id),400);const rq=(S.profiles||[]).find(x=>x.id===p.reqBy);if(rq){const ph=emp(rq.emp_id)?.phone;if(ph)setTimeout(()=>toast("تقدر تبلّغ المهندس من زرار واتساب في التصريح"),2600)}}
-    return ok?null:"الحفظ فشل"},"اعتماد وبدء العمل");
+    if(!fd.safetyId)return "اختار مسؤول السلامة";const pc=[...form.querySelectorAll("[name=pc]:checked")].map(i=>i.value);const meN=myEmpName();
+    const patch={hseOk:true,hseName:meN,hseAt:Date.now(),hseUidDone:ME.id,date:fd.startDate||p.date,startDate:fd.startDate,endDate:fd.endDate||"",from:fd.from,to:fd.to,safetyId:fd.safetyId,gas:(fd.gas||"").trim(),precautions:pc,notes:(fd.notes||"").trim(),flow:[...(p.flow||[]),{st:"hseok",by:ME.id,name:meN,at:Date.now()}]};
+    return (await activateIfReady(id,patch,"اتعتمد من السلامة ✔ مستني مشرف التنفيذ"))?null:"الحفظ فشل"},sOk?"اعتماد وبدء العمل":"اعتماد السلامة");
   addPreviewBtn(async()=>{const fd=Object.fromEntries(new FormData($("shForm")).entries());const serial=nextSerial(t);const q={...p,...fd,serial,number:`${t}-${serial}`};if(!FORM_TYPES.includes(t)){toast("النوع ده مالوش نموذج طباعة");return}
     const V=openViewer(`معاينة ${q.number}`,{filename:`${q.number}.pdf`,note:"معاينة قبل الاعتماد."});try{V.setPages(await renderForm(t,ptwValues(q)))}catch(e){V.fail()}});
 }
@@ -2091,15 +2118,15 @@ VIEWS.ptw={
   fill(){
     const R=ptwRole();const P=pendingForMe();
     const blocks=[];
-    if(P.sup.length)blocks.push(`<div class="inbox"><h3 style="margin:0 0 4px">🟠 طلبات مستنية اعتمادك كمشرف (${P.sup.length})</h3><div class="list">${P.sup.map(p=>flowCard(p,`<button class="btn sm ok" onclick="ptwSupDecide('${p.id}',true)">اعتماد</button><button class="btn ghost sm danger" onclick="ptwSupDecide('${p.id}',false)">رفض</button>`)).join("")}</div></div>`);
-    if(P.final.length)blocks.push(`<div class="inbox" style="border-inline-start-color:var(--info)"><h3 style="margin:0 0 4px">🔵 طلبات اعتمدها المشرف ومستنية السلامة (${P.final.length})</h3><div class="list">${P.final.map(p=>flowCard(p,`<button class="btn sm primary" onclick="ptwFinalForm('${p.id}')">مراجعة وبدء العمل</button><button class="btn ghost sm danger" onclick="ptwReject('${p.id}','hse')">رفض</button>`)).join("")}</div></div>`);
+    if(P.sup.length)blocks.push(`<div class="inbox"><h3 style="margin:0 0 4px">🟠 مستني اعتمادك كمشرف تنفيذ: مكان العمل والعاملين (${P.sup.length})</h3><div class="list">${P.sup.map(p=>flowCard(p,`<button class="btn sm ok" onclick="ptwSupDecide('${p.id}',true)">اعتماد المكان والعاملين</button><button class="btn ghost sm danger" onclick="ptwSupDecide('${p.id}',false)">رفض</button>`)).join("")}</div></div>`);
+    if(P.final.length)blocks.push(`<div class="inbox" style="border-inline-start-color:var(--info)"><h3 style="margin:0 0 4px">🔵 مستني اعتمادك كمسؤول سلامة (${P.final.length})</h3><div class="list">${P.final.map(p=>flowCard(p,`<button class="btn sm primary" onclick="ptwFinalForm('${p.id}')">مراجعة واعتماد</button><button class="btn ghost sm danger" onclick="ptwReject('${p.id}','hse')">رفض</button>`)).join("")}</div></div>`);
     const mine=P.mine.filter(p=>!P.sup.includes(p)&&!P.final.includes(p));
     if(mine.length)blocks.push(`<div class="card" style="margin-bottom:14px"><h3 style="margin:0 0 4px">طلباتي</h3><div class="list">${mine.map(p=>flowCard(p,p.status==="rejected"||p.status==="requested"?`<button class="btn ghost sm" onclick="ptwRequestForm('${p.id}')">${p.status==="rejected"?"تعديل وإعادة إرسال":"تعديل"}</button>`:"")).join("")}</div></div>`);
     $("ptwFlow").innerHTML=blocks.join("");
     $("ptwNext").innerHTML=R.final?Object.keys(PTW_TYPES).slice(0,5).map(t=>`<span class="chipbtn" style="cursor:default">${PTW_TYPES[t].ar}: الرقم الجاي <span class="num">${t}-${nextSerial(t)}</span></span>`).join(""):"";
     const q=ui.ptwQ.trim().toLowerCase();
     const EXP=expiredPermits();$("ptwExp").innerHTML=EXP.length&&R.final?`<div class="banner" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="grow">فيه ${EXP.length} تصريح عدّى تاريخ نهايته ولسه حالته مفتوح/معتمد.</span><button class="btn sm primary" onclick="closeExpired()">اقفلهم كلهم «مغلق»</button></div>`:"";
-    let L=S.permits.filter(p=>(!ownScope()||p.safetyId===myEmpId()||p.createdBy===ME.id||p.supUid===ME.id)&&(!ui.ptwType||p.type===ui.ptwType)&&(!ui.ptwStatus||p.status===ui.ptwStatus)&&(!ui.ptwMonth||(p.date||"").startsWith(ui.ptwMonth)));
+    let L=S.permits.filter(p=>(!ownScope()||p.safetyId===myEmpId()||p.createdBy===ME.id||p.supUid===ME.id||p.hseUid===ME.id)&&(!ui.ptwType||p.type===ui.ptwType)&&(!ui.ptwStatus||p.status===ui.ptwStatus)&&(!ui.ptwMonth||(p.date||"").startsWith(ui.ptwMonth)));
     if(q)L=L.filter(p=>[p.number,p.location,p.contractor,p.desc,p.requester,p.supervisor,empName(p.safetyId)].join(" ").toLowerCase().includes(q));
     L.sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.serial)-num(a.serial));
     const el=$("ptwList");
@@ -2729,13 +2756,13 @@ const NAV_IC={dash:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 
   forms:'<path d="M9 4h6v3H9z"/><path d="M15 5h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3M9 12h6M9 16h6"/>',ppe:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',matreq:'<path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>',
   report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',office:'<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',kpi:'<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',team:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
   manpower:'<circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>',contractors:'<path d="M2 20h20M4 20V9l5-3v14M9 20V4l11 5v11"/>',equip:'<path d="M12 2c3 3 5 6 5 9a5 5 0 0 1-10 0c0-3 2-6 5-9z"/><path d="M12 18v4"/>',settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
-  more:'<path d="M4 6h16M4 12h16M4 18h16"/>'};
-const NAV_SHORT={dash:"الرئيسية",ptw:"التصاريح",actions:"المتابعة",forms:"النماذج",ppe:"المخزن",matreq:"الطلبات",report:"التقرير",office:"المكتب",kpi:"KPIs",team:"التيم",manpower:"العمالة",contractors:"المقاولين",equip:"المعدات",settings:"الإعدادات"};
+  more:'<path d="M4 6h16M4 12h16M4 18h16"/>',chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',me:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',follow:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/>'};
+const NAV_SHORT={dash:"الرئيسية",ptw:"التصاريح",actions:"المتابعة",forms:"النماذج",ppe:"المخزن",matreq:"الطلبات",report:"التقرير",office:"المكتب",kpi:"KPIs",team:"التيم",manpower:"العمالة",contractors:"المقاولين",equip:"المعدات",settings:"الإعدادات",chat:"الشات",me:"ملفي",follow:"الفريق"};
 const ic=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_IC[k]||NAV_IC.more}</svg>`;
-function navBadges(){const P=pendingForMe();const b={ptw:P.sup.length+P.final.length,matreq:mrCanApprove()?S.matreq.filter(r=>r.status==="new").length:0};return b}
+function navBadges(){const P=pendingForMe();const b={ptw:P.sup.length+P.final.length,matreq:mrCanApprove()?S.matreq.filter(r=>r.status==="new").length:0,chat:window._chatUnread||0};return b}
 function mobileNav(){let nav=$("bnav");if(!nav){nav=document.createElement("nav");nav.id="bnav";nav.setAttribute("aria-label","الأقسام");document.body.appendChild(nav);
     nav.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.more!==undefined)moreSheet();else show(b.dataset.tab)})}
-  const al=allowedTabs()||["dash"];const pri=["dash","ptw","actions","matreq","forms","ppe","report","office","team"].filter(t=>al.includes(t)).slice(0,4);const B=navBadges();
+  const al=allowedTabs()||["dash"];const pri=["dash","ptw","chat","follow","actions","matreq","forms","ppe","report","office","me"].filter(t=>al.includes(t)).slice(0,4);const B=navBadges();
   nav.innerHTML=pri.map(t=>`<button data-tab="${t}" aria-current="${t===tab}"><span class="ic">${ic(t)}</span><span>${NAV_SHORT[t]||TAB_NAMES[t]}</span>${B[t]?`<span class="badge">${B[t]}</span>`:""}</button>`).join("")+`<button data-more aria-current="${!pri.includes(tab)}"><span class="ic">${ic("more")}</span><span>المزيد</span></button>`}
 function moreSheet(){const al=allowedTabs()||["dash"];
   openSheet("كل الأقسام",`<div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">${al.map(t=>`<button type="button" class="card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;font:600 13px var(--f-body);color:${t===tab?"var(--accent)":"inherit"};cursor:pointer" onclick="$('overlayRoot').innerHTML='';show('${t}')"><span style="width:26px;height:26px;display:block">${ic(t)}</span>${TAB_NAMES[t]}</button>`).join("")}</div>
@@ -2802,6 +2829,213 @@ async function remindCardHTML(){const st=await pushState();let dis=false;try{dis
 {const _df=VIEWS.dash.fill;VIEWS.dash.fill=function(){_df.call(this);remindCardHTML().then(h=>{const el=$("dRem");if(el&&h&&!document.getElementById("pushAsk")){el.insertAdjacentHTML("afterbegin",`<div id="pushAsk">${h}</div>`)}});
   mySig().then(sg=>{const el=$("dRem");if(el&&!sg&&!$("sigAsk")&&ME.id)el.insertAdjacentHTML("afterbegin",`<div class="banner" id="sigAsk" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="grow">✍ ضيف توقيعك عشان تقدر تعتمد التصاريح والنماذج اللي اسمك عليها.</span><button class="btn sm" onclick="sigEditor()">إضافة توقيعي</button></div>`)})}}
 
+
+/* ---------- safety team roles, review flow, notifications inbox, routing ---------- */
+TAB_NAMES.follow="متابعة الفريق";TAB_NAMES.chat="الشات";TAB_NAMES.me="ملفي";
+const VIEW_ALL={manpower:"view",contractors:"view"};
+const HSE_FULL={dash:"view",actions:"full",ptw:"edit",ppe:"edit",matreq:"full",manpower:"view",contractors:"view",equip:"edit",forms:"edit",kpi:"edit",report:"edit",office:"edit",team:"view"};
+Object.assign(BUILTIN_ROLES,{
+  hsesup:{ar:"مشرف سلامة",tabs:{...HSE_FULL}},
+  hse:{ar:"أخصائي سلامة",tabs:{...HSE_FULL}},
+  officer:{ar:"أوفيسر سلامة",tabs:{dash:"view",actions:"edit",ptw:"edit",forms:"edit",equip:"edit",matreq:"edit",kpi:"view",...VIEW_ALL}},
+  monitor:{ar:"مراقب سلامة",tabs:{dash:"view",forms:"edit",equip:"edit",matreq:"edit",...VIEW_ALL}},
+  eng:{ar:"مهندس تنفيذ (طالب تصريح)",tabs:{dash:"view",ptw:"edit",forms:"view",actions:"view",matreq:"edit",...VIEW_ALL}},
+  sup:{ar:"مشرف تنفيذ (يعتمد مكان العمل)",tabs:{dash:"view",ptw:"edit",forms:"view",actions:"edit",matreq:"edit",...VIEW_ALL}},
+  store:{ar:"أمين مخزن المهمات",tabs:{dash:"view",ppe:"edit",matreq:"edit",...VIEW_ALL}},
+  mgmt:{ar:"إدارة (مشاهدة التقارير)",tabs:{dash:"view",report:"view",kpi:"view",actions:"view",office:"view",...VIEW_ALL}}
+});
+const REVIEWERS=["admin","hse","hsesup"];const AUTHORS_NEED_REVIEW=["officer","monitor"];
+const LECT_ROLES=["hse","hsesup","officer"];
+const myRole=()=>myAccess()?.role||"";
+const profOf=uid=>(S.profiles||[]).find(p=>p.id===uid);
+function allowedTabs(){const b=allowedTabsBase();if(!b)return b;const out=[...b];for(const t of ["me","chat"])if(VIEWS[t]&&!out.includes(t))out.push(t);if(myRole()==="admin"||myRole()==="hsesup"){if(VIEWS.follow&&!out.includes("follow"))out.splice(1,0,"follow")}
+  for(const t of ["manpower","contractors"])if(VIEWS[t]&&!out.includes(t))out.push(t);return out}
+function tabLevel(tb){if(tb==="me"||tb==="chat")return "edit";if(tb==="follow")return myRole()==="admin"||myRole()==="hsesup"?"full":"view";const a=myAccess();if(a&&a.role!=="admin"&&(tb==="manpower"||tb==="contractors")&&!a.tabs[tb])return "view";return tabLevelBase(tb)}
+/* engineers & execution supervisors see only violations + unsafe acts/conditions among forms */
+const RESTRICT_FORMS={eng:["F-HSE-07-01","F-HSE-07-03"],sup:["F-HSE-07-01","F-HSE-07-03"]};
+{const _ff=VIEWS.forms.fill;VIEWS.forms.fill=async function(){const allow=RESTRICT_FORMS[myRole()];if(!allow)return _ff.call(this);
+  if(ui.formSel&&!allow.includes(ui.formSel))ui.formSel="";if(ui.formSel)return _ff.call(this);
+  const F2=await loadForms2();$("formsBody").innerHTML=`<p class="muted" style="margin-top:0">النماذج اللي تقدر تطلع عليها:</p><div class="grid g4">${allow.filter(f=>F2[f]).map(fid=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.formSel='${fid}';refresh()"><span class="lbl num" style="direction:ltr;text-align:right">${fid}</span><span style="font-weight:600;font-size:15px">${esc(F2[fid].title)}</span><span class="note">${recsOf(fid).length} سجل</span></button>`).join("")}</div>`}}
+/* review of records written by officers / monitors */
+const needsReview=r=>{const p=profOf(r.createdBy);return !!p&&AUTHORS_NEED_REVIEW.includes(p.role)&&!r.review};
+const canReview=()=>REVIEWERS.includes(myRole());
+function pendingReviews(){return canReview()?S.records.filter(needsReview):[]}
+async function reviewRecord(id,ok){const r=S.records.find(x=>x.id===id);if(!r)return;const me=myEmpName();
+  if(!ok){openSheet("رجّع النموذج للتعديل",`<div class="form">${f("الملاحظة","note",{type:"textarea",full:true,req:true})}</div>`,async fd=>{if(!fd.note.trim())return "اكتب الملاحظة";
+      const done=await write(()=>upsert("records",id,{reviewNote:fd.note.trim(),reviewNoteAt:Date.now(),reviewNoteBy:me}),"اترجع للتعديل");if(done)notifyUsers([r.createdBy],"↩️ نموذج محتاج تعديل",`${me}: ${fd.note.trim()}`,`?go=rec&id=${id}`);return done?null:"فشل"},"إرسال");return}
+  const src=await mySig();const patch={review:{by:ME.id,name:me,at:Date.now()},reviewNote:""};if(src)patch.signs={...(r.signs||{}),[ME.id]:{uid:ME.id,name:me,at:Date.now()}};
+  if(await write(()=>upsert("records",id,patch),"اتعتمد ✔")){notifyUsers([r.createdBy],"✅ نموذجك اتعتمد",`${me} اعتمد ${r.form}`,`?go=rec&id=${id}`);setTimeout(()=>printRecord(id),300)}}
+{const _pr=printRecord;printRecord=async function(id){await _pr(id);const r=S.records.find(x=>x.id===id);if(!r||!$("pvAct"))return;
+  if(needsReview(r)&&canReview()){$("pvAct").insertAdjacentHTML("afterbegin",`<button class="btn ok" data-extra onclick="reviewRecord('${id}',true)">✔ مراجعة واعتماد</button><button class="btn" data-extra onclick="reviewRecord('${id}',false)">↩️ رجّعه للتعديل</button>`)}
+  if(r.review)$("pvNote").insertAdjacentHTML("afterbegin",`<div class="pvnote ok">✔ اتراجع واتعتمد من ${esc(r.review.name)} — ${fmtDate(new Date(r.review.at).toISOString().slice(0,10))}</div>`);
+  else if(needsReview(r))$("pvNote").insertAdjacentHTML("afterbegin",`<div class="pvnote">⏳ مستني مراجعة واعتماد مشرف / أخصائي السلامة${r.reviewNote?` · ملاحظة: ${esc(r.reviewNote)}`:""}</div>`)}}
+/* week helpers (week starts Saturday) */
+function weekStart(d=today()){const x=new Date(d+"T00:00:00");const k=(x.getDay()+1)%7;x.setDate(x.getDate()-k);return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate())}
+function userRecs(uid,from,to){const p=profOf(uid);const nm=p?normName(profName(p)):"#";return S.records.filter(r=>(r.date||"")>=from&&(r.date||"")<=to&&(r.createdBy===uid||Object.entries(r.f||{}).some(([k,v])=>/^(officer|trainer|lecturer|reporter|writer|inspector)$/.test(k)&&normName(v)===nm)))}
+const isLect=r=>r.form==="F-HSE-24-02"||r.form==="F-HSE-24-01";
+const isInsp=r=>CHECKLIST_FORMS.includes(r.form)||r.form==="F-HSE-08-01"||r.form==="F-HSE-10-09";
+const isObs=r=>r.form==="F-HSE-07-03";
+function roleDuties(uid){const p=profOf(uid);const r=p?.role;const ws=weekStart(),t0=today();const W=userRecs(uid,ws,t0),D=userRecs(uid,t0,t0);const L=[];
+  if(LECT_ROLES.includes(r)){const n=W.filter(isLect).length;L.push({k:"lect",t:`محاضرات توعية الأسبوع: ${n} من 3`,ok:n>=3,go:"recordForm('F-HSE-24-02')"})}
+  if(["hse","hsesup","officer"].includes(r)){const n=D.filter(isInsp).length;L.push({k:"insp",t:`قوائم تفتيش النهارده: ${n}`,ok:n>=1,go:"ui.formSel='F-HSE-07-02';show('forms')"})}
+  if(["hse","hsesup","officer","monitor"].includes(r)){const n=W.filter(isObs).length;L.push({k:"obs",t:`ملاحظات أوضاع/تصرفات غير آمنة الأسبوع: ${n}`,ok:n>=1,go:"recordForm('F-HSE-07-03')"})}
+  if(r==="monitor"){const d=S.equipment.filter(q=>q.active!==false&&eqDue(q)).length;L.push({k:"eq",t:`طفايات ومعدات محتاجة فحص: ${d}`,ok:d===0,go:"ui.eqKind='ext';show('equip')"})}
+  if(REVIEWERS.includes(r)&&r!=="admin"){const n=S.records.filter(needsReview).length;L.push({k:"rev",t:`نماذج مستنية اعتمادك: ${n}`,ok:n===0,go:"show('forms')"})}
+  if(HSE_FINAL_ROLES.includes(r)&&r!=="admin"){const n=S.permits.filter(x=>isReq(x)&&!x.hseOk&&(x.hseUid===uid||!x.hseUid)).length;L.push({k:"ptw",t:`طلبات تصاريح مستنية السلامة: ${n}`,ok:n===0,go:"show('ptw')"})}
+  if(r==="sup"){const n=S.permits.filter(x=>isReq(x)&&!isSupOk(x)&&(x.supUid===uid||!x.supUid)).length;L.push({k:"ptw",t:`طلبات تصاريح مستنية اعتمادك: ${n}`,ok:n===0,go:"show('ptw')"})}
+  const tk=S.tasks.filter(x=>x.status!=="done"&&p?.emp_id&&x.assignee===p.emp_id).length;if(tk)L.push({k:"task",t:`مهام مفتوحة: ${tk}`,ok:false,go:"show('dash')"});
+  return L}
+{const _rm=reminders;reminders=function(){const o=_rm();const R=o.R;const mine=roleDuties(ME.id).filter(x=>!x.ok&&x.k!=="task"&&x.k!=="ptw");
+  for(const x of mine)R.push({lv:x.k==="rev"?"bad":"warn",t:x.t,go:x.go});
+  if(myRole()==="admin"){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"})}
+  return o}}
+/* notifications: inbox table + push */
+let NOTIFS=[];
+async function notifyUsers(uids,title,body,url="./"){uids=[...new Set((uids||[]).filter(u=>u&&u!==ME.id))];if(!uids.length)return;
+  try{await SB.from("notif").insert(uids.map(u=>({to_uid:u,title,body,url})))}catch(e){}
+  try{await notifyCall({action:"send",to:uids,title,body,url},true)}catch(e){}}
+async function loadNotifs(){try{const {data}=await SB.from("notif").select("*").eq("to_uid",ME.id).order("at",{ascending:false}).limit(60);NOTIFS=data||[];bellBadge()}catch(e){}}
+function bellBadge(){const n=NOTIFS.filter(x=>!x.read).length;const b=$("bellBtn");if(b)b.innerHTML=`🔔${n?`<span style="background:var(--bad);color:#fff;border-radius:999px;font-size:10.5px;padding:0 5px;margin-inline-start:3px">${n}</span>`:""}`}
+function bellPanel(){openSheet("🔔 الإشعارات",NOTIFS.length?`<div class="list">${NOTIFS.map(x=>`<button type="button" class="li" data-n="${x.id}" style="width:100%;text-align:right;background:${x.read?"none":"var(--accent-soft)"};border:0;border-radius:8px;padding:10px;font:inherit;color:inherit;cursor:pointer;margin-bottom:4px"><div class="grow"><div class="t">${esc(x.title)}</div><div class="s" style="white-space:pre-line">${esc(x.body||"")}</div><div class="s">${new Date(x.at).toLocaleString("ar-EG",{dateStyle:"short",timeStyle:"short"})}</div></div></button>`).join("")}</div>`:emptyState("مفيش إشعارات",""),async()=>{const ids=NOTIFS.filter(x=>!x.read).map(x=>x.id);if(ids.length){await SB.from("notif").update({read:true}).in("id",ids);NOTIFS.forEach(x=>x.read=true);bellBadge()}return null},"تعليم الكل كمقروء");
+  $("overlayRoot").querySelector(".list")?.addEventListener("click",async e=>{const b=e.target.closest("[data-n]");if(!b)return;const x=NOTIFS.find(n=>String(n.id)===b.dataset.n);$("overlayRoot").innerHTML="";if(x&&!x.read){x.read=true;bellBadge();SB.from("notif").update({read:true}).eq("id",x.id).then(()=>{},()=>{})}if(x?.url)goTo(x.url)})}
+function goTo(url){const q=new URLSearchParams(String(url).split("?")[1]||"");const go=q.get("go"),id=q.get("id");if(!go)return;
+  if(go==="ptw"){show("ptw");const p=S.permits.find(x=>x.id===id);if(p&&!ptwDraft(p))setTimeout(()=>printPermit(id),200)}
+  else if(go==="rec"){if(id)printRecord(id)}else if(go==="chat"){ui.chatRoom=id||"team";show("chat")}
+  else if(go==="mr"){show("matreq")}else if(go==="follow"){show("follow")}else if(go==="me"){show("me")}else show(go)}
+function startRealtime(){if(window._rtOn||!ME.id)return;window._rtOn=true;loadNotifs();
+  try{SB.channel("me-"+ME.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"notif",filter:`to_uid=eq.${ME.id}`},p=>{NOTIFS.unshift(p.new);bellBadge();showReminder({title:p.new.title,body:p.new.body||""})}).on("postgres_changes",{event:"INSERT",schema:"public",table:"chat"},p=>onChatInsert(p.new)).subscribe()}catch(e){}
+  const q=new URLSearchParams(location.search);if(q.get("go"))setTimeout(()=>goTo(location.search),2500)}
+{const _ar=applyRole;applyRole=function(){_ar();if(db&&ME.id){startRealtime();if(!$("bellBtn")){const mb=$("meBtn");if(mb){mb.insertAdjacentHTML("beforebegin",`<button class="btn ghost sm" id="bellBtn" onclick="bellPanel()" style="font-size:13px" aria-label="الإشعارات">🔔</button><button class="btn ghost sm" id="chatBtn" onclick="show('chat')" style="font-size:13px" aria-label="الشات">💬</button>`);bellBadge();chatBadge()}}}}}
+
+/* ---------- my file, change requests, leave requests, team follow-up ---------- */
+COLS.changereq="changereq";COLS.leavereq="leavereq";S.changereq=[];S.leavereq=[];
+const CR_ACT={add:"إضافة",edit:"تعديل",del:"حذف"},CR_KIND={employee:"عامل / موظف",contractor:"مقاول"};
+const EMP_F=[["name","الاسم"],["code","الكود"],["job","الوظيفة"],["group","المجموعة"],["contractorId","المقاول"],["nid","الرقم القومي"],["phone","الموبايل"],["active","الحالة"]];
+const CTR_F=[["name","اسم المقاول"],["scope","نطاق الأعمال"],["rep","المسؤول"],["phone","الموبايل"],["active","الحالة"]];
+const crVal=(k,v)=>k==="group"?(GROUPS[v]||v||""):k==="contractorId"?(contractor(v)?.name||""):k==="active"?(v===false?"موقوف":"شغال"):String(v??"");
+const isAdmin=()=>myRole()==="admin";
+function chgReq(kind,action,targetId){
+  const cur=targetId?(kind==="employee"?emp(targetId):contractor(targetId)):{};if(targetId&&!cur){toast("السجل مش موجود");return}
+  const F=kind==="employee"?EMP_F:CTR_F;
+  const field=([k,l])=>k==="group"?f(l,"c_group",{value:cur.group||"ctr",opts:Object.entries(GROUPS)}):k==="contractorId"?f(l,"c_contractorId",{value:cur.contractorId||"",opts:[["","—"],...S.contractors.map(c=>[c.id,c.name])]}):k==="active"?f(l,"c_active",{value:cur.active===false?"0":"1",opts:[["1","شغال"],["0","موقوف / مشي"]]}):f(l,"c_"+k,{value:cur[k]||""});
+  openSheet(`طلب ${CR_ACT[action]} ${CR_KIND[kind]}${cur.name?` — ${cur.name}`:""}`,`<p class="muted" style="margin-top:0;font-size:13px">الطلب هيوصل للأدمن، ولما يوافق التعديل يتنفذ لوحده ويوصلك إشعار.</p><div class="form">${action==="del"?"":F.map(field).join("")}${f(action==="del"?"سبب الحذف":"ملاحظة / سبب الطلب","note",{type:"textarea",full:true,req:action==="del"})}</div>`,async fd=>{
+    if(action==="del"&&!fd.note.trim())return "اكتب السبب";
+    let after=null;if(action!=="del"){after={};for(const [k] of F){let v=fd["c_"+k];if(k==="active")v=v!=="0";else v=(v||"").trim();after[k]=v}if(!after.name)return "اكتب الاسم"}
+    const before=targetId?Object.fromEntries(F.map(([k])=>[k,cur[k]??""])):null;
+    const ok=await write(()=>db.collection("changereq").add({kind,action,targetId:targetId||"",before,after,note:(fd.note||"").trim(),status:"new",by:ME.id,byName:myEmpName(),at:Date.now()}),"اتبعت الطلب للأدمن ✔");
+    if(ok)notifyUsers((S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id),"✏️ طلب تعديل بيانات",`${myEmpName()}: ${CR_ACT[action]} ${CR_KIND[kind]} ${after?.name||cur.name||""}`,"?go=follow");
+    return ok?null:"الحفظ فشل"},"إرسال الطلب")}
+async function crDecide(id,yes){const c=S.changereq.find(x=>x.id===id);if(!c)return;
+  if(!yes){openSheet("رفض الطلب",`<div class="form">${f("السبب","note",{full:true,req:true})}</div>`,async fd=>{if(!fd.note.trim())return "اكتب السبب";const ok=await write(()=>upsert("changereq",id,{status:"rejected",decNote:fd.note.trim(),decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([c.by],"❌ طلب التعديل اترفض",fd.note.trim(),"?go=me");return ok?null:"فشل"},"رفض");return}
+  const col=c.kind==="employee"?"employees":"contractors";
+  const ok=await write(async()=>{if(c.action==="add")await db.collection(col).add({...c.after,createdAt:Date.now()});else if(c.action==="edit")await upsert(col,c.targetId,c.after);else await upsert(col,c.targetId,{active:false,removedAt:today(),removedNote:c.note});
+    await upsert("changereq",id,{status:"done",decAt:Date.now(),decBy:myEmpName()})},"اتنفذ ✔");
+  if(ok)notifyUsers([c.by],"✅ طلب التعديل اتنفذ",`${CR_ACT[c.action]} ${CR_KIND[c.kind]} ${c.after?.name||c.before?.name||""}`,"?go=me")}
+function crCard(c){const F=c.kind==="employee"?EMP_F:CTR_F;const diff=c.action==="edit"?F.filter(([k])=>String(c.before?.[k]??"")!==String(c.after?.[k]??"")):[];
+  return `<div class="li" style="align-items:flex-start;flex-wrap:wrap"><div class="grow" style="min-width:220px"><div class="t"><span class="pill ${c.action==="del"?"p-canc":c.action==="add"?"p-appr":"p-open"}">${CR_ACT[c.action]}</span> ${CR_KIND[c.kind]}: ${esc(c.after?.name||c.before?.name||"")}</div>
+    <div class="s">من ${esc(c.byName||"")} · ${new Date(c.at).toLocaleDateString("ar-EG")}${c.note?` · ${esc(c.note)}`:""}</div>
+    ${diff.length?`<div class="s" style="margin-top:4px">${diff.map(([k,l])=>`${l}: <s>${esc(crVal(k,c.before?.[k]))}</s> ← <b>${esc(crVal(k,c.after?.[k]))}</b>`).join("<br>")}</div>`:""}${c.action==="add"?`<div class="s">${F.filter(([k])=>c.after?.[k]).map(([k,l])=>`${l}: ${esc(crVal(k,c.after[k]))}`).join(" · ")}</div>`:""}</div>
+    ${c.status==="new"&&isAdmin()?`<div class="row-actions"><button class="btn sm ok" onclick="crDecide('${c.id}',true)">موافقة وتنفيذ</button><button class="btn ghost sm danger" onclick="crDecide('${c.id}',false)">رفض</button></div>`:`<span class="pill ${c.status==="done"?"p-appr":c.status==="rejected"?"p-canc":"p-susp"}">${c.status==="done"?"اتنفذ":c.status==="rejected"?"مرفوض":"مستني"}</span>`}</div>`}
+/* view-only manpower & contractors with request buttons */
+{const _pf=personFileHTML;personFileHTML=function(e){const h=_pf(e);if(tabLevel("manpower")!=="view")return h;
+  return `<div class="banner" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="grow">ملف للاطلاع. أي تعديل بيتبعت كطلب للأدمن.</span><button class="btn sm" onclick="chgReq('employee','edit','${e.id}')">✏️ اطلب تعديل</button><button class="btn sm danger" onclick="chgReq('employee','del','${e.id}')">🗑 اطلب حذف</button></div>`+h.replace(/<button class="btn" onclick="empForm\('[^']+'\)">تعديل البيانات<\/button>/,"")}}
+{const _mf=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mf.call(this);if(tabLevel("manpower")==="view"&&!ui.personSel){const F=document.querySelector("#mpBody .filters");if(F&&!$("mpReqAdd")){F.querySelectorAll("button.btn").forEach(b=>{if(/\+ شخص|لصق/.test(b.textContent))b.remove()});F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpReqAdd" onclick="chgReq('employee','add')">+ اطلب إضافة شخص</button>`)}}}}
+{const _ch=contractorsHTML;contractorsHTML=function(){const h=_ch();if(tabLevel("contractors")!=="view")return h;
+  if(ui.ctrSel&&contractor(ui.ctrSel))return `<div class="banner" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="grow">ملف المقاول للاطلاع. التعديل بطلب للأدمن.</span><button class="btn sm" onclick="chgReq('contractor','edit','${ui.ctrSel}')">✏️ اطلب تعديل</button><button class="btn sm" onclick="chgReq('employee','add')">+ اطلب إضافة عامل</button><button class="btn sm danger" onclick="chgReq('contractor','del','${ui.ctrSel}')">🗑 اطلب حذف</button></div>`+h;
+  return h.replace(`<button class="btn primary" onclick="contractorForm()">+ مقاول</button>`,`<button class="btn" onclick="chgReq('contractor','add')">+ اطلب إضافة مقاول</button>`)}}
+/* leave requests from "my file" */
+function leaveReqForm(){const e=emp(myEmpId());if(!e){toast("حسابك مش مربوط بموظف — كلّم الأدمن");return}
+  openSheet("طلب إجازة",`<div class="form">${f("نوع الإجازة","leaveType",{opts:Object.entries(LEAVE_T)})}<div class="field"><label>رصيدك</label><div class="muted">عارضة ${num(e.casual)} · اعتيادي ${num(e.annual)}</div></div>${f("من","from",{type:"date",value:today(),req:true})}${f("لحد","to",{type:"date",value:today(),req:true})}${f("القائم بالعمل","alt",{opts:empOpts(hseTeam(),"— اختار —")})}${f("ملاحظات","note",{full:true})}</div>`,async fd=>{
+    if(fd.to<fd.from)return "تاريخ النهاية قبل البداية";const days=daysBetween(fd.from,fd.to);const fld=fd.leaveType==="casual"?"casual":fd.leaveType==="annual"?"annual":null;if(fld&&num(e[fld])<days)return `الرصيد مش كفاية (${num(e[fld])} يوم)`;
+    const ok=await write(()=>db.collection("leavereq").add({empId:e.id,empName:e.name,leaveType:fd.leaveType,from:fd.from,to:fd.to,days,alt:fd.alt||"",note:(fd.note||"").trim(),status:"new",by:ME.id,at:Date.now()}),"اتبعت طلب الإجازة ✔");
+    if(ok)notifyUsers((S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id),"🏖 طلب إجازة",`${e.name}: ${LEAVE_T[fd.leaveType]} ${days} يوم من ${fmtDate(fd.from)}`,"?go=follow");return ok?null:"الحفظ فشل"},"إرسال الطلب")}
+async function lvDecide(id,yes){const r=S.leavereq.find(x=>x.id===id);if(!r)return;const e=emp(r.empId);
+  if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([r.by],"❌ طلب الإجازة اترفض","","?go=me");return}
+  const fld=r.leaveType==="casual"?"casual":r.leaveType==="annual"?"annual":null;let newId=null;
+  const ok=await write(async()=>{const ref=await db.collection("leaves").add({kind:"leave",empId:r.empId,leaveType:r.leaveType,date:r.from,to:r.to,days:r.days,alt:r.alt||"",reqDate:new Date(r.at).toISOString().slice(0,10),balanceAfter:fld&&e?num(e[fld])-r.days:null,note:r.note||"",createdAt:Date.now()});newId=ref.id;if(fld&&e)await upsert("employees",r.empId,{[fld]:num(e[fld])-r.days});await upsert("leavereq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتسجلت الإجازة ✔");
+  if(ok){notifyUsers([r.by],"✅ إجازتك اتوافق عليها",`${LEAVE_T[r.leaveType]} ${r.days} يوم من ${fmtDate(r.from)}`,"?go=me");if(newId)setTimeout(()=>printLeave(newId),400)}}
+/* my file */
+VIEWS.me={shell:()=>`<div class="head"><h2 class="grow">ملفي</h2><button class="btn primary keep" onclick="leaveReqForm()">+ طلب إجازة</button></div><div id="meBody"></div>`,
+  async fill(){const p=myProfile();const e=emp(myEmpId());const uid=ME.id;const sg=await mySig();
+    const P=S.permits.filter(x=>x.createdBy===uid||x.supUid===uid||x.hseUid===uid||x.supUidDone===uid||x.hseUidDone===uid||(e&&x.safetyId===e.id)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const R=userRecs(uid,"2000-01-01","2999-12-31").sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const A=deriveActions().filter(a=>e&&(a.ownerId===e.id||a.closedBy===e.id));
+    const LV=e?S.leaves.filter(l=>l.empId===e.id).sort((a,b)=>(b.date||"").localeCompare(a.date||"")):[];
+    const LR=S.leavereq.filter(x=>x.by===uid).sort((a,b)=>b.at-a.at),CR=S.changereq.filter(x=>x.by===uid).sort((a,b)=>b.at-a.at);
+    const months=[0,1,2,3,4,5].map(i=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);return d.getFullYear()+"-"+pad(d.getMonth()+1)});
+    const K=e&&e.group==="hse"?months.map(m=>({m,r:kpiSummary(m).find(x=>x.id===e.id)})):[];
+    const duties=roleDuties(uid);const F2=await loadForms2().catch(()=>({}));
+    const sec=(t,inner,btn="")=>`<div class="card" style="margin-top:12px"><h3><span class="grow">${t}</span>${btn}</h3>${inner}</div>`;
+    $("meBody").innerHTML=`<div class="card"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start"><div class="grow" style="min-width:220px"><h2 style="margin:0">${esc(e?.name||p?.username||"")}</h2><div class="muted">${esc([ROLES_ALL()[p?.role]?.ar||(p?.role==="admin"?"مدير المنظومة":""),e?.job,e?.code&&("كود "+e.code)].filter(Boolean).join(" · "))}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn sm" onclick="sigEditor()">✍ ${sg?"تغيير توقيعي":"إضافة توقيعي"}</button>${e?`<button class="btn sm" onclick="chgReq('employee','edit','${e.id}')">✏️ اطلب تعديل بياناتي</button>`:""}<button class="btn sm" onclick="meMenu()">👤 حسابي والتنبيهات</button></div></div>
+      ${e?`<div class="grid g4" style="flex:1;min-width:260px"><div class="tile"><span class="lbl">رصيد العارضة</span><b class="val">${num(e.casual)}</b></div><div class="tile"><span class="lbl">رصيد الاعتيادي</span><b class="val">${num(e.annual)}</b></div><div class="tile"><span class="lbl">تصاريح شارك فيها</span><b class="val">${P.length}</b></div><div class="tile"><span class="lbl">نماذج حررها</span><b class="val">${R.length}</b></div></div>`:`<div class="banner">حسابك مش مربوط بموظف. الأدمن يربطه من الإعدادات.</div>`}</div></div>
+    ${duties.length?sec("المطلوب مني",`<div>${duties.map(x=>`<div class="reqrow"><span class="st ${x.ok?"done":"soon"}">${x.ok?"✔":"!"}</span><div class="grow t" style="font-size:14px">${esc(x.t)}</div><button class="btn ghost sm" onclick="${x.go}">فتح ←</button></div>`).join("")}</div>`):""}
+    <div class="dgrid" style="margin-top:0">
+    ${sec(`الإجازات والأذونات (${LV.length})`,LV.length?`<div class="list">${LV.slice(0,15).map(l=>`<div class="li"><div class="grow"><div class="t">${l.kind&&l.kind!=="leave"?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+(/^\d{4}-\d{2}-\d{2}/.test(l.to)?fmtDate(l.to):esc(String(l.to))):""}${l.from&&!/^\d{4}-/.test(l.from)?" · "+esc(String(l.from)):""}${l.days?" · "+num(l.days)+" يوم":""}</div></div></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
+    ${sec("طلباتي",(LR.length||CR.length)?`<div class="list">${LR.map(r=>`<div class="li"><div class="grow"><div class="t">إجازة ${LEAVE_T[r.leaveType]||""} · ${r.days} يوم</div><div class="s">${fmtDate(r.from)} ← ${fmtDate(r.to)}</div></div><span class="pill ${r.status==="done"?"p-appr":r.status==="rejected"?"p-canc":"p-susp"}">${r.status==="done"?"اتوافق":r.status==="rejected"?"مرفوض":"مستني"}</span></div>`).join("")}${CR.map(crCard).join("")}</div>`:'<p class="muted">مفيش طلبات.</p>')}
+    ${sec(`التصاريح (${P.length})`,P.length?`<div class="list">${P.slice(0,12).map(x=>`<div class="li"><span class="num">${esc(x.number)}</span><div class="grow"><div class="t">${esc(x.location||"")}</div><div class="s">${PTW_TYPES[x.type]?.ar||""} · ${fmtDate(x.date)}</div></div>${statusPill(x.status)}</div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
+    ${sec(`النماذج اللي حررتها (${R.length})`,R.length?`<div class="list">${R.slice(0,12).map(r=>`<div class="li"><span class="num">${esc(r.form.replace("F-HSE-",""))}</span><div class="grow"><div class="t">${esc(F2[r.form]?.title||r.form)}</div><div class="s">${fmtDate(r.date)}${r.review?" · ✔ اتعتمد":needsReview(r)?" · ⏳ مستني اعتماد":""}</div></div><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁</button></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
+    ${A.length?sec(`الإجراءات التصحيحية (${A.length})`,`<div class="list">${A.slice(0,10).map(a=>`<div class="li"><div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${a.status==="closed"?"✔ اتقفل "+fmtDate(a.closedAt):"مفتوح · الميعاد "+fmtDate(a.due)}</div></div></div>`).join("")}</div>`):""}
+    ${K.length?sec("مؤشرات الأداء (KPI) آخر 6 شهور",`<div class="list">${K.map(({m,r})=>`<div class="li"><div class="grow"><div class="t">${monthName(m)}</div>${r?`<div class="bar-meter" style="margin-top:4px"><span class="${r.score>=90?"ok":""}" style="width:${Math.min(100,r.score)}%"></span></div>`:""}</div><span class="num">${r?r.score+"%":"—"}</span></div>`).join("")}</div>`):""}
+    </div>`}};
+
+/* ---------- team follow-up (admin) + team chat ---------- */
+const TEAM_ROLES=["hsesup","hse","officer","monitor","sup","eng","store"];
+function lastActivity(uid){let t=0;for(const r of S.records)if(r.createdBy===uid)t=Math.max(t,num(r.createdAt)||Date.parse(r.date||0)||0);for(const p of S.permits)for(const f of p.flow||[])if(f.by===uid)t=Math.max(t,num(f.at));return t}
+VIEWS.follow={shell:()=>`<div class="head"><h2 class="grow">متابعة الفريق</h2><button class="btn" onclick="nudgeAll()">🔔 نبّه كل واحد بالناقص عنده</button></div><div id="flBody"></div>`,
+  fill(){const ws=weekStart(),t0=today();const CR=S.changereq.filter(c=>c.status==="new"),LR=S.leavereq.filter(c=>c.status==="new");
+    const team=(S.profiles||[]).filter(p=>!p.disabled&&TEAM_ROLES.includes(p.role)).sort((a,b)=>TEAM_ROLES.indexOf(a.role)-TEAM_ROLES.indexOf(b.role)||profName(a).localeCompare(profName(b),"ar"));
+    const card=p=>{const D=roleDuties(p.id);const miss=D.filter(x=>!x.ok);const W=userRecs(p.id,ws,t0);const la=lastActivity(p.id);
+      const apprW=S.permits.reduce((a,x)=>a+(x.flow||[]).filter(f=>f.by===p.id&&f.at>=Date.parse(ws)&&["supok","hseok","approved"].includes(f.st)).length,0);
+      return `<div class="card" style="border-inline-start:4px solid ${miss.length?"var(--warn)":"var(--ok)"}"><div style="display:flex;gap:10px;align-items:flex-start"><div class="grow"><div style="font-weight:700;font-size:15px">${esc(profName(p))}</div><div class="muted" style="font-size:12.5px">${esc(ROLES_ALL()[p.role]?.ar||p.role)} · آخر نشاط ${la?new Date(la).toLocaleDateString("ar-EG"):"—"}</div></div><span class="pill ${miss.length?"p-susp":"p-appr"}">${miss.length?`${miss.length} ناقص`:"تمام"}</span></div>
+        <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:10px 0;text-align:center"><div><b class="num" style="font-size:18px">${W.filter(isLect).length}</b><div class="muted" style="font-size:11px">محاضرات الأسبوع</div></div><div><b class="num" style="font-size:18px">${W.filter(isInsp).length}</b><div class="muted" style="font-size:11px">تفتيش الأسبوع</div></div><div><b class="num" style="font-size:18px">${W.filter(isObs).length}</b><div class="muted" style="font-size:11px">ملاحظات</div></div><div><b class="num" style="font-size:18px">${apprW}</b><div class="muted" style="font-size:11px">اعتمادات تصاريح</div></div></div>
+        ${D.map(x=>`<div style="font-size:13px;display:flex;gap:6px;align-items:center;padding:2px 0"><span style="color:${x.ok?"var(--ok)":"var(--warn)"};font-weight:700">${x.ok?"✔":"!"}</span>${esc(x.t)}</div>`).join("")||'<div class="muted" style="font-size:13px">مفيش مهام محددة للدور ده.</div>'}
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${miss.length?`<button class="btn sm" onclick="nudge('${p.id}')">🔔 نبّهه بالناقص</button>`:""}<button class="btn ghost sm" onclick="ui.chatRoom=dmKey(ME.id,'${p.id}');show('chat')">💬 رسالة</button></div></div>`};
+    $("flBody").innerHTML=`${CR.length||LR.length?`<div class="inbox"><h3 style="margin:0 0 6px">طلبات مستنية موافقتك (${CR.length+LR.length})</h3><div class="list">${LR.map(r=>`<div class="li" style="flex-wrap:wrap"><div class="grow"><div class="t">🏖 إجازة ${LEAVE_T[r.leaveType]||""} — ${esc(r.empName||"")}</div><div class="s">${fmtDate(r.from)} ← ${fmtDate(r.to)} · ${r.days} يوم${r.note?" · "+esc(r.note):""} · رصيده ${(()=>{const e=emp(r.empId);return e?`عارضة ${num(e.casual)} / اعتيادي ${num(e.annual)}`:"—"})()}</div></div>${isAdmin()?`<div class="row-actions"><button class="btn sm ok" onclick="lvDecide('${r.id}',true)">موافقة</button><button class="btn ghost sm danger" onclick="lvDecide('${r.id}',false)">رفض</button></div>`:""}</div>`).join("")}${CR.map(crCard).join("")}</div></div>`:""}
+      ${team.length?`<div class="grid g2">${team.map(card).join("")}</div>`:`<div class="card">${emptyState("مفيش مستخدمين في الفريق لسه","ضيف المستخدمين من الإعدادات بأدوارهم: مشرف سلامة، أخصائي، أوفيسر، مراقب، مهندس تنفيذ، مشرف تنفيذ.")}</div>`}
+      ${S.changereq.filter(c=>c.status!=="new").length?`<details class="sec" style="margin-top:14px"><summary>طلبات التعديل اللي اتقفلت</summary><div class="in"><div class="list">${S.changereq.filter(c=>c.status!=="new").sort((a,b)=>b.at-a.at).slice(0,30).map(crCard).join("")}</div></div></details>`:""}`}};
+function missText(uid){return roleDuties(uid).filter(x=>!x.ok).map(x=>"• "+x.t).join("\n")}
+function nudge(uid){const t=missText(uid);if(!t){toast("مفيش حاجة ناقصة");return}notifyUsers([uid],"🔔 تنبيه من متابعة الفريق",t,"?go=me");toast("اتبعت التنبيه ✔")}
+function nudgeAll(){let n=0;for(const p of (S.profiles||[]).filter(p=>!p.disabled&&TEAM_ROLES.includes(p.role))){const t=missText(p.id);if(t){notifyUsers([p.id],"🔔 تنبيه من متابعة الفريق",t,"?go=me");n++}}toast(n?`اتبعت لـ ${n} من الفريق ✔`:"كله تمام، مفيش حد ناقصه حاجة")}
+
+/* chat */
+let CHAT=[],chatLoaded=false;ui.chatRoom=ui.chatRoom||"team";
+const dmKey=(a,b)=>"dm:"+[a,b].sort().join(":");
+const roomOther=r=>r.startsWith("dm:")?r.slice(3).split(":").find(x=>x!==ME.id):null;
+const roomName=r=>r==="team"?"👥 فريق المنظومة":profName(profOf(roomOther(r)))||"محادثة";
+function lastRead(r){try{return +localStorage.getItem("hse.chat."+r)||0}catch(e){return 0}}
+function setRead(r){try{localStorage.setItem("hse.chat."+r,String(Date.now()))}catch(e){}}
+const msgAt=m=>Date.parse(m.at)||0;
+function unreadOf(r){const lr=lastRead(r);return CHAT.filter(m=>m.room===r&&m.from_uid!==ME.id&&msgAt(m)>lr).length}
+function chatBadge(){const rooms=[...new Set(CHAT.map(m=>m.room))];const n=rooms.reduce((a,r)=>a+unreadOf(r),0);const b=$("chatBtn");if(b)b.innerHTML=`💬${n?`<span style="background:var(--bad);color:#fff;border-radius:999px;font-size:10.5px;padding:0 5px;margin-inline-start:3px">${n}</span>`:""}`;window._chatUnread=n}
+async function loadChat(){try{const {data}=await SB.from("chat").select("*").order("at",{ascending:false}).limit(400);CHAT=(data||[]).reverse()}catch(e){CHAT=[]}chatLoaded=true;chatBadge();if(tab==="chat")VIEWS.chat.fill()}
+function onChatInsert(m){if(!m||CHAT.some(x=>x.id===m.id))return;CHAT.push(m);chatBadge();if(tab==="chat")VIEWS.chat.fill(true)}
+VIEWS.chat={shell:()=>`<div class="head"><h2 class="grow">💬 الشات</h2></div><div id="chBody"></div>`,
+  async fill(keepInput){if(!chatLoaded){$("chBody").innerHTML='<div class="empty">بيحمّل…</div>';await loadChat();return}
+    const r=ui.chatRoom||"team";setRead(r);chatBadge();
+    const people=(S.profiles||[]).filter(p=>!p.disabled&&p.id!==ME.id).sort((a,b)=>unreadOf(dmKey(ME.id,b.id))-unreadOf(dmKey(ME.id,a.id))||profName(a).localeCompare(profName(b),"ar"));
+    const rooms=[{r:"team",n:"👥 فريق المنظومة",s:"كل الفريق"},...people.map(p=>({r:dmKey(ME.id,p.id),n:profName(p),s:ROLES_ALL()[p.role]?.ar||(p.role==="admin"?"مدير المنظومة":"")}))];
+    const M=CHAT.filter(m=>m.room===r).slice(-150);const draft=keepInput?($("chIn")?.value||""):"";
+    const bubble=m=>{const mine=m.from_uid===ME.id;return `<div style="display:flex;justify-content:${mine?"flex-start":"flex-end"};margin:6px 0"><div style="max-width:78%;background:${mine?"var(--accent-soft)":"var(--surface)"};border:1px solid var(--line);border-radius:14px;padding:8px 12px">${!mine&&r==="team"?`<div style="font-size:12px;font-weight:700;color:var(--accent)">${esc(m.from_name||"")}</div>`:""}${m.img?`<img src="/_blob/${esc(m.img)}" data-view="/_blob/${esc(m.img)}" alt="" style="max-width:220px;max-height:220px;border-radius:10px;display:block;margin:4px 0;cursor:zoom-in">`:""}${m.text?`<div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(m.text)}</div>`:""}${m.ref?`<button class="chipbtn" style="margin-top:4px" onclick="goTo('?go=${esc(m.ref.kind)}&id=${esc(m.ref.id)}')">📎 ${esc(m.ref.label||"")}</button>`:""}<div class="muted" style="font-size:10.5px;margin-top:2px;text-align:left">${new Date(m.at).toLocaleString("ar-EG",{dateStyle:"short",timeStyle:"short"})}</div></div></div>`};
+    $("chBody").innerHTML=`<div style="display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:12px" class="chgrid">
+      <div class="card" style="padding:6px;max-height:70vh;overflow:auto" id="chRooms">${rooms.map(x=>{const u=unreadOf(x.r);return `<button type="button" data-room="${x.r}" style="display:flex;width:100%;gap:8px;align-items:center;text-align:right;background:${x.r===r?"var(--accent-soft)":"none"};border:0;border-radius:10px;padding:9px 10px;font:inherit;color:inherit;cursor:pointer"><div class="grow" style="min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.n)}</div><div class="muted" style="font-size:11.5px">${esc(x.s)}</div></div>${u?`<span class="pill p-canc">${u}</span>`:""}</button>`}).join("")}</div>
+      <div class="card" style="display:flex;flex-direction:column;height:70vh;padding:0;overflow:hidden"><div style="padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700">${esc(roomName(r))}</div>
+        <div id="chMsgs" style="flex:1;overflow:auto;padding:8px 14px;background:var(--bg)">${M.length?M.map(bubble).join(""):`<div class="empty">ابدأ المحادثة 👋</div>`}</div>
+        <div id="chRef" style="padding:0 10px"></div>
+        <form id="chForm" style="display:flex;gap:6px;padding:8px;border-top:1px solid var(--line);align-items:flex-end"><label class="btn ghost" style="cursor:pointer" title="صورة">📷<input type="file" accept="image/*" id="chImg" hidden></label><button type="button" class="btn ghost" id="chAtt" title="إرفاق تصريح أو نموذج">📎</button><textarea id="chIn" rows="1" placeholder="اكتب رسالة…" style="flex:1;min-height:42px;max-height:120px;resize:none">${esc(draft)}</textarea><button class="btn primary keep" type="submit">إرسال</button></form></div></div>
+      <style>@media (max-width:760px){.chgrid{grid-template-columns:1fr!important}#chRooms{max-height:150px!important;display:flex;overflow-x:auto}#chRooms button{min-width:150px}}</style>`;
+    const box=$("chMsgs");box.scrollTop=box.scrollHeight;let ref=null,img=null;
+    $("chRooms").onclick=e=>{const b=e.target.closest("[data-room]");if(b){ui.chatRoom=b.dataset.room;this.fill()}};
+    $("chIn").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!isMobile()){e.preventDefault();$("chForm").requestSubmit()}});
+    $("chImg").onchange=async e=>{const fl=e.target.files[0];if(!fl||!assetsNS)return;toast("بيرفع الصورة…");try{const b=await shrinkImage(fl);const x=await assetsNS.upload(b,{type:b.type||"image/jpeg"});img=x.id;$("chRef").innerHTML=`<div class="chipbtn" style="margin:6px 0">📷 صورة جاهزة للإرسال</div>`}catch(err){toast("الرفع فشل")}};
+    $("chAtt").onclick=()=>{const P=S.permits.filter(p=>!ptwDraft(p)).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,25);const Rr=S.records.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,25);
+      $("chRef").innerHTML=`<select id="chRefSel" style="width:100%;margin:6px 0"><option value="">— اختار تصريح أو نموذج —</option><optgroup label="تصاريح">${P.map(p=>`<option value="ptw|${p.id}|${esc(p.number+" · "+(p.location||""))}">${esc(p.number)} · ${esc(p.location||"")}</option>`).join("")}</optgroup><optgroup label="نماذج">${Rr.map(r=>`<option value="rec|${r.id}|${esc(r.form+" · "+fmtDate(r.date))}">${esc(r.form)} · ${fmtDate(r.date)}</option>`).join("")}</optgroup></select>`;
+      $("chRefSel").onchange=e=>{const [kind,id,label]=e.target.value.split("|");ref=id?{kind,id,label}:null}};
+    $("chForm").onsubmit=async e=>{e.preventDefault();const text=$("chIn").value.trim();if(!text&&!img&&!ref)return;
+      const other=roomOther(r);const row={room:r,members:r==="team"?null:[ME.id,other],from_name:myEmpName(),text,img,ref};
+      const {data,error}=await SB.from("chat").insert(row).select().single();if(error){toast("الرسالة ما اتبعتتش");return}
+      $("chIn").value="";onChatInsert(data);
+      const to=r==="team"?(S.profiles||[]).filter(p=>!p.disabled).map(p=>p.id):[other];notifyCall({action:"send",to:to.filter(u=>u!==ME.id),title:`💬 ${myEmpName()}${r==="team"?" · الفريق":""}`,body:text||(img?"📷 صورة":"📎 "+(ref?.label||"")),url:`?go=chat&id=${r}`},true).catch(()=>{})}}};
 
 
 show(tab);
