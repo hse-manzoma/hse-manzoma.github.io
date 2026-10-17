@@ -2978,6 +2978,19 @@ VIEWS.me={shell:()=>`<div class="head"><h2 class="grow">ملفي</h2><button cla
     ${A.length?sec(`الإجراءات التصحيحية (${A.length})`,`<div class="list">${A.slice(0,10).map(a=>`<div class="li"><div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${a.status==="closed"?"✔ اتقفل "+fmtDate(a.closedAt):"مفتوح · الميعاد "+fmtDate(a.due)}</div></div></div>`).join("")}</div>`):""}
     ${K.length?sec("مؤشرات الأداء (KPI) آخر 6 شهور",`<div class="list">${K.map(({m,r})=>`<div class="li"><div class="grow"><div class="t">${monthName(m)}</div>${r?`<div class="bar-meter" style="margin-top:4px"><span class="${r.score>=90?"ok":""}" style="width:${Math.min(100,r.score)}%"></span></div>`:""}</div><span class="num">${r?r.score+"%":"—"}</span></div>`).join("")}</div>`):""}
     </div>`}};
+/* delete (soft) / restore employees */
+function empDel(id){const e=emp(id);if(!e)return;
+  if(tabLevel("manpower")==="view"){chgReq('employee','del',id);return}
+  confirmSheet("حذف "+e.name,"هيتشال من القوى العاملة والقوايم، وسجلاته القديمة هتفضل محفوظة. تقدر ترجّعه من «المحذوفين».",async()=>{
+    if(await write(()=>upsert("employees",id,{active:false,removedAt:Date.now(),removedBy:ME?.name||""}),"اتحذف ✔")){if(ui.personSel===id){ui.personSel="";}refresh()}},"احذف")}
+async function empRestore(id){if(await write(()=>upsert("employees",id,{active:true,removedAt:null}),"رجع ✔"))refresh()}
+function removedSheet(){const L=S.employees.filter(e=>e.active===false).sort((a,b)=>(b.removedAt||0)-(a.removedAt||0));
+  openSheet(`المحذوفين (${L.length})`,L.length?`<div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${e.removedAt?" · اتحذف "+new Date(e.removedAt).toLocaleDateString("ar-EG"):""}</div></div><button class="btn sm" type="button" onclick="$('overlayRoot').innerHTML='';empRestore('${e.id}')">↩ رجّعه</button></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>',()=>{},"قفل")}
+{const _pr=personRow;personRow=function(e){const h=_pr(e);const v=tabLevel("manpower")==="view";
+  return h.replace(/<\/div><\/div>$/,`<button class="btn ghost sm" style="color:var(--bad)" title="${v?"اطلب حذف":"حذف"}" onclick="empDel('${e.id}')">🗑${v?" اطلب حذف":" حذف"}</button></div></div>`)}}
+{const _pf2=personFileHTML;personFileHTML=function(e){const h=_pf2(e);if(tabLevel("manpower")==="view")return h;
+  return h.replace(/(<button class="btn" onclick="empForm\('[^']+'\)">تعديل البيانات<\/button>)/,`$1<button class="btn danger" onclick="empDel('${e.id}')">🗑 حذف</button>`)}}
+{const _mf2=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mf2.call(this);if(tabLevel("manpower")!=="view"&&!ui.personSel){const F=document.querySelector("#mpBody .filters");const n=S.employees.filter(e=>e.active===false).length;if(F&&!$("mpRemoved"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpRemoved" onclick="removedSheet()">🗑 المحذوفين (${n})</button>`)}}}
 
 /* ---------- team follow-up (admin) + team chat ---------- */
 const TEAM_ROLES=["hsesup","hse","officer","monitor","sup","eng","store"];
