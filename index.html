@@ -1563,7 +1563,7 @@ function loadImg(src){return imgCache[src]??=new Promise((res,rej)=>{const i=new
 const PTW_DAYS={COLD:1,HOT:1,CONF:1,HEIGHT:7,LIFT:7,ELEC:1,EXC:1};
 function addDays(s,n){const [y,m,d]=s.split("-").map(Number);const x=new Date(y,m-1,d+n);return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate())}
 function ptwEnd(p){return p.endDate||(p.date?addDays(p.date,(PTW_DAYS[p.type]||1)-1):"")}
-function ptwValues(p){const tm=[p.from,p.to].filter(Boolean).join(" - ");return {serial:String(p.serial||""),date:fmtDate(p.date),req:p.requester||"",site:p.siteEng||p.requester||"",hse:p.safetyId?empName(p.safetyId):(p.safetyName||""),sup:p.supervisor||"",pdate:fmtDate(p.date),excW:p.excW||"",excL:p.excL||"",excD:p.excD||"",startDate:fmtDate(p.startDate||p.date),endDate:fmtDate(ptwEnd(p)),location:p.location||"",desc:p.desc||"",time:tm}}
+function ptwValues(p){const tm=[p.from,p.to].filter(Boolean).join(" - ");return {serial:String(p.serial||""),date:fmtDate(p.date),req:p.requester||"",site:p.siteEng||p.requester||"",hse:p.hseName|| (p.safetyId?empName(p.safetyId):(p.safetyName||"")),sup:p.supName||p.supervisor||"",pdate:fmtDate(p.date),excW:p.excW||"",excL:p.excL||"",excD:p.excD||"",startDate:fmtDate(p.startDate||p.date),endDate:fmtDate(ptwEnd(p)),location:p.location||"",desc:p.desc||"",time:tm}}
 let SIG=null;
 async function loadSig(){if(SIG!==null)return SIG;SIG={};if(!db||!isOwner)return SIG;try{const s=await db.doc("private/signature").get();if(s.exists)SIG=s.data()||{}}catch(e){}return SIG}
 function normName(s){return String(s||"").replace(/\s+/g," ").trim().replace(/[ىي]/g,"ي").replace(/[أإآا]/g,"ا").replace(/ة/g,"ه")}
@@ -1851,7 +1851,7 @@ function arDate(d){if(!d)return "";return `${dayName(d)} ${fmtDate(d)}`}
 let CAN_SIGN=false;
 async function sigData(){if(SIG&&!Object.keys(SIG).length&&db&&isOwner)SIG=null;const s=await loadSig();CAN_SIGN=Object.keys(s||{}).length>0;return s||{}}
 async function sigSrc(){const s=await sigData();return s["VAC-Picture12"]||s["IV-sig"]||Object.values(s)[0]||""}
-async function sigBox(approved){if(!approved)return "";const src=CAN_SIGN?await sigSrc():"";return src?`<img class="sigimg" src="${src}" alt="">`:`<span class="stamp">✔ اعتمد إلكترونياً ${fmtDate(new Date(approved.at||Date.now()).toISOString().slice(0,10))}</span>`}
+async function sigBox(approved){if(!approved)return "";const src=approved.signature||(approved.by===ME.id?await mySig():"");return src?`<img class="sigimg" src="${src}" alt="توقيع المعتمد">`:""}
 
 /* ---------- viewer ---------- */
 function pvClose(){$("pvRoot")?.remove();document.body.style.overflow=""}
@@ -1915,8 +1915,8 @@ async function printPermit(id){
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
-  const spec=(await loadForms2())[r.form];await sigData();
-  const canAp=CAN_SIGN&&SIG_FIELDS[r.form];
+  const spec=(await loadForms2())[r.form];const personalSig=await mySig();await sigData();
+  const canAp=!!personalSig&&SIG_FIELDS[r.form];
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
   const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
@@ -1937,15 +1937,15 @@ function sigRect(spec,nf){const [x,y,w,h]=nf.rect;const pg=nf.page||0;
 async function renderGeneric(fid,rec){
   const pages=await renderGenericBase(fid,rec);
   if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages);
-  const spec=(await loadForms2())[fid];const src=await sigSrc();
-  for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(!isLeaderName(recVal(spec,rec,nk)))continue;
+  const spec=(await loadForms2())[fid];const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
+  for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(normName(recVal(spec,rec,nk))!==normName(rec.approved.name||""))continue;
     const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const [rx,ry,rw,rh]=sigRect(spec,nf);const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
-    if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}
-    else{g.save();g.fillStyle="#1f4f8f";g.textAlign="center";g.textBaseline="middle";g.direction="rtl";g.font=`700 ${Math.max(14,bh*0.42)}px "IBM Plex Sans Arabic",Arial`;g.fillText("✔ اعتمد إلكترونياً",bx+bw/2,by+bh/2);g.restore()}}
+    if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}}
   return renderGenericSigned(fid,rec,pages)}
 async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;const f={...(r.f||{})};
-  for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=LEADER();const e=S.employees.find(x=>isLeaderName(x.name));if(e)f[k+"_id"]=e.id}
-  if(await write(()=>upsert("records",id,{f,approved:{by:ME.id,at:Date.now(),name:LEADER()}}),"اتعتمد بتوقيعك ✔")){setTimeout(()=>printRecord(id),300)}}
+  for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=myEmpName();const e=S.employees.find(x=>normName(x.name)===normName(f[k]));if(e)f[k+"_id"]=e.id}
+  const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
+  if(await write(()=>upsert("records",id,{f,approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد بتوقيعك ✔")){setTimeout(()=>printRecord(id),300)}}
 async function unapproveRecord(id){if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300)}
 const apPill=x=>x?.approved?'<span class="pill p-sign">✔ معتمد</span>':"";
 
@@ -2064,7 +2064,8 @@ function ptwSupDecide(id,ok){const p=S.permits.find(x=>x.id===id);if(!p)return;c
     ${f("ملاحظة لمسؤول السلامة","note",{full:true})}</div>`,async(fd,form)=>{
       const ids=[...form.querySelectorAll("[name=crew]:checked")].map(i=>i.value);const crew=[...ids.map(i=>{const e=emp(i);return {id:i,name:e?.name||"",job:e?.job||""}}),...(fd.extra||"").split(/\n/).map(x=>x.trim()).filter(Boolean).map(n=>({id:"",name:n,job:""}))];
       if(!crew.length)return "اختار العاملين في التصريح";
-      const patch={supOk:true,supName:me,supAt:Date.now(),supUidDone:ME.id,supervisor:(fd.supervisor||me).trim(),location:fd.location.trim(),desc:fd.desc.trim(),crew,workers:crew.length,flow:[...(p.flow||[]),{st:"supok",by:ME.id,name:me,at:Date.now(),note:(fd.note||"").trim()}]};
+      const signature=await mySig();if(!signature)return "ضيف توقيعك من ملفك الشخصي قبل الاعتماد";
+      const patch={supOk:true,supName:me,supAt:Date.now(),supUidDone:ME.id,supSignature:signature,supervisor:(fd.supervisor||me).trim(),location:fd.location.trim(),desc:fd.desc.trim(),crew,workers:crew.length,flow:[...(p.flow||[]),{st:"supok",by:ME.id,name:me,at:Date.now(),note:(fd.note||"").trim()}]};
       return (await activateIfReady(id,patch,"اتعتمد مكان العمل ✔ مستني مسؤول السلامة"))?null:"الحفظ فشل"},"اعتماد");
   const upd=()=>{$("crN").textContent=`${document.querySelectorAll("#crList [name=crew]:checked").length} عامل متحدد`};upd();
   $("crList").addEventListener("change",upd);$("crQ").oninput=e=>{const q=normName(e.target.value);document.querySelectorAll("#crList [data-n]").forEach(l=>l.hidden=q&&!l.dataset.n.includes(q))}}
@@ -2095,7 +2096,8 @@ function ptwFinalForm(id){
     ${f("اشتراطات إضافية / ملاحظات","notes",{type:"textarea",value:p.notes||"",full:true})}</div>`,
   async(fd,form)=>{
     if(!fd.safetyId)return "اختار مسؤول السلامة";const pc=[...form.querySelectorAll("[name=pc]:checked")].map(i=>i.value);const meN=myEmpName();
-    const patch={hseOk:true,hseName:meN,hseAt:Date.now(),hseUidDone:ME.id,date:fd.startDate||p.date,startDate:fd.startDate,endDate:fd.endDate||"",from:fd.from,to:fd.to,safetyId:fd.safetyId,gas:(fd.gas||"").trim(),precautions:pc,notes:(fd.notes||"").trim(),flow:[...(p.flow||[]),{st:"hseok",by:ME.id,name:meN,at:Date.now()}]};
+    const signature=await mySig();if(!signature)return "ضيف توقيعك من ملفك الشخصي قبل الاعتماد";
+    const patch={hseOk:true,hseName:meN,hseAt:Date.now(),hseUidDone:ME.id,hseSignature:signature,date:fd.startDate||p.date,startDate:fd.startDate,endDate:fd.endDate||"",from:fd.from,to:fd.to,safetyId:fd.safetyId,gas:(fd.gas||"").trim(),precautions:pc,notes:(fd.notes||"").trim(),flow:[...(p.flow||[]),{st:"hseok",by:ME.id,name:meN,at:Date.now()}]};
     return (await activateIfReady(id,patch,"اتعتمد من السلامة ✔ مستني مشرف التنفيذ"))?null:"الحفظ فشل"},sOk?"اعتماد وبدء العمل":"اعتماد السلامة");
   addPreviewBtn(async()=>{const fd=Object.fromEntries(new FormData($("shForm")).entries());const serial=nextSerial(t);const q={...p,...fd,serial,number:`${t}-${serial}`};if(!FORM_TYPES.includes(t)){toast("النوع ده مالوش نموذج طباعة");return}
     const V=openViewer(`معاينة ${q.number}`,{filename:`${q.number}.pdf`,note:"معاينة قبل الاعتماد."});try{V.setPages(await renderForm(t,ptwValues(q)))}catch(e){V.fail()}});
@@ -2278,11 +2280,11 @@ function statsForm(y,h){
     const ok=await write(()=>db.doc("office/stats_"+halfKey({y,h})).set(s),"اتحفظت النماذج");if(ok)setTimeout(()=>statsView(y,h),350);return ok?null:"الحفظ فشل"},"حفظ وعرض");
 }
 async function statsView(y,h){const s=statsDoc({y,h});if(!s){statsForm(y,h);return}await sigData();
-  const V=openViewer(`إحصائيات مكتب العمل · ${halfLabel({y,h})}`,{filename:`احصائيات مكتب العمل ${y}-${h===1?"1 الى 6":"7 الى 12"}.pdf`,
-    extra:`${tabLevel("office")!=="view"?`<button class="btn" data-extra onclick="pvClose();statsForm(${y},${h})">✏️ تعديل</button>`:""}${CAN_SIGN?(s.approved?`<button class="btn" data-extra onclick="statsApprove(${y},${h},false)">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="statsApprove(${y},${h},true)">✍ اعتماد بتوقيعي</button>`):""}`});
-  if(s.approved)V.note("✔ معتمدة بتوقيع "+esc(LEADER()),true);
+  const personalSig=await mySig();const V=openViewer(`إحصائيات مكتب العمل · ${halfLabel({y,h})}`,{filename:`احصائيات مكتب العمل ${y}-${h===1?"1 الى 6":"7 الى 12"}.pdf`,
+    extra:`${tabLevel("office")!=="view"?`<button class="btn" data-extra onclick="pvClose();statsForm(${y},${h})">✏️ تعديل</button>`:""}${personalSig?(s.approved?`<button class="btn" data-extra onclick="statsApprove(${y},${h},false)">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="statsApprove(${y},${h},true)">✍ اعتماد بتوقيعي</button>`):""}`});
+  if(s.approved)V.note("✔ معتمدة بتوقيع "+esc(s.approved.name||""),true);
   try{V.setHtml(await statsHTML(s))}catch(e){console.error(e);V.fail()}}
-async function statsApprove(y,h,yes){const id="stats_"+halfKey({y,h});if(await write(()=>upsert("office",id,{approved:yes?{by:ME.id,at:Date.now(),name:LEADER()}:null}),yes?"اتعتمدت ✔":"اتلغى الاعتماد"))setTimeout(()=>statsView(y,h),300)}
+async function statsApprove(y,h,yes){const id="stats_"+halfKey({y,h});const signature=yes?await mySig():"";if(yes&&!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}if(await write(()=>upsert("office",id,{approved:yes?{by:ME.id,at:Date.now(),name:myEmpName(),signature}:null}),yes?"اتعتمدت ✔":"اتلغى الاعتماد"))setTimeout(()=>statsView(y,h),300)}
 async function statsHTML(s){
   const E=estab(),C=statsCalc(s),R=halfRange({y:s.y,h:s.h}),nm=["","يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
   const sig=await sigBox(s.approved);const none="لا يوجد";
@@ -2385,9 +2387,9 @@ VIEWS.report={
   bind(){$("repMonth").onchange=e=>{ui.repMonth=e.target.value||thisMonth();ui.repDirty=false;this.fill(true)}},
   async fill(force,Rover){
     if(!force&&ui.repDirty&&$("repForm"))return;
-    const m=ui.repMonth,doc=repDoc(m),R=Rover||(doc?JSON.parse(JSON.stringify(doc)):repDefaults(m)),C=repComputed(m,R);await sigData();const ed=canWrite;
+    const m=ui.repMonth,doc=repDoc(m),R=Rover||(doc?JSON.parse(JSON.stringify(doc)):repDefaults(m)),C=repComputed(m,R);const personalSig=await mySig();await sigData();const ed=canWrite;
     $("repBar").innerHTML=`<span class="pill ${doc?.status==="approved"?"p-sign":doc?"p-susp":"p-closed"}" style="align-self:center">${doc?.status==="approved"?"✔ معتمد":doc?"مسودة محفوظة":"جديد"}</span><div class="grow"></div>
-      ${ed?`<button class="btn" id="repSave">💾 حفظ</button>`:""}<button class="btn primary keep" id="repView">👁 معاينة وطباعة</button>${CAN_SIGN&&doc?(doc.status==="approved"?`<button class="btn" id="repUnap">إلغاء الاعتماد</button>`:`<button class="btn sign" id="repAp">✍ اعتماد بتوقيعي</button>`):""}<button class="btn ghost" id="copyRep">نسخ ملخص للواتساب</button>`;
+      ${ed?`<button class="btn" id="repSave">💾 حفظ</button>`:""}<button class="btn primary keep" id="repView">👁 معاينة وطباعة</button>${personalSig&&doc?(doc.status==="approved"?`<button class="btn" id="repUnap">إلغاء الاعتماد</button>`:`<button class="btn sign" id="repAp">✍ اعتماد بتوقيعي</button>`):""}<button class="btn ghost" id="copyRep">نسخ ملخص للواتساب</button>`;
     const num_=(name,val,attrs="")=>`<input class="mini" inputmode="numeric" name="${name}" value="${val??""}" ${attrs} ${ed?"":"disabled"}>`;
     const rows=(key,cols,min)=>{const L=R[key]||[];const n=Math.max(min,L.length+2);return `<table class="ed"><thead><tr><th>م</th>${cols.map(c=>`<th>${c[1]}</th>`).join("")}</tr></thead><tbody>${Array.from({length:n},(_,i)=>{const x=key==="improve"?{t:L[i]||""}:(L[i]||{});return `<tr><td class="n">${i+1}</td>${cols.map(([k])=>`<td><textarea rows="2" name="${key}_${i}_${k}" ${ed?"":"disabled"}>${esc(x[k]||"")}</textarea></td>`).join("")}</tr>`}).join("")}</tbody></table>`};
     const kr=R.kpiRows||kpiRowsAuto(m);const ex=R.ext||extCounts();
@@ -2426,7 +2428,7 @@ VIEWS.report={
     const save=async(silent)=>{const X=collect();if(!X.status)X.status="draft";const ok=await write(()=>db.doc("reports/"+m).set(X),silent?null:"اتحفظ التقرير");if(ok)ui.repDirty=false;return ok?X:null};
     if($("repSave"))$("repSave").onclick=()=>save().then(()=>this.fill(true));
     $("repView").onclick=async()=>{let X=ed&&(ui.repDirty||!doc)?await save(true):null;X=X||repDoc(m)||collect();repView(m,X)};
-    if($("repAp"))$("repAp").onclick=async()=>{const X=await save(true);if(X&&await write(()=>db.doc("reports/"+m).set({...X,status:"approved",approved:{by:ME.id,at:Date.now(),name:LEADER()}}),"اتعتمد التقرير ✔")){ui.repDirty=false;setTimeout(()=>{this.fill(true);repView(m)},300)}};
+    if($("repAp"))$("repAp").onclick=async()=>{const X=await save(true);const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}if(X&&await write(()=>db.doc("reports/"+m).set({...X,status:"approved",approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد التقرير ✔")){ui.repDirty=false;setTimeout(()=>{this.fill(true);repView(m)},300)}};
     if($("repUnap"))$("repUnap").onclick=async()=>{await write(()=>upsert("reports",m,{status:"draft",approved:null}),"اتلغى الاعتماد");this.fill(true)};
     $("copyRep").onclick=()=>copyText(reportText(m));
     if($("repPullAct"))$("repPullAct").onclick=()=>{const A=deriveActions().filter(a=>a.status==="closed"&&(a.closedAt||"").startsWith(m));if(!A.length){toast("مفيش إجراءات اتقفلت الشهر ده");return}const X=collect();X.corrective=[...X.corrective,...A.map(a=>({desc:[a.title,a.place].filter(Boolean).join(" — "),action:a.closeNote||"تم الإصلاح"}))];R.corrective=X.corrective;Object.assign(R,X);ui.repDirty=true;this.fill(true,R)};
@@ -2436,7 +2438,7 @@ VIEWS.report={
 };
 async function repView(m,X){X=X||repDoc(m);if(!X){toast("احفظ التقرير الأول");return}await sigData();
   const V=openViewer(`التقرير الشهري · ${monthName(m)}`,{filename:`${m}-التقرير الشهري ${estab().siteName}.pdf`,note:X.status==="approved"?"":"التقرير لسه مسودة. بعد ما تراجعه اضغط «اعتماد» عشان يطلع بالتوقيع."});
-  if(X.status==="approved")V.note("✔ معتمد بتوقيع "+esc(LEADER()),true);
+  if(X.status==="approved")V.note("✔ معتمد بتوقيع "+esc(X.approved?.name||""),true);
   try{V.setHtml(await repHTML(m,X))}catch(e){console.error(e);V.fail()}}
 async function repHTML(m,X){
   const C=repComputed(m,X),E=estab(),sig=await sigBox(X.status==="approved"?X.approved:null);const mn=monthName(m).split(" ");const MN=`${mn[0]}- ${mn[1]}`;
@@ -2545,17 +2547,17 @@ function mrForm(id,preset){
   tb.addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(b&&tb.rows.length>1)b.closest("tr").remove()});
   tb.addEventListener("input",e=>{const inp=e.target.closest("[name$=_name]");if(!inp)return;const it=resolveItem(inp.value);$("mrBal").textContent=it?`${it.name}: الرصيد في المخزن ${balance(it.id)} ${it.unit||""}`:"";const u=inp.closest("tr").querySelector("[name$=_unit]");if(it&&u&&!u.value)u.value=it.unit||""});
 }
-function mrDecide(id,yes){const r=S.matreq.find(x=>x.id===id);if(!r)return;const me=myEmpName();
-  openSheet(yes?`اعتماد الطلب MR-${r.serial}`:`رفض الطلب MR-${r.serial}`,`<p style="margin-top:0">${(r.lines||[]).map(l=>`${esc(l.name)} × <b>${num(l.qty)}</b> ${esc(l.unit||"")}`).join("<br>")}</p><div class="form">${f(yes?"ملاحظة (اختياري)":"سبب الرفض","note",{type:"textarea",full:true,req:!yes})}</div>${yes&&CAN_SIGN?'<p class="muted" style="font-size:13px">الطلب هيتعتمد بتوقيعك ويطلع بيه في الطباعة.</p>':""}`,async fd=>{
+async function mrDecide(id,yes){const r=S.matreq.find(x=>x.id===id);if(!r)return;const me=myEmpName();const signature=yes?await mySig():"";if(yes&&!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");sigEditor();return}
+  openSheet(yes?`اعتماد الطلب MR-${r.serial}`:`رفض الطلب MR-${r.serial}`,`<p style="margin-top:0">${(r.lines||[]).map(l=>`${esc(l.name)} × <b>${num(l.qty)}</b> ${esc(l.unit||"")}`).join("<br>")}</p><div class="form">${f(yes?"ملاحظة (اختياري)":"سبب الرفض","note",{type:"textarea",full:true,req:!yes})}</div>${yes?'<p class="muted" style="font-size:13px">الطلب هيتعتمد بتوقيعك ويظهر في الطباعة.</p>':""}`,async fd=>{
     if(!yes&&!fd.note.trim())return "اكتب السبب";
-    const d=yes?{status:"approved",apNote:(fd.note||"").trim(),apName:me,apAt:Date.now(),approved:CAN_SIGN?{by:ME.id,at:Date.now(),name:LEADER()}:null}:{status:"rejected",rejNote:fd.note.trim(),rejName:me,rejAt:Date.now()};
+    const d=yes?{status:"approved",apNote:(fd.note||"").trim(),apName:me,apAt:Date.now(),approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}:{status:"rejected",rejNote:fd.note.trim(),rejName:me,rejAt:Date.now()};
     return (await write(()=>upsert("matreq",id,d),yes?"اتعتمد ✔":"اترفض"))?null:"الحفظ فشل"},yes?"اعتماد":"رفض")}
 function mrIssue(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;
   openSheet(`صرف / توريد MR-${r.serial}`,`<p style="margin-top:0">${(r.lines||[]).map(l=>`${esc(l.name)} × <b>${num(l.qty)}</b> ${esc(l.unit||"")}${l.itemId?` <span class="muted">(الرصيد ${balance(l.itemId)})</span>`:""}`).join("<br>")}</p><div class="form">${f("التاريخ","date",{type:"date",value:today()})}${f("رقم إذن الصرف / الفاتورة","ref",{})}${f("ملاحظات","note",{full:true})}${r.kind==="supply"?f("ضيف الكميات لرصيد المخزن","addStock",{opts:[["1","أيوه، سجّل استلام للأصناف المعروفة"],["0","لأ"]]}):""}</div>`,async fd=>{
     const ok=await write(async()=>{if(r.kind==="supply"&&fd.addStock==="1"){for(const l of r.lines||[])if(l.itemId)await db.collection("ppe_moves").add({type:"receipt",itemId:l.itemId,qty:num(l.qty),date:fd.date||today(),note:`توريد طلب MR-${r.serial}${fd.ref?" · "+fd.ref:""}`,createdAt:Date.now()})}
       await upsert("matreq",id,{status:"issued",issuedAt:fd.date||today(),issueRef:(fd.ref||"").trim(),issueNote:(fd.note||"").trim(),issuedBy:myEmpName()})},"اتسجل ✔");return ok?null:"الحفظ فشل"},"تأكيد")}
 function mrDel(id){confirmSheet("مسح الطلب","الطلب هيتمسح نهائياً.",()=>write(()=>remove("matreq",id),"اتمسح"))}
-async function mrView(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;await sigData();const E=estab();const sig=await sigBox(r.approved);
+async function mrView(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;await sigData();const E=estab();const sig=await sigBox(r.approved);const personalSig=await mySig();
   const rows=[...(r.lines||[])];while(rows.length<12)rows.push(null);
   const html=`<div class="dpage"><div class="frame thin"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="font-size:9.5pt;line-height:1.5">${esc(E.name)}<br>إدارة السلامة والصحة المهنية<br>موقع ${esc(E.siteName)}</div><img src="rep-logo.png" style="height:16mm" alt=""></div>
     <div class="ttl" style="font-size:14pt">طلب احتياج مهمات وخامات</div>
@@ -2563,9 +2565,9 @@ async function mrView(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;await
     <table style="margin-top:4mm"><thead><tr><th class="num">م</th><th>الصنف</th><th style="width:28mm">الكود</th><th style="width:20mm">الكمية</th><th style="width:20mm">الوحدة</th><th style="width:30mm">ملاحظات</th></tr></thead><tbody class="tall2">${rows.map((l,i)=>`<tr><td>${i+1}</td><td class="r">${l?esc(l.name):""}</td><td>${l?esc(l.code||""):""}</td><td>${l?num(l.qty):""}</td><td>${l?esc(l.unit||""):""}</td><td></td></tr>`).join("")}</tbody></table>
     <p><b>السبب / ملاحظات:</b> ${esc(r.note||"")}</p>${r.status==="rejected"?`<p style="color:#b42318"><b>مرفوض:</b> ${esc(r.rejNote||"")}</p>`:""}${r.status==="issued"?`<p><b>اتصرف بتاريخ:</b> ${fmtDate(r.issuedAt||"")} ${r.issueRef?`— مستند رقم ${esc(r.issueRef)}`:""}</p>`:""}
     <table style="margin-top:auto"><thead><tr><th>الطالب</th><th>اعتماد مسئول السلامة</th><th>أمين المخزن</th></tr></thead><tbody><tr><td>${esc(r.reqName||"")}</td><td>${r.status==="approved"||r.status==="issued"?esc(r.approved?.name||r.apName||""):""}</td><td>${esc(r.issuedBy||"")}</td></tr><tr style="height:16mm"><td>${await personSig(r,r.reqName)}</td><td>${sig}</td><td>${await personSig(r,r.issuedBy)}</td></tr></tbody></table></div></div>`;
-  const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:(CAN_SIGN&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:"")+(!isLeaderName(myEmpName())&&myNameIn([r.reqName,r.issuedBy])?(r.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('matreq','${r.id}',()=>mrView('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('matreq','${r.id}',{reopen:()=>mrView('${r.id}')})">✍ توقيعي</button>`):"")});V.setHtml(html)}
-async function mrSign(id){const r=S.matreq.find(x=>x.id===id);const d={approved:{by:ME.id,at:Date.now(),name:LEADER()}};if(r.status==="new")Object.assign(d,{status:"approved",apName:myEmpName(),apAt:Date.now()});if(await write(()=>upsert("matreq",id,d),"اتعتمد ✔"))setTimeout(()=>mrView(id),300)}
-async function personSig(r,name){const s=signsOf(r).find(x=>name&&normName(x.name)===normName(name));if(!s)return "";const mine=s.uid===ME.id?await mySig():"";return mine?`<img class="sigimg" src="${mine}" alt="">`:`<span class="stamp">✔ اعتمد إلكترونياً</span>`}
+  const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:(personalSig&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:"")+(!isLeaderName(myEmpName())&&myNameIn([r.reqName,r.issuedBy])?(r.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('matreq','${r.id}',()=>mrView('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('matreq','${r.id}',{reopen:()=>mrView('${r.id}')})">✍ توقيعي</button>`):"")});V.setHtml(html)}
+async function mrSign(id){const r=S.matreq.find(x=>x.id===id);const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}const d={approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}};if(r.status==="new")Object.assign(d,{status:"approved",apName:myEmpName(),apAt:Date.now()});if(await write(()=>upsert("matreq",id,d),"اتعتمد ✔"))setTimeout(()=>mrView(id),300)}
+async function personSig(r,name){const s=signsOf(r).find(x=>name&&normName(x.name)===normName(name));if(!s)return "";const mine=s.signature||(s.uid===ME.id?await mySig():"");return mine?`<img class="sigimg" src="${mine}" alt="توقيع ${esc(s.name||"")}">`:""}
 
 /* ---------- send document on WhatsApp + nearest printer ---------- */
 function pdfFile(blob,filename){try{return new File([blob],filename,{type:"application/pdf"})}catch(e){return null}}
@@ -2644,10 +2646,8 @@ const isDateField=f=>/date|^d\d|^d[AB]/i.test(f.k)||f.type==="date"||f.auto==="d
 function signRect(fields,nf,getR,isDate,mode){const [x,y,w,h]=getR(nf);const pg=nf.page||0;
   const dates=fields.filter(f=>f!==nf&&(f.page||0)===pg&&isDate(f)&&getR(f)[1]>y+h*0.5&&getR(f)[1]<y+h*4&&Math.min(x+w,getR(f)[0]+getR(f)[2])-Math.max(x,getR(f)[0])>w*0.5).sort((a,b)=>getR(a)[1]-getR(b)[1]);
   const d=dates[0];if(!d)return null;const dy=getR(d)[1],gap=dy-y;if(mode==="after"){const rh=gap>h*1.75?gap/2:gap;return [x,dy+rh-h*0.15,w,h*1.3]}if(gap>h*1.75)return [x,y+gap/2-h*0.15,w,h*1.3];return [x,dy+gap-h*0.15,w,h*1.3]}
-async function stampOn(cv,r,src,s){if(!cv||!r)return;const g=cv.getContext("2d");const W=cv.width,H=cv.height;const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
-  if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const k=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*k,h=im.height*k;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);return}catch(e){}}
-  g.save();g.fillStyle="#1f4f8f";g.textAlign="center";g.textBaseline="middle";g.direction="rtl";const fs=Math.max(12,Math.min(bh*0.36,bw/16));g.font=`700 ${fs}px "IBM Plex Sans Arabic",Arial`;
-  g.fillText(`✔ اعتمد إلكترونياً ${s?.at?fmtDate(new Date(s.at).toISOString().slice(0,10)):""}`,bx+bw/2,by+bh/2);g.restore()}
+async function stampOn(cv,r,src,s){if(!cv||!r)return;const img=src||s?.signature||s?.img;if(!img)return;const g=cv.getContext("2d");const W=cv.width,H=cv.height;const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
+  try{const im=await loadImg(img);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const k=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*k,h=im.height*k;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}
 const NAME_KEY=/^(sig\d|tName|lecName|lecturer|trainer|mgr|officer|writer|gh|inspector|reporter|clinic|lead|corrBy|orig|sup|checker)(_\d)?$/;
 async function renderGenericSigned(fid,rec,pages){const L=signsOf(rec).filter(s=>!(rec.approved&&isLeaderName(s.name)));if(!L.length)return pages;
   const spec=(await loadForms2())[fid];const mine=await mySig();
@@ -2655,13 +2655,16 @@ async function renderGenericSigned(fid,rec,pages){const L=signsOf(rec).filter(s=
     const r=signRect(spec.fields,f,x=>x.rect,isDateField);if(!r)continue;const key=(f.page||0)+":"+r.map(n=>n.toFixed(3)).join(",");if(done.has(key))continue;done.add(key);
     await stampOn(pages[f.page||0],r,s.uid===ME.id?mine:"",s)}}
   return pages}
-async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);const L=signsOf(p);if(!L.length)return pages;
+async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);const byUid=new Map(signsOf(p).map(s=>[s.uid,{...s}]));
+  if(p.supSignature&&p.supUidDone&&p.supName)byUid.set(p.supUidDone,{...(byUid.get(p.supUidDone)||{}),uid:p.supUidDone,name:p.supName,at:p.supAt,signature:p.supSignature});
+  if(p.hseSignature&&p.hseUidDone&&p.hseName)byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature});
+  const L=[...byUid.values()];if(!L.length)return pages;
   const F=(await loadForms())[p.type];const vals=ptwValues(p);const mine=await mySig();const R=b=>[b.x,b.y,b.w,b.h];const isD=b=>/date/i.test(b.field||"");
   for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=signRect(F.boxes,b,R,isD,"after");if(r)await stampOn(pages[b.page||0],r,s.uid===ME.id?mine:"",s)}
   return pages}
 function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(v=>normName(v)===n)}
 async function signDoc(col,id,{reopen}={}){const src=await mySig();if(!src){toast("ضيف توقيعك الأول من 👤 حسابي ← ✍ توقيعي");sigEditor();return}
-  const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;const signs={...(x.signs||{}),[ME.id]:{uid:ME.id,name:myEmpName(),at:Date.now()}};
+  const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;const signs={...(x.signs||{}),[ME.id]:{uid:ME.id,name:myEmpName(),at:Date.now(),signature:src}};
   if(await write(()=>upsert(col,id,{signs}),"اتوقّع ✔"))setTimeout(()=>reopen&&reopen(),300)}
 async function unsignDoc(col,id,reopen){const x=current(col,id)||S.matreq.find(r=>r.id===id);const signs={...(x?.signs||{})};delete signs[ME.id];if(await write(()=>upsert(col,id,{signs}),"اتشال توقيعك"))setTimeout(()=>reopen&&reopen(),300)}
 /* editor */
@@ -2669,7 +2672,7 @@ function sigEditor(){
   openSheet("✍ توقيعي",`<p class="muted" style="margin-top:0;font-size:13.5px">ارسم توقيعك بصباعك أو بالماوس جوه المربع، أو صوّر توقيعك على ورقة بيضا وارفعه.</p>
     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="sgC" width="900" height="300" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="sgClr">🗑 مسح</button><label class="btn sm" style="cursor:pointer">📷 صورة توقيعي<input type="file" accept="image/*" id="sgFile" hidden></label></div>
-    <p class="muted" style="font-size:12.5px">🔒 توقيعك بيتحفظ لحسابك بس. محدش غيرك يقدر يشوفه أو يستخدمه، وبيظهر في الطباعة بس لما تطبع أنت. أي حد تاني بيشوف مكانه «✔ اعتمد إلكترونياً».</p>`,
+    <p class="muted" style="font-size:12.5px">🔒 توقيعك يفضل خاصًا بحسابك، وتُحفظ صورته داخل المستند فقط بعد ما توقّعه لتظهر لكل من لديه صلاحية عرض المستند.</p>`,
   async()=>{const img=exportSig();if(!img)return "ارسم توقيعك الأول";
     try{await db.doc("private/sig_"+ME.id).set({img,at:Date.now()})}catch(e){return "الحفظ فشل"}MYSIG=img;toast("اتحفظ توقيعك ✔");return null},"حفظ التوقيع");
   const c=$("sgC"),g=c.getContext("2d");let drawing=false,dirty=false,last=null;
@@ -2819,7 +2822,7 @@ setInterval(inAppTick,30000);setTimeout(inAppTick,8000);
 /* account menu: signature + reminders */
 async function meMenu(){meMenuBase();const form=$("shForm");if(!form)return;const st=await pushState();const sg=await mySig();
   const box=document.createElement("div");box.className="card";box.style.cssText="margin-top:14px;padding:12px";
-  box.innerHTML=`<div class="li" style="border:0"><div class="grow"><div class="t">✍ توقيعي</div><div class="s">${sg?"متسجل — بيظهر لما تطبع أنت بس":"لسه ما ضفتش توقيعك"}</div></div>${sg?`<img src="${sg}" alt="" style="height:34px;max-width:120px;background:#fff;border-radius:6px;padding:2px">`:""}<button type="button" class="btn sm" id="mmSig">${sg?"تغيير":"إضافة توقيع"}</button></div>
+  box.innerHTML=`<div class="li" style="border:0"><div class="grow"><div class="t">✍ توقيعي</div><div class="s">${sg?"متسجل — بيظهر لأطراف المستند بعد توقيعك":"لسه ما ضفتش توقيعك"}</div></div>${sg?`<img src="${sg}" alt="" style="height:34px;max-width:120px;background:#fff;border-radius:6px;padding:2px">`:""}<button type="button" class="btn sm" id="mmSig">${sg?"تغيير":"إضافة توقيع"}</button></div>
     <div class="li"><div class="grow"><div class="t">🔔 التنبيهات اليومية</div><div class="s">7:45 صباحاً · 12:55 الضهر · 3:00 العصر${st==="unsupported"?(isIOS()?" — ثبّت المنظومة على الشاشة الرئيسية الأول":" — المتصفح مش بيدعمها"):st==="denied"?" — مقفولة من إعدادات المتصفح":""}</div></div>${st==="on"?`<button type="button" class="btn ghost sm" id="mmTest">تجربة</button><button type="button" class="btn ghost sm" id="mmOff">إيقاف</button>`:st==="off"?`<button type="button" class="btn sm primary" id="mmOn">تفعيل</button>`:""}</div>`;
   form.insertBefore(box,form.querySelector("#shMsg"));
   $("mmSig").onclick=()=>sigEditor();if($("mmOn"))$("mmOn").onclick=async()=>{if(await enablePush())meMenu()};if($("mmOff"))$("mmOff").onclick=async()=>{await disablePush();meMenu()};if($("mmTest"))$("mmTest").onclick=testPush}
