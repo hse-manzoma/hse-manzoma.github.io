@@ -1589,17 +1589,21 @@ async function renderForm(T,vals,opt={}){
       const txt=b.static??vals[b.field];if(txt==null||txt==="")continue;
       const bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H;
       if(["date","serial","today","reqDate","pdate","startDate","endDate"].includes(b.field)){x.fillStyle="#fff";x.fillRect(bx+2,by+2,bw-4,bh-4)}
+      const padX=Math.min(8,Math.max(2,bw*.035)),padY=Math.min(2,bh*.08),maxW=Math.max(1,bw-padX*2),innerH=Math.max(1,bh-padY*2);
       const font=s=>`600 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
-      let fs=Math.min((b.sz||11)*pxPerPt,bh*0.82);x.font=font(fs);
-      let lines=[String(txt)];
-      if(x.measureText(txt).width>bw-8){
-        const maxLines=Math.max(1,Math.floor(bh/(fs*1.3)));
-        if(maxLines>1){lines=wrapLines(x,txt,bw-8);while(lines.length>maxLines&&fs>9){fs-=1;x.font=font(fs);lines=wrapLines(x,txt,bw-8)}}
-        while(lines.some(l=>x.measureText(l).width>bw-8)&&fs>9){fs-=1;x.font=font(fs)}
-      }
-      x.fillStyle="#111";x.textBaseline="middle";x.direction=/[؀-ۿ]/.test(txt)?"rtl":"ltr";x.textAlign="center";
-      const lh=fs*1.25,top=by+bh/2-(lines.length-1)*lh/2+1;
-      lines.forEach((l,i)=>x.fillText(l,bx+bw/2,top+i*lh));
+      const baseFs=Math.min((b.sz||11)*pxPerPt,bh*.72),minFs=Math.min(8,baseFs);let fs=baseFs,lines=[],maxLines=1;
+      x.direction=/[؀-ۿ]/.test(String(txt))?"rtl":"ltr";
+      const makeLines=()=>String(txt).split(/\r?\n/).flatMap(line=>line?wrapLines(x,line,maxW):[""]);
+      for(;;){x.font=font(fs);maxLines=Math.max(1,Math.floor(innerH/(fs*1.16)));lines=makeLines();
+        if((lines.length<=maxLines&&lines.every(l=>x.measureText(l).width<=maxW))||fs<=minFs)break;
+        fs=Math.max(minFs,fs-.5)}
+      x.font=font(fs);maxLines=Math.max(1,Math.floor(innerH/(fs*1.16)));lines=makeLines();
+      const fitLine=l=>{if(x.measureText(l).width<=maxW)return l;let a=[...l];while(a.length&&x.measureText(a.join("")+"…").width>maxW)a.pop();return a.length?a.join("")+"…":"…"};
+      if(lines.length>maxLines){lines=lines.slice(0,maxLines);lines[maxLines-1]=fitLine(lines[maxLines-1])}else lines=lines.map(fitLine);
+      const align=b.algn==="r"?"right":b.algn==="l"?"left":"center",tx=align==="right"?bx+bw-padX:align==="left"?bx+padX:bx+bw/2;
+      x.fillStyle="#111";x.textBaseline="middle";x.textAlign=align;
+      const lh=fs*1.16,top=by+bh/2-(lines.length-1)*lh/2;
+      x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();lines.forEach((l,i)=>x.fillText(l,tx,top+i*lh));x.restore();
     }
     out.push(c);
   }
@@ -2646,8 +2650,21 @@ const isDateField=f=>/date|^d\d|^d[AB]/i.test(f.k)||f.type==="date"||f.auto==="d
 function signRect(fields,nf,getR,isDate,mode){const [x,y,w,h]=getR(nf);const pg=nf.page||0;
   const dates=fields.filter(f=>f!==nf&&(f.page||0)===pg&&isDate(f)&&getR(f)[1]>y+h*0.5&&getR(f)[1]<y+h*4&&Math.min(x+w,getR(f)[0]+getR(f)[2])-Math.max(x,getR(f)[0])>w*0.5).sort((a,b)=>getR(a)[1]-getR(b)[1]);
   const d=dates[0];if(!d)return null;const dy=getR(d)[1],gap=dy-y;if(mode==="after"){const rh=gap>h*1.75?gap/2:gap;return [x,dy+rh-h*0.15,w,h*1.3]}if(gap>h*1.75)return [x,y+gap/2-h*0.15,w,h*1.3];return [x,dy+gap-h*0.15,w,h*1.3]}
-async function stampOn(cv,r,src,s){if(!cv||!r)return;const img=src||s?.signature||s?.img;if(!img)return;const g=cv.getContext("2d");const W=cv.width,H=cv.height;const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
-  try{const im=await loadImg(img);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const k=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*k,h=im.height*k;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}
+function permitSignRect(fields,nf,getR,isDate){const [x,y,w,h]=getR(nf),pg=nf.page||0;
+  const d=fields.filter(f=>f!==nf&&(f.page||0)===pg&&isDate(f)&&getR(f)[1]>y+h*.5&&getR(f)[1]<y+h*4&&Math.min(x+w,getR(f)[0]+getR(f)[2])-Math.max(x,getR(f)[0])>w*.5).sort((a,b)=>getR(a)[1]-getR(b)[1])[0];
+  if(!d)return null;const [,dy,,dh]=getR(d);return [x,dy+dh+.001,w,Math.min(.028,Math.max(.018,dh*1.2))]}
+const sigPrintCache=new Map();
+async function normalizeSigForPrint(src){if(!src)return null;if(sigPrintCache.has(src))return sigPrintCache.get(src);
+  const task=(async()=>{const im=await loadImg(src),scale=Math.min(1,1600/im.width,1600/im.height),c=document.createElement("canvas");c.width=Math.max(1,Math.round(im.width*scale));c.height=Math.max(1,Math.round(im.height*scale));
+    const g=c.getContext("2d",{willReadFrequently:true});g.drawImage(im,0,0,c.width,c.height);const id=g.getImageData(0,0,c.width,c.height),a=id.data;let x0=c.width,y0=c.height,x1=-1,y1=-1;
+    for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){const i=(y*c.width+x)*4;if(a[i+3]<8)continue;const hi=Math.max(a[i],a[i+1],a[i+2]),lo=Math.min(a[i],a[i+1],a[i+2]),lum=a[i]*.299+a[i+1]*.587+a[i+2]*.114;
+      if(lum>188&&hi-lo<82)a[i+3]=0;if(a[i+3]<20)continue;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+    if(x1<=x0||y1<=y0)return null;g.putImageData(id,0,0);const pad=Math.max(3,Math.round(Math.min(x1-x0,y1-y0)*.05)),sx=Math.max(0,x0-pad),sy=Math.max(0,y0-pad),sw=Math.min(c.width-sx,x1-x0+pad*2),sh=Math.min(c.height-sy,y1-y0+pad*2),out=document.createElement("canvas");
+    out.width=sw;out.height=sh;out.getContext("2d").drawImage(c,sx,sy,sw,sh,0,0,sw,sh);return out})();
+  sigPrintCache.set(src,task);try{return await task}catch(e){sigPrintCache.delete(src);return loadImg(src)}}
+async function stampOn(cv,r,src,s){if(!cv||!r)return;const source=src||s?.signature||s?.img;if(!source)return;const g=cv.getContext("2d");const W=cv.width,H=cv.height;const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
+  try{const im=await normalizeSigForPrint(source);if(!im)return;const maxW=bw*.86,maxH=bh*.68,k=Math.min(maxW/im.width,maxH/im.height),w=im.width*k,h=im.height*k;
+    g.save();g.beginPath();g.rect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.clip();g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);g.restore()}catch(e){}}
 const NAME_KEY=/^(sig\d|tName|lecName|lecturer|trainer|mgr|officer|writer|gh|inspector|reporter|clinic|lead|corrBy|orig|sup|checker)(_\d)?$/;
 async function renderGenericSigned(fid,rec,pages){const L=signsOf(rec).filter(s=>!(rec.approved&&isLeaderName(s.name)));if(!L.length)return pages;
   const spec=(await loadForms2())[fid];const mine=await mySig();
@@ -2660,7 +2677,7 @@ async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);c
   if(p.hseSignature&&p.hseUidDone&&p.hseName)byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature});
   const L=[...byUid.values()];if(!L.length)return pages;
   const F=(await loadForms())[p.type];const vals=ptwValues(p);const mine=await mySig();const R=b=>[b.x,b.y,b.w,b.h];const isD=b=>/date/i.test(b.field||"");
-  for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=signRect(F.boxes,b,R,isD,"after");if(r)await stampOn(pages[b.page||0],r,s.uid===ME.id?mine:"",s)}
+  for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=permitSignRect(F.boxes,b,R,isD);if(r)await stampOn(pages[b.page||0],r,s.uid===ME.id?mine:"",s)}
   return pages}
 function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(v=>normName(v)===n)}
 async function signDoc(col,id,{reopen}={}){const src=await mySig();if(!src){toast("ضيف توقيعك الأول من 👤 حسابي ← ✍ توقيعي");sigEditor();return}
