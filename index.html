@@ -1671,7 +1671,7 @@ async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!==
   if(dateBox){if(layout.combinedDateTime)permitTextBox(cv,dateBox,`${fmtDate(p.closedAt)} · ${p.closedTime||"—"}`,{fontSize:17});else{permitTextBox(cv,dateBox,fmtDate(p.closedAt),{fontSize:19});const timeBox={...dateBox,y:dateBox.y-layout.timeOffset,h:Math.min(dateBox.h,layout.timeOffset*.9)};permitTextBox(cv,timeBox,p.closedTime||"",{fontSize:19})}}
   if(p.closeSignature){const rect=layout.signatureInRole?[field.x,field.y,field.w,field.h]:permitSignRect(F.boxes,field,b=>[b.x,b.y,b.w,b.h],b=>/date/i.test(b.field||""));if(rect)await stampOn(cv,rect,p.closeSignature,{})}
 }
-async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});await applyPermitCloseoutOfficial(p,pages);if(p.type==="COLD"){if(p.extended)await drawColdExtension(pages,p);if(p.status==="closed"&&p.closedAt)await drawColdCloseInfo(pages,p)}else if(p.status==="closed"&&p.closedAt&&p.closeSignature){pages.push(await renderPermitCloseoutPage(p))}return pages}
+async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});await applyPermitCloseoutOfficial(p,pages);if(p.type==="COLD"){drawColdSiteChecks(pages,p);if(p.extended)await drawColdExtension(pages,p);if(p.status==="closed"&&p.closedAt)await drawColdCloseInfo(pages,p)}else if(p.status==="closed"&&p.closedAt&&p.closeSignature){pages.push(await renderPermitCloseoutPage(p))}return pages}
 const PTW_CLOSE_CHECKS=[
   {k:"work",t:"أُوقف العمل وأُنجزت الأعمال المشمولة بالتصريح."},
   {k:"people",t:"تم حصر العاملين والتأكد من خروجهم من منطقة العمل."},
@@ -1707,6 +1707,29 @@ async function drawColdCloseInfo(pages,p){const c=pages[2];if(!c)return;const g=
   for(let k=1;k<L.length;k++){if(li>=GY.length)break;g.fillText(L[k],rx,GY[li]-drop);li++}
   li++}
  g.restore()}
+const SITE_CHECKS=[{k:"1.1",pg:0,y:0.505},{k:"1.2",pg:0,y:0.542},{k:"1.3.1",pg:0,y:0.6085},{k:"1.3.2",pg:0,y:0.646},{k:"1.3.3",pg:0,y:0.684},{k:"1.3.4",pg:0,y:0.721},{k:"1.4.1",pg:0,y:0.785},{k:"1.4.2",pg:0,y:0.818},{k:"1.4.3",pg:0,y:0.853},{k:"1.4.4",pg:0,y:0.888},{k:"1.4.5",pg:0,y:0.921},{k:"1.4.6",pg:0,y:0.954},{k:"1.5.1",pg:1,y:0.181},{k:"1.5.2",pg:1,y:0.214},{k:"1.6.1",pg:1,y:0.275},{k:"1.7.1",pg:1,y:0.336},{k:"1.7.2",pg:1,y:0.369},{k:"1.7.3",pg:1,y:0.402},{k:"1.7.4",pg:1,y:0.4345},{k:"1.8.1",pg:1,y:0.4957},{k:"1.8.2",pg:1,y:0.5285},{k:"1.9.1",pg:1,y:0.615,na:1},{k:"1.9.2",pg:1,y:0.6432,na:1},{k:"1.9.3",pg:1,y:0.6714,na:1},{k:"1.9.4",pg:1,y:0.6995,na:1},{k:"1.9.5",pg:1,y:0.7277,na:1},{k:"1.9.6",pg:1,y:0.7558,na:1},{k:"1.9.7",pg:1,y:0.784,na:1}];
+const SITE_CHECKS_KEYS=SITE_CHECKS.map(x=>x.k);
+function drawColdSiteChecks(pages,p){const sc=p.siteChecks;if(!sc)return;const C0={yes:0.862,no:0.947},C1={yes:0.869,no:0.953},CP={yes:0.8546,no:0.911,na:0.9669};
+ for(const it of SITE_CHECKS){const v=sc[it.k];if(!v)continue;const pg=pages[it.pg];if(!pg)continue;const g=pg.getContext("2d"),W=pg.width,H=pg.height;const cols=it.pg===0?C0:(it.na?CP:C1);const x=cols[v];if(x==null)continue;g.save();g.font="700 "+Math.round(W*0.021)+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText("✓",x*W,it.y*H);g.restore()}}
+function scAll(btn,v){const box=btn.closest(".field");if(!box)return;SITE_CHECKS_KEYS.forEach(k=>{const r=box.querySelector('input[name="sc_'+k+'"][value="'+v+'"]');if(r)r.checked=true})}
+function siteChecksCollect(form){const o={};SITE_CHECKS_KEYS.forEach(k=>{const r=form.querySelector('input[name="sc_'+k+'"]:checked');if(r)o[k]=r.value});return o}
+function siteChecksHTML(p){const sc=p.siteChecks||{};
+ const opt=(k,v,lab)=>`<label class="chk" style="display:inline-flex;gap:3px;margin:0 2px;padding:2px 6px"><input type="radio" name="sc_${k}" value="${v}" ${sc[k]===v?"checked":""}> ${lab}</label>`;
+ const row=(k,txt,na)=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px dotted var(--line)"><div class="grow" style="font-size:13px"><b>${k}</b> ${esc(txt)}</div><div style="white-space:nowrap;flex-shrink:0">${opt(k,"yes","نعم")}${opt(k,"no","لا")}${na?opt(k,"na","غ.م"):""}</div></div>`;
+ const grp=(t,r)=>`<div style="margin-top:7px"><div style="font-weight:700;font-size:12.5px;color:var(--muted,#607068);margin-bottom:1px">${t}</div>${r}</div>`;
+ return `<div class="field full" style="margin-top:8px"><label>فحص الموقع (Checks To Be Carried Out at Site)</label>
+  <div style="border:1px solid var(--line);border-radius:10px;padding:8px 12px;max-height:320px;overflow:auto">
+  <div style="display:flex;gap:6px;margin-bottom:4px"><button type="button" class="btn sm" onclick="scAll(this,'yes')">علّم الكل نعم</button><button type="button" class="btn sm" onclick="scAll(this,'no')">الكل لا</button></div>
+  ${grp("عام",row("1.1","التواصل مع الجهات المعنية")+row("1.2","الأشخاص مدربون ولائقون طبياً"))}
+  ${grp("تنظيم مكان العمل",row("1.3.1","ترتيب المواد وعدم تعرضها للسقوط")+row("1.3.2","إزالة المخلفات بعد العمل")+row("1.3.3","فحص طفايات الحريق وتوفيرها")+row("1.3.4","نظافة مستمرة لبيئة العمل"))}
+  ${grp("الحالة المادية للموقع",row("1.4.1","مداخل وسلالم وحواجز آمنة")+row("1.4.2","مراعاة تأثير العمل على المعدات المجاورة")+row("1.4.3","تفتيش الموقع وملاءمته للعمل")+row("1.4.4","توعية العاملين بالمخاطر والاحتياطات")+row("1.4.5","السقالة آمنة والكارت أخضر")+row("1.4.6","فحص العدد والأدوات (Fit for Use)"))}
+  ${grp("التخزين",row("1.5.1","الموقع خالٍ من مصادر الإشعال")+row("1.5.2","التخزين بطريقة آمنة"))}
+  ${grp("الإضاءة",row("1.6.1","إضاءة كافية"))}
+  ${grp("المعدات الكهربائية",row("1.7.1","ترتيب الأسلاك الكهربائية")+row("1.7.2","سلامة الوصلات الكهربائية")+row("1.7.3","جسم المعدة الكهربائية سليم")+row("1.7.4","لوحة بها قواطع حماية (ELCB)"))}
+  ${grp("المعدات",row("1.8.1","فحص المعدات من قسم السلامة")+row("1.8.2","المعدة تعمل بشكل سليم"))}
+  ${grp("مهمات الوقاية الشخصية (PPE)",row("1.9.1","حزام أمان مزدوج مربوط بنقطة تثبيت",1)+row("1.9.2","سدادات/واقي الأذن",1)+row("1.9.3","كمامة/قناع غاز حسب الحاجة",1)+row("1.9.4","قفازات مقاومة مناسبة",1)+row("1.9.5","خوذة ونظارات وحذاء أمان وجاكت عاكس",1)+row("1.9.6","قناع للوجه وملابس مقاومة للحريق",1)+row("1.9.7","ملابس وقفازات مقاومة للكيماويات",1))}
+  </div><small class="muted" style="font-size:12px">يملأها مشرف التنفيذ ويراجعها مسؤول السلامة. بتتطبع بعلاماتها في صفحة 1 و2.</small></div>`;
+}
 async function drawColdExtension(pages,p){const c=pages[2];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
  try{await document.fonts.load('600 14px "IBM Plex Sans Arabic"')}catch(e){}
  const draw=(t,x,y,size)=>{if(t==null||t==="")return;g.save();g.font="600 "+size+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText(String(t),x,y);g.restore()};
@@ -2209,11 +2232,11 @@ function ptwSupDecide(id,ok){const p=S.permits.find(x=>x.id===id);if(!p)return;c
     ${f("مشرف التنفيذ (على النموذج)","supervisor",{value:p.supervisor||me,full:true})}
     <div class="field full"><label>العاملين في التصريح ${cid?`(عمالة ${esc(p.contractor)})`:""}</label><input type="search" id="crQ" placeholder="ابحث بالاسم أو الكود" autocomplete="off"><div id="crList" style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:2px 10px;margin-top:6px">${pool.map(e=>`<label class="chk" data-n="${esc(normName(e.name+" "+(e.code||"")))}"><input type="checkbox" name="crew" value="${e.id}" ${chosen.has(e.id)?"checked":""}> ${esc(e.name)} <span class="muted" style="font-size:12px">${esc([e.code,e.job].filter(Boolean).join(" · "))}</span></label>`).join("")||'<p class="muted">مفيش عمال متسجلين للمقاول ده.</p>'}</div><small class="muted" id="crN"></small></div>
     ${f("عمال تانيين مش متسجلين (اسم في كل سطر)","extra",{type:"textarea",value:(p.crew||[]).filter(c=>!c.id).map(c=>c.name).join("\n"),full:true})}
-    ${f("ملاحظة لمسؤول السلامة","note",{full:true})}</div>`,async(fd,form)=>{
+    ${f("ملاحظة لمسؤول السلامة","note",{full:true})}${siteChecksHTML(p)}</div>`,async(fd,form)=>{
       const ids=[...form.querySelectorAll("[name=crew]:checked")].map(i=>i.value);const crew=[...ids.map(i=>{const e=emp(i);return {id:i,name:e?.name||"",job:e?.job||""}}),...(fd.extra||"").split(/\n/).map(x=>x.trim()).filter(Boolean).map(n=>({id:"",name:n,job:""}))];
       if(!crew.length)return "اختار العاملين في التصريح";
       const signature=await mySig();if(!signature)return "ضيف توقيعك من ملفك الشخصي قبل الاعتماد";
-      const patch={supOk:true,supName:me,supAt:Date.now(),supUidDone:ME.id,supSignature:signature,supervisor:(fd.supervisor||me).trim(),location:fd.location.trim(),desc:fd.desc.trim(),crew,workers:crew.length,flow:[...(p.flow||[]),{st:"supok",by:ME.id,name:me,at:Date.now(),note:(fd.note||"").trim()}]};
+      const patch={supOk:true,siteChecks:{...(p.siteChecks||{}),...siteChecksCollect(form)},siteChecksBy:ME.id,siteChecksName:me,supName:me,supAt:Date.now(),supUidDone:ME.id,supSignature:signature,supervisor:(fd.supervisor||me).trim(),location:fd.location.trim(),desc:fd.desc.trim(),crew,workers:crew.length,flow:[...(p.flow||[]),{st:"supok",by:ME.id,name:me,at:Date.now(),note:(fd.note||"").trim()}]};
       return (await activateIfReady(id,patch,"اتعتمد مكان العمل ✔ مستني مسؤول السلامة"))?null:"الحفظ فشل"},"اعتماد");
   const upd=()=>{$("crN").textContent=`${document.querySelectorAll("#crList [name=crew]:checked").length} عامل متحدد`};upd();
   $("crList").addEventListener("change",upd);$("crQ").oninput=e=>{const q=normName(e.target.value);document.querySelectorAll("#crList [data-n]").forEach(l=>l.hidden=q&&!l.dataset.n.includes(q))}}
@@ -2241,11 +2264,11 @@ function ptwFinalForm(id){
     ${f("من الساعة","from",{type:"time",value:p.from||""})}${f("لحد الساعة","to",{type:"time",value:p.to||""})}
     ${t==="CONF"||t==="HOT"?f("قراءة الغازات (O2 / LEL / H2S / CO)","gas",{value:p.gas||"",full:true,attrs:'placeholder="مثلاً: O2 20.9% · LEL 0% · H2S 0 · CO 0"'}):""}
     <div class="field full"><label>اتأكدت من سلامة بيئة العمل والعامل</label><div>${L.map(x=>`<label class="chk"><input type="checkbox" name="pc" value="${esc(x)}" ${(p.precautions||[]).includes(x)?"checked":""}> ${esc(x)}</label>`).join("")}</div><button type="button" class="btn sm" style="margin-top:6px" onclick="document.querySelectorAll('#shForm [name=pc]').forEach(i=>i.checked=true)">علّم الكل</button></div>
-    ${f("اشتراطات إضافية / ملاحظات","notes",{type:"textarea",value:p.notes||"",full:true})}</div>`,
+    ${siteChecksHTML(p)}${f("اشتراطات إضافية / ملاحظات","notes",{type:"textarea",value:p.notes||"",full:true})}</div>`,
   async(fd,form)=>{
     if(!fd.safetyId)return "اختار مسؤول السلامة";const pc=[...form.querySelectorAll("[name=pc]:checked")].map(i=>i.value);const meN=myEmpName();
     const signature=await mySig();if(!signature)return "ضيف توقيعك من ملفك الشخصي قبل الاعتماد";
-    const patch={hseOk:true,hseName:meN,hseAt:Date.now(),hseUidDone:ME.id,hseSignature:signature,date:fd.startDate||p.date,startDate:fd.startDate,endDate:fd.endDate||"",from:fd.from,to:fd.to,safetyId:fd.safetyId,gas:(fd.gas||"").trim(),precautions:pc,notes:(fd.notes||"").trim(),flow:[...(p.flow||[]),{st:"hseok",by:ME.id,name:meN,at:Date.now()}]};
+    const patch={hseOk:true,siteChecks:{...(p.siteChecks||{}),...siteChecksCollect(form)},hseName:meN,hseAt:Date.now(),hseUidDone:ME.id,hseSignature:signature,date:fd.startDate||p.date,startDate:fd.startDate,endDate:fd.endDate||"",from:fd.from,to:fd.to,safetyId:fd.safetyId,gas:(fd.gas||"").trim(),precautions:pc,notes:(fd.notes||"").trim(),flow:[...(p.flow||[]),{st:"hseok",by:ME.id,name:meN,at:Date.now()}]};
     return (await activateIfReady(id,patch,"اتعتمد من السلامة ✔ مستني مشرف التنفيذ"))?null:"الحفظ فشل"},sOk?"اعتماد وبدء العمل":"اعتماد السلامة");
   addPreviewBtn(async()=>{const fd=Object.fromEntries(new FormData($("shForm")).entries());const serial=nextSerial(t);const q={...p,...fd,serial,number:`${t}-${serial}`};if(!FORM_TYPES.includes(t)){toast("النوع ده مالوش نموذج طباعة");return}
     const V=openViewer(`معاينة ${q.number}`,{filename:`${q.number}.pdf`,note:"معاينة قبل الاعتماد."});try{V.setPages(await renderPermitPages(q))}catch(e){V.fail()}});
