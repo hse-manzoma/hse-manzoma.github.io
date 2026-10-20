@@ -875,7 +875,8 @@ function dutyForm(){
   },"سجّل");
   const sync=()=>{const k=$("f_kind").value;const scope=(document.querySelector("input[name=dscope]:checked")||{}).value||"many";$("dutyHours").hidden=k!=="perm";$("dutyReason").hidden=k==="perm";$("dutyScope").hidden=k!=="duty";const many=k==="duty"&&scope==="many";$("dutyMany").hidden=!many;$("dutyOne").hidden=many};
   $("f_kind").onchange=sync;document.querySelectorAll("input[name=dscope]").forEach(r=>r.onchange=sync);sync();
-}solve();
+}
+let attBusy=Promise.resolve();
 function setAtt(empId,s){const recs={...(attDoc(ui.attDate)?.records||{})};recs[empId]={...(recs[empId]||{}),s};saveAtt(ui.attDate,recs)}
 function saveAtt(date,records,announce){
   attBusy=attBusy.then(()=>write(()=>db.doc("attendance/"+date).set({date,records,updatedAt:Date.now()}),announce?"اتسجل الحضور":null));
