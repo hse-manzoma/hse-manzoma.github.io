@@ -11,14 +11,16 @@ window.SBA={emailOf,DOMAIN,profile:null,user:null};
 /* ---------- auth gate ---------- */
 let readyResolve;const ready=new Promise(r=>readyResolve=r);
 async function fn(action,payload){
-  const {data:{session}}=await sb.auth.getSession();
-  const r=await fetch(`${SB_URL}/functions/v1/admin-users`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY,Authorization:"Bearer "+(session?.access_token||SB_KEY)},body:JSON.stringify({action,...payload})});
+  let {data:{session}}=await sb.auth.getSession();
+  const call=tok=>fetch(`${SB_URL}/functions/v1/admin-users`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY,Authorization:"Bearer "+(tok||SB_KEY)},body:JSON.stringify({action,...payload})});
+  let r=await call(session?.access_token);
   let j={};try{j=await r.json()}catch(e){}
+  if((r.status===401||r.status===403||j.error==="unauthorized")&&session){try{const rf=await sb.auth.refreshSession();if(rf&&rf.data&&rf.data.session)session=rf.data.session}catch(e){}r=await call(session?.access_token);j={};try{j=await r.json()}catch(e){}}
   if(!r.ok||j.error)throw Object.assign(new Error(j.error||("http_"+r.status)),{code:j.error||"http_"+r.status});
   return j;
 }
 window.SBA.fn=fn;
-const AR={bad_username:"اسم المستخدم لازم يكون حروف إنجليزي أو أرقام (٣ حروف على الأقل)",weak_password:"كلمة السر لازم ٦ حروف أو أرقام على الأقل",admin_exists:"حساب المدير اتعمل قبل كده، سجّل دخول",username_taken:"اسم المستخدم ده مستخدم قبل كده","Invalid login credentials":"اسم المستخدم أو كلمة السر غلط"};
+const AR={unauthorized:"السيرفر رفض الصلاحية. اتأكد إنك داخل بحساب مدير المنظومة، وجرّب تعمل خروج ودخول تاني. لو فضلت، لازم حسابك يتفعّل كمدير على السيرفر.",http_401:"انتهت الجلسة — اعمل دخول تاني.",http_403:"الصلاحية مرفوضة من السيرفر.",bad_username:"اسم المستخدم لازم يكون حروف إنجليزي أو أرقام (٣ حروف على الأقل)",weak_password:"كلمة السر لازم ٦ حروف أو أرقام على الأقل",admin_exists:"حساب المدير اتعمل قبل كده، سجّل دخول",username_taken:"اسم المستخدم ده مستخدم قبل كده","Invalid login credentials":"اسم المستخدم أو كلمة السر غلط"};
 window.SBA.ar=e=>AR[e?.code]||AR[e?.message]||e?.message||"حصلت مشكلة، جرّب تاني";
 
 function gateHTML(first){return `<div id="gate" style="position:fixed;inset:0;z-index:9999;background:var(--bg,#f4f6f5);display:flex;align-items:center;justify-content:center;padding:16px;direction:rtl;font-family:'IBM Plex Sans Arabic',system-ui,sans-serif">
