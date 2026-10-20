@@ -355,6 +355,7 @@ const PTW_STATUS = {open:["مفتوح","p-open"],approved:["معتمد","p-appr"
 const RISK = {low:"منخفض",med:"متوسط",high:"عالي"};
 const ATT = {p:["حاضر","s-p"],a:["غياب","s-a"],v:["إجازة","s-v"],m:["مأمورية","s-m"],e:["إذن","s-e"]};
 const KPIS = [
+  {k:"attend",ar:"الحضور",def:26},
   {k:"inspection",ar:"الفحص الدوري",def:40},
   {k:"unsafeCond",ar:"الظروف غير الآمنة",def:20},
   {k:"unsafeActs",ar:"الأفعال غير الآمنة",def:20},
@@ -1448,7 +1449,7 @@ function applyExcelImport(){
 /* ---------- KPI ---------- */
 function kpiTargets(){const t=S.settings.targets||{};const o={};for(const k of KPIS)o[k.k]=num(t[k.k])||k.def;return o}
 function kpiAuto(empId,month){
-  const o={inspection:0,unsafeCond:0,unsafeActs:0,corrective:0,tbt:0};const e=emp(empId);const nm=e?normName(e.name):"#";
+  const o={attend:0,inspection:0,unsafeCond:0,unsafeActs:0,corrective:0,tbt:0};const e=emp(empId);const nm=e?normName(e.name):"#";
   const by=(r,...ks)=>ks.some(k=>r.f?.[k+"_id"]===empId||(r.f?.[k]&&normName(r.f[k])===nm));
   for(const r of S.records){if(!(r.date||"").startsWith(month))continue;
     if(CHECKLIST_FORMS.includes(r.form)&&by(r,"officer"))o.inspection++;
@@ -1456,7 +1457,7 @@ function kpiAuto(empId,month){
     if(r.form==="F-HSE-07-01"&&by(r,"writer","officer"))o.unsafeActs++;
     if((r.form==="F-HSE-24-02"&&by(r,"trainer"))||(r.form==="F-HSE-24-01"&&by(r,"lecturer")))o.tbt++;}
   for(const q of S.equipment)for(const h of q.insp||[])if((h.date||"").startsWith(month)&&(h.by_id===empId||normName(h.by||"")===nm))o.inspection++;
-  for(const a of S.actions)if(a.status==="closed"&&(a.closedAt||"").startsWith(month)&&a.closedBy===empId)o.corrective++;
+  for(const a of S.actions)if(a.status==="closed"&&(a.closedAt||"").startsWith(month)&&a.closedBy===empId)o.corrective++;for(const ad of S.att){if(!(ad.id||"").startsWith(month))continue;const _r=(ad.records||{})[empId];if(_r&&_r.s==="p")o.attend++;}
   return o;
 }
 function kpiSummary(month){
