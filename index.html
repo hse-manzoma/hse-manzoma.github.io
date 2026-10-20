@@ -1905,9 +1905,9 @@ async function renderGenericBase(fid,rec){
       text(fmtFieldVal(f,recVal(spec,rec,f.k)),f.rect,{fill:f.fill,lines:f.type==="textarea"?(f.lines||3):1});
     }
     const R=spec.rows;
-    if(R){(rec.rows||[]).slice(0,R.n).forEach((row,i)=>{const cells=R.cells[i];if(!row||(cells.__page??R.page)!==k)return;
+    if(R){const _sigImg={};for(let si=0;si<Math.min((rec.rows||[]).length,R.n);si++){const rw=(rec.rows||[])[si];if(!rw)continue;const cl=R.cells[si];if((cl.__page??R.page)!==k)continue;for(const _c of R.cols){if(_c.type==="sig"){const sv=rw[_c.k];if(sv&&/^data:image/.test(sv)){try{_sigImg[si]=await loadImg(sv)}catch(e){}}}}}(rec.rows||[]).slice(0,R.n).forEach((row,i)=>{const cells=R.cells[i];if(!row||(cells.__page??R.page)!==k)return;
       let any=false;
-      for(const col of R.cols){let v=row[col.k];
+      for(const col of R.cols){let v=row[col.k];if(col.type==="sig"){const im=_sigImg[i];if(im){const _r=cells[col.k];if(_r){const bx=_r[0]*W,by=_r[1]*H,bw=_r[2]*W,bh=_r[3]*H;const sc=Math.min(bw*0.92/im.naturalWidth,bh*0.9/im.naturalHeight);const w=im.naturalWidth*sc,h=im.naturalHeight*sc;x.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);any=true}}continue}
         if(col.type==="check"){const sel=Array.isArray(v)?v:(v?[v]:[]);for(const o of sel)if(cells[col.k][o])tick(cells[col.k][o]);if(sel.length)any=true;continue}
         if((v==null||v==="")&&col.auto){const [src,attr]=col.auto.split(".");const e=empById(row[src+"_id"]);v=e?e[attr]:""}
         if(v){any=true;text(col.type==="date"&&/^\d{4}-\d\d-\d\d$/.test(v)?fmtDate(v):v,cells[col.k],{fill:col.fill,lines:col.type==="textarea"?(col.lines||3):1})}}
@@ -1933,6 +1933,14 @@ function fillFormRecords(el,fid,spec){
   <div class="card"><h3><span class="num">${fid}</span> · ${esc(spec.title)}</h3>
   ${L.length?`<div class="list">${L.map(r=>`<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s">${esc(sum(r))}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
 }
+let _sigEmpty=true;
+function initSigPad(){const cv=document.getElementById("sigCanvas");if(!cv)return;const x=cv.getContext("2d");x.lineWidth=2.6;x.lineCap="round";x.lineJoin="round";x.strokeStyle="#111";_sigEmpty=true;let dr=false,lx=0,ly=0;const pos=e=>{const r=cv.getBoundingClientRect();return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]};cv.onpointerdown=e=>{e.preventDefault();dr=true;[lx,ly]=pos(e);try{cv.setPointerCapture(e.pointerId)}catch(_){}};cv.onpointermove=e=>{if(!dr)return;e.preventDefault();const p=pos(e);x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1];_sigEmpty=false};cv.onpointerup=cv.onpointercancel=()=>{dr=false};}
+function sigClear(){const cv=document.getElementById("sigCanvas");if(cv){cv.getContext("2d").clearRect(0,0,cv.width,cv.height);_sigEmpty=true}}
+function sigPadRow(btn){const td=btn.closest("td");const inp=td.querySelector('input[type=hidden]');const img=td.querySelector("img.sigPrev");
+  openSheet("التوقيع",`<p class="muted" style="margin-top:0;font-size:13px">وقّع بإصبعك أو الماوس جوه المربع، وبعدين احفظ.</p><canvas id="sigCanvas" width="600" height="220" style="width:100%;height:180px;border:1px solid var(--line);border-radius:8px;background:#fff;touch-action:none"></canvas><div style="margin-top:8px"><button type="button" class="btn sm" onclick="sigClear()">مسح</button></div>`,
+  async()=>{if(_sigEmpty)return "التوقيع فاضي";const cv=document.getElementById("sigCanvas");const url=cv.toDataURL("image/png");inp.value=url;img.src=url;img.style.display="";btn.textContent="✍ تغيير";return null},"حفظ التوقيع");
+  setTimeout(initSigPad,80);
+}
 async function recordFormBase(fid,id,preset){
   const spec=(await loadForms2())[fid];const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
   const fv=k=>rec.f?.[k]??"";
@@ -1954,7 +1962,7 @@ async function recordFormBase(fid,id,preset){
       if(c.type==="textarea")return `<td><textarea name="${nm}" rows="2" style="min-width:180px">${esc(row[c.k]||"")}</textarea></td>`;
       if(c.auto)return `<td><input name="${nm}" value="${esc(row[c.k]||"")}" placeholder="تلقائي" style="min-width:110px"></td>`;
       if(c.type==="select")return `<td><select name="${nm}" style="min-width:56px">${(c.choices||[]).map(o=>`<option value="${esc(o)}" ${String(row[c.k]||"")===o?"selected":""}>${esc(o||"—")}</option>`).join("")}</select></td>`;
-      if(c.type==="date")return `<td><input type="date" name="${nm}" value="${esc(row[c.k]||"")}" style="min-width:130px"></td>`;
+      if(c.type==="date")return `<td><input type="date" name="${nm}" value="${esc(row[c.k]||"")}" style="min-width:130px"></td>`;if(c.type==="sig"){const sv=row[c.k]||"";return `<td style="white-space:nowrap"><input type="hidden" name="${nm}" value="${esc(sv)}"><button type="button" class="btn sm" onclick="sigPadRow(this)">✍ ${sv?"تغيير":"وقّع"}</button><img class="sigPrev" src="${esc(sv)}" style="height:26px;vertical-align:middle;margin-inline-start:6px;${sv?"":"display:none"}"></td>`;}
       return `<td><input name="${nm}" ${c.type==="emp"?'list="empListAll" autocomplete="off"':""} ${c.type==="time"?'type="time"':""} value="${esc(row[c.k]||"")}" style="min-width:${c.type==="emp"?180:100}px"></td>`}).join("")}</tr>`}).join("")}
     </tbody></table></div></div>`:"";
   let photos=(rec.att||[]).filter(a=>a.kind==="photo");const removed=[];
