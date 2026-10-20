@@ -1655,7 +1655,7 @@ async function renderForm(T,vals,opt={}){
       const bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H;
       if(["date","serial","today","reqDate","pdate","startDate","endDate"].includes(b.field)){x.fillStyle="#fff";x.fillRect(bx+2,by+2,bw-4,bh-4)}
       const padX=Math.min(8,Math.max(2,bw*.035)),padY=Math.min(2,bh*.08),maxW=Math.max(1,bw-padX*2),innerH=Math.max(1,bh-padY*2);
-      const font=s=>`600 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
+      const font=s=>`800 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
       const baseFs=Math.min((b.sz||11)*pxPerPt,bh*.72),minFs=Math.min(8,baseFs);let fs=baseFs,lines=[],maxLines=1;
       x.direction=/[؀-ۿ]/.test(String(txt))?"rtl":"ltr";
       const makeLines=()=>String(txt).split(/\r?\n/).flatMap(line=>line?wrapLines(x,line,maxW):[""]);
@@ -1666,7 +1666,7 @@ async function renderForm(T,vals,opt={}){
       const fitLine=l=>{if(x.measureText(l).width<=maxW)return l;let a=[...l];while(a.length&&x.measureText(a.join("")+"…").width>maxW)a.pop();return a.length?a.join("")+"…":"…"};
       if(lines.length>maxLines){lines=lines.slice(0,maxLines);lines[maxLines-1]=fitLine(lines[maxLines-1])}else lines=lines.map(fitLine);
       const align=b.algn==="r"?"right":b.algn==="l"?"left":"center",tx=align==="right"?bx+bw-padX:align==="left"?bx+padX:bx+bw/2;
-      x.fillStyle="#111";x.textBaseline="middle";x.textAlign=align;
+      x.fillStyle="#0f2f6b";x.textBaseline="middle";x.textAlign=align;
       const lh=fs*1.16,top=by+bh/2-(lines.length-1)*lh/2;
       x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();lines.forEach((l,i)=>x.fillText(l,tx,top+i*lh));x.restore();
     }
@@ -1898,15 +1898,15 @@ async function renderGenericBase(fid,rec){
     const bg=await loadImg(spec.pages[k]);const W=bg.naturalWidth,H=bg.naturalHeight;
     const c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
     x.fillStyle="#fff";x.fillRect(0,0,W,H);x.drawImage(bg,0,0,W,H);const pxPt=150/72;
-    const font=s=>`600 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
+    const font=s=>`800 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
     const text=(t,r,opt={})=>{if(t==null||t==="")return;t=String(t);const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
       if(opt.fill){x.fillStyle="#fff";x.fillRect(bx+1,by+1,bw-2,bh-2)}
-      x.fillStyle="#111";x.textBaseline="middle";const rtl=/[؀-ۿ]/.test(t);x.direction=rtl?"rtl":"ltr";
-      if(opt.lines>1){let fs=Math.min(11*pxPt,bh/opt.lines*0.62);x.font=font(fs);const lh=bh/opt.lines;
+      x.fillStyle="#0f2f6b";x.textBaseline="middle";const rtl=/[؀-ۿ]/.test(t);x.direction=rtl?"rtl":"ltr";
+      if(opt.lines>1){let fs=Math.min(12*pxPt,bh/opt.lines*0.72);x.font=font(fs);const lh=bh/opt.lines;
         let lines=[];for(const para of t.split(/\n/))lines.push(...wrapLines(x,para,bw-12));
         while(lines.length>opt.lines&&fs>9){fs-=1;x.font=font(fs);lines=[];for(const para of t.split(/\n/))lines.push(...wrapLines(x,para,bw-12))}
         x.textAlign=rtl?"right":"left";lines.slice(0,Math.max(opt.lines,Math.floor(bh/(fs*1.3)))).forEach((l,i)=>x.fillText(l,rtl?bx+bw-6:bx+6,by+lh*(i+0.5)));return}
-      let fs=Math.min(11*pxPt,bh*0.7);x.font=font(fs);while(x.measureText(t).width>bw-8&&fs>8){fs-=1;x.font=font(fs)}
+      let fs=Math.min(13*pxPt,bh*0.82);x.font=font(fs);while(x.measureText(t).width>bw-8&&fs>8){fs-=1;x.font=font(fs)}
       x.textAlign="center";x.fillText(t,bx+bw/2,by+bh/2+1)};
     const tick=r=>{const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;x.strokeStyle="#111";x.lineWidth=Math.max(2,bw*0.14);x.beginPath();x.moveTo(bx+bw*0.15,by+bh*0.55);x.lineTo(bx+bw*0.42,by+bh*0.85);x.lineTo(bx+bw*0.95,by+bh*0.05);x.stroke()};
     for(const f of spec.fields.filter(f=>f.page===k)){
