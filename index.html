@@ -2578,7 +2578,7 @@ function repDefaults(m){
 function repDoc(m){return S.reports.find(r=>r.id===m)}
 function repComputed(m,R){
   R=R||repDoc(m)||repDefaults(m);const A=repAuto(m);const y=m.slice(0,4);
-  const prev=S.reports.filter(r=>r.id<m).sort((a,b)=>b.id.localeCompare(a.id))[0];const prevC=prev?repComputed(prev.id,prev):null;const prevSameYear=prev&&prev.id.slice(0,4)===y;
+  const prev=S.reports.filter(r=>r.id<m).sort((a,b)=>b.id.localeCompare(a.id))[0];const prevC=prev?repComputed(prev.id,prev):null;const prevSameYear=!!prev;
   const man=R.man||{};const hrs=num(man.hours)||9,days=num(man.days)||26;const rowH=k=>num(man[k])*hrs*days;const monthHours=rowH("reg")+rowH("irr")+rowH("ctr");const totalMan=num(man.reg)+num(man.irr)+num(man.ctr);
   const actM={},actY={};
   for(const [k] of REP_ACTS){actM[k]=R.acts?.[k]!==undefined&&R.acts[k]!==""?num(R.acts[k]):A[k];
@@ -2615,7 +2615,7 @@ VIEWS.report={
       <tr><td>العمالة غير المنتظمة</td><td>${num_("man_irr",R.man.irr)}</td><td class="n">${C.rowH("irr")}</td></tr>
       <tr><td>عمالة المقاولين</td><td>${num_("man_ctr",R.man.ctr)}</td><td class="n">${C.rowH("ctr")}</td></tr>
       <tr><td><b>الإجمالي</b></td><td class="n"><b>${C.totalMan}</b></td><td></td><td></td><td class="n"><b>${C.monthHours}</b></td></tr></tbody></table>
-      <div style="margin-top:8px;font-size:13px">إجمالي ساعات العمل التراكمية (من أول السنة): ${num_("hoursYtd",R.hoursYtd??"",`placeholder="${C.hoursYtd}"`)} <span class="autov">تلقائي: ${C.hoursYtd}</span></div></div></details>
+      <div style="margin-top:8px;font-size:13px">إجمالي ساعات العمل التراكمية (من أول تقرير): ${num_("hoursYtd",R.hoursYtd??"",`placeholder="${C.hoursYtd}"`)} <span class="autov">تلقائي: ${C.hoursYtd}</span></div></div></details>
     <details class="sec"><summary>2. إحصائيات الحوادث</summary><div class="in"><p class="muted" style="font-size:12.5px;margin-top:0">حوادث متسجلة في المنظومة الشهر ده: <b>${C.A.incidents}</b> (نموذج 03-01).</p><table class="ed"><thead><tr><th>بيان الحالات</th><th>الشهر الحالي</th><th>من بداية المشروع</th></tr></thead><tbody>${INC_ROWS.map(([k,l])=>`<tr><td style="font-size:13px">${l}</td><td>${num_("inc_"+k,R.inc?.[k]??"",'placeholder="0"')}</td><td>${num_("incC_"+k,R.incCum?.[k]??"",`placeholder="${C.incC[k]}"`)}</td></tr>`).join("")}</tbody></table>
       <p class="muted" style="font-size:12.5px">خانة «من بداية المشروع» بتتحسب لوحدها = الشهر اللي فات + الشهر ده. أول مرة بس اكتب الرقم من آخر تقرير ورقي.</p></div></details>
     <details class="sec"><summary>3. أنشطة البيئة والسلامة والصحة المهنية</summary><div class="in"><table class="ed"><thead><tr><th>م</th><th>البيان</th><th>الشهر الحالي</th><th>من بداية السنة</th></tr></thead><tbody>${REP_ACTS.map(([k,l],i)=>`<tr><td class="n">${i+1}</td><td style="font-size:13px">${l}</td><td>${num_("act_"+k,R.acts?.[k]??"",`placeholder="${C.A[k]}"`)}<div class="autov">تلقائي ${C.A[k]}</div></td><td>${num_("actY_"+k,R.actsYtd?.[k]??"",`placeholder="${C.actY[k]}"`)}<div class="autov">تلقائي ${C.actY[k]}</div></td></tr>`).join("")}</tbody></table></div></details>
