@@ -852,25 +852,30 @@ function leaveDel(id){const l=S.leaves.find(x=>x.id===id);const fld=l.kind==="le
   confirmSheet("مسح التسجيل",fld&&!l.legacy?`هيتمسح ويرجع ${num(l.days)} يوم لرصيد ${LEAVE_T[fld]}.`:"التسجيل هيتمسح نهائياً.",()=>write(async()=>{await remove("leaves",id);const e=emp(l.empId);if(fld&&!l.legacy&&e)await upsert("employees",l.empId,{[fld]:num(e[fld])+num(l.days)})},"اتمسح"))}
 function dutyForm(){
   if(!hseTeam().length){toast("ضيف فريق السلامة الأول");return}
+  if(!(isLeaderName(myEmpName())||canDelete)){toast("التكليف من قائد الفريق فقط");return}
   openSheet("تيم ديوتي / مأمورية / إذن",`<div class="form">
     ${f("النوع","kind",{opts:Object.entries(DUTY_K)})}${f("التاريخ","date",{type:"date",value:today(),req:true})}
+    <div class="full" id="dutyScope" hidden><label>الشكل</label><div class="seg"><label class="li" style="cursor:pointer"><input type="radio" name="dscope" value="many" checked> مجمّع (أكتر من فرد)</label><label class="li" style="cursor:pointer"><input type="radio" name="dscope" value="one"> فردي</label></div></div>
     <div class="full" id="dutyOne" hidden>${f("الموظف","empId",{opts:empOpts(hseTeam()),full:true})}</div>
     <div class="full field" id="dutyMany"><label>الموظفين (لحد 10 في النموذج)</label><div class="list" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px">
       ${hseTeam().map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="emps" value="${e.id}"> <span class="grow">${esc(e.name)}</span><span class="muted" style="font-size:12px">${esc(e.job||"")}</span></label>`).join("")}</div></div>
     <div class="full" id="dutyReason">${f("السبب / العمل المكلفين به","reason",{value:"متابعة أعمال الموقع",full:true})}</div>
     <div class="full form" id="dutyHours" hidden>${f("من الساعة","from",{value:"2 م"})}${f("لحد الساعة","toH",{value:"4 م"})}</div></div>`,
   async(fd,form)=>{
-    const kind=fd.kind;let ids=kind==="duty"?[...form.querySelectorAll("input[name=emps]:checked")].map(i=>i.value):[fd.empId].filter(Boolean);
-    if(!ids.length)return kind==="duty"?"اختار موظف واحد على الأقل":"اختار الموظف";
+    const kind=fd.kind;const scope=(form.querySelector("input[name=dscope]:checked")||{}).value||"many";
+    let ids=(kind==="duty"&&scope==="many")?[...form.querySelectorAll("input[name=emps]:checked")].map(i=>i.value):[fd.empId].filter(Boolean);
+    if(!ids.length)return (kind==="duty"&&scope==="many")?"اختار موظف واحد على الأقل":"اختار الموظف";
     let newId=null;
     const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now()};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
-    if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(newId)setTimeout(()=>printMission(newId),400)}
+    if(ok){
+      try{const accs=ids.map(empAccount).filter(Boolean).map(a=>a.id);const ttl=kind==="perm"?"⏱ إذن خروج / تأخير":kind==="mission"?"📋 تكليف مأمورية":"🗓 تكليف تيم ديوتي";const bdy=kind==="perm"?`يوم ${fmtDate(fd.date)} · من ${fd.from||""} لحد ${fd.toH||""}`:`يوم ${fmtDate(fd.date)}${fd.reason?" · "+fd.reason.trim():""}`;if(accs.length)notifyUsers(accs,ttl,bdy,"?go=team");}catch(e){}
+      if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(newId)setTimeout(()=>printMission(newId),400)
+    }
     return ok?null:"الحفظ فشل";
   },"سجّل");
-  const sync=()=>{const k=$("f_kind").value;$("dutyHours").hidden=k!=="perm";$("dutyReason").hidden=k==="perm";$("dutyMany").hidden=k!=="duty";$("dutyOne").hidden=k==="duty"};
-  $("f_kind").onchange=sync;sync();
-}
-let attBusy=Promise.resolve();
+  const sync=()=>{const k=$("f_kind").value;const scope=(document.querySelector("input[name=dscope]:checked")||{}).value||"many";$("dutyHours").hidden=k!=="perm";$("dutyReason").hidden=k==="perm";$("dutyScope").hidden=k!=="duty";const many=k==="duty"&&scope==="many";$("dutyMany").hidden=!many;$("dutyOne").hidden=many};
+  $("f_kind").onchange=sync;document.querySelectorAll("input[name=dscope]").forEach(r=>r.onchange=sync);sync();
+}solve();
 function setAtt(empId,s){const recs={...(attDoc(ui.attDate)?.records||{})};recs[empId]={...(recs[empId]||{}),s};saveAtt(ui.attDate,recs)}
 function saveAtt(date,records,announce){
   attBusy=attBusy.then(()=>write(()=>db.doc("attendance/"+date).set({date,records,updatedAt:Date.now()}),announce?"اتسجل الحضور":null));
@@ -1296,7 +1301,7 @@ function personFileHTML(e){
   </div>
   ${I.length?sec("حوادث",``,`<div class="list">${I.map(r=>recLine(r)).join("")}</div>`):""}
   ${sec("المهمات المستلمة من المخزن",`<button class="btn sm" onclick="issueFor('${id}')">+ إذن صرف</button>`,personHistoryHTML(e,false))}
-  ${LV.length?sec("الإجازات والأذونات والتكليفات","",`<div class="list">${LV.slice(0,30).map(l=>`<div class="li"><div class="grow"><div class="t">${l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.days?" · "+num(l.days)+" يوم":""}${l.reason?" · "+esc(l.reason):""}</div></div>${hasSigned(l)?'<span class="pill p-appr">موقّع</span>':""}</div>`).join("")}</div>`):""}
+  ${LV.length?sec("الإجازات والأذونات والتكليفات","",`<div class="list">${LV.slice(0,30).map(l=>{const pf=l.kind==="perm"?`printPerm('${l.id}')`:l.kind==="mission"?`printMission('${l.id}')`:l.kind==="duty"?`printTeamDuty('${l.date}')`:"";const sub=l.kind==="perm"?(fmtDate(l.date)+((l.from||l.to)?` · من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:"")):(fmtDate(l.date)+(l.to&&l.to!==l.date?" ← "+fmtDate(l.to):"")+(l.days?" · "+num(l.days)+" يوم":"")+(l.reason?" · "+esc(l.reason):""));return `<div class="li"><div class="grow"><div class="t">${l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${sub}</div></div>${pf?`<button class="btn sm" onclick="${pf}">🖨 الفورمة</button>`:""}${hasSigned(l)?'<span class="pill p-appr">موقّع</span>':""}</div>`}).join("")}</div>`):""}
   ${PT.length?sec(`تصاريح شارك فيها (${PT.length})`,"",`<div class="list">${PT.slice(0,20).map(p=>`<div class="li"><span class="num">${esc(p.number)}</span><div class="grow"><div class="t">${fmtDate(p.date)} · ${esc(PTW_TYPES[p.type]?.ar||p.type)}</div><div class="s">${esc(p.location||"")}</div></div>${statusPill(p.status)}</div>`).join("")}</div>`):""}
   ${sec("مستندات تانية","",thumbs(attOf(e,"other"))||none)}`;
 }
