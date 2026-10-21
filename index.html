@@ -893,11 +893,14 @@ const TAB_NAMES={dash:"الرئيسية",actions:"المتابعة",ptw:"تصا�
 const LV={view:"مشاهدة",edit:"إضافة وتعديل",full:"إضافة وتعديل ومسح"};
 const allTabs=lv=>Object.fromEntries(Object.keys(TAB_NAMES).map(k=>[k,lv]));
 const BUILTIN_ROLES={admin:{ar:"مدير المنظومة",tabs:allTabs("full"),fixed:1},
-  hse:{ar:"أخصائي سلامة",tabs:{dash:"view",actions:"full",ptw:"edit",ppe:"edit",manpower:"edit",contractors:"edit",equip:"edit",forms:"edit",kpi:"edit"}},
-  store:{ar:"أمين مخزن المهمات",tabs:{dash:"view",ppe:"edit"}},
-  sup:{ar:"مشرف / مهندس موقع",tabs:{dash:"view",actions:"edit",ptw:"edit",forms:"edit"}},
-  hr:{ar:"شؤون عاملين / حضور",tabs:{dash:"view",team:"edit",manpower:"edit"}},
-  mgmt:{ar:"إدارة (مشاهدة التقارير)",tabs:{dash:"view",report:"view",kpi:"view",actions:"view"}}};
+  hse:{ar:"أخصائي سلامة",tabs:{dash:"view",ptw:"edit",forms:"edit",ppe:"edit",manpower:"view",me:"edit"}},
+  officer:{ar:"أوفيسر سلامة",tabs:{dash:"view",ptw:"edit",forms:"edit",manpower:"edit",me:"edit"}},
+  sup:{ar:"مشرف موقع",tabs:{dash:"view",ptw:"edit",forms:"edit",manpower:"view",contractors:"view",me:"edit"}},
+  eng:{ar:"مهندس موقع",tabs:{dash:"view",ptw:"edit",me:"edit"}},
+  observer:{ar:"مراقب سلامة",tabs:{dash:"view",forms:"edit",manpower:"view",me:"edit"}},
+  store:{ar:"أمين مخزن المهمات",tabs:{dash:"view",ppe:"edit",me:"edit"}},
+  hr:{ar:"شؤون عاملين / حضور",tabs:{dash:"view",team:"edit",manpower:"edit",me:"edit"}},
+  mgmt:{ar:"إدارة (مشاهدة التقارير)",tabs:{dash:"view",report:"view",kpi:"view"}}};
 function ROLES_ALL(){return {...BUILTIN_ROLES,...(S.settings.roles||{})}}
 const ROLES=new Proxy({},{get:(_,k)=>ROLES_ALL()[k]});
 function roleTabs(u){const r=ROLES_ALL()[u.role];let tb=u.role==="custom"||!r?(u.tabs||{}):r.tabs;if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));return tb||{}}
