@@ -1949,12 +1949,11 @@ async function renderGenericBase(fid,rec){
 async function _expDownload(jobs){
   const dl=await window.claude?.use?.("downloads");if(!dl){toast("التحميل مش متاح");return}
   const clean=x=>String(x||"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
-  const folder=clean("منظومة السلامة "+today()).slice(0,60);
-  const san=x=>clean(x).slice(0,70);
+  const san=x=>clean(x).slice(0,90);
   let ok=0,fail=0;
-  toast("بينزّل "+jobs.length+" نموذج في فولدر «"+folder+"»");
-  for(const j of jobs){try{const pgs=await j.build();if(!pgs||!pgs.length){fail++;continue}const blob=await permitPdfBlob(pgs);const nm=san(j.title+" "+(j.who||"")+" "+j.d)||"نموذج";await dl.save({filename:folder+"/"+nm+".pdf",data:blob});ok++;await new Promise(res=>setTimeout(res,300))}catch(e){fail++}}
-  toast("اتنزل "+ok+" نموذج"+(fail?" · "+fail+" فشلوا":"")+" في فولدر «"+folder+"» ✔");
+  toast("بينزّل "+jobs.length+" نموذج…");
+  for(const j of jobs){try{const pgs=await j.build();if(!pgs||!pgs.length){fail++;continue}const blob=await permitPdfBlob(pgs);const nm=san([j.cat,j.title,j.who,j.d].filter(Boolean).join(" - "))||"نموذج";await dl.save({filename:nm+".pdf",data:blob});ok++;await new Promise(res=>setTimeout(res,300))}catch(e){fail++}}
+  toast("اتنزل "+ok+" نموذج"+(fail?" · "+fail+" فشلوا":"")+" ✔");
 }
 window.exportFormsPdf=async function exportFormsPdf(scope){const jobs=await _collectExportJobs(scope);if(!jobs.length){toast("مفيش نماذج في الفترة دي");return}await _expDownload(jobs);};
 window._expLoad=async function(btn,scope){window.__expScope=scope;
@@ -1967,7 +1966,7 @@ window._expLoad=async function(btn,scope){window.__expScope=scope;
 window._expToggleAll=function(on){document.querySelectorAll(".expChk").forEach(c=>c.checked=on)};
 window._expRunSelected=async function(){const jobs=window.__expJobs||[];const sel=[...document.querySelectorAll(".expChk:checked")].map(c=>jobs[+c.value]).filter(Boolean);if(!sel.length){toast("مفيش حاجة محددة");return}const ov=document.getElementById("overlayRoot");if(ov)ov.innerHTML="";await _expDownload(sel);};
 window.formsExportSheet=function formsExportSheet(){
-  openSheet("تحميل نماذج PDF",'<div class="form"><label>الفترة</label><div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px"><button type="button" class="btn primary" onclick="_expLoad(this,\'day\')">النهاردة</button><button type="button" class="btn" onclick="_expLoad(this,\'week\')">الأسبوع</button><button type="button" class="btn" onclick="_expLoad(this,\'month\')">الشهر</button></div><label>النماذج (شيل علامة اللي مش عايزه)</label><div id="expList" style="max-height:44vh;overflow:auto;margin-top:4px">اختار الفترة…</div><div style="margin-top:12px"><button type="button" class="btn primary" onclick="_expRunSelected()">⬇ تحميل المحدد في فولدر</button><p class="muted" style="font-size:12px;margin:6px 0 0">كل نموذج PDF مستقل بتوقيعاته، جوه فولدر «منظومة السلامة + تاريخ التنزيل».</p></div></div>',async()=>null,"إغلاق");
+  openSheet("تحميل نماذج PDF",'<div class="form"><label>الفترة</label><div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px"><button type="button" class="btn primary" onclick="_expLoad(this,\'day\')">النهاردة</button><button type="button" class="btn" onclick="_expLoad(this,\'week\')">الأسبوع</button><button type="button" class="btn" onclick="_expLoad(this,\'month\')">الشهر</button></div><label>النماذج (شيل علامة اللي مش عايزه)</label><div id="expList" style="max-height:44vh;overflow:auto;margin-top:4px">اختار الفترة…</div><div style="margin-top:12px"><button type="button" class="btn primary" onclick="_expRunSelected()">⬇ تحميل المحدد</button><p class="muted" style="font-size:12px;margin:6px 0 0">كل نموذج PDF مستقل بتوقيعاته، بينزل في مجلد تنزيلات المتصفح، واسمه يبدأ بالتصنيف (سجل/تصريح/إذن/إجازة/تكليف) علشان يترتبوا مع بعض.</p></div></div>',async()=>null,"إغلاق");
   setTimeout(()=>_expLoad(null,"day"),60);
 }
 VIEWS.forms={
