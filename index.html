@@ -1929,24 +1929,27 @@ async function renderGenericBase(fid,rec){
 
 ;window.exportFormsPdf=async function exportFormsPdf(scope){
   const t0=today(),ws=(typeof weekStart==="function"?weekStart():t0),m=thisMonth();
-  const inR=d=>scope==="day"?d===t0:scope==="week"?(d>=ws&&d<=t0):(d||"").startsWith(m);
-  const recs=(S.records||[]).filter(r=>inR(r.date||"")).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
-  if(!recs.length){toast("مفيش نماذج في الفترة دي");return}
+  const inR=d=>{d=(d||"").slice(0,10);return scope==="day"?d===t0:scope==="week"?(d>=ws&&d<=t0):d.startsWith(m)};
   const dl=await window.claude?.use?.("downloads");if(!dl){toast("التحميل مش متاح");return}
   const f2=await loadForms2();
+  const dd=t=>{try{return t?new Date(t).toISOString().slice(0,10):""}catch(e){return ""}};
   const san=x=>String(x||"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,70);
-  let ok=0,fail=0,i=0;
-  toast("بينزّل "+recs.length+" نموذج… كل واحد في ملف");
-  for(const r of recs){i++;
-    try{const sp=f2[r.form];if(!sp){fail++;continue}
-      const pgs=await renderGeneric(r.form,r);if(!pgs||!pgs.length){fail++;continue}
-      const blob=await permitPdfBlob(pgs);
-      const who=r.worker||r.name||r.empName||r.by||"";
-      const nm=san((sp.title||r.form)+" "+who+" "+(r.date||t0))||(r.form+" "+i);
-      await dl.save({filename:nm+".pdf",data:blob});ok++;
-      await new Promise(res=>setTimeout(res,350));
-    }catch(e){fail++}
-  }
+  const jobs=[];
+  for(const r of (S.records||[])){const d=(r.date||"").slice(0,10)||dd(r.createdAt);if(!inR(d))continue;const sp=f2[r.form];if(!sp)continue;
+    jobs.push({d,name:san((sp.title||r.form)+" "+(r.worker||r.name||r.empName||r.by||"")+" "+(d||t0)),build:async()=>await renderGeneric(r.form,r)});}
+  for(const p of (S.permits||[])){const d=(p.date||"").slice(0,10)||dd(p.createdAt);if(!inR(d))continue;if(typeof renderPermitPages!=="function")break;
+    const ty=(window.PTW_TYPES&&PTW_TYPES[p.type]&&PTW_TYPES[p.type].ar)||"تصريح";
+    jobs.push({d,name:san((p.number||"تصريح")+" "+ty+" "+d),build:async()=>await renderPermitPages(p)});}
+  for(const l of (S.leaves||[])){const d=(l.date||"").slice(0,10)||dd(l.createdAt);if(!inR(d))continue;const e=emp(l.empId)||{};let sp;
+    if(l.kind==="perm"){sp={T:"PERM",opt:{leader:isLeader(e)},fn:"اذن ساعتين "+(e.name||"")+" "+l.date,vals:{name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(l.date),dayName:dayName(l.date),from:l.from||"",to:l.to||""}};}
+    else if(l.kind==="mission"||l.kind==="duty"){sp={T:"ONE",opt:{leader:isLeader(e)},fn:"تكليف "+(e.name||"")+" "+l.date,vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",today:ymdSlash(today())}};}
+    else{const fld=l.leaveType==="casual"?"casual":l.leaveType==="annual"?"annual":null;sp={T:"VAC",opt:{leader:isLeader(e),cond:l.leaveType==="other"?"other":l.leaveType},fn:"طلب اجازة "+(e.name||"")+" "+l.date,vals:{name:e.name||"",job:e.job||"",code:e.code||"",mobile:String(e.phone||"").replace(/^\+/,""),from:dmy(l.date,"-"),to:dmy(l.to||l.date,"-"),days:String(num(l.days)),reqDate:dmy(l.reqDate||l.date,"-"),today:dmy(l.printDate||today(),"-"),alt:l.alt?empName(l.alt):"",balance:fld&&l.balanceAfter!=null?String(l.balanceAfter):""}};}
+    jobs.push({d,name:san(sp.fn),build:async()=>await renderForm(sp.T,sp.vals,sp.opt)});}
+  if(!jobs.length){toast("مفيش نماذج في الفترة دي");return}
+  jobs.sort((a,b)=>(a.d||"").localeCompare(b.d||""));
+  toast("بينزّل "+jobs.length+" نموذج… كل واحد في ملف");
+  let ok=0,fail=0;
+  for(const j of jobs){try{const pgs=await j.build();if(!pgs||!pgs.length){fail++;continue}const blob=await permitPdfBlob(pgs);await dl.save({filename:(j.name||"نموذج")+".pdf",data:blob});ok++;await new Promise(res=>setTimeout(res,350))}catch(e){fail++}}
   toast("اتنزل "+ok+" نموذج"+(fail?" · "+fail+" فشلوا":"")+" ✔");
 }
 ;window.formsExportSheet=function formsExportSheet(){
