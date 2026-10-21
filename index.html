@@ -384,6 +384,9 @@ const GROUPS = {hse:"فريق السلامة",sup:"فريق الإشراف",work
 
 /* ---------- state ---------- */
 const S = {profiles:[],members:[],actions:[],tasks:[],equipment:[],contractors:[],records:[],employees:[],items:[],moves:[],permits:[],kpi:[],att:[],leaves:[],settings:{}};
+const INDEX=Object.create(null);
+function rebuildIndex(key){INDEX[key]=new Map((S[key]||[]).filter(row=>row?.id).map(row=>[row.id,row]))}
+function byId(key,id){return INDEX[key]?.get(id)||(S[key]||[]).find(row=>row.id===id)}
 const loaded = {};
 let assetsNS=null;const ME={id:"",name:""};
 let BASE={del:false,write:true};let db=null, userNS=null, canDelete=false, canWrite=true, online=false, booted=false, isOwner=false, importing=false;
@@ -400,9 +403,9 @@ function thisMonth(){return today().slice(0,7)}
 function fmtDate(s){if(!s)return "";const [y,m,d]=s.split("-");return `${d}/${m}/${y}`}
 function monthName(ym){const [y,m]=ym.split("-");const n=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"][+m-1];return `${n} ${y}`}
 function num(v){const n=Number(v);return isFinite(n)?n:0}
-function emp(id){return S.employees.find(e=>e.id===id)}
+function emp(id){return byId("employees",id)}
 function empName(id){return emp(id)?.name||"—"}
-function item(id){return S.items.find(i=>i.id===id)}
+function item(id){return byId("items",id)}
 function hseTeam(){return S.employees.filter(e=>e.group==="hse"&&e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
 function activeEmps(){return S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
 function typeChip(t){const T=PTW_TYPES[t]||{ar:t,c:"--muted"};return `<span class="type"><i style="background:var(${T.c})"></i>${esc(T.ar)}</span>`}
@@ -423,30 +426,50 @@ function emptyState(title,body,btn){return `<div class="empty"><b>${title}</b>${
 function waiting(k){return (!loaded[k]||!legacyLoaded) && db ? `<div class="empty">بيحمّل…</div>` : ""}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("اتنسخ");}catch(e){toast("حدّد النص وانسخه بإيدك")}}
 
+/* ---------- application runtime ---------- */
+const APP_RUNTIME={saving:false,lastError:null};
+function saveErrorMessage(error){
+  const code=String(error?.code||"").toLowerCase();
+  if(["permission-denied","invalid_argument","unauthenticated"].includes(code))return "مش مسموح لك تعدّل البيانات دي";
+  if(["quota_exceeded","resource-exhausted"].includes(code))return "المساحة اتملت، امسح بيانات قديمة";
+  if(["unavailable","network-request-failed","deadline-exceeded"].includes(code))return "الاتصال اتقطع، اتأكد من النت وجرّب تاني";
+  return "الحفظ فشل، جرّب تاني";
+}
+function uniqueIds(ids){return [...new Set((ids||[]).filter(Boolean))]}
+
 /* ---------- data layer ---------- */
 async function write(fn, okMsg){
   if(!db){toast("مفيش اتصال بقاعدة البيانات");return false}
+  if(!canWrite){toast("عندك صلاحية مشاهدة فقط");return false}
+  if(APP_RUNTIME.saving){toast("استنى الحفظ الحالي يكتمل");return false}
+  APP_RUNTIME.saving=true;
   try{await fn();if(okMsg)toast(okMsg);return true}
   catch(e){
-    const c=e?.code;
-    if(c==="invalid_argument"){canWrite=false;toast("مش مسموح لك تعدّل البيانات دي")}
-    else if(c==="quota_exceeded"){toast("المساحة اتملت، امسح بيانات قديمة")}
-    else toast("الحفظ فشل، جرّب تاني");
+    APP_RUNTIME.lastError=e;
+    const code=String(e?.code||"").toLowerCase();
+    if(["permission-denied","invalid_argument","unauthenticated"].includes(code))canWrite=false;
+    toast(saveErrorMessage(e));
     console.error(e);return false
-  }
+  }finally{APP_RUNTIME.saving=false}
 }
 let LEG={},legacyLoaded=false;const LIVE={};
-function merge(k){const live=LIVE[k]||[];const leg=LEG[k]||[];if(!leg.length){S[k]=live.filter(x=>!x._deleted);return}
-  const ids=new Map(live.map(x=>[x.id,x]));const out=[];for(const r of leg){const o=ids.get(r.id);if(o){ids.delete(r.id);if(!o._deleted)out.push(o)}else out.push(r)}for(const o of ids.values())if(!o._deleted)out.push(o);S[k]=out}
-function current(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);return (S[k]||[]).find(x=>x.id===id)}
+function merge(k){const live=LIVE[k]||[];const leg=LEG[k]||[];if(!leg.length){S[k]=live.filter(x=>!x._deleted);rebuildIndex(k);return}
+  const ids=new Map(live.map(x=>[x.id,x]));const out=[];for(const r of leg){const o=ids.get(r.id);if(o){ids.delete(r.id);if(!o._deleted)out.push(o)}else out.push(r)}for(const o of ids.values())if(!o._deleted)out.push(o);S[k]=out;rebuildIndex(k)}
+function current(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);return k?byId(k,id):undefined}
 async function upsert(col,id,data){const cur=current(col,id)||{};const {id:_,...rest}=cur;await db.doc(col+"/"+id).set({...rest,...data})}
 async function remove(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);if((LEG[k]||[]).some(r=>r.id===id))await db.doc(col+"/"+id).set({_deleted:true});else await db.doc(col+"/"+id).delete()}
 const COLS={actions:"actions",tasks:"tasks",equipment:"equipment",contractors:"contractors",records:"records",employees:"employees",items:"ppe_items",moves:"ppe_moves",permits:"permits",kpi:"kpi_entries",att:"attendance",leaves:"leaves"};
 async function boot(){
   setSync("بيتصل…","");
   if(!window.claude?.use){booted=true;setSync("مش متصل","off");show(tab);return}
-  db = await window.claude.use("db");
-  userNS = await window.claude.use("user");
+  try{
+    db = await window.claude.use("db");
+    userNS = await window.claude.use("user");
+  }catch(error){
+    console.error("Unable to initialise application services",error);
+    booted=true;db=null;userNS=null;online=false;
+    setSync("مش متصل","off");show(tab);return;
+  }
   window.claude.use("assets").then(a=>{assetsNS=a;if(a)refresh()}).catch(()=>{});
   try{ME.id=(await userNS?.id())||"";ME.name=(await userNS?.name())||"";const mb=document.getElementById("meBtn");if(mb)mb.textContent="👤 "+ME.name}catch(e){}
   booted=true;
@@ -459,12 +482,12 @@ async function boot(){
     db.collection(p).onSnapshot(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refresh()},()=>setSync("الاتصال اتقطع","off"));
   }
   db.collection("legacy").onSnapshot(s=>{const acc={};for(const d of s.docs){const x=d.data();(acc[x.kind]??=[]).push(...(x.rows||[]))}LEG=acc;legacyLoaded=true;for(const k of Object.keys(COLS))merge(k);refresh()},()=>{});
-  db.collection("__profiles").onSnapshot(s=>{S.profiles=s.docs.map(d=>({id:d.id,...d.data()}));const me=S.profiles.find(p=>p.id===ME.id);if(me){window.SBA.profile=me;if(me.disabled){location.reload()}}applyRole();if(tab==="settings")refresh()},()=>{});
-  db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==="settings")refresh()},()=>{});
-  db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();document.getElementById("projectName").textContent="HSE · "+(S.settings.project||"المشروع");refresh()},()=>{});
+  db.collection("__profiles").onSnapshot(s=>{S.profiles=s.docs.map(d=>({id:d.id,...d.data()}));rebuildIndex("profiles");const me=byId("profiles",ME.id);if(me){window.SBA=window.SBA||{};window.SBA.profile=me;if(me.disabled){location.reload()}}applyRole();if(tab==="settings")refresh()},()=>{});
+  db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));rebuildIndex("members");if(tab==="settings")refresh()},()=>{});
+  db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();const projectName=$("projectName");if(projectName)projectName.textContent="HSE · "+(S.settings.project||"المشروع");refresh()},()=>{});
   show(tab);
 }
-function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
+function setSync(t,cls){const el=$("sync");if(el)el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
 function renderBanner(){}
 
 /* ---------- tabs / routing ---------- */
@@ -480,7 +503,14 @@ function showBase(t){
   VIEWS[tab].bind?.(m);
   VIEWS[tab].fill();
 }
-function refreshBase(){if(!importing)VIEWS[tab]?.fill()}
+let refreshPending=false;
+function refreshBase(){
+  if(importing||refreshPending)return;
+  /* Firestore/Supabase snapshots often arrive in a burst at startup.  Render
+     once per browser frame instead of rebuilding the current screen per row. */
+  refreshPending=true;
+  requestAnimationFrame(()=>{refreshPending=false;VIEWS[tab]?.fill()});
+}
 function $(id){return document.getElementById(id)}
 
 /* ---------- sheet (side form) ---------- */
@@ -2039,18 +2069,8 @@ async function recordFormBase(fid,id,preset){
   let photos=(rec.att||[]).filter(a=>a.kind==="photo");const removed=[];
   const photoHTML=`<div class="full" style="margin-top:6px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0" class="grow">📷 ${esc(PHOTO_LABEL(fid))}</h3>${assetsNS?`<label class="btn sm primary" style="cursor:pointer">+ صورة<input type="file" id="rfPhoto" accept="image/*" multiple style="display:none"></label>`:""}</div><div id="rfPhotos" style="display:flex;flex-wrap:wrap;gap:8px"></div><div id="rfPhotoMsg" class="muted" style="font-size:12.5px;margin-top:6px">${assetsNS?"الصور هتطلع في صفحة مرفقة بعد النموذج في الطباعة.":"رفع الصور متاح لصاحب المنظومة واللي معاه صلاحية تعديل."}</div></div>`;
   openSheet((id?"تعديل ":"")+spec.title,`<div class="form">${spec.fields.map(fieldHTML).join("")}${rowsHTML}${photoHTML}</div>${empDatalist2()}`,async(fd,form)=>{
-    const data={form:fid,f:{},rows:[],updatedAt:Date.now()};
-    data.att=[...(rec.att||[]).filter(a=>a.kind!=="photo"),...photos];
-    for(const f of spec.fields){if(f.hidden)continue;
-      if(f.type==="check"){const v=[...form.querySelectorAll(`[name="${f.k}"]:checked`)].map(i=>i.value);data.f[f.k]=f.multi?v:(v[0]||"")}
-      else{const v=(fd[f.k]||"").trim();data.f[f.k]=v;if(f.type==="emp"){const e=resolveEmp(v);if(e){data.f[f.k+"_id"]=e.id;data.f[f.k]=e.name}}}}
-    if(R){for(let i=0;i<R.n;i++){const row={};let any=false;for(const c of R.cols){const nm=`r${i}_${c.k}`;
-      if(c.type==="check"){if(c.multi){row[c.k]=[...form.querySelectorAll(`[name="${nm}"]:checked`)].map(i=>i.value);if(row[c.k].length)any=true}else{const ch=form.querySelector(`[name="${nm}"]:checked`);row[c.k]=ch?ch.value:"";if(row[c.k])any=true}}
-      else{const v=(fd[nm]||"").trim();row[c.k]=v;if(v)any=true;if(c.type==="emp"&&v){const e=resolveEmp(v);if(e){row[c.k+"_id"]=e.id;row[c.k]=e.name}}}}
-      data.rows.push(any?row:null)}
-      while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
-    data.date=data.f.date||today();
-    if(fid==="F-HSE-03-01"&&!id)data.f.writer=myEmpName();
+    /* A single serializer keeps save and preview data identical. */
+    const data=collectRecord(spec,fid,fd,form,rec,photos);
     let rid=id;
     const ok=await write(async()=>{if(fid==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){data.reporter=data.reporter||myEmpName();if(data.f)data.f.writer="";}if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}
@@ -2178,10 +2198,26 @@ async function printRecord(id){
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
 
 /* ---------- signature on generic forms ---------- */
-const SIG_FIELDS={"F-HSE-07-03":["sig2"],"F-HSE-05-01":["mgr","mgr_2"],"F-HSE-08-02":["mgr"],"F-HSE-30-02":["mgr"],"F-HSE-07-02":["mgr","mgr_2","mgr_3","mgr_4"],"F-HSE-18-01":["mgr","mgr_2"],
-  "F-HSE-10-01":["mgr"],"F-HSE-10-04":["mgr"],"F-HSE-10-05":["mgr"],"F-HSE-10-06":["mgr"],"F-HSE-10-07":["mgr"],"F-HSE-10-08":["mgr"],"F-HSE-08-01":["mgr","mgr_1","mgr_2","mgr_3"],
-  "F-HSE-04-01":["mgr"],"F-HSE-11-01":["mgr"],"F-HSE-17-01":["mgr"],"F-HSE-24-01":["lecName"],"F-HSE-24-02":["tName"],"F-HSE-02-01":["officer"],"F-HSE-07-04":["gh","gh_2"],"F-HSE-14-01":["officer"],"F-HSE-07-01":["writer"],"F-HSE-03-01":["mgr"]};
-const SIG_AUTOFILL=(fid,k)=>/^(mgr|sig2|gh)(_\d)?$/.test(k)||(["F-HSE-02-01","F-HSE-14-01"].includes(fid)&&k==="officer");
+/* Every approved form has one explicit signature policy.  This makes the
+   target of a signature auditable instead of relying on field-name guesses. */
+const SIGNATURE_POLICY=Object.freeze({
+  "F-HSE-07-03":{fields:["sig2"],auto:["sig2"]},
+  "F-HSE-05-01":{fields:["mgr","mgr_2"],auto:["mgr","mgr_2"]},
+  "F-HSE-08-02":{fields:["mgr"],auto:["mgr"]},"F-HSE-30-02":{fields:["mgr"],auto:["mgr"]},
+  "F-HSE-07-02":{fields:["mgr","mgr_2","mgr_3","mgr_4"],auto:["mgr","mgr_2","mgr_3","mgr_4"]},
+  "F-HSE-18-01":{fields:["mgr","mgr_2"],auto:["mgr","mgr_2"]},
+  "F-HSE-10-01":{fields:["mgr"],auto:["mgr"]},"F-HSE-10-04":{fields:["mgr"],auto:["mgr"]},"F-HSE-10-05":{fields:["mgr"],auto:["mgr"]},"F-HSE-10-06":{fields:["mgr"],auto:["mgr"]},"F-HSE-10-07":{fields:["mgr"],auto:["mgr"]},"F-HSE-10-08":{fields:["mgr"],auto:["mgr"]},
+  "F-HSE-08-01":{fields:["mgr","mgr_1","mgr_2","mgr_3"],auto:["mgr","mgr_1","mgr_2","mgr_3"]},
+  "F-HSE-04-01":{fields:["mgr"],auto:["mgr"]},"F-HSE-11-01":{fields:["mgr"],auto:["mgr"]},"F-HSE-17-01":{fields:["mgr"],auto:["mgr"]},
+  "F-HSE-24-01":{fields:["lecName"],auto:[]},"F-HSE-24-02":{fields:["tName"],auto:[]},
+  "F-HSE-02-01":{fields:["officer"],auto:["officer"]},"F-HSE-07-04":{fields:["gh","gh_2"],auto:["gh","gh_2"]},"F-HSE-14-01":{fields:["officer"],auto:["officer"]},
+  /* Violation author stays separate from the approving system manager. */
+  "F-HSE-07-01":{fields:["writer"],auto:[]},
+  /* Incident report approval belongs to the safety-manager field. */
+  "F-HSE-03-01":{fields:["mgr"],auto:["mgr"]}
+});
+const SIG_FIELDS=Object.freeze(Object.fromEntries(Object.entries(SIGNATURE_POLICY).map(([form,policy])=>[form,policy.fields])));
+const SIG_AUTOFILL=(fid,key)=>SIGNATURE_POLICY[fid]?.auto.includes(key)||false;
 function sigRect(spec,nf){const [x,y,w,h]=nf.rect;const pg=nf.page||0;
   const dates=spec.fields.filter(f=>(f.page||0)===pg&&f!==nf&&f.rect[1]>y+h*0.5&&f.rect[1]<y+h*4&&Math.min(x+w,f.rect[0]+f.rect[2])-Math.max(x,f.rect[0])>w*0.5).sort((a,b)=>a.rect[1]-b.rect[1]);
   const d=dates[0];if(!d)return [x,y+h*1.15,w,h*1.3];
@@ -2199,27 +2235,70 @@ window.corrHTML=function(r){try{if(!(r.form==="F-HSE-07-01"||r.form==="F-HSE-07-
 window.assignCorrect=async function(id){const r=S.records.find(x=>x.id===id);if(!r)return;const ppl=(S.profiles||[]).filter(p=>!p.disabled);if(!ppl.length){toast("مفيش مستخدمين");return}openSheet("تعيين مسؤول تصحيح",`<div class="form">${f("المستخدم","owner",{opts:[["","— اختر —"],...ppl.map(p=>[p.id,profName(p.id)])],req:true})}</div>`,async fd=>{if(!fd.owner)return "اختر مستخدم";const nm=profName(fd.owner);const ok=await write(()=>upsert("records",id,{correct:{owner:fd.owner,ownerName:nm,by:ME.id,at:Date.now()}}),"اتعيّن مسؤول التصحيح ✔");if(ok){try{notifyUsers([fd.owner],"🛠 إجراء تصحيحي مطلوب",((r.f&&r.f.place)||r.form)+" — افتح وحط الحل","?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}return ok?null:"الحفظ فشل"},"تعيين")};
 window.correctSolve=async function(id){const r=S.records.find(x=>x.id===id);if(!r)return;openSheet("حل الإجراء التصحيحي",`<div class="form"><div class="field full"><label>الحل / الإجراء المتخذ</label><textarea name="sol" rows="4"></textarea></div></div>`,async fd=>{const sv=(fd.sol||"").trim();if(!sv)return "اكتب الحل";const cur={...(r.correct||{})};cur.solution=sv;cur.doneBy=ME.id;cur.doneName=myEmpName();cur.doneAt=Date.now();const ok=await write(()=>upsert("records",id,{correct:cur}),"اتسجّل الحل ✔");if(ok){try{const _ad=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);notifyUsers([...(cur.by?[cur.by]:[]),..._ad],"✅ تم وضع حل الإجراء التصحيحي",(myEmpName()||"")+": "+sv.slice(0,60),"?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}return ok?null:"الحفظ فشل"},"حفظ الحل")};
 window.submitViol=async function submitViol(id){const r=S.records.find(x=>x.id===id);if(!r)return;const ok=await write(()=>upsert("records",id,{submitted:true,reporter:r.reporter||myEmpName(),submittedAt:Date.now()}),"اتبعت المخالفة للاعتماد 📨");if(ok){try{const _ad=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);notifyUsers(_ad,"🚩 مخالفة مستنية الاعتماد",(myEmpName()||"الفريق")+" بلّغ عن مخالفة محتاجة اعتماد وتوقيع محرّر المخالفة","?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}}
-async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;if(r.form==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){toast("اعتماد المخالفة وتوقيع محرّرها للأدمن بس");return}const f={...(r.f||{})};
-  for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=myEmpName();const e=S.employees.find(x=>normName(x.name)===normName(f[k]));if(e)f[k+"_id"]=e.id}
-  const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
-  if(await write(()=>upsert("records",id,{f,approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد بتوقيعك ✔")){setTimeout(()=>printRecord(id),300)}}
-async function unapproveRecord(id){if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300)}
+async function approveRecord(id){
+  const record=S.records.find(x=>x.id===id),policy=record&&SIGNATURE_POLICY[record.form];
+  if(!record||!policy||!canWrite){toast("مش مسموح باعتماد السجل ده");return}
+  if(record.form==="F-HSE-07-01"&&myRole()!=="admin"){toast("اعتماد المخالفة للأدمن فقط");return}
+  const signature=await mySig();
+  if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
+  const fields={...(record.f||{})};
+  for(const key of policy.auto){
+    if(fields[key])continue;
+    fields[key]=myEmpName();
+    const employee=S.employees.find(e=>normName(e.name)===normName(fields[key]));
+    if(employee)fields[key+"_id"]=employee.id;
+  }
+  const approved={by:ME.id,at:Date.now(),name:myEmpName(),role:myRole(),signature,fields:[...policy.fields]};
+  if(await write(()=>upsert("records",id,{f:fields,approved}),"اتعتمد بتوقيعك ✔"))setTimeout(()=>printRecord(id),300);
+}
+async function unapproveRecord(id){
+  const record=S.records.find(x=>x.id===id);
+  if(!record?.approved||!canWrite){toast("مش مسموح بإلغاء الاعتماد");return}
+  if(myRole()!=="admin"&&record.approved.by!==ME.id){toast("إلغاء الاعتماد للأدمن أو لصاحب الاعتماد فقط");return}
+  if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300);
+}
 window.approveRecord=approveRecord;window.unapproveRecord=unapproveRecord;
 const apPill=x=>x?.approved?'<span class="pill p-sign">✔ معتمد</span>':"";
 
 /* ---------- forms: preview before saving ---------- */
-function collectRecord(spec,fid,fd,form,rec,photos){
-  const data={form:fid,f:{},rows:[],updatedAt:Date.now()};data.att=[...(rec.att||[]).filter(a=>a.kind!=="photo"),...photos];
-  for(const f of spec.fields){if(f.hidden)continue;
-    if(f.type==="check"){const v=[...form.querySelectorAll(`[name="${f.k}"]:checked`)].map(i=>i.value);data.f[f.k]=f.multi?v:(v[0]||"")}
-    else{const v=(fd[f.k]||"").trim();data.f[f.k]=v;if(f.type==="emp"){const e=resolveEmp(v);if(e){data.f[f.k+"_id"]=e.id;data.f[f.k]=e.name}}}}
-  const R=spec.rows;
-  if(R){for(let i=0;i<R.n;i++){const row={};let any=false;for(const c of R.cols){const nm=`r${i}_${c.k}`;
-    if(c.type==="check"){if(c.multi){row[c.k]=[...form.querySelectorAll(`[name="${nm}"]:checked`)].map(i=>i.value);if(row[c.k].length)any=true}else{const ch=form.querySelector(`[name="${nm}"]:checked`);row[c.k]=ch?ch.value:"";if(row[c.k])any=true}}
-    else{const v=(fd[nm]||"").trim();row[c.k]=v;if(v)any=true;if(c.type==="emp"&&v){const e=resolveEmp(v);if(e){row[c.k+"_id"]=e.id;row[c.k]=e.name}}}}
-    data.rows.push(any?row:null)}
-    while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
-  if(fid==="F-HSE-03-01"&&!rec?.id)data.f.writer=myEmpName();data.date=data.f.date||today();return data}
+function normalizeRecordValue(value){return String(value??"").trim()}
+function collectRecordField(field,key,fd,form,target){
+  if(field.type==="check"){
+    const values=[...form.querySelectorAll(`[name="${key}"]:checked`)].map(input=>input.value);
+    target[field.k]=field.multi?values:(values[0]||"");
+    return Array.isArray(target[field.k])?target[field.k].length>0:Boolean(target[field.k]);
+  }
+  const value=normalizeRecordValue(fd[key]);
+  target[field.k]=value;
+  if(field.type==="emp"){
+    delete target[field.k+"_id"];
+    if(value){
+      const employee=resolveEmp(value);
+      if(employee){target[field.k+"_id"]=employee.id;target[field.k]=employee.name;}
+    }
+  }
+  return Boolean(value);
+}
+function collectRecordRows(rows,fd,form){
+  if(!rows)return [];
+  const output=[];
+  for(let index=0;index<rows.n;index++){
+    const row={};let hasValue=false;
+    for(const column of rows.cols)hasValue=collectRecordField(column,`r${index}_${column.k}`,fd,form,row)||hasValue;
+    output.push(hasValue?row:null);
+  }
+  while(output.length&&!output[output.length-1])output.pop();
+  return output;
+}
+function collectRecord(spec,fid,fd,form,rec={},photos=[]){
+  /* Preserve system and hidden fields while replacing values the user can edit. */
+  const data={form:fid,f:{...(rec.f||{})},rows:collectRecordRows(spec.rows,fd,form),updatedAt:Date.now()};
+  data.att=[...(rec.att||[]).filter(asset=>asset.kind!=="photo"),...photos];
+  for(const field of spec.fields){if(!field.hidden)collectRecordField(field,field.k,fd,form,data.f)}
+  if(fid==="F-HSE-03-01"&&!rec?.id)data.f.writer=myEmpName();
+  data.date=data.f.date||today();
+  return data;
+}
 function addPreviewBtn(onPreview){const sub=document.querySelector("#shForm [type=submit]");if(!sub)return;const b=document.createElement("button");b.type="button";b.className="btn";b.textContent="👁 معاينة";b.onclick=onPreview;sub.insertAdjacentElement("afterend",b)}
 async function recordForm(fid,id,preset){
   await recordFormBase(fid,id,preset);
@@ -3150,7 +3229,7 @@ Object.assign(BUILTIN_ROLES,{
 const REVIEWERS=["admin","hse","hsesup"];const AUTHORS_NEED_REVIEW=["officer","monitor"];
 const LECT_ROLES=["hse","hsesup","officer"];
 const myRole=()=>myAccess()?.role||"";
-const profOf=uid=>(S.profiles||[]).find(p=>p.id===uid);
+const profOf=uid=>byId("profiles",uid);
 VIEWS.hr={shell:()=>`<div class="head"><h2 class="grow">الموارد البشرية</h2></div><div id="hrBody"></div>`,
   fill(){const LR=(S.leavereq||[]).filter(c=>c.status==="new");
     const create=`<div class="card"><h3 style="margin:0 0 8px">إنشاء</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="dutyForm()">+ تكليف / مأمورية / إذن</button><button class="btn" onclick="leaveForm()">+ إجازة</button><button class="btn" onclick="recordForm('F-HSE-07-01')">+ مخالفة</button></div><p class="muted" style="font-size:12.5px;margin:8px 0 0">كل الإنشاء والاعتماد هنا باسم الأدمن.</p></div>`;
@@ -3202,9 +3281,15 @@ function roleDuties(uid){const p=profOf(uid);const r=p?.role;const ws=weekStart(
   return o}}
 /* notifications: inbox table + push */
 let NOTIFS=[];
-async function notifyUsers(uids,title,body,url="./"){uids=[...new Set((uids||[]).filter(u=>u&&u!==ME.id))];if(!uids.length)return;
-  try{await SB.from("notif").insert(uids.map(u=>({to_uid:u,title,body,url})))}catch(e){}
-  try{await notifyCall({action:"send",to:uids,title,body,url},true)}catch(e){}}
+async function notifyUsers(uids,title,body,url="./"){
+  uids=uniqueIds((uids||[]).filter(u=>u!==ME.id));
+  if(!uids.length)return;
+  const message={title:String(title||""),body:String(body||""),url:String(url||"./")};
+  /* The in-app database and push gateway are independent: a failed push must
+     never prevent the durable notification from being recorded. */
+  if(window.SB){try{await SB.from("notif").insert(uids.map(to_uid=>({to_uid,...message})))}catch(e){console.warn("Notification inbox write failed",e)}}
+  try{await notifyCall({action:"send",to:uids,...message},true)}catch(e){console.warn("Push notification failed",e)}
+}
 async function loadNotifs(){try{const {data}=await SB.from("notif").select("*").eq("to_uid",ME.id).order("at",{ascending:false}).limit(60);NOTIFS=data||[];bellBadge()}catch(e){}}
 function bellBadge(){const n=NOTIFS.filter(x=>!x.read).length;const b=$("bellBtn");if(b)b.innerHTML=`🔔${n?`<span style="background:var(--bad);color:#fff;border-radius:999px;font-size:10.5px;padding:0 5px;margin-inline-start:3px">${n}</span>`:""}`}
 function bellPanel(){openSheet("🔔 الإشعارات",NOTIFS.length?`<div class="list">${NOTIFS.map(x=>`<button type="button" class="li" data-n="${x.id}" style="width:100%;text-align:right;background:${x.read?"none":"var(--accent-soft)"};border:0;border-radius:8px;padding:10px;font:inherit;color:inherit;cursor:pointer;margin-bottom:4px"><div class="grow"><div class="t">${esc(x.title)}</div><div class="s" style="white-space:pre-line">${esc(x.body||"")}</div><div class="s">${new Date(x.at).toLocaleString("ar-EG",{dateStyle:"short",timeStyle:"short"})}</div></div></button>`).join("")}</div>`:emptyState("مفيش إشعارات",""),async()=>{const ids=NOTIFS.filter(x=>!x.read).map(x=>x.id);if(ids.length){await SB.from("notif").update({read:true}).in("id",ids);NOTIFS.forEach(x=>x.read=true);bellBadge()}return null},"تعليم الكل كمقروء");
@@ -3382,4 +3467,4 @@ VIEWS.chat={shell:()=>`<div class="head"><h2 class="grow">💬 الشات</h2></
 show(tab);
 boot();
 </script>
-</body></html>  
+</body></html>
