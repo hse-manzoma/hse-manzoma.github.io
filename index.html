@@ -1,3 +1,4 @@
+
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#D9480F"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="منظومة السلامة"><meta name="apple-mobile-web-app-status-bar-style" content="default"><title>منظومة السلامة HSE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2013,7 +2014,7 @@ function sigPadRow(btn){const td=btn.closest("td");const inp=td.querySelector('i
 }
 async function recordFormBase(fid,id,preset){
   const spec=(await loadForms2())[fid];const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
-  const fv=k=>rec.f?.[k]??"";
+  const fv=k=>k==="writer"&&fid==="F-HSE-03-01"&&!id?myEmpName():(rec.f?.[k]??"");
   const fieldHTML=f=>{
     if(f.hidden)return "";
     const lab=esc(f.label||f.k),id="rf_"+f.k;
@@ -2049,6 +2050,7 @@ async function recordFormBase(fid,id,preset){
       data.rows.push(any?row:null)}
       while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
     data.date=data.f.date||today();
+    if(fid==="F-HSE-03-01"&&!id)data.f.writer=myEmpName();
     let rid=id;
     const ok=await write(async()=>{if(fid==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){data.reporter=data.reporter||myEmpName();if(data.f)data.f.writer="";}if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}
@@ -2178,7 +2180,7 @@ async function printRecord(id){
 /* ---------- signature on generic forms ---------- */
 const SIG_FIELDS={"F-HSE-07-03":["sig2"],"F-HSE-05-01":["mgr","mgr_2"],"F-HSE-08-02":["mgr"],"F-HSE-30-02":["mgr"],"F-HSE-07-02":["mgr","mgr_2","mgr_3","mgr_4"],"F-HSE-18-01":["mgr","mgr_2"],
   "F-HSE-10-01":["mgr"],"F-HSE-10-04":["mgr"],"F-HSE-10-05":["mgr"],"F-HSE-10-06":["mgr"],"F-HSE-10-07":["mgr"],"F-HSE-10-08":["mgr"],"F-HSE-08-01":["mgr","mgr_1","mgr_2","mgr_3"],
-  "F-HSE-04-01":["mgr"],"F-HSE-11-01":["mgr"],"F-HSE-17-01":["mgr"],"F-HSE-24-01":["lecName"],"F-HSE-24-02":["tName"],"F-HSE-02-01":["officer"],"F-HSE-07-04":["gh","gh_2"],"F-HSE-14-01":["officer"],"F-HSE-07-01":["writer"],"F-HSE-03-01":["writer"]};
+  "F-HSE-04-01":["mgr"],"F-HSE-11-01":["mgr"],"F-HSE-17-01":["mgr"],"F-HSE-24-01":["lecName"],"F-HSE-24-02":["tName"],"F-HSE-02-01":["officer"],"F-HSE-07-04":["gh","gh_2"],"F-HSE-14-01":["officer"],"F-HSE-07-01":["writer"],"F-HSE-03-01":["mgr"]};
 const SIG_AUTOFILL=(fid,k)=>/^(mgr|sig2|gh)(_\d)?$/.test(k)||(["F-HSE-02-01","F-HSE-14-01"].includes(fid)&&k==="officer");
 function sigRect(spec,nf){const [x,y,w,h]=nf.rect;const pg=nf.page||0;
   const dates=spec.fields.filter(f=>(f.page||0)===pg&&f!==nf&&f.rect[1]>y+h*0.5&&f.rect[1]<y+h*4&&Math.min(x+w,f.rect[0]+f.rect[2])-Math.max(x,f.rect[0])>w*0.5).sort((a,b)=>a.rect[1]-b.rect[1]);
@@ -2202,6 +2204,7 @@ async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)retu
   const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
   if(await write(()=>upsert("records",id,{f,approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد بتوقيعك ✔")){setTimeout(()=>printRecord(id),300)}}
 async function unapproveRecord(id){if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300)}
+window.approveRecord=approveRecord;window.unapproveRecord=unapproveRecord;
 const apPill=x=>x?.approved?'<span class="pill p-sign">✔ معتمد</span>':"";
 
 /* ---------- forms: preview before saving ---------- */
@@ -2216,7 +2219,7 @@ function collectRecord(spec,fid,fd,form,rec,photos){
     else{const v=(fd[nm]||"").trim();row[c.k]=v;if(v)any=true;if(c.type==="emp"&&v){const e=resolveEmp(v);if(e){row[c.k+"_id"]=e.id;row[c.k]=e.name}}}}
     data.rows.push(any?row:null)}
     while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
-  data.date=data.f.date||today();return data}
+  if(fid==="F-HSE-03-01"&&!rec?.id)data.f.writer=myEmpName();data.date=data.f.date||today();return data}
 function addPreviewBtn(onPreview){const sub=document.querySelector("#shForm [type=submit]");if(!sub)return;const b=document.createElement("button");b.type="button";b.className="btn";b.textContent="👁 معاينة";b.onclick=onPreview;sub.insertAdjacentElement("afterend",b)}
 async function recordForm(fid,id,preset){
   await recordFormBase(fid,id,preset);
@@ -3379,4 +3382,4 @@ VIEWS.chat={shell:()=>`<div class="head"><h2 class="grow">💬 الشات</h2></
 show(tab);
 boot();
 </script>
-</body></html>
+</body></html>  
