@@ -1908,7 +1908,7 @@ async function renderGenericBase(fid,rec){
         x.textAlign=rtl?"right":"left";lines.slice(0,Math.max(opt.lines,Math.floor(bh/(fs*1.3)))).forEach((l,i)=>x.fillText(l,rtl?bx+bw-6:bx+6,by+lh*(i+0.5)));return}
       let fs=Math.min(13*pxPt,bh*0.82);x.font=font(fs);while(x.measureText(t).width>bw-8&&fs>8){fs-=1;x.font=font(fs)}
       x.textAlign="center";x.fillText(t,bx+bw/2,by+bh/2+1)};
-    const tick=r=>{const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;x.strokeStyle="#111";x.lineWidth=Math.max(2,bw*0.14);x.beginPath();x.moveTo(bx+bw*0.15,by+bh*0.55);x.lineTo(bx+bw*0.42,by+bh*0.85);x.lineTo(bx+bw*0.95,by+bh*0.05);x.stroke()};
+    const tick=r=>{const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;x.save();x.strokeStyle="#0b2e59";x.lineCap="round";x.lineJoin="round";x.lineWidth=Math.max(3,Math.min(bw,bh)*0.28);x.beginPath();x.moveTo(bx+bw*0.08,by+bh*0.55);x.lineTo(bx+bw*0.40,by+bh*0.92);x.lineTo(bx+bw*1.04,by-bh*0.08);x.stroke();x.restore()};
     for(const f of spec.fields.filter(f=>f.page===k)){
       if(f.type==="check"){const v=rec.f?.[f.k];const sel=Array.isArray(v)?v:(v?[v]:[]);for(const o of sel)if(f.opts[o])tick(f.opts[o]);continue}
       text(fmtFieldVal(f,recVal(spec,rec,f.k)),f.rect,{fill:f.fill,lines:f.type==="textarea"?(f.lines||3):1});
