@@ -1926,8 +1926,33 @@ async function renderGenericBase(fid,rec){
   }
   return out;
 }
+async function exportFormsPdf(scope){
+  const t0=today(),ws=(typeof weekStart==="function"?weekStart():t0),m=thisMonth();
+  const inR=d=>scope==="day"?d===t0:scope==="week"?(d>=ws&&d<=t0):(d||"").startsWith(m);
+  const recs=(S.records||[]).filter(r=>inR(r.date||"")).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  if(!recs.length){toast("مفيش نماذج في الفترة دي");return}
+  const dl=await window.claude?.use?.("downloads");if(!dl){toast("التحميل مش متاح");return}
+  const f2=await loadForms2();
+  const san=x=>String(x||"").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,70);
+  let ok=0,fail=0,i=0;
+  toast("بينزّل "+recs.length+" نموذج… كل واحد في ملف");
+  for(const r of recs){i++;
+    try{const sp=f2[r.form];if(!sp){fail++;continue}
+      const pgs=await renderGeneric(r.form,r);if(!pgs||!pgs.length){fail++;continue}
+      const blob=await permitPdfBlob(pgs);
+      const who=r.worker||r.name||r.empName||r.by||"";
+      const nm=san((sp.title||r.form)+" "+who+" "+(r.date||t0))||(r.form+" "+i);
+      await dl.save({filename:nm+".pdf",data:blob});ok++;
+      await new Promise(res=>setTimeout(res,350));
+    }catch(e){fail++}
+  }
+  toast("اتنزل "+ok+" نموذج"+(fail?" · "+fail+" فشلوا":"")+" ✔");
+}
+function formsExportSheet(){
+  openSheet("تحميل نماذج PDF","<p class=\"muted\" style=\"margin-top:0;font-size:13px\">كل نموذج في الفترة هينزل في ملف PDF <b>لوحده</b>.</p><div style=\"display:flex;gap:8px;flex-wrap:wrap\"><button type=\"button\" class=\"btn primary\" onclick=\"$('overlayRoot').innerHTML='';exportFormsPdf('day')\">نماذج النهاردة</button><button type=\"button\" class=\"btn\" onclick=\"$('overlayRoot').innerHTML='';exportFormsPdf('week')\">نماذج الأسبوع</button><button type=\"button\" class=\"btn\" onclick=\"$('overlayRoot').innerHTML='';exportFormsPdf('month')\">نماذج الشهر</button></div>",async()=>null,"إغلاق");
+}
 VIEWS.forms={
-  shell:()=>`<div class="head"><h2 class="grow">النماذج والسجلات</h2></div><div id="formsBody"></div>`,
+  shell:()=>`<div class="head"><h2 class="grow">النماذج والسجلات</h2><button class="btn" onclick="formsExportSheet()">⬇ تحميل PDF</button></div><div id="formsBody"></div>`,
   async fill(){
     const el=$("formsBody");let F2;try{F2=await loadForms2()}catch(e){el.innerHTML='<div class="msg">معرفتش أحمّل النماذج.</div>';return}
     if(ui.formSel&&F2[ui.formSel])return fillFormRecords(el,ui.formSel,F2[ui.formSel]);
