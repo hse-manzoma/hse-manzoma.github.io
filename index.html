@@ -1926,7 +1926,8 @@ async function renderGenericBase(fid,rec){
   }
   return out;
 }
-async function exportFormsPdf(scope){
+
+;window.exportFormsPdf=async function exportFormsPdf(scope){
   const t0=today(),ws=(typeof weekStart==="function"?weekStart():t0),m=thisMonth();
   const inR=d=>scope==="day"?d===t0:scope==="week"?(d>=ws&&d<=t0):(d||"").startsWith(m);
   const recs=(S.records||[]).filter(r=>inR(r.date||"")).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
@@ -1948,7 +1949,7 @@ async function exportFormsPdf(scope){
   }
   toast("اتنزل "+ok+" نموذج"+(fail?" · "+fail+" فشلوا":"")+" ✔");
 }
-function formsExportSheet(){
+;window.formsExportSheet=function formsExportSheet(){
   openSheet("تحميل نماذج PDF","<p class=\"muted\" style=\"margin-top:0;font-size:13px\">كل نموذج في الفترة هينزل في ملف PDF <b>لوحده</b>.</p><div style=\"display:flex;gap:8px;flex-wrap:wrap\"><button type=\"button\" class=\"btn primary\" onclick=\"$('overlayRoot').innerHTML='';exportFormsPdf('day')\">نماذج النهاردة</button><button type=\"button\" class=\"btn\" onclick=\"$('overlayRoot').innerHTML='';exportFormsPdf('week')\">نماذج الأسبوع</button><button type=\"button\" class=\"btn\" onclick=\"$('overlayRoot').innerHTML='';exportFormsPdf('month')\">نماذج الشهر</button></div>",async()=>null,"إغلاق");
 }
 VIEWS.forms={
