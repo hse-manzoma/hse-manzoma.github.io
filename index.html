@@ -2035,9 +2035,9 @@ async function recordFormBase(fid,id,preset){
       while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
     data.date=data.f.date||today();
     let rid=id;
-    const ok=await write(async()=>{if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
+    const ok=await write(async()=>{if(fid==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){data.reporter=data.reporter||myEmpName();if(data.f)data.f.writer="";}if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}
-    if(ok&&rid)setTimeout(()=>printRecord(rid),400);if(ok&&rid&&fid==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){try{const _ad=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);notifyUsers(_ad,"🚩 مخالفة مستنية الاعتماد",(myEmpName()||"الفريق")+" رفع مخالفة محتاجة اعتماد وتوقيع محرّر المخالفة","?go=rec&id="+rid)}catch(e){}}
+    if(ok&&rid)setTimeout(()=>printRecord(rid),400);
     return ok?null:"الحفظ فشل";
   },"حفظ وطباعة");
   const drawP=()=>{const b=$("rfPhotos");if(!b)return;b.innerHTML=photos.length?photos.map(a=>`<div style="position:relative;width:96px;height:96px;border-radius:8px;overflow:hidden;border:1px solid var(--line,#ddd)"><img src="/_blob/${a.a}" alt="" style="width:100%;height:100%;object-fit:cover"><button type="button" data-rm="${a.a}" aria-label="شيل الصورة" style="position:absolute;top:3px;left:3px;border:0;border-radius:50%;width:24px;height:24px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer">✕</button></div>`).join(""):`<span class="muted" style="font-size:13px">مفيش صور</span>`};
@@ -2155,7 +2155,7 @@ async function printRecord(id){
   const canAp=!!personalSig&&SIG_FIELDS[r.form]&&(r.form!=="F-HSE-07-01"||(myRole&&myRole()==="admin"));
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
-  const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
+  const ext2=extra+((r.form==="F-HSE-07-01"&&!r.approved&&myRole&&myRole()!=="admin")?`<button class="btn sign" data-extra onclick="submitViol('${r.id}')">📨 إرسال للاعتماد</button>`:"")+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
   const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext2,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
@@ -2178,6 +2178,7 @@ async function renderGeneric(fid,rec){
     const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const [rx,ry,rw,rh]=sigRect(spec,nf);const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
     if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}}
   return renderGenericSigned(fid,rec,pages)}
+async function submitViol(id){const r=S.records.find(x=>x.id===id);if(!r)return;const ok=await write(()=>upsert("records",id,{submitted:true,reporter:r.reporter||myEmpName(),submittedAt:Date.now()}),"اتبعت المخالفة للاعتماد 📨");if(ok){try{const _ad=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);notifyUsers(_ad,"🚩 مخالفة مستنية الاعتماد",(myEmpName()||"الفريق")+" بلّغ عن مخالفة محتاجة اعتماد وتوقيع محرّر المخالفة","?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}}
 async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;if(r.form==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){toast("اعتماد المخالفة وتوقيع محرّرها للأدمن بس");return}const f={...(r.f||{})};
   for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=myEmpName();const e=S.employees.find(x=>normName(x.name)===normName(f[k]));if(e)f[k+"_id"]=e.id}
   const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
