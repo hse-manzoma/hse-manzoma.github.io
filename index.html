@@ -2231,7 +2231,7 @@ async function renderGeneric(fid,rec){
   const spec=(await loadForms2())[fid];const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
   for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(normName(recVal(spec,rec,nk))!==normName(rec.approved.name||""))continue;
     const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const [rx,ry,rw,rh]=sigRect(spec,nf);const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
-    if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}}
+    if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.02,by+bh*0.1,bw*0.96,bh*0.8);const s=Math.min(bw*0.92/im.width,bh*1.4/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);g.strokeStyle="#333";g.lineWidth=2;g.strokeRect(bx+bw*0.02,by+bh*0.1,bw*0.96,bh*0.8)}catch(e){}}}
   return renderGenericSigned(fid,rec,pages)}
 window.corrHTML=function(r){try{if(!(r.form==="F-HSE-07-01"||r.form==="F-HSE-07-03"))return "";const role=myRole&&myRole();const c=r.correct||{};let s="";if((role==="admin"||role==="officer"||role==="hsesup")&&!c.owner)s+=`<button class="btn" data-extra onclick="assignCorrect('${r.id}')">👷 تعيين مسؤول تصحيح</button>`;if(c.owner&&c.owner===ME.id&&!c.solution)s+=`<button class="btn sign" data-extra onclick="correctSolve('${r.id}')">🛠 حط الحل</button>`;return s}catch(e){return ""}};
 window.assignCorrect=async function(id){const r=S.records.find(x=>x.id===id);if(!r)return;const ppl=(S.profiles||[]).filter(p=>!p.disabled);if(!ppl.length){toast("مفيش مستخدمين");return}openSheet("تعيين مسؤول تصحيح",`<div class="form">${f("المستخدم","owner",{opts:[["","— اختر —"],...ppl.map(p=>[p.id,profName(p.id)])],req:true})}</div>`,async fd=>{if(!fd.owner)return "اختر مستخدم";const nm=profName(fd.owner);const ok=await write(()=>upsert("records",id,{correct:{owner:fd.owner,ownerName:nm,by:ME.id,at:Date.now()}}),"اتعيّن مسؤول التصحيح ✔");if(ok){try{notifyUsers([fd.owner],"🛠 إجراء تصحيحي مطلوب",((r.f&&r.f.place)||r.form)+" — افتح وحط الحل","?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}return ok?null:"الحفظ فشل"},"تعيين")};
@@ -2249,6 +2249,11 @@ async function approveRecord(id){
     fields[key]=myEmpName();
     const employee=S.employees.find(e=>normName(e.name)===normName(fields[key]));
     if(employee)fields[key+"_id"]=employee.id;
+    // حفظ التوقيع في الحقل المنفصل
+    if(record.form==="F-HSE-03-01"){
+      if(key==="writer")fields.writerSig=signature;
+      if(key==="approved")fields.approvedSig=signature;
+    }
   }
   const approved={by:ME.id,at:Date.now(),name:myEmpName(),role:myRole(),signature,fields:[...policy.fields]};
   if(await write(()=>upsert("records",id,{f:fields,approved}),"اتعتمد بتوقيعك ✔"))setTimeout(()=>printRecord(id),300);
