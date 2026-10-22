@@ -2046,7 +2046,7 @@ function sigPadRow(btn){const td=btn.closest("td");const inp=td.querySelector('i
 }
 async function recordFormBase(fid,id,preset){
   const spec=(await loadForms2())[fid];const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
-  const fv=k=>(k==="writer"||k==="approved")&&fid==="F-HSE-03-01"&&!id?myEmpName():(rec.f?.[k]??rec.f?.[k+"Name"]??"");
+  const fv=k=>k==="writer"&&fid==="F-HSE-03-01"&&!id?myEmpName():(rec.f?.[k]??rec.f?.[k+"Name"]??"");
   const fieldHTML=f=>{
     if(f.hidden)return "";
     const lab=esc(f.label||f.k),id="rf_"+f.k;
@@ -2191,7 +2191,7 @@ async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
   const spec=(await loadForms2())[r.form];const personalSig=await mySig();await sigData();
-  const canAp=!!personalSig&&SIG_FIELDS[r.form]&&(r.form!=="F-HSE-07-01"||(myRole&&myRole()==="admin"));
+  const canAp=!!personalSig&&SIG_FIELDS[r.form]&&(r.form!=="F-HSE-07-01"||(myRole&&myRole()==="admin"))&&(r.form!=="F-HSE-03-01"||canApproveIncident());
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
   const ext2=extra+corrHTML(r)+((r.form==="F-HSE-07-01"&&!r.approved&&myRole&&myRole()!=="admin")?`<button class="btn sign" data-extra onclick="submitViol('${r.id}')">📨 إرسال للاعتماد</button>`:"")+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
@@ -2202,6 +2202,8 @@ async function printRecord(id){
 /* ---------- signature on generic forms ---------- */
 /* Every approved form has one explicit signature policy.  This makes the
    target of a signature auditable instead of relying on field-name guesses. */
+const INCIDENT_APPROVER_UID="af6d18cb-f29a-4a7e-8c38-c23cc29d4230";
+const canApproveIncident=()=>String(ME.id||"")===INCIDENT_APPROVER_UID;
 const SIGNATURE_POLICY=Object.freeze({
   "F-HSE-07-03":{fields:["sig2"],auto:["sig2"]},
   "F-HSE-05-01":{fields:["mgr","mgr_2"],auto:["mgr","mgr_2"]},
@@ -2216,7 +2218,7 @@ const SIGNATURE_POLICY=Object.freeze({
   /* Violation author stays separate from the approving system manager. */
   "F-HSE-07-01":{fields:["writer"],auto:[]},
   /* Incident report approval belongs to the safety-manager field. */
-  "F-HSE-03-01":{fields:["writer","approved"],auto:["writer"]}
+  "F-HSE-03-01":{fields:["writer","approved"],auto:["approved"]}
 });
 const SIG_FIELDS=Object.freeze(Object.fromEntries(Object.entries(SIGNATURE_POLICY).map(([form,policy])=>[form,policy.fields])));
 const SIG_AUTOFILL=(fid,key)=>SIGNATURE_POLICY[fid]?.auto.includes(key)||false;
@@ -2229,7 +2231,7 @@ async function renderGeneric(fid,rec){
   const pages=await renderGenericBase(fid,rec);
   if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages);
   const spec=(await loadForms2())[fid];const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
-  for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(normName(recVal(spec,rec,nk))!==normName(rec.approved.name||""))continue;
+  for(const nk of SIG_FIELDS[fid]){if(fid==="F-HSE-03-01"&&nk!=="approved")continue;const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(normName(recVal(spec,rec,nk))!==normName(rec.approved.name||""))continue;
     const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const [rx,ry,rw,rh]=sigRect(spec,nf);const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
     if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.02,by+bh*0.1,bw*0.96,bh*0.8);const s=Math.min(bw*0.92/im.width,bh*1.4/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);g.strokeStyle="#333";g.lineWidth=2;g.strokeRect(bx+bw*0.02,by+bh*0.1,bw*0.96,bh*0.8)}catch(e){}}}
   return renderGenericSigned(fid,rec,pages)}
@@ -2240,20 +2242,21 @@ window.submitViol=async function submitViol(id){const r=S.records.find(x=>x.id==
 async function approveRecord(id){
   const record=S.records.find(x=>x.id===id),policy=record&&SIGNATURE_POLICY[record.form];
   if(!record||!policy||!canWrite){toast("مش مسموح باعتماد السجل ده");return}
+  if(record.form==="F-HSE-03-01"&&!canApproveIncident()){toast("اعتماد تقرير الحادث مقتصر على إسلام بكر عباس");return}
   if(record.form==="F-HSE-07-01"&&myRole()!=="admin"){toast("اعتماد المخالفة للأدمن فقط");return}
   const signature=await mySig();
   if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
   const fields={...(record.f||{})};
   for(const key of policy.auto){
+    if(record.form==="F-HSE-03-01"&&key==="approved"){
+      fields.approved=myEmpName();
+      fields.approvedSig=signature;
+      continue;
+    }
     if(fields[key])continue;
     fields[key]=myEmpName();
     const employee=S.employees.find(e=>normName(e.name)===normName(fields[key]));
     if(employee)fields[key+"_id"]=employee.id;
-    // حفظ التوقيع في الحقل المنفصل
-    if(record.form==="F-HSE-03-01"){
-      if(key==="writer")fields.writerSig=signature;
-      if(key==="approved")fields.approvedSig=signature;
-    }
   }
   const approved={by:ME.id,at:Date.now(),name:myEmpName(),role:myRole(),signature,fields:[...policy.fields]};
   if(await write(()=>upsert("records",id,{f:fields,approved}),"اتعتمد بتوقيعك ✔"))setTimeout(()=>printRecord(id),300);
@@ -2261,7 +2264,8 @@ async function approveRecord(id){
 async function unapproveRecord(id){
   const record=S.records.find(x=>x.id===id);
   if(!record?.approved||!canWrite){toast("مش مسموح بإلغاء الاعتماد");return}
-  if(myRole()!=="admin"&&record.approved.by!==ME.id){toast("إلغاء الاعتماد للأدمن أو لصاحب الاعتماد فقط");return}
+  if(record.form==="F-HSE-03-01"&&!canApproveIncident()){toast("إلغاء اعتماد تقرير الحادث مقتصر على إسلام بكر عباس");return}
+  if(record.form!=="F-HSE-03-01"&&myRole()!=="admin"&&record.approved.by!==ME.id){toast("إلغاء الاعتماد للأدمن أو لصاحب الاعتماد فقط");return}
   if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300);
 }
 window.approveRecord=approveRecord;window.unapproveRecord=unapproveRecord;
@@ -2302,7 +2306,7 @@ function collectRecord(spec,fid,fd,form,rec={},photos=[]){
   const data={form:fid,f:{...(rec.f||{})},rows:collectRecordRows(spec.rows,fd,form),updatedAt:Date.now()};
   data.att=[...(rec.att||[]).filter(asset=>asset.kind!=="photo"),...photos];
   for(const field of spec.fields){if(!field.hidden)collectRecordField(field,field.k,fd,form,data.f)}
-  if(fid==="F-HSE-03-01"&&!rec?.id){data.f=data.f||{};if(!data.f.writer)data.f.writer=myEmpName();if(!data.f.approvedName)data.f.approvedName=myEmpName();}
+  if(fid==="F-HSE-03-01"&&!rec?.id){data.f=data.f||{};if(!data.f.writer)data.f.writer=myEmpName();}
   data.date=data.f.date||today();
   return data;
 }
