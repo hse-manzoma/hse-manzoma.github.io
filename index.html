@@ -545,6 +545,7 @@ function f(label,name,{type="text",value="",full=false,opts=null,req=false,attrs
   return `<div class="field ${full?"full":""}"><label for="f_${name}">${label}</label>${input}</div>`;
 }
 const empOpts=(list,blank="— اختار —")=>[["",blank],...list.map(e=>[e.id,e.name+(e.code?` (${e.code})`:"")])];
+const userOpts=(blank="— اختار —")=>[["",blank],...(S.profiles||[]).map(p=>[p.id,p.name+(p.code?` (${p.code})`:"")])];
 
 /* ================= VIEWS ================= */
 const VIEWS = {};
@@ -2044,7 +2045,7 @@ function sigPadRow(btn){const td=btn.closest("td");const inp=td.querySelector('i
 }
 async function recordFormBase(fid,id,preset){
   const spec=(await loadForms2())[fid];const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
-  const fv=k=>k==="writer"&&fid==="F-HSE-03-01"&&!id?myEmpName():(rec.f?.[k]??"");
+  const fv=k=>(k==="writer"||k==="approved")&&fid==="F-HSE-03-01"&&!id?myEmpName():(rec.f?.[k]??"");
   const fieldHTML=f=>{
     if(f.hidden)return "";
     const lab=esc(f.label||f.k),id="rf_"+f.k;
@@ -2214,7 +2215,7 @@ const SIGNATURE_POLICY=Object.freeze({
   /* Violation author stays separate from the approving system manager. */
   "F-HSE-07-01":{fields:["writer"],auto:[]},
   /* Incident report approval belongs to the safety-manager field. */
-  "F-HSE-03-01":{fields:["mgr"],auto:["mgr"]}
+  "F-HSE-03-01":{fields:["writer","approved"],auto:["writer","approved"]}
 });
 const SIG_FIELDS=Object.freeze(Object.fromEntries(Object.entries(SIGNATURE_POLICY).map(([form,policy])=>[form,policy.fields])));
 const SIG_AUTOFILL=(fid,key)=>SIGNATURE_POLICY[fid]?.auto.includes(key)||false;
@@ -2295,7 +2296,7 @@ function collectRecord(spec,fid,fd,form,rec={},photos=[]){
   const data={form:fid,f:{...(rec.f||{})},rows:collectRecordRows(spec.rows,fd,form),updatedAt:Date.now()};
   data.att=[...(rec.att||[]).filter(asset=>asset.kind!=="photo"),...photos];
   for(const field of spec.fields){if(!field.hidden)collectRecordField(field,field.k,fd,form,data.f)}
-  if(fid==="F-HSE-03-01"&&!rec?.id)data.f.writer=myEmpName();
+  if(fid==="F-HSE-03-01"){if(!rec?.id){data.f=data.f||{};if(!data.f.writer)data.f.writer=myEmpName();if(!data.f.approved)data.f.approved=myEmpName();}else{data.f=data.f||{};if(!data.f.writer)data.f.writer=rec.f?.writer||myEmpName();if(!data.f.approved)data.f.approved=rec.f?.approved||myEmpName();}}
   data.date=data.f.date||today();
   return data;
 }
