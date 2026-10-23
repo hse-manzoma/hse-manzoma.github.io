@@ -95,10 +95,26 @@
 ## 🚀 ما تم إضافته:
 
 1. ✅ **4 أدوار جديدة** (Monitor, Officer, Safety Supervisor, Execution Engineer)
+   - في `BUILTIN_ROLES` مع صلاحيات tab محددة
+   
 2. ✅ **صلاحيات دقيقة لكل دور**
+   - Monitor: عرض وتحرير محدود
+   - Officer: اعتماد وتحرير كامل
+   - Safety Supervisor: صلاحيات كاملة (full)
+   - Execution Engineer: طلب وتوقيع تصاريح
+   
 3. ✅ **توقيعات منفصلة** (writerSig vs approvedSig)
+   - حقول منفصلة في forms2.json
+   - استخراج منفصل في renderGeneric
+   - حفظ منفصل في approveRecord و collectRecord
+   
 4. ✅ **نظام مخالفات محدث** (محرر + معتمد)
+   - كل سجل يحتفظ بتوقيعي الكاتب والمعتمد
+   - لا مزيد من الكتابة فوق التوقيعات
+   
 5. ✅ **عدم إفساد النسخة السابقة**
+   - الأدوار القديمة متوافقة
+   - النماذج الأخرى لم تتأثر
 
 ---
 
