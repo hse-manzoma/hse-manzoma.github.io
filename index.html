@@ -2248,6 +2248,25 @@ function ptwForm(id){
 /* ---------- permit request workflow: engineer → (execution supervisor ∥ safety) → start work ---------- */
 const HSE_FINAL_ROLES=["admin","hse","hsesup","officer"];
 function ptwRole(){const a=myAccess();if(!a)return {};const r=a.role;const final=HSE_FINAL_ROLES.includes(r)||a.tabs?.ptw==="full";return {final,sup:r==="sup",role:r}}
+function isLegacyClosedPermit(p){return p?.status==="closed"&&(p.legacyImport===true||!p.date||p.date<today())}
+function legacyTimeFillPreview(){
+  if(myRole()!=="admin"||!canWrite||!db){toast("الإجراء متاح لمدير المنظومة المتصل فقط");return}
+  const pending=S.permits.filter(p=>isLegacyClosedPermit(p)&&(!p.from||!p.to));
+  if(!pending.length){toast("لا توجد تصاريح قديمة مغلقة ينقصها وقت البداية أو النهاية");return}
+  const sample=pending.slice(0,25).map(p=>`<tr><td>${esc(p.number||p.id)}</td><td>${fmtDate(p.date||"")||"—"}</td><td>${esc(p.from||"سيُملأ 08:00")}</td><td>${esc(p.to||"سيُملأ 16:00")}</td></tr>`).join("");
+  openSheet("مراجعة استكمال أوقات التصاريح القديمة",`<div class="banner">سيتم استكمال الأوقات الناقصة فقط للتصاريح المغلقة القديمة (${pending.length} تصريح). البداية <b>08:00</b> والنهاية <b>16:00</b>. لن تُنشأ توقيعات، ولن تتغير الحالة أو التاريخ أو الأسماء أو أي وقت موجود بالفعل.</div><p>معاينة أول ${Math.min(25,pending.length)} سجل:</p><div class="tbl"><table><thead><tr><th>رقم التصريح</th><th>التاريخ</th><th>من</th><th>إلى</th></tr></thead><tbody>${sample}</tbody></table></div><div id="legacyTimeProgress" class="muted" style="margin-top:10px">راجع القائمة ثم أكد الاستكمال. اضغط إلغاء إذا كانت السجلات غير صحيحة.</div><label class="chk" style="margin-top:10px"><input type="checkbox" name="confirmLegacyTimes" required> أؤكد أن هذه أوقات افتراضية لاستكمال السجلات القديمة، وليست توقيعًا أو اعتمادًا من الأطراف</label>`,async fd=>{
+    if(myRole()!=="admin"||!canWrite||!db)return "لم يعد لديك صلاحية تنفيذ الإجراء";
+    if(fd.confirmLegacyTimes!=="on")return "علّم مربع التأكيد قبل الحفظ";
+    const ids=pending.map(p=>p.id),jobs=[];for(const id of ids){const p=S.permits.find(x=>x.id===id);if(isLegacyClosedPermit(p)&&(!p.from||!p.to))jobs.push({id})}
+    if(!jobs.length){toast("تم استكمال السجلات بالفعل أو لم تعد مطابقة للشروط");return null}
+    let i=0,done=0,skipped=0,failed=0;
+    const worker=async()=>{while(true){const n=i++;if(n>=jobs.length)return;const {id}=jobs[n];const p=S.permits.find(x=>x.id===id);if(!isLegacyClosedPermit(p)||p.from&&p.to){skipped++;continue}const patch={};if(!p.from)patch.from="08:00";if(!p.to)patch.to="16:00";let ok=false;for(let attempt=0;attempt<3&&!ok;attempt++){try{await upsert("permits",id,patch);ok=true}catch(e){if(attempt<2)await new Promise(r=>setTimeout(r,250*(attempt+1)))}}if(ok)done++;else failed++;const box=$("legacyTimeProgress");if(box&&done%20===0)box.textContent=`تم استكمال ${done} من ${jobs.length} سجل…`}};
+    await Promise.all(Array.from({length:4},worker));
+    refresh();
+    toast(`تم استكمال ${done} تصريح · تخطي ${skipped} · تعذر ${failed}`);
+    return null
+  },"تأكيد واستكمال الأوقات");
+}
 function ptwStakeholders(p){const ids=[p.createdBy,p.supUid,p.hseUid,p.supUidDone,p.hseUidDone,...Object.keys(p.signs||{}),...(S.profiles||[]).filter(x=>x.emp_id&&x.emp_id===p.safetyId).map(x=>x.id)];return [...new Set(ids.filter(x=>typeof x==="string"&&x))]}
 function ptwCloseAllowed(p){if(!p||!canWrite)return false;const r=ptwRole(),ids=ptwStakeholders(p);return !!r.final||ids.includes(ME.id)||p.safetyId===myEmpId()}
 function ptwCloseRole(){const r=myRole();return r==="eng"?"site":r==="sup"?"sup":"hse"}
@@ -2397,7 +2416,7 @@ function flowCard(p,actions){return `<div class="li" style="align-items:flex-sta
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
   <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${actions}</div></div>`}
 VIEWS.ptw={
-  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${R.final?`<button class="btn" id="newReq">+ طلب تصريح</button><button class="btn primary" id="newPtw">+ تصريح مباشر</button>`:`<button class="btn primary" id="newReq">+ طلب تصريح</button>`}</div>
+  shell:()=>{const R=ptwRole(),admin=myRole()==="admin"&&canWrite;return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${admin?`<button class="btn" id="legacyTimeFill">استكمال أوقات التصاريح القديمة</button>`:""}${R.final?`<button class="btn" id="newReq">+ طلب تصريح</button><button class="btn primary" id="newPtw">+ تصريح مباشر</button>`:`<button class="btn primary" id="newReq">+ طلب تصريح</button>`}</div>
     <div id="ptwFlow"></div>
     <div class="filters">
       <input type="search" id="ptwQ" placeholder="ابحث برقم التصريح، المكان، المقاول…" value="${esc(ui.ptwQ)}">
@@ -2405,7 +2424,7 @@ VIEWS.ptw={
       <select id="ptwStatus"><option value="">كل الحالات</option>${Object.entries(PTW_STATUS).map(([k,v])=>`<option value="${k}" ${ui.ptwStatus===k?"selected":""}>${v[0]}</option>`).join("")}</select>
       <input type="month" id="ptwMonth" value="${esc(ui.ptwMonth)}" aria-label="الشهر">
     </div><div id="ptwExp"></div><div id="ptwNext" class="sub"></div><div id="ptwList"></div>`},
-  bind(){$("newReq").onclick=()=>ptwRequestForm();if($("newPtw"))$("newPtw").onclick=()=>ptwForm();
+  bind(){if($("legacyTimeFill"))$("legacyTimeFill").onclick=()=>legacyTimeFillPreview();$("newReq").onclick=()=>ptwRequestForm();if($("newPtw"))$("newPtw").onclick=()=>ptwForm();
     $("ptwQ").oninput=e=>{ui.ptwQ=e.target.value;this.fill()};$("ptwType").onchange=e=>{ui.ptwType=e.target.value;this.fill()};
     $("ptwStatus").onchange=e=>{ui.ptwStatus=e.target.value;this.fill()};$("ptwMonth").onchange=e=>{ui.ptwMonth=e.target.value;this.fill()}},
   fill(){
