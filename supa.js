@@ -42,11 +42,10 @@ function gateHTML(first){return `<div id="gate" style="position:fixed;inset:0;z-
     <div id="gateMsg" style="color:#c92a2a;font-size:13px;min-height:18px;margin-bottom:8px">${(()=>{try{const m=sessionStorage.getItem("hse.session.enforce.error")||"";sessionStorage.removeItem("hse.session.enforce.error");return m}catch(e){return ""}})()}</div>
     <button style="width:100%;padding:12px;border:0;border-radius:10px;background:#d9480f;color:#fff;font-size:15px;font-weight:700;cursor:pointer">${first?"إنشاء الحساب والدخول":"دخول"}</button>
   </form></div>`}
-async function showGate(message=""){
+async function showGate(){
   let first=false;try{const {data}=await sb.rpc("has_admin");first=data===false}catch(e){}
   document.getElementById("gate")?.remove();document.body.insertAdjacentHTML("beforeend",gateHTML(first));
   const f=document.getElementById("gateForm"),msg=document.getElementById("gateMsg");
-  if(message)msg.textContent=message;
   f.onsubmit=async e=>{e.preventDefault();msg.textContent="";const u=f.u.value.trim().toLowerCase(),p=f.p.value;
     try{if(first){if(p!==f.p2.value){msg.textContent="كلمتين السر مش زي بعض";return}await fn("bootstrap",{username:u,password:p})}
       const {error}=await sb.auth.signInWithPassword({email:emailOf(u),password:p});if(error)throw error;
@@ -61,22 +60,12 @@ async function afterLogin(session){
   await cleanupOtherPushRows();
   document.getElementById("gate")?.remove();readyResolve();
 }
-let started=false,activeUid="",loginFlow=Promise.resolve();
-function acceptSession(session){
-  if(!session){showGate();return}
-  if(started&&activeUid===session.user?.id)return;
-  started=true;activeUid=session.user?.id||"";
-  // Supabase auth callbacks run under its auth lock. Defer all follow-up Supabase calls.
-  loginFlow=loginFlow.catch(()=>{}).then(()=>new Promise(resolve=>setTimeout(resolve,0)))
-    .then(()=>afterLogin(session))
-    .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";try{await sb.auth.signOut({scope:"local"})}catch(_){}await showGate("تعذر تحميل صلاحيات الحساب. تحقق من الاتصال ثم سجّل الدخول مرة أخرى.")});
-}
+let started=false;
 sb.auth.onAuthStateChange((ev,session)=>{
-  if(session)acceptSession(session);
-  else if(ev==="SIGNED_OUT")cleanupLocalPush().finally(()=>location.reload());
+  if(session&&!started){started=true;afterLogin(session)}
+  if(!session&&ev==="SIGNED_OUT")cleanupLocalPush().finally(()=>location.reload());
 });
-sb.auth.getSession().then(({data:{session},error})=>{if(error)throw error;if(session)acceptSession(session);else showGate()})
-  .catch(e=>{console.error("Could not restore auth session",e);showGate("تعذر استعادة الجلسة. سجّل الدخول مرة أخرى.")});
+sb.auth.getSession().then(({data:{session}})=>{if(session){if(!started){started=true;afterLogin(session)}}else showGate()});
 
 /* ---------- document store ---------- */
 const PAGE=1000;

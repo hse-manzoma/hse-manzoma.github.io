@@ -351,32 +351,6 @@ table.ed input,table.ed textarea{width:100%}
   </header>
   <main class="wrap" id="main"></main>
 </div>
-<!-- Login Form -->
-<div id="loginContainer" style="position:fixed;inset:0;background:rgba(0,0,0,0.95);display:none;align-items:center;justify-content:center;z-index:10000">
-  <div style="background:var(--surface);border-radius:20px;padding:40px;max-width:420px;width:90%;box-shadow:0 25px 80px rgba(0,0,0,0.4)">
-    <div style="text-align:center;margin-bottom:30px">
-      <div style="font-size:56px;margin-bottom:16px">🔐</div>
-      <h1 style="margin:0;font-size:28px;font-weight:700">تسجيل الدخول</h1>
-      <p style="color:var(--muted);margin:10px 0 0;font-size:14px">منظومة السلامة HSE</p>
-    </div>
-    <form id="loginForm" style="display:flex;flex-direction:column;gap:14px">
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <label style="color:var(--muted);font-size:12px;font-weight:600">البريد الإلكتروني</label>
-        <input type="email" id="loginEmail" placeholder="admin@hse-swary.app" required style="padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px">
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <label style="color:var(--muted);font-size:12px;font-weight:600">كلمة السر</label>
-        <input type="password" id="loginPass" placeholder="••••••" required style="padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px">
-      </div>
-      <div id="loginMsg" style="display:none;padding:10px;border-radius:8px;font-size:12px;margin:4px 0;text-align:center"></div>
-      <button type="submit" style="padding:12px;background:var(--accent);color:var(--accent-ink);border:none;border-radius:8px;font-weight:600;cursor:pointer;margin-top:10px">دخول</button>
-    </form>
-    <div style="text-align:center;color:var(--muted);font-size:11px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
-      <p style="margin:0 0 6px">البيانات المتاحة:</p>
-      <div style="background:var(--sunk);padding:8px;border-radius:6px;font-size:10px">admin@hse-swary.app<br>6018@hse-swary.app<br>hasan@hse-swary.app</div>
-    </div>
-  </div>
-</div>
 <div id="overlayRoot"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -464,118 +438,29 @@ let LEG={},legacyLoaded=false;const LIVE={};
 function merge(k){const live=LIVE[k]||[];const leg=LEG[k]||[];if(!leg.length){S[k]=live.filter(x=>!x._deleted);return}
   const ids=new Map(live.map(x=>[x.id,x]));const out=[];for(const r of leg){const o=ids.get(r.id);if(o){ids.delete(r.id);if(!o._deleted)out.push(o)}else out.push(r)}for(const o of ids.values())if(!o._deleted)out.push(o);S[k]=out}
 function current(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);return (S[k]||[]).find(x=>x.id===id)}
-async function upsert(col,id,data){
-  if(!window.SB) throw new Error("مش متصل");
-  const {error} = await window.SB.from(col).upsert({id,...data});
-  if(error) throw error;
-}
-async function remove(col,id){
-  if(!window.SB) throw new Error("مش متصل");
-  const {error} = await window.SB.from(col).delete().eq('id',id);
-  if(error) throw error;
-}
-async function removeBulk(col,ids){
-  if(!window.SB) throw new Error("مش متصل");
-  if(!ids.length) return;
-  const {error} = await window.SB.from(col).delete().in('id',ids);
-  if(error) throw error;
-}
+async function upsert(col,id,data){const cur=current(col,id)||{};const {id:_,...rest}=cur;await db.doc(col+"/"+id).set({...rest,...data})}
+async function remove(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);if((LEG[k]||[]).some(r=>r.id===id))await db.doc(col+"/"+id).set({_deleted:true});else await db.doc(col+"/"+id).delete()}
 const COLS={actions:"actions",tasks:"tasks",equipment:"equipment",contractors:"contractors",records:"records",employees:"employees",items:"ppe_items",moves:"ppe_moves",permits:"permits",kpi:"kpi_entries",att:"attendance",leaves:"leaves"};
 async function boot(){
   setSync("بيتصل…","");
-
-  // Try Supabase first
-  if(!window.SB){
-    booted=true;setSync("مش متصل","off");show(tab);return;
-  }
-
-  // Check user session
-  const {data: {session}, error} = await window.SB.auth.getSession();
-  if(error || !session) {
-    booted=true;setSync("مش متصل","off");show(tab);return;
-  }
-
-  // Set user info
-  ME.id = session.user?.id || "";
-  ME.name = session.user?.email || "";
-  const mb = document.getElementById("meBtn");
-  if(mb) mb.textContent = "👤 " + ME.name;
-
+  if(!window.claude?.use){booted=true;setSync("مش متصل","off");show(tab);return}
+  db = await window.claude.use("db");
+  userNS = await window.claude.use("user");
+  window.claude.use("assets").then(a=>{assetsNS=a;if(a)refresh()}).catch(()=>{});
+  try{ME.id=(await userNS?.id())||"";ME.name=(await userNS?.name())||"";const mb=document.getElementById("meBtn");if(mb)mb.textContent="👤 "+ME.name}catch(e){}
   booted=true;
-  if(!window.SB) {setSync("مش متصل","off");show(tab);return}
-
-  canDelete = true;
-  isOwner = false;
-  canWrite = true;
-  BASE = {del:canDelete, write:canWrite};
-  setSync("متصل","on");
-  online = true;
-
-  // Load data from Supabase
-  db = {
-    collection: (name) => ({
-      onSnapshot: async (callback, error) => {
-        try {
-          const {data, error: err} = await window.SB.from(name).select('*');
-          if(err) throw err;
-          callback({docs: data.map(d => ({id: d.id, data: () => d}))});
-        } catch(e) {
-          if(error) error(e);
-        }
-      }
-    }),
-    doc: (path) => ({
-      onSnapshot: async (callback, error) => {
-        try {
-          const [coll, docId] = path.split('/');
-          const {data, error: err} = await window.SB.from(coll).select('*').eq('id', docId).single();
-          if(err) throw err;
-          callback({exists: !!data, data: () => data});
-        } catch(e) {
-          if(error) error(e);
-        }
-      }
-    })
-  };
-  // Load data from Supabase
-  const loadTable = async (k, p) => {
-    try {
-      const {data, error} = await window.SB.from(p).select('*');
-      if(error) throw error;
-      S[k] = data || [];
-      loaded[k] = true;
-      refresh();
-    } catch(e) {
-      console.error('Error loading ' + p + ':', e);
-      setSync("خطأ في تحميل البيانات","off");
-    }
-  };
-
-  for(const [k,p] of Object.entries(COLS)) {
-    loadTable(k, p);
+  if(!db){setSync("مش متصل","off");show(tab);return}
+  try{canDelete = await userNS?.canEdit() ?? false; isOwner = await userNS?.isOwner() ?? false}catch(e){}
+  try{const w=await userNS?.can("data.write"); if(w===false) canWrite=false}catch(e){}
+  BASE={del:canDelete,write:canWrite};
+  setSync("متصل","on"); online=true;
+  for(const [k,p] of Object.entries(COLS)){
+    db.collection(p).onSnapshot(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refresh()},()=>setSync("الاتصال اتقطع","off"));
   }
-
-  // Load profiles
-  try {
-    const {data, error} = await window.SB.from('profiles').select('*');
-    if(!error) {
-      S.profiles = data || [];
-      applyRole();
-      if(tab==="settings") refresh();
-    }
-  } catch(e) {}
-
-  // Load settings
-  try {
-    const {data, error} = await window.SB.from('settings').select('*').eq('id', 'main').single();
-    if(!error && data) {
-      S.settings = data;
-      loaded.settings = true;
-      applyRole();
-      document.getElementById("projectName").textContent = "HSE · " + (S.settings.project || "المشروع");
-      refresh();
-    }
-  } catch(e) {}
+  db.collection("legacy").onSnapshot(s=>{const acc={};for(const d of s.docs){const x=d.data();(acc[x.kind]??=[]).push(...(x.rows||[]))}LEG=acc;legacyLoaded=true;for(const k of Object.keys(COLS))merge(k);refresh()},()=>{});
+  db.collection("__profiles").onSnapshot(s=>{S.profiles=s.docs.map(d=>({id:d.id,...d.data()}));const me=S.profiles.find(p=>p.id===ME.id);if(me){window.SBA.profile=me;if(me.disabled){location.reload()}}applyRole();if(tab==="settings")refresh()},()=>{});
+  db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==="settings")refresh()},()=>{});
+  db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();document.getElementById("projectName").textContent="HSE · "+(S.settings.project||"المشروع");refresh()},()=>{});
   show(tab);
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
@@ -590,7 +475,7 @@ function showBase(t){
   try{localStorage.setItem("hse.tab",tab)}catch(e){}
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
   const m=document.getElementById("main");
-  m.innerHTML=(booted&&!db?`<div class="banner">الصفحة مش متصلة بقاعدة البيانات دلوقتي. اتأكد من النت وحدّث الصفحة.</div>`:(!BASE.write?`<div class="banner">عندك صلاحية مشاهدة بس.</div>`:(!canWrite&&tab!=="dash"&&tab!=="join"?`<div class="banner">القسم ده متاح لك للمشاهدة بس.</div>`:"")))+VIEWS[tab].shell();
+  m.innerHTML=(window.SBA?.pushCleanupWarning?`<div class="banner">تعذر حذف اشتراكات التنبيهات القديمة من متصفحات أخرى. افتح كل متصفح قديم وسجّل الخروج منه مرة واحدة لإيقاف التنبيهات عليه.</div>`:"")+(booted&&!db?`<div class="banner">الصفحة مش متصلة بقاعدة البيانات دلوقتي. اتأكد من النت وحدّث الصفحة.</div>`:(!BASE.write?`<div class="banner">عندك صلاحية مشاهدة بس.</div>`:(!canWrite&&tab!=="dash"&&tab!=="join"?`<div class="banner">القسم ده متاح لك للمشاهدة بس.</div>`:"")))+VIEWS[tab].shell();
   VIEWS[tab].bind?.(m);
   VIEWS[tab].fill();
 }
@@ -1127,8 +1012,7 @@ async function sendInvite(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!
 async function newPin(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const pin=genPin();
   try{await SBA.fn("reset",{user_id:uid,password:pin});await savePin(uid,{pin,username:p.username});toast("اتعملت كلمة سر جديدة");setTimeout(()=>sendInvite(uid),300)}catch(e){toast(SBA.ar(e))}}
 function meMenuBase(){openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p><div class="form">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
-  <button type="button" class="btn danger" style="margin-top:14px" onclick="handleLogout()">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(!window.SB)return "مش متصل";if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await window.SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
-function handleLogout(){if(!window.SB)return;window.SB.auth.signOut().then(()=>{localStorage.clear();sessionStorage.clear();location.href='/';}).catch(e=>{console.error(e);location.href='/';})}
+  <button type="button" class="btn danger" style="margin-top:14px" onclick="SBA.logout().then(()=>location.reload()).catch(()=>toast('تعذر تسجيل الخروج'))">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
 function settleInvites(){}
 // reminders
 function remindersBase(){
@@ -1819,15 +1703,14 @@ const PTW_PRINT_LAYOUT={
 };
 function ptwSkipRepeatedApproval(T,b,pageCount){const q=PTW_PRINT_LAYOUT[T];return !!q&&b.page===pageCount-1&&["req","site","hse","sup","pdate"].includes(b.field)&&b.y>=q.blankAfter}
 function permitTextBox(cv,b,value,{fontSize=22,bold=true}={}){if(!cv||!b||value==null||value==="")return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H,pad=Math.max(2,bw*.035);g.save();g.fillStyle="#fff";g.fillRect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.beginPath();g.rect(bx,by,bw,bh);g.clip();g.direction=/[\u0600-\u06ff]/.test(String(value))?"rtl":"ltr";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#111";let fs=Math.min(fontSize,bh*.68);while(fs>8){g.font=`${bold?600:500} ${fs}px "IBM Plex Sans Arabic",Arial,sans-serif`;if(g.measureText(String(value)).width<=bw-pad*2)break;fs-=1}g.fillText(String(value),bx+bw/2,by+bh/2,bw-pad*2);g.restore()}
-async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!=="closed"||!["site","sup","hse"].includes(p.closeRole))return;const layout=PTW_PRINT_LAYOUT[p.type],F=(await loadForms())[p.type],page=F.pages.length-1,cv=pages[page],W=cv.width,H=cv.height;const role=p.closeRole;
-  if(layout.hot){const cols={site:{x:.1357,w:.2679},hse:{x:.4036,w:.3319},sup:{x:.7355,w:.2446}},col=cols[role]||cols.hse,sigY=.8044,sigH=.0404,dateY=.8448,dateH=.055;const nbox={page,x:col.x,y:sigY,w:col.w,h:.014},sbox=[col.x,sigY+.014,col.w,sigH-.014],dbox={page,x:col.x,y:dateY,w:col.w,h:dateH};permitTextBox(cv,nbox,p.closeName||"",{fontSize:18});permitTextBox(cv,dbox,`${fmtDate(p.closedAt)} · ${p.closedTime||"—"}`,{fontSize:17});if(p.closeSignature)await stampOn(cv,sbox,p.closeSignature,{});return}
-  const roleBoxes=F.boxes.filter(b=>b.page===page&&["req","site","hse","sup"].includes(b.field)&&b.y>=layout.closeAfter).sort((a,b)=>a.y-b.y),dateBoxes=F.boxes.filter(b=>b.page===page&&b.field==="pdate"&&b.y>=layout.closeAfter+.035).sort((a,b)=>a.y-b.y),field=roleBoxes.find(b=>b.field===layout.roleMap?.[role]);if(!field)return;
-  const dateBox=dateBoxes.filter(d=>d.y>field.y&&Math.min(field.x+field.w,d.x+d.w)-Math.max(field.x,d.x)>field.w*.5).sort((a,b)=>a.y-b.y)[0];
-  if(!layout.signatureInRole&&p.closeName)permitTextBox(cv,field,p.closeName,{fontSize:22});
-  if(dateBox){if(layout.combinedDateTime)permitTextBox(cv,dateBox,`${fmtDate(p.closedAt)} · ${p.closedTime||"—"}`,{fontSize:17});else{permitTextBox(cv,dateBox,fmtDate(p.closedAt),{fontSize:19});const timeBox={...dateBox,y:dateBox.y-layout.timeOffset,h:Math.min(dateBox.h,layout.timeOffset*.9)};permitTextBox(cv,timeBox,p.closedTime||"",{fontSize:19})}}
-  if(p.closeSignature){const rect=layout.signatureInRole?[field.x,field.y,field.w,field.h]:permitSignRect(F.boxes,field,b=>[b.x,b.y,b.w,b.h],b=>/date/i.test(b.field||""));if(rect)await stampOn(cv,rect,p.closeSignature,{})}
+async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!=="closed")return;const layout=PTW_PRINT_LAYOUT[p.type],F=(await loadForms())[p.type],page=F.pages.length-1,cv=pages[page];if(!layout||!cv)return;const approvals={...(p.closeApprovals||{})};if(p.closeRole&&p.closeSignature&&!approvals[p.closeRole])approvals[p.closeRole]={uid:p.closeUid,name:p.closeName,signature:p.closeSignature,date:p.closedAt,time:p.closedTime};
+  if(layout.hot){const cols={site:{x:.1357,w:.2679},hse:{x:.4036,w:.3319},sup:{x:.7355,w:.2446}},sigY=.8044,sigH=.0404,dateY=.8448,dateH=.055;for(const role of ["site","sup","hse"]){const a=approvals[role];if(!a)continue;const col=cols[role],nbox={page,x:col.x,y:sigY,w:col.w,h:.014},sbox=[col.x,sigY+.014,col.w,sigH-.014],dbox={page,x:col.x,y:dateY,w:col.w,h:dateH};permitTextBox(cv,nbox,a.name||"",{fontSize:18});permitTextBox(cv,dbox,`${fmtDate(a.date||p.closedAt)} · ${a.time||p.closedTime||"—"}`,{fontSize:17});if(a.signature)await stampOn(cv,sbox,a.signature,{})}return}
+  const roleBoxes=F.boxes.filter(b=>b.page===page&&["req","site","hse","sup"].includes(b.field)&&b.y>=layout.closeAfter).sort((a,b)=>a.y-b.y),dateBoxes=F.boxes.filter(b=>b.page===page&&b.field==="pdate"&&b.y>=layout.closeAfter+.035).sort((a,b)=>a.y-b.y);
+  for(const role of ["site","sup","hse"]){const a=approvals[role];if(!a)continue;const field=roleBoxes.find(b=>b.field===layout.roleMap?.[role]);if(!field)continue;const dateBox=dateBoxes.filter(d=>d.y>field.y&&Math.min(field.x+field.w,d.x+d.w)-Math.max(field.x,d.x)>field.w*.5).sort((a,b)=>a.y-b.y)[0];
+    if(!layout.signatureInRole&&a.name)permitTextBox(cv,field,a.name,{fontSize:22});if(dateBox){if(layout.combinedDateTime)permitTextBox(cv,dateBox,`${fmtDate(a.date||p.closedAt)} · ${a.time||p.closedTime||"—"}`,{fontSize:17});else{permitTextBox(cv,dateBox,fmtDate(a.date||p.closedAt),{fontSize:19});const timeBox={...dateBox,y:dateBox.y-layout.timeOffset,h:Math.min(dateBox.h,layout.timeOffset*.9)};permitTextBox(cv,timeBox,a.time||p.closedTime||"",{fontSize:19})}}
+    if(a.signature){const rect=layout.signatureInRole?[field.x,field.y,field.w,field.h]:permitSignRect(F.boxes,field,b=>[b.x,b.y,b.w,b.h],b=>/date/i.test(b.field||""));if(rect)await stampOn(cv,a.layout||rect,a.signature,{})}}
 }
-async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});await applyPermitCloseoutOfficial(p,pages);if(p.type==="COLD"){drawColdSiteChecks(pages,p);if(p.extended)await drawColdExtension(pages,p);if(p.status==="closed"&&p.closedAt)await drawColdCloseInfo(pages,p)}else if(p.status==="closed"&&p.closedAt&&p.closeSignature){pages.push(await renderPermitCloseoutPage(p))}return pages}
+async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});await applyPermitCloseoutOfficial(p,pages);if(p.type==="COLD"){drawColdSiteChecks(pages,p);if(p.extended)await drawColdExtension(pages,p);if(p.status==="closed"&&p.closedAt)await drawColdCloseInfo(pages,p)}else if(p.status==="closed"&&p.closedAt){pages.push(await renderPermitCloseoutPage(p))}return pages}
 const PTW_CLOSE_CHECKS=[
   {k:"work",t:"أُوقف العمل وأُنجزت الأعمال المشمولة بالتصريح."},
   {k:"people",t:"تم حصر العاملين والتأكد من خروجهم من منطقة العمل."},
@@ -1850,7 +1733,8 @@ async function ptwExtend(id){const p=S.permits.find(x=>x.id===id);if(!p||!(p.sta
 async function drawColdCloseInfo(pages,p){const c=pages[2];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
  try{await document.fonts.load('600 15px "IBM Plex Sans Arabic"')}catch(e){}
  if(p.closedAt){g.save();g.font="600 15px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText(fmtDate(p.closedAt),W*0.747,H*0.596);g.fillText(p.closedTime||"",W*0.905,H*0.596);g.restore()}
- const items=[["مهندس التنفيذ",p.closeNoteEng],["مشرف التنفيذ",p.closeNoteSup],["مسؤول السلامة",p.closeNoteHse]].filter(n=>n[1]&&String(n[1]).trim());
+ const approvals={...(p.closeApprovals||{})};if(p.closeRole&&p.closeSignature&&!approvals[p.closeRole])approvals[p.closeRole]={name:p.closeName,signature:p.closeSignature,note:p.closeRole==="site"?p.closeNoteEng:p.closeRole==="sup"?p.closeNoteSup:p.closeNoteHse};
+ const items=[["مهندس التنفيذ",approvals.site?.note||p.closeNoteEng],["مشرف التنفيذ",approvals.sup?.note||p.closeNoteSup],["مسؤول السلامة",approvals.hse?.note||p.closeNoteHse]].filter(n=>n[1]&&String(n[1]).trim());
  if(!items.length&&p.closeNote)items.push(["ملاحظة الإغلاق",p.closeNote]);
  const GY=[];for(let i=0;i<13;i++)GY.push(H*(0.6585+i*0.01354));
  const rx=W*0.95,lx=W*0.07,gap=W*0.006,drop=H*0.0038;
@@ -1915,13 +1799,13 @@ async function renderPermitCloseoutPage(p){
   let yy=H*.465;const step=H*.047,checks=Array.isArray(p.closeChecks)?p.closeChecks:[];
   for(const item of PTW_CLOSE_CHECKS){const ok=checks.includes(item.k);g.strokeStyle=ok?"#2b7a4b":line;g.lineWidth=3;g.strokeRect(W-m*1.35,yy-13,26,26);if(ok)draw("✓",W-m*1.35+13,yy,21,{bold:true,color:"#2b7a4b",align:"center"});
     g.save();g.font='500 18px "IBM Plex Sans Arabic",Arial,sans-serif';g.direction="rtl";g.textAlign="right";g.fillStyle=ink;const lines=wrapLines(g,item.t,W-m*2.15);lines.slice(0,2).forEach((z,i)=>g.fillText(z,W-m*1.65,yy-5+i*23));g.restore();yy+=step}
-  const ny=H*.71,nh=H*.085;g.fillStyle=soft;g.fillRect(m,ny,W-m*2,nh);g.strokeStyle=line;g.strokeRect(m,ny,W-m*2,nh);draw("ملاحظات الإغلاق",W-m*1.3,ny+20,17,{bold:true});
-  const nt=p.closeNote||"لا توجد ملاحظات إضافية.";g.save();g.font='500 17px "IBM Plex Sans Arabic",Arial,sans-serif';g.direction="rtl";g.textAlign="right";g.fillStyle=ink;wrapLines(g,nt,W-m*2.3).slice(0,2).forEach((z,i)=>g.fillText(z,W-m*1.4,ny+48+i*24));g.restore();
-  const sy=H*.825,sh=H*.12;g.strokeStyle=line;g.strokeRect(m,sy,W-m*2,sh);g.fillStyle="#e8eeeb";g.fillRect(m,sy,W-m*2,H*.034);draw("اعتماد إغلاق التصريح",W-m*1.3,sy+H*.017,19,{bold:true});
-  const who=p.closeName||p.closedByName||"—",role=p.closeRole==="sup"?"مشرف التنفيذ":p.closeRole==="site"?"مهندس الموقع":"مسؤول السلامة";
-  draw("أغلق التصريح",W-m*1.4,sy+H*.06,15,{color:muted});draw(`${who} · ${role}`,W-m*1.4,sy+H*.083,19,{bold:true});
-  draw("التاريخ والوقت",W*.44,sy+H*.06,15,{color:muted});draw(`${fmtDate(p.closedAt)} · ${p.closedTime||"—"}`,W*.44,sy+H*.083,18,{bold:true});
-  draw("التوقيع المعتمد مثبت في خانة الإغلاق بالنموذج الأصلي.",W-m*1.3,H*.965,13,{color:muted});return c
+  const approvals={...(p.closeApprovals||{})};if(p.closeRole&&p.closeSignature&&!approvals[p.closeRole])approvals[p.closeRole]={name:p.closeName,signature:p.closeSignature,date:p.closedAt,time:p.closedTime,note:p.closeRole==="site"?p.closeNoteEng:p.closeRole==="sup"?p.closeNoteSup:p.closeNoteHse};
+  const ny=H*.71,nh=H*.105;g.fillStyle=soft;g.fillRect(m,ny,W-m*2,nh);g.strokeStyle=line;g.strokeRect(m,ny,W-m*2,nh);draw("ملاحظات الإغلاق — كل طرف وملاحظته",W-m*1.3,ny+18,17,{bold:true});
+  const noteRows=[["مهندس التنفيذ",approvals.site?.note||p.closeNoteEng],["مشرف التنفيذ",approvals.sup?.note||p.closeNoteSup],["مسؤول السلامة",approvals.hse?.note||p.closeNoteHse]];g.save();g.font='500 15px "IBM Plex Sans Arabic",Arial,sans-serif';g.direction="rtl";g.textAlign="right";g.fillStyle=ink;noteRows.forEach((it,i)=>{const yy=ny+43+i*25;g.font='700 14px "IBM Plex Sans Arabic",Arial,sans-serif';g.fillText(it[0]+":",W-m*1.4,yy);g.font='500 15px "IBM Plex Sans Arabic",Arial,sans-serif';g.fillText(it[1]||"—",W-m*4.6,yy,W-m*5.2)});g.restore();
+  const sy=H*.832,sh=H*.112;g.strokeStyle=line;g.strokeRect(m,sy,W-m*2,sh);g.fillStyle="#e8eeeb";g.fillRect(m,sy,W-m*2,H*.03);draw("توقيعات أطراف إغلاق التصريح",W-m*1.3,sy+H*.015,18,{bold:true});
+  const cols=[{k:"site",label:"مهندس التنفيذ"},{k:"sup",label:"مشرف التنفيذ"},{k:"hse",label:"مسؤول السلامة"}],cw=(W-m*2)/3;g.beginPath();g.moveTo(m+cw,sy+H*.03);g.lineTo(m+cw,sy+sh);g.moveTo(m+cw*2,sy+H*.03);g.lineTo(m+cw*2,sy+sh);g.stroke();
+  for(let i=0;i<cols.length;i++){const col=cols[i],a=approvals[col.k],cx=m+cw*(i+.5);draw(col.label,cx,sy+H*.048,15,{bold:true,align:"center",maxW:cw*.9});draw(a?.name||"بانتظار التوقيع",cx,sy+H*.069,14,{align:"center",color:a?ink:muted,maxW:cw*.9});if(a?.signature){const im=await normalizeSigForPrint(a.signature);if(im){const scale=Math.min(cw*.32/im.width,H*.022/im.height);g.drawImage(im,cx-im.width*scale/2,sy+H*.076,im.width*scale,im.height*scale)}}draw(a?`${fmtDate(a.date||p.closedAt)} · ${a.time||p.closedTime||"—"}`:"—",cx,sy+H*.102,12,{align:"center",color:muted,maxW:cw*.9})}
+  draw("التوقيعات تثبت إقرار كل طرف بالإغلاق؛ ويظهر توقيع كل شخص في خانته.",W-m*1.3,H*.965,13,{color:muted});return c
 }
 async function permitPdfBlob(pages){
   const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4",orientation:pages[0].width>pages[0].height?"landscape":"portrait",compress:true});
@@ -2281,7 +2165,8 @@ async function printPermit(id){
   const draft=["requested","supok","rejected"].includes(p.status);
   const V=openViewer(`${p.number} · ${PTW_TYPES[p.type]?.ar||""}`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""}.pdf`,
     note:draft?"ده لسه طلب ما اتعتمدش من السلامة، التصريح بيطلع برقم بعد اعتماد مسؤول السلامة.":p.status==="closed"&&p.closedAt?`اتقفل ${fmtDate(p.closedAt)} الساعة ${esc(p.closedTime||"—")} بواسطة ${esc(p.closeName||"مسؤول التصريح")}.`:(miss.length?`ناقص في التصريح: ${miss.join("، ")}. <button type="button" class="btn sm" onclick="pvClose();ptwForm('${p.id}')">كمّل البيانات</button>`:""),
-    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">✔ إغلاق التصريح</button>`:"")+(!draft&&myNameIn([v.req,v.site,v.hse,v.sup])?(p.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")});
+    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">✔ إغلاق التصريح</button>`:"")+((p.status==="closed"&&ptwCloseActorRole(p)&&!ptwCloseSigned(p,ptwCloseActorRole(p)))?`<button class="btn sign" data-extra onclick="pvClose();ptwCloseSign('${p.id}')">✍ توقيع وملاحظة الإغلاق</button>`:"")+(!draft&&myNameIn([v.req,v.site,v.hse,v.sup])?(p.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")});
+  if(p.signs?.[ME.id])V.actions('<button class="btn" data-extra onclick="sigLayoutEditor(&quot;permits&quot;,&quot;'+p.id+'&quot;,()=>printPermit(&quot;'+p.id+'&quot;))">↔ ضبط مكان وحجم توقيعي</button>');
   try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
@@ -2289,16 +2174,18 @@ async function printRecord(id){
   const spec=(await loadForms2())[r.form];const personalSig=await mySig();await sigData();
   const canAp=!!personalSig&&SIG_FIELDS[r.form]&&(r.form!=="F-HSE-07-01"||(myRole&&myRole()==="admin"));
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
-  const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
+
+  const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id],meApproved=r.approved?.by===ME.id;
   const ext2=extra+corrHTML(r)+((r.form==="F-HSE-07-01"&&!r.approved&&myRole&&myRole()!=="admin")?`<button class="btn sign" data-extra onclick="submitViol('${r.id}')">📨 إرسال للاعتماد</button>`:"")+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
   const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext2,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
+  if(meSigned||meApproved)V.actions('<button class="btn" data-extra onclick="sigLayoutEditor(&quot;records&quot;,&quot;'+r.id+'&quot;,()=>printRecord(&quot;'+r.id+'&quot;))">↔ ضبط مكان وحجم توقيعي</button>');
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
 
 /* ---------- signature on generic forms ---------- */
 const SIG_FIELDS={"F-HSE-07-03":["sig2"],"F-HSE-05-01":["mgr","mgr_2"],"F-HSE-08-02":["mgr"],"F-HSE-30-02":["mgr"],"F-HSE-07-02":["mgr","mgr_2","mgr_3","mgr_4"],"F-HSE-18-01":["mgr","mgr_2"],
   "F-HSE-10-01":["mgr"],"F-HSE-10-04":["mgr"],"F-HSE-10-05":["mgr"],"F-HSE-10-06":["mgr"],"F-HSE-10-07":["mgr"],"F-HSE-10-08":["mgr"],"F-HSE-08-01":["mgr","mgr_1","mgr_2","mgr_3"],
-  "F-HSE-04-01":["mgr"],"F-HSE-11-01":["mgr"],"F-HSE-17-01":["mgr"],"F-HSE-24-01":["lecName"],"F-HSE-24-02":["tName"],"F-HSE-02-01":["officer"],"F-HSE-07-04":["gh","gh_2"],"F-HSE-14-01":["officer"],"F-HSE-07-01":["writer"],"F-HSE-03-01":["writerSig","approvedSig"]};
+  "F-HSE-04-01":["mgr"],"F-HSE-11-01":["mgr"],"F-HSE-17-01":["mgr"],"F-HSE-24-01":["lecName"],"F-HSE-24-02":["tName"],"F-HSE-02-01":["officer"],"F-HSE-07-04":["gh","gh_2"],"F-HSE-14-01":["officer"],"F-HSE-07-01":["writer"],"F-HSE-03-01":["writer"]};
 const SIG_AUTOFILL=(fid,k)=>/^(mgr|sig2|gh)(_\d)?$/.test(k)||(["F-HSE-02-01","F-HSE-14-01"].includes(fid)&&k==="officer");
 function sigRect(spec,nf){const [x,y,w,h]=nf.rect;const pg=nf.page||0;
   const dates=spec.fields.filter(f=>(f.page||0)===pg&&f!==nf&&f.rect[1]>y+h*0.5&&f.rect[1]<y+h*4&&Math.min(x+w,f.rect[0]+f.rect[2])-Math.max(x,f.rect[0])>w*0.5).sort((a,b)=>a.rect[1]-b.rect[1]);
@@ -2308,23 +2195,11 @@ function sigRect(spec,nf){const [x,y,w,h]=nf.rect;const pg=nf.page||0;
 async function renderGeneric(fid,rec){
   const pages=await renderGenericBase(fid,rec);
   if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages);
-  const spec=(await loadForms2())[fid];
-  for(const nk of SIG_FIELDS[fid]){
-    const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;
-    // Extract the appropriate signature based on field name (writerSig vs approvedSig)
-    let src="";
-    if(nk==="writerSig"){
-      src=rec.f?.writerSig||"";
-    }else if(nk==="approvedSig"){
-      src=rec.f?.approvedSig||(rec.approved.by===ME.id?await mySig():"");
-    }else{
-      // Fallback for other signature fields
-      src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
-    }
-    if(!src)continue;
+  const spec=(await loadForms2())[fid];const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
+  for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(normName(recVal(spec,rec,nk))!==normName(rec.approved.name||""))continue;
     const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const [rx,ry,rw,rh]=sigRect(spec,nf);const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
-    try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}
-  }
+
+    if(src)await stampOn(cv,rec.approved.layout||[rx,ry,rw,rh],src,{});}
   return renderGenericSigned(fid,rec,pages)}
 window.corrHTML=function(r){try{if(!(r.form==="F-HSE-07-01"||r.form==="F-HSE-07-03"))return "";const role=myRole&&myRole();const c=r.correct||{};let s="";if((role==="admin"||role==="officer"||role==="hsesup")&&!c.owner)s+=`<button class="btn" data-extra onclick="assignCorrect('${r.id}')">👷 تعيين مسؤول تصحيح</button>`;if(c.owner&&c.owner===ME.id&&!c.solution)s+=`<button class="btn sign" data-extra onclick="correctSolve('${r.id}')">🛠 حط الحل</button>`;return s}catch(e){return ""}};
 window.assignCorrect=async function(id){const r=S.records.find(x=>x.id===id);if(!r)return;const ppl=(S.profiles||[]).filter(p=>!p.disabled);if(!ppl.length){toast("مفيش مستخدمين");return}openSheet("تعيين مسؤول تصحيح",`<div class="form">${f("المستخدم","owner",{opts:[["","— اختر —"],...ppl.map(p=>[p.id,profName(p.id)])],req:true})}</div>`,async fd=>{if(!fd.owner)return "اختر مستخدم";const nm=profName(fd.owner);const ok=await write(()=>upsert("records",id,{correct:{owner:fd.owner,ownerName:nm,by:ME.id,at:Date.now()}}),"اتعيّن مسؤول التصحيح ✔");if(ok){try{notifyUsers([fd.owner],"🛠 إجراء تصحيحي مطلوب",((r.f&&r.f.place)||r.form)+" — افتح وحط الحل","?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}return ok?null:"الحفظ فشل"},"تعيين")};
@@ -2333,8 +2208,6 @@ window.submitViol=async function submitViol(id){const r=S.records.find(x=>x.id==
 async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;if(r.form==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){toast("اعتماد المخالفة وتوقيع محرّرها للأدمن بس");return}const f={...(r.f||{})};
   for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=myEmpName();const e=S.employees.find(x=>normName(x.name)===normName(f[k]));if(e)f[k+"_id"]=e.id}
   const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
-  // Store approvalSig in f.approvedSig field for v5 separate signatures
-  f.approvedSig=signature;
   if(await write(()=>upsert("records",id,{f,approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد بتوقيعك ✔")){setTimeout(()=>printRecord(id),300)}}
 async function unapproveRecord(id){if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300)}
 const apPill=x=>x?.approved?'<span class="pill p-sign">✔ معتمد</span>':"";
@@ -2344,12 +2217,10 @@ function collectRecord(spec,fid,fd,form,rec,photos){
   const data={form:fid,f:{},rows:[],updatedAt:Date.now()};data.att=[...(rec.att||[]).filter(a=>a.kind!=="photo"),...photos];
   for(const f of spec.fields){if(f.hidden)continue;
     if(f.type==="check"){const v=[...form.querySelectorAll(`[name="${f.k}"]:checked`)].map(i=>i.value);data.f[f.k]=f.multi?v:(v[0]||"")}
-    else if(f.type==="sig"){data.f[f.k]=(fd[f.k]||"").trim();} // Handle signature fields separately (preserve as-is, no trimming for data URLs)
     else{const v=(fd[f.k]||"").trim();data.f[f.k]=v;if(f.type==="emp"){const e=resolveEmp(v);if(e){data.f[f.k+"_id"]=e.id;data.f[f.k]=e.name}}}}
   const R=spec.rows;
   if(R){for(let i=0;i<R.n;i++){const row={};let any=false;for(const c of R.cols){const nm=`r${i}_${c.k}`;
     if(c.type==="check"){if(c.multi){row[c.k]=[...form.querySelectorAll(`[name="${nm}"]:checked`)].map(i=>i.value);if(row[c.k].length)any=true}else{const ch=form.querySelector(`[name="${nm}"]:checked`);row[c.k]=ch?ch.value:"";if(row[c.k])any=true}}
-    else if(c.type==="sig"){row[c.k]=(fd[nm]||"");if(row[c.k])any=true;} // Handle signature fields in rows
     else{const v=(fd[nm]||"").trim();row[c.k]=v;if(v)any=true;if(c.type==="emp"&&v){const e=resolveEmp(v);if(e){row[c.k+"_id"]=e.id;row[c.k]=e.name}}}}
     data.rows.push(any?row:null)}
     while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
@@ -2377,14 +2248,40 @@ function ptwForm(id){
 /* ---------- permit request workflow: engineer → (execution supervisor ∥ safety) → start work ---------- */
 const HSE_FINAL_ROLES=["admin","hse","hsesup","officer"];
 function ptwRole(){const a=myAccess();if(!a)return {};const r=a.role;const final=HSE_FINAL_ROLES.includes(r)||a.tabs?.ptw==="full";return {final,sup:r==="sup",role:r}}
+function isLegacyClosedPermit(p){return p?.status==="closed"&&(p.legacyImport===true||!p.date||p.date<today())}
+function legacyTimeFillPreview(){
+  if(myRole()!=="admin"||!canWrite||!db){toast("الإجراء متاح لمدير المنظومة المتصل فقط");return}
+  const pending=S.permits.filter(p=>isLegacyClosedPermit(p)&&(!p.from||!p.to));
+  if(!pending.length){toast("لا توجد تصاريح قديمة مغلقة ينقصها وقت البداية أو النهاية");return}
+  const sample=pending.slice(0,25).map(p=>`<tr><td>${esc(p.number||p.id)}</td><td>${fmtDate(p.date||"")||"—"}</td><td>${esc(p.from||"سيُملأ 08:00")}</td><td>${esc(p.to||"سيُملأ 16:00")}</td></tr>`).join("");
+  openSheet("مراجعة استكمال أوقات التصاريح القديمة",`<div class="banner">سيتم استكمال الأوقات الناقصة فقط للتصاريح المغلقة القديمة (${pending.length} تصريح). البداية <b>08:00</b> والنهاية <b>16:00</b>. لن تُنشأ توقيعات، ولن تتغير الحالة أو التاريخ أو الأسماء أو أي وقت موجود بالفعل.</div><p>معاينة أول ${Math.min(25,pending.length)} سجل:</p><div class="tbl"><table><thead><tr><th>رقم التصريح</th><th>التاريخ</th><th>من</th><th>إلى</th></tr></thead><tbody>${sample}</tbody></table></div><div id="legacyTimeProgress" class="muted" style="margin-top:10px">راجع القائمة ثم أكد الاستكمال. اضغط إلغاء إذا كانت السجلات غير صحيحة.</div><label class="chk" style="margin-top:10px"><input type="checkbox" name="confirmLegacyTimes" required> أؤكد أن هذه أوقات افتراضية لاستكمال السجلات القديمة، وليست توقيعًا أو اعتمادًا من الأطراف</label>`,async fd=>{
+    if(myRole()!=="admin"||!canWrite||!db)return "لم يعد لديك صلاحية تنفيذ الإجراء";
+    if(fd.confirmLegacyTimes!=="on")return "علّم مربع التأكيد قبل الحفظ";
+    const ids=pending.map(p=>p.id),jobs=[];for(const id of ids){const p=S.permits.find(x=>x.id===id);if(isLegacyClosedPermit(p)&&(!p.from||!p.to))jobs.push({id})}
+    if(!jobs.length){toast("تم استكمال السجلات بالفعل أو لم تعد مطابقة للشروط");return null}
+    let i=0,done=0,skipped=0,failed=0;
+    const worker=async()=>{while(true){const n=i++;if(n>=jobs.length)return;const {id}=jobs[n];const p=S.permits.find(x=>x.id===id);if(!isLegacyClosedPermit(p)||p.from&&p.to){skipped++;continue}const patch={};if(!p.from)patch.from="08:00";if(!p.to)patch.to="16:00";let ok=false;for(let attempt=0;attempt<3&&!ok;attempt++){try{await upsert("permits",id,patch);ok=true}catch(e){if(attempt<2)await new Promise(r=>setTimeout(r,250*(attempt+1)))}}if(ok)done++;else failed++;const box=$("legacyTimeProgress");if(box&&done%20===0)box.textContent=`تم استكمال ${done} من ${jobs.length} سجل…`}};
+    await Promise.all(Array.from({length:4},worker));
+    refresh();
+    toast(`تم استكمال ${done} تصريح · تخطي ${skipped} · تعذر ${failed}`);
+    return null
+  },"تأكيد واستكمال الأوقات");
+}
 function ptwStakeholders(p){const ids=[p.createdBy,p.supUid,p.hseUid,p.supUidDone,p.hseUidDone,...Object.keys(p.signs||{}),...(S.profiles||[]).filter(x=>x.emp_id&&x.emp_id===p.safetyId).map(x=>x.id)];return [...new Set(ids.filter(x=>typeof x==="string"&&x))]}
 function ptwCloseAllowed(p){if(!p||!canWrite)return false;const r=ptwRole(),ids=ptwStakeholders(p);return !!r.final||ids.includes(ME.id)||p.safetyId===myEmpId()}
 function ptwCloseRole(){const r=myRole();return r==="eng"?"site":r==="sup"?"sup":"hse"}
+function ptwCloseActorRole(p){if(!p||!ME?.id)return "";const uid=ME.id,n=normName(myEmpName()),e=myEmpId();if([p.supUid,p.supUidDone].includes(uid)||n&&[p.supName,p.supervisor].some(x=>normName(x)===n))return "sup";if([p.hseUid,p.hseUidDone].includes(uid)||e&&p.safetyId===e||n&&[p.hseName,p.safetyName,empName(p.safetyId)].some(x=>normName(x)===n))return "hse";if([p.reqBy,p.createdBy].includes(uid)||n&&[p.requester,p.siteEng].some(x=>normName(x)===n))return "site";return ""}
+function ptwCloseSigned(p,role){return !!(p?.closeApprovals?.[role]?.signature||(p?.closeRole===role&&p?.closeSignature))}
+function ptwCloseNoteKey(role){return role==="site"?"closeNoteEng":role==="sup"?"closeNoteSup":"closeNoteHse"}
+function ptwCloseNoteLabel(role){return role==="site"?"ملاحظة مهندس التنفيذ":role==="sup"?"ملاحظة مشرف التنفيذ":"ملاحظة مسؤول السلامة"}
+function ptwCloseApproval(p,role){if(p?.closeApprovals?.[role])return p.closeApprovals[role];if(p?.closeRole===role&&p?.closeSignature)return {uid:p.closeUid,name:p.closeName,signature:p.closeSignature,date:p.closedAt,time:p.closedTime,note:p[ptwCloseNoteKey(role)]||p.closeNote||""};return null}
+async function ptwCloseSign(id){const p=S.permits.find(x=>x.id===id),role=ptwCloseActorRole(p);if(!p||p.status!=="closed"||!role){toast("التوقيع متاح لأطراف التصريح المسجلين فقط");return}if(ptwCloseSigned(p,role)){toast("تم تسجيل توقيعك على الإغلاق بالفعل");return}const signature=await mySig();if(!signature){toast("ضيف توقيعك من حسابي الأول");sigEditor();return}const key=ptwCloseNoteKey(role),now=cairoClock(),me=myEmpName()||ME.name||"";openSheet("توقيع الإغلاق — "+ptwCloseNoteLabel(role),`<div class="banner">${esc(p.number||"")} · ${esc(p.location||"")}<br>أضف ملاحظتك بصفتك ${role==="site"?"مهندس التنفيذ":role==="sup"?"مشرف التنفيذ":"مسؤول السلامة"}. ستظهر ملاحظتك وتوقيعك في خانتك فقط.</div><div class="form">${f(ptwCloseNoteLabel(role),"closeNoteRole",{type:"textarea",full:true,value:p[key]||"",attrs:'placeholder="ملاحظتك على إغلاق التصريح (اختياري)"'})}</div>`,async fd=>{const approval={uid:ME.id,name:me,signature,note:(fd.closeNoteRole||"").trim(),date:now.day,time:now.time,at:Date.now()};const patch={closeApprovals:{...(p.closeApprovals||{}),[role]:approval},[key]:approval.note,flow:[...(p.flow||[]),{st:"close-approved",role,by:ME.id,name:me,at:Date.now(),date:now.day,time:now.time}]};const ok=await write(()=>upsert("permits",id,patch),"اتسجل توقيع وملاحظة الإغلاق ✔");if(!ok)return "الحفظ فشل";Object.assign(p,patch);await notifyUsers(ptwStakeholders(p),"وقّع طرف على إغلاق تصريح العمل",`${p.number||""} · ${me} · ${ptwCloseNoteLabel(role)}`,`?go=ptw&id=${encodeURIComponent(id)}`);setTimeout(()=>printPermit(id),300);return null},"توقيع وحفظ")}
 async function ptwClose(id){const p=S.permits.find(x=>x.id===id);if(!p||!(p.status==="open"||p.status==="approved")){toast("التصريح مش مفتوح للإغلاق");return}if(!ptwCloseAllowed(p)){toast("الإغلاق متاح لمسؤول التصريح أو فريق السلامة فقط");return}
   const signature=await mySig();if(!signature){toast("ضيف توقيعك من «حسابي» الأول عشان توثّق الإغلاق");sigEditor();return}
-  const body=`<div class="banner" style="margin-bottom:12px"><b>${esc(p.number||"")}</b> · ${esc(p.location||"")}<br>الموعد المحدد: ${fmtDate(ptwEnd(p))}${p.to?` · ${esc(p.to)}`:""}<br><span>لو العمل مستمر، لا تغلق التصريح؛ أوقف النشاط واطلب تمديدًا أو تصريحًا جديدًا.</span></div><p style="margin:0 0 8px"><b>قبل الإغلاق: أوقف العمل، أخلِ المنطقة، وأعد الموقع آمنًا حسب إجراءات العزل والتسليم.</b></p><div class="form">${PTW_CLOSE_CHECKS.map(x=>`<label class="chk"><input type="checkbox" name="closeConfirm" value="${x.k}"> ${esc(x.t)}</label>`).join("")}${f("ملاحظة مهندس التنفيذ","closeNoteEng",{type:"textarea",full:true,attrs:'placeholder="ملاحظات مهندس التنفيذ (اختياري)"'})}${f("ملاحظة مشرف التنفيذ","closeNoteSup",{type:"textarea",full:true,attrs:'placeholder="ملاحظات مشرف التنفيذ (اختياري)"'})}${f("ملاحظة مسؤول السلامة","closeNoteHse",{type:"textarea",full:true,attrs:'placeholder="ملاحظات مسؤول السلامة (اختياري)"'})}</div><p class="muted" style="font-size:12.5px;margin-bottom:0">سيُحفظ وقت الإغلاق وتوقيعك في سجل مستقل مرفق بملف التصريح.</p>`;
+  const role=ptwCloseActorRole(p)||ptwCloseRole(),noteKey=ptwCloseNoteKey(role),noteLabel=ptwCloseNoteLabel(role);
+  const body=`<div class="banner" style="margin-bottom:12px"><b>${esc(p.number||"")}</b> · ${esc(p.location||"")}<br>الموعد المحدد: ${fmtDate(ptwEnd(p))}${p.to?` · ${esc(p.to)}`:""}<br><span>لو العمل مستمر، لا تغلق التصريح؛ أوقف النشاط واطلب تمديدًا أو تصريحًا جديدًا.</span></div><p style="margin:0 0 8px"><b>قبل الإغلاق: أوقف العمل، أخلِ المنطقة، وأعد الموقع آمنًا حسب إجراءات العزل والتسليم.</b></p><div class="form">${PTW_CLOSE_CHECKS.map(x=>`<label class="chk"><input type="checkbox" name="closeConfirm" value="${x.k}"> ${esc(x.t)}</label>`).join("")}${f(noteLabel,"closeNoteRole",{type:"textarea",full:true,attrs:'placeholder="ملاحظتك بصفتك طرف التصريح (اختياري)"'})}</div><p class="muted" style="font-size:12.5px;margin-bottom:0">سيُحفظ توقيعك وملاحظتك في خانتك. بقية أطراف التصريح يمكنهم إضافة توقيعهم وملاحظتهم بعد ذلك.</p>`;
   openSheet(`تأكيد إغلاق التصريح ${p.number||""}`,body,async(fd,form)=>{const checks=[...form.querySelectorAll('[name="closeConfirm"]:checked')].map(x=>x.value);if(PTW_CLOSE_CHECKS.some(x=>!checks.includes(x.k)))return "أكد كل بنود الإغلاق قبل التوقيع";
-    const now=cairoClock(),me=myEmpName()||ME.name||"";if(!me)return "اسم المستخدم غير متاح";const patch={status:"closed",closedAt:now.day,closedTime:now.time,closedAtMs:Date.now(),closeName:me,closeRole:ptwCloseRole(),closeUid:ME.id,closeSignature:signature,closeChecks:PTW_CLOSE_CHECKS.map(x=>x.k),closeNote:(fd.closeNote||"").trim(),closeNoteEng:(fd.closeNoteEng||"").trim(),closeNoteSup:(fd.closeNoteSup||"").trim(),closeNoteHse:(fd.closeNoteHse||"").trim(),endAlertSentAt:p.endAlertSentAt||Date.now(),flow:[...(p.flow||[]),{st:"closed",by:ME.id,name:me,at:Date.now(),date:now.day,time:now.time}]};
+    const now=cairoClock(),me=myEmpName()||ME.name||"";if(!me)return "اسم المستخدم غير متاح";const ownNote=(fd.closeNoteRole||"").trim(),approval={uid:ME.id,name:me,signature,note:ownNote,date:now.day,time:now.time,at:Date.now()},patch={status:"closed",closedAt:now.day,closedTime:now.time,closedAtMs:Date.now(),closeName:me,closeRole:role,closeUid:ME.id,closeSignature:signature,closeApprovals:{...(p.closeApprovals||{}),[role]:approval},closeChecks:PTW_CLOSE_CHECKS.map(x=>x.k),closeNote:ownNote,[noteKey]:ownNote,endAlertSentAt:p.endAlertSentAt||Date.now(),flow:[...(p.flow||[]),{st:"closed",role,by:ME.id,name:me,at:Date.now(),date:now.day,time:now.time}]};
     const ok=await write(()=>upsert("permits",id,patch),"اتقفل التصريح واتحفظ وقت وتوقيع الإغلاق");if(!ok)return "الحفظ فشل";Object.assign(p,patch);await notifyUsers(ptwStakeholders(p),"تم إغلاق تصريح العمل",`${p.number||""} · ${me} · ${fmtDate(now.day)} الساعة ${now.time}`,`?go=ptw&id=${encodeURIComponent(id)}`);setTimeout(()=>printPermit(id),350);return null
   },"تأكيد الإغلاق والتوقيع")}
 const isSupOk=p=>!!(p.supOk||p.status==="supok");
@@ -2519,7 +2416,7 @@ function flowCard(p,actions){return `<div class="li" style="align-items:flex-sta
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
   <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${actions}</div></div>`}
 VIEWS.ptw={
-  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${R.final?`<button class="btn" id="newReq">+ طلب تصريح</button><button class="btn primary" id="newPtw">+ تصريح مباشر</button>`:`<button class="btn primary" id="newReq">+ طلب تصريح</button>`}</div>
+  shell:()=>{const R=ptwRole(),admin=myRole()==="admin"&&canWrite;return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${admin?`<button class="btn" id="legacyTimeFill">استكمال أوقات التصاريح القديمة</button>`:""}${R.final?`<button class="btn" id="newReq">+ طلب تصريح</button><button class="btn primary" id="newPtw">+ تصريح مباشر</button>`:`<button class="btn primary" id="newReq">+ طلب تصريح</button>`}</div>
     <div id="ptwFlow"></div>
     <div class="filters">
       <input type="search" id="ptwQ" placeholder="ابحث برقم التصريح، المكان، المقاول…" value="${esc(ui.ptwQ)}">
@@ -2527,7 +2424,7 @@ VIEWS.ptw={
       <select id="ptwStatus"><option value="">كل الحالات</option>${Object.entries(PTW_STATUS).map(([k,v])=>`<option value="${k}" ${ui.ptwStatus===k?"selected":""}>${v[0]}</option>`).join("")}</select>
       <input type="month" id="ptwMonth" value="${esc(ui.ptwMonth)}" aria-label="الشهر">
     </div><div id="ptwExp"></div><div id="ptwNext" class="sub"></div><div id="ptwList"></div>`},
-  bind(){$("newReq").onclick=()=>ptwRequestForm();if($("newPtw"))$("newPtw").onclick=()=>ptwForm();
+  bind(){if($("legacyTimeFill"))$("legacyTimeFill").onclick=()=>legacyTimeFillPreview();$("newReq").onclick=()=>ptwRequestForm();if($("newPtw"))$("newPtw").onclick=()=>ptwForm();
     $("ptwQ").oninput=e=>{ui.ptwQ=e.target.value;this.fill()};$("ptwType").onchange=e=>{ui.ptwType=e.target.value;this.fill()};
     $("ptwStatus").onchange=e=>{ui.ptwStatus=e.target.value;this.fill()};$("ptwMonth").onchange=e=>{ui.ptwMonth=e.target.value;this.fill()}},
   fill(){
@@ -2552,7 +2449,7 @@ VIEWS.ptw={
       ${pg.rows.map(p=>`<tr><td><span class="num">${esc(p.number)}</span></td><td>${typeChip(p.type)}</td><td class="n"><div>${fmtDate(p.startDate||p.date)}</div><div class="muted" style="font-size:11px">${p.from?`${esc(p.from)} – ${esc(p.to||"")}`:""}${p.closedAt?` · إغلاق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}</div></td>
       <td style="min-width:180px"><div>${esc(p.location||"—")}</div><div class="muted" style="font-size:12.5px">${esc((p.desc||"").slice(0,80))}</div></td>
       <td>${esc(p.contractor||"")}</td><td>${esc(p.safetyId?empName(p.safetyId):(p.safetyName||""))}</td><td>${statusPill(p.status)}</td>
-      <td><div class="row-actions">${FORM_TYPES.includes(p.type)&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')">👁 عرض</button>`:""}${(p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn ghost sm danger" onclick="ptwClose('${p.id}')">✔ إغلاق</button>`:""}${ptwDraft(p)?"":attBtn("permits",p.id,p)}${R.final||p.createdBy===ME.id&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="${ptwDraft(p)?`ptwRequestForm('${p.id}')`:`ptwForm('${p.id}')`}">تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+      <td><div class="row-actions">${FORM_TYPES.includes(p.type)&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')">👁 عرض</button>`:""}${(p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn ghost sm danger" onclick="ptwClose('${p.id}')">✔ إغلاق</button>`:""}${p.status==="closed"&&ptwCloseActorRole(p)&&!ptwCloseSigned(p,ptwCloseActorRole(p))?`<button class="btn ghost sm sign" onclick="ptwCloseSign('${p.id}')">✍ توقيع الإغلاق</button>`:""}${ptwDraft(p)?"":attBtn("permits",p.id,p)}${R.final||p.createdBy===ME.id&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="${ptwDraft(p)?`ptwRequestForm('${p.id}')`:`ptwForm('${p.id}')`}">تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
       </tbody></table></div>${pg.btn}<p class="muted" style="font-size:12.5px">${L.length} تصريح</p>`;
   }
 };
@@ -3079,20 +2976,29 @@ async function renderGenericSigned(fid,rec,pages){const L=signsOf(rec).filter(s=
   const spec=(await loadForms2())[fid];const mine=await mySig();
   for(const s of L){const done=new Set();for(const f of spec.fields){if(f.type==="check"||!(f.type==="emp"||NAME_KEY.test(f.k)))continue;const v=recVal(spec,rec,f.k);if(!v||normName(v)!==normName(s.name))continue;
     const r=signRect(spec.fields,f,x=>x.rect,isDateField);if(!r)continue;const key=(f.page||0)+":"+r.map(n=>n.toFixed(3)).join(",");if(done.has(key))continue;done.add(key);
-    await stampOn(pages[f.page||0],r,s.uid===ME.id?mine:"",s)}}
+    await stampOn(pages[f.page||0],s.layout||r,s.uid===ME.id?mine:"",s)}}
   return pages}
 async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);const byUid=new Map(signsOf(p).map(s=>[s.uid,{...s}]));
   if(p.supSignature&&p.supUidDone&&p.supName)byUid.set(p.supUidDone,{...(byUid.get(p.supUidDone)||{}),uid:p.supUidDone,name:p.supName,at:p.supAt,signature:p.supSignature});
   if(p.hseSignature&&p.hseUidDone&&p.hseName)byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature});
   const L=[...byUid.values()];if(!L.length)return pages;
   const F=(await loadForms())[p.type];const vals=ptwValues(p);const mine=await mySig();const R=b=>[b.x,b.y,b.w,b.h];const isD=b=>/date/i.test(b.field||"");
-  for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field)||ptwSkipRepeatedApproval(p.type,b,F.pages.length))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=permitSignRect(F.boxes,b,R,isD);if(r)await stampOn(pages[b.page||0],r,s.uid===ME.id?mine:"",s)}
+  for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field)||ptwSkipRepeatedApproval(p.type,b,F.pages.length))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=permitSignRect(F.boxes,b,R,isD);if(r)await stampOn(pages[b.page||0],s.layout||r,s.uid===ME.id?mine:"",s)}
   return pages}
 function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(v=>normName(v)===n)}
 async function signDoc(col,id,{reopen}={}){const src=await mySig();if(!src){toast("ضيف توقيعك الأول من 👤 حسابي ← ✍ توقيعي");sigEditor();return}
-  const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;const signs={...(x.signs||{}),[ME.id]:{uid:ME.id,name:myEmpName(),at:Date.now(),signature:src}};
+  const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;const signs={...(x.signs||{}),[ME.id]:{...(x.signs?.[ME.id]||{}),uid:ME.id,name:myEmpName(),at:Date.now(),signature:src}};
   if(await write(()=>upsert(col,id,{signs}),"اتوقّع ✔"))setTimeout(()=>reopen&&reopen(),300)}
 async function unsignDoc(col,id,reopen){const x=current(col,id)||S.matreq.find(r=>r.id===id);const signs={...(x?.signs||{})};delete signs[ME.id];if(await write(()=>upsert(col,id,{signs}),"اتشال توقيعك"))setTimeout(()=>reopen&&reopen(),300)}
+async function sigLayoutEditor(col,id,reopen){
+  const x=current(col,id);if(!x)return;const signed=x.signs?.[ME.id],approved=x.approved?.by===ME.id?x.approved:null;if(!signed&&!approved){toast("تقدر تضبط توقيعك أنت بعد ما توقّع المستند");return}
+  const name=signed?.name||approved?.name||myEmpName();let base=null;
+  try{if(col==="permits"){const F=(await loadForms())[x.type],v=ptwValues(x),R=b=>[b.x,b.y,b.w,b.h];const b=F.boxes.find(z=>["req","site","hse","sup"].includes(z.field)&&normName(v[z.field])===normName(name));if(b)base=permitSignRect(F.boxes,b,R,z=>/date/i.test(z.field||""))}
+    else{const spec=(await loadForms2())[x.form],b=spec.fields.find(z=>(z.type==="emp"||NAME_KEY.test(z.k))&&normName(recVal(spec,x,z.k))===normName(name));if(b)base=signRect(spec.fields,b,z=>z.rect,isDateField)}
+  }catch(e){}
+  const r=(signed?.layout||approved?.layout||base||[.3,.7,.3,.04]).map(n=>Math.round(n*1000)/10);
+  openSheet("ضبط مكان وحجم توقيعي",`<p class="muted" style="margin-top:0;font-size:13px">غيّر موضع التوقيع وحجمه على الصفحة. القيم نسب مئوية من أبعاد الصفحة، وصورة التوقيع نفسها لا تتغير.</p><div class="form">${f("من اليسار (%)","x",{type:"number",value:r[0],attrs:'min="0" max="100" step="0.5"'})}${f("من الأعلى (%)","y",{type:"number",value:r[1],attrs:'min="0" max="100" step="0.5"'})}${f("العرض (%)","w",{type:"number",value:r[2],attrs:'min="1" max="100" step="0.5"'})}${f("الارتفاع (%)","h",{type:"number",value:r[3],attrs:'min="0.5" max="50" step="0.5"'})}</div>`,async fd=>{const a=[Number(fd.x)/100,Number(fd.y)/100,Number(fd.w)/100,Number(fd.h)/100];if(a.some(n=>!Number.isFinite(n))||a[0]<0||a[1]<0||a[2]<=0||a[3]<=0||a[0]+a[2]>1||a[1]+a[3]>1)return "خلي التوقيع داخل حدود الصفحة";const patch=signed?{signs:{...x.signs,[ME.id]:{...signed,layout:a}}}:{approved:{...x.approved,layout:a}};const ok=await write(()=>upsert(col,id,patch),"اتحفظ مكان التوقيع وحجمه");if(!ok)return "الحفظ فشل";Object.assign(x,patch);setTimeout(()=>reopen&&reopen(),250);return null},"حفظ مكان التوقيع")
+}
 /* editor */
 function sigEditor(){
   openSheet("✍ توقيعي",`<p class="muted" style="margin-top:0;font-size:13.5px">ارسم توقيعك بصباعك أو بالماوس جوه المربع، أو صوّر توقيعك على ورقة بيضا وارفعه.</p>
@@ -3219,7 +3125,7 @@ function refresh(){refreshBase();clearTimeout(window._navT);window._navT=setTime
 
 /* ---------- daily reminders (07:45 · 12:55 · 15:00) ---------- */
 const NOTIFY_URL=()=>(window.SB_URL||"")+"/functions/v1/notify";
-async function notifyCall(body,auth){const h={"Content-Type":"application/json",apikey:window.SB_KEY||""};if(auth&&window.SB){const {data:{session}}=await window.SB.auth.getSession();if(session)h.Authorization="Bearer "+session.access_token}
+async function notifyCall(body,auth){const h={"Content-Type":"application/json",apikey:window.SB_KEY||""};if(auth){const {data:{session}}=await SB.auth.getSession();if(session)h.Authorization="Bearer "+session.access_token}
   const r=await fetch(NOTIFY_URL(),{method:"POST",headers:h,body:JSON.stringify(body)});const x=await r.json().catch(()=>({}));if(!r.ok||x.error)throw new Error(x.error||("http_"+r.status));return x}
 const pushSupported=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
 const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -3232,7 +3138,7 @@ async function enablePush(){
     let sub=await reg.pushManager.getSubscription();if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(pub)});
     const {error}=await SB.from("push_subs").upsert({endpoint:sub.endpoint,sub:sub.toJSON(),ua:navigator.userAgent.slice(0,200)});if(error)throw error;
     toast("اتفعلت التنبيهات اليومية ✔");refresh();return true}catch(e){console.error(e);toast("مقدرتش أفعّل التنبيهات دلوقتي، جرّب تاني");return false}}
-async function disablePush(){try{const reg=await navigator.serviceWorker.getRegistration();const s=await reg?.pushManager.getSubscription();if(s){await SB.from("push_subs").delete().eq("endpoint",s.endpoint);await s.unsubscribe()}toast("اتقفلت التنبيهات");refresh()}catch(e){toast("حصلت مشكلة")}}
+async function disablePush(){try{await SBA.cleanupLocalPush();toast("اتقفلت تنبيهات هذا المتصفح");refresh()}catch(e){toast("حصلت مشكلة")}}
 async function testPush(){try{const x=await notifyCall({action:"test",slot:"morning"},true);toast(x.sent?"اتبعت تنبيه تجربة ✔":"مفيش جهاز متفعل عليه التنبيهات")}catch(e){toast("التجربة فشلت")}}
 /* in-app fallback while the app is open */
 const SLOT_T=[["morning",465],["break",775],["end",900]];
@@ -3416,11 +3322,8 @@ async function lvDecide(id,yes){const r=S.leavereq.find(x=>x.id===id);if(!r)retu
   const fld=r.leaveType==="casual"?"casual":r.leaveType==="annual"?"annual":null;let newId=null;
   const ok=await write(async()=>{const ref=await db.collection("leaves").add({kind:"leave",empId:r.empId,leaveType:r.leaveType,date:r.from,to:r.to,days:r.days,alt:r.alt||"",reqDate:new Date(r.at).toISOString().slice(0,10),balanceAfter:fld&&e?num(e[fld])-r.days:null,note:r.note||"",createdAt:Date.now()});newId=ref.id;if(fld&&e)await upsert("employees",r.empId,{[fld]:num(e[fld])-r.days});await upsert("leavereq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتسجلت الإجازة ✔");
   if(ok){notifyUsers([r.by],"✅ إجازتك اتوافق عليها",`${LEAVE_T[r.leaveType]} ${r.days} يوم من ${fmtDate(r.from)}`,"?go=me");if(newId)setTimeout(()=>printLeave(newId),400)}}
-/* bulk upload: historical paper records */
-window.bulkUploadIncidents=async function(){openSheet("رفع البيانات التاريخية","<div class=\"form\">"+f("البيانات","dataFile",{type:"file",accept:".json",req:true})+f("نوع البيانات","dataType",{opts:[["incident","سجل حادث / حادث وشيك (F-HSE-03-01)"],["unsafe_act","رصد تصرف أو سلوك (F-HSE-07-01)"],["training","محاضرة TBT (F-HSE-24-02)"]],req:true})+f("التحديث التلقائي للإحصائيات","autoUpdate",{type:"checkbox"})+"</div>",async(fd,form)=>{const file=form.querySelector('input[type="file"]').files[0];if(!file)return"اختر ملف";const text=await file.text();let data;try{data=JSON.parse(text)}catch(e){return"الملف يجب أن يكون JSON صحيح"}if(!Array.isArray(data))return"البيانات يجب أن تكون مصفوفة";const dataType=fd.dataType;const autoUpdate=form.querySelector('input[name="autoUpdate"]').checked;let uploaded=0,failed=0,errors=[];for(const record of data){try{if(dataType==="incident"){await uploadIncident(record)}else if(dataType==="unsafe_act"){await uploadUnsafeAct(record)}else if(dataType==="training"){await uploadTraining(record)}uploaded++}catch(err){failed++;errors.push(`رقم ${record.incident_id||record.id}: ${err.message}`)}}let msg=`✅ تم رفع ${uploaded} سجل بنجاح`;if(failed>0)msg+=`\n⚠️ فشل ${failed} سجل`;if(autoUpdate)msg+="\n🔄 جارٍ تحديث الإحصائيات...";return`${msg}\n\n${errors.slice(0,5).join("\n")}`},"رفع البيانات")};async function uploadIncident(rec){const data={form:"F-HSE-03-01",date:rec.date,f:{date:rec.date,location:rec.location||"",worker:rec.worker_name||"",injuryType:rec.injury_type||"",description:rec.description||"",causes:rec.causes||[],immediateActions:rec.immediate_actions||"",correctiveActions:rec.corrective_actions||""},createdAt:new Date(rec.date).getTime(),createdBy:ME.id||"",serial:rec.incident_id||0};const ref=await db.collection("records").add(data);return ref.id}async function uploadUnsafeAct(rec){const data={form:"F-HSE-07-01",date:rec.date,f:{date:rec.date,location:rec.location||"",behavior:rec.behavior||"",description:rec.description||"",actionTaken:rec.action_taken||""},createdAt:new Date(rec.date).getTime(),createdBy:ME.id||""};const ref=await db.collection("records").add(data);return ref.id}async function uploadTraining(rec){const data={form:"F-HSE-24-02",date:rec.date,f:{date:rec.date,topic:rec.topic||"",trainer:rec.trainer||"",attendees:rec.attendees||[],duration:rec.duration||""},createdAt:new Date(rec.date).getTime(),createdBy:ME.id||""};const ref=await db.collection("records").add(data);return ref.id}
-
 /* my file */
-VIEWS.me={shell:()=>`<div class="head"><h2 class="grow">ملفي</h2><button class="btn primary keep" onclick="leaveReqForm()">+ طلب إجازة</button><button class="btn keep" onclick="permReqForm()">+ طلب إذن</button>${canDelete?'<button class="btn keep" onclick="bulkUploadIncidents()">📥 رفع بيانات ورقية</button>':""}</div><div id="meBody"></div>`,
+VIEWS.me={shell:()=>`<div class="head"><h2 class="grow">ملفي</h2><button class="btn primary keep" onclick="leaveReqForm()">+ طلب إجازة</button><button class="btn keep" onclick="permReqForm()">+ طلب إذن</button></div><div id="meBody"></div>`,
   async fill(){const p=myProfile();const e=emp(myEmpId());const uid=ME.id;const sg=await mySig();
     const P=S.permits.filter(x=>x.createdBy===uid||x.supUid===uid||x.hseUid===uid||x.supUidDone===uid||x.hseUidDone===uid||(e&&x.safetyId===e.id)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
     const R=userRecs(uid,"2000-01-01","2999-12-31").sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -3516,146 +3419,7 @@ VIEWS.chat={shell:()=>`<div class="head"><h2 class="grow">💬 الشات</h2></
       const to=r==="team"?(S.profiles||[]).filter(p=>!p.disabled).map(p=>p.id):[other];notifyCall({action:"send",to:to.filter(u=>u!==ME.id),title:`💬 ${myEmpName()}${r==="team"?" · الفريق":""}`,body:text||(img?"📷 صورة":"📎 "+(ref?.label||"")),url:`?go=chat&id=${r}`},true).catch(()=>{})}}};
 
 
-/* Bulk Delete Feature */
-let selectedIds = new Set();
-function toggleSelectAll(checkbox) {
-  const rows = document.querySelectorAll('[data-id]');
-  if (checkbox.checked) {
-    rows.forEach(row => {
-      selectedIds.add(row.dataset.id);
-      row.style.background = 'var(--accent-soft)';
-    });
-  } else {
-    selectedIds.clear();
-    rows.forEach(row => {
-      row.style.background = '';
-    });
-  }
-  updateDeleteButton();
-}
-function toggleSelectRow(id) {
-  const row = document.querySelector(`[data-id="${id}"]`);
-  if (selectedIds.has(id)) {
-    selectedIds.delete(id);
-    row.style.background = '';
-  } else {
-    selectedIds.add(id);
-    row.style.background = 'var(--accent-soft)';
-  }
-  updateDeleteButton();
-}
-function updateDeleteButton() {
-  const btn = document.getElementById('bulkDeleteBtn');
-  if (btn) {
-    btn.style.display = selectedIds.size > 0 ? 'inline-flex' : 'none';
-    btn.textContent = `🗑 حذف ${selectedIds.size} سجل`;
-  }
-}
-async function performBulkDelete(col) {
-  if (selectedIds.size === 0) {
-    toast('اختر سجلات أولاً');
-    return;
-  }
-  const count = selectedIds.size;
-  confirmSheet(`حذف ${count} سجل؟`,`هتمسح ${count} سجل دفعة واحدة. لا يمكن التراجع!`,async()=>{try{await write(()=>removeBulk(col,Array.from(selectedIds)),`اتمسحت ${count} سجل ✔`);selectedIds.clear();updateDeleteButton();refresh()}catch(e){toast('فشل الحذف: '+e.message)}},'حذف نهائياً');
-}
-
-/* Login Handler */
-document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = document.getElementById("loginEmail").value;
-  const pass = document.getElementById("loginPass").value;
-  const msg = document.getElementById("loginMsg");
-
-  if (!window.SB) {
-    msg.style.display = 'block';
-    msg.style.background = 'var(--bad-soft)';
-    msg.style.color = 'var(--bad)';
-    msg.textContent = '❌ خطأ في الاتصال';
-    return;
-  }
-
-  try {
-    msg.textContent = '⏳ جاري التحقق...';
-    msg.style.display = 'block';
-    msg.style.background = 'var(--info-soft)';
-    msg.style.color = 'var(--info)';
-
-    const {data, error} = await window.SB.auth.signInWithPassword({email, password: pass});
-
-    if (error) {
-      msg.style.background = 'var(--bad-soft)';
-      msg.style.color = 'var(--bad)';
-      msg.textContent = '❌ ' + (error.message || 'فشل تسجيل الدخول');
-      return;
-    }
-
-    if (data.session) {
-      msg.style.background = 'var(--ok-soft)';
-      msg.style.color = 'var(--ok)';
-      msg.textContent = '✅ تم تسجيل الدخول بنجاح!';
-      setTimeout(() => {
-        document.getElementById('loginContainer').style.display = 'none';
-        location.reload();
-      }, 800);
-    }
-  } catch(err) {
-    msg.style.background = 'var(--bad-soft)';
-    msg.style.color = 'var(--bad)';
-    msg.textContent = '❌ خطأ: ' + err.message;
-  }
-});
-
 show(tab);
 boot();
-setTimeout(() => {
-  if (!window.SB) return;
-  window.SB.auth.getSession().then(({data: {session}}) => {
-    if (!session) document.getElementById('loginContainer').style.display = 'flex';
-  }).catch(() => {
-    document.getElementById('loginContainer').style.display = 'flex';
-  });
-}, 1000);
-
-/* ⚡ Performance Optimization System - نظام تحسين الأداء */
-const CACHE_SYSTEM = {
-  data: new Map(), ttl: new Map(), DEFAULT_TTL: 5 * 60 * 1000,
-  set(k, v, t) { this.data.set(k, v); this.ttl.set(k, Date.now() + (t || this.DEFAULT_TTL)); },
-  get(k) { if (!this.data.has(k)) return null; const e = this.ttl.get(k); if (Date.now() > e) { this.data.delete(k); this.ttl.delete(k); return null; } return this.data.get(k); },
-  clear() { this.data.clear(); this.ttl.clear(); }
-};
-
-function debounce(fn, d=500) { let t; return function(...a) { clearTimeout(t); t=setTimeout(()=>fn.apply(this,a),d); }; }
-function throttle(fn, l=1000) { let r=0; return function(...a) { const n=Date.now(); if (n-r>l) { fn.apply(this,a); r=n; } }; }
-
-const LAZY_LOADER = {
-  pageSize: 50, currentPage: 0, hasMore: true,
-  async loadPage(t, f={}) { const o=this.currentPage*this.pageSize; let q=SB.from(t).select('*',{count:'exact'}); for (const [k,v] of Object.entries(f)) { if (v!==null&&v!==undefined&&v!=='') q=q.eq(k,v); } const {data,count,error}=await q.order('id',{ascending:false}).range(o,o+this.pageSize-1); if (error) throw error; this.hasMore=(o+this.pageSize)<count; this.currentPage++; return data; },
-  reset() { this.currentPage=0; this.hasMore=true; }
-};
-
-async function optimizedFetch(t,o={}) { const k=t+JSON.stringify(o); const c=CACHE_SYSTEM.get(k); if(c) return c; let q=SB.from(t).select(o.select||'*'); if(o.filters) for(const [f,v] of Object.entries(o.filters)) q=q.eq(f,v); if(o.order) q=q.order(o.order.field,{ascending:o.order.asc!==false}); if(o.limit) q=q.limit(o.limit); const {data,error}=await q; if(error) throw error; CACHE_SYSTEM.set(k,data,o.cacheTTL); return data; }
-
-window.createDebouncedSearch = function(fn, delay=500) { return debounce(fn, delay); };
-
-const dedupRequest = (() => { const cache = new Map(); return async (key, fn) => { if (cache.has(key)) return cache.get(key); const promise = fn(); cache.set(key, promise); setTimeout(() => cache.delete(key), 5000); return promise; }; })();
-
-const NETWORK_MONITOR = {
-  isOnline: navigator.onLine, queue: [],
-  init() { window.addEventListener('online', ()=>{ this.isOnline=true; this.processQueue(); }); window.addEventListener('offline', ()=>{ this.isOnline=false; }); },
-  queue(fn) { this.queue.push(fn); if (this.isOnline) this.processQueue(); },
-  processQueue() { while (this.queue.length && this.isOnline) { const fn = this.queue.shift(); fn().catch(e => { this.queue.unshift(fn); }); } }
-};
-NETWORK_MONITOR.init();
-
-const OPTIMAL_SELECTS = {
-  incidents: 'id,form,date,f,createdAt,createdBy,serial,status',
-  users: 'id,username,email,role,disabled',
-  employees: 'id,code,name,job,group,email,active',
-  contractors: 'id,name,company,contact,active'
-};
-
-console.log('✅ Performance Optimization System Loaded - نظام تحسين الأداء مفعّل');
-console.log('📊 Cache TTL: 5 minutes | Debounce: 500ms | Lazy Load: 50 records/page');
 </script>
 </body></html>
