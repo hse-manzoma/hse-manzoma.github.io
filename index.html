@@ -908,6 +908,10 @@ const TAB_NAMES={dash:"الرئيسية",actions:"المتابعة",ptw:"تصا�
 const LV={view:"مشاهدة",edit:"إضافة وتعديل",full:"إضافة وتعديل ومسح"};
 const allTabs=lv=>Object.fromEntries(Object.keys(TAB_NAMES).map(k=>[k,lv]));
 const BUILTIN_ROLES={admin:{ar:"مدير المنظومة",tabs:allTabs("full"),fixed:1},
+  monitor:{ar:"🔍 المراقب",tabs:{dash:"view",actions:"full",follow:"view",manpower:"view",contractors:"view",forms:"edit",ptw:"view"},fixed:1},
+  officer:{ar:"👮 الأوفيسر",tabs:{dash:"view",actions:"full",ptw:"edit",forms:"edit",kpi:"edit",manpower:"view",contractors:"view",equip:"view"},fixed:1},
+  hseSupervisor:{ar:"🛡️ أخصائي السلامة",tabs:{dash:"full",actions:"full",ptw:"full",forms:"full",kpi:"full",manpower:"full",contractors:"full",equip:"full",report:"view"},fixed:1},
+  executionEng:{ar:"🏗️ مهندس التنفيذ",tabs:{dash:"view",actions:"view",ptw:"edit",forms:"edit"},fixed:1},
   hse:{ar:"أخصائي سلامة",tabs:{dash:"view",actions:"full",ptw:"edit",ppe:"edit",manpower:"edit",contractors:"edit",equip:"edit",forms:"edit",kpi:"edit"}},
   store:{ar:"أمين مخزن المهمات",tabs:{dash:"view",ppe:"edit"}},
   sup:{ar:"مشرف / مهندس موقع",tabs:{dash:"view",actions:"edit",ptw:"edit",forms:"edit"}},
@@ -1996,10 +2000,76 @@ VIEWS.forms={
 function fillFormRecords(el,fid,spec){
   const L=recsOf(fid).filter(mineRec);
   const sum=r=>{const keys=spec.fields.filter(f=>!f.hidden&&f.type!=="check"&&f.k!=="date"&&!f.default&&!f.auto).slice(0,2).map(f=>recVal(spec,r,f.k)).filter(Boolean);const rows=(r.rows||[]).filter(x=>x&&Object.values(x).some(v=>v&&v.length));return [keys.join(" · "),rows.length?`${rows.length} ${spec.rows?.label||"صف"}`:""].filter(Boolean).join(" — ")};
-  el.innerHTML=`<div class="filters"><button class="btn" onclick="ui.formSel='';refresh()">→ كل النماذج</button><div class="grow"></div><button class="btn primary" onclick="recordForm('${fid}')">+ ${esc(spec.title)} جديد</button></div>
+  el.innerHTML=`<div class="filters"><button class="btn" onclick="ui.formSel='';refresh()">→ كل النماذج</button><div class="grow"></div>${fid==="F-HSE-03-01"?`<button class="btn" onclick="incidentImportOpen()">⇧ استيراد جماعي من الصور / PDF</button>`:""}<button class="btn primary" onclick="recordForm('${fid}')">+ ${esc(spec.title)} جديد</button></div>
   <div class="card"><h3><span class="num">${fid}</span> · ${esc(spec.title)}</h3>
   ${L.length?`<div class="list">${L.map(r=>`<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s">${esc(sum(r))}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
 }
+
+/* ---------- bulk incident import: OCR + review before writing ---------- */
+let incidentImportRows=[];
+function incidentLoadScript(src, test){return new Promise((resolve,reject)=>{if(test()){resolve();return}let sc=document.querySelector('script[data-import-src="'+src+'"]');if(sc){sc.addEventListener('load',resolve,{once:true});sc.addEventListener('error',reject,{once:true});return}sc=document.createElement('script');sc.src=src;sc.dataset.importSrc=src;sc.onload=resolve;sc.onerror=()=>reject(new Error('تعذر تحميل مكتبة القراءة'));document.head.appendChild(sc)})}
+function incidentArabicDigits(t){return String(t||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d))}
+function incidentGuess(text){
+  const t=incidentArabicDigits(text).replace(/\u0640/g,' '), lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  const pick=(re)=>{const m=t.match(re);return m?String(m[1]||'').trim().replace(/[|،؛]+$/,''):''};
+  let date=pick(/(?:تاريخ\s*الحادث|تاريخ)\s*[:：\-]?\s*([0-9]{1,2}\s*[\/.-]\s*[0-9]{1,2}\s*[\/.-]\s*[0-9]{2,4})/i);
+  if(!date){const all=t.match(/\b([0-3]?\d\s*[\/.-]\s*[01]?\d\s*[\/.-]\s*20\d{2})\b/);date=all?all[1]:''}
+  if(date){let a=date.split(/[\/.-]/).map(x=>x.trim());if(a.length===3){let [d,m,y]=a;if(y.length===4)date=`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;else date=''}}
+  const time=pick(/(?:وقت\s*الحادث|الوقت)\s*[:：\-]?\s*([0-2]?\d\s*[:.]\s*[0-5]?\d\s*(?:AM|PM|صباحا|مساء)?)/i) || (t.match(/\b([0-2]?\d\s*[:.]\s*[0-5]\d)\s*(?:AM|PM)\b/i)||[])[1]||'';
+  const place=pick(/(?:موقع\s*الحادث|مكان\s*الحادث)\s*[:：\-]?\s*([^\n]+)/i);
+  const victim=pick(/(?:اسم\s*العامل\s*المصاب|اسم\s*المصاب|العامل\s*المصاب)\s*[:：\-]?\s*([^\n]+)/i);
+  const injury=pick(/(?:نوعية\s*الإصابة|نوع\s*الإصابة)\s*[:：\-]?\s*([^\n]+)/i);
+  const desc=pick(/(?:وصف\s*الحادث)\s*[:：\-]?\s*([\s\S]{0,900}?)(?=الأسباب\s*الجذرية|الإجراء\s*الفوري|الإجراء\s*التصحيحي|كاتب\s*التقرير|$)/i);
+  const dmgEquip=pick(/(?:وصف\s*التلف\s*للمنشأة\s*\/\s*المعدة|وصف\s*التلف\s*للمنشأة|التلف\s*للمنشأة)\s*[:：\-]?\s*([^\n]+)/i);
+  const dmgEnv=pick(/(?:وصف\s*التلف\s*للبيئة\s*المحيطة|التلف\s*للبيئة)\s*[:：\-]?\s*([^\n]+)/i);
+  const other=pick(/(?:أخرى|أسباب\s*أخرى)\s*[:：\-]?\s*([^\n]+)/i);
+  const immediate=pick(/(?:الإجراء\s*الفوري|الإجراء\s*الذي\s*تم)\s*[:：\-]?\s*([\s\S]{0,450}?)(?=الإجراءات\s*التصحيحية|كاتب\s*التقرير|$)/i);
+  return {dept:pick(/(?:رقم\s*الإدارة\s*\/\s*القسم|الإدارة\s*\/\s*القسم)\s*[:：\-]?\s*([^\n]+)/i)||'HSE',no:'',date,time:time.replace(/\./,':').replace(/\s*(AM|PM)$/i,'').trim(),place,injury,victim,dmgEquip,dmgEnv,desc:desc.replace(/\s{2,}/g,' ').trim(),causes:[],other,immediate,resp:'',timeline:'',corrective:'',writer:'',writerJob:'',wDate:'',mgr:'',mgrJob:'',mgrDate:'',ocrText:text};
+}
+async function incidentPdfPages(file){
+  await incidentLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',()=>!!window.pdfjsLib);
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise, out=[];
+  for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i),vp=pg.getViewport({scale:1.5}),cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',.88));out.push({name:file.name+' — صفحة '+i,file:new File([blob],file.name.replace(/\.pdf$/i,'')+'-p'+i+'.jpg',{type:'image/jpeg'}),merge:i>1})}
+  return out;
+}
+async function incidentOcr(file){
+  await incidentLoadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',()=>!!window.Tesseract);
+  const worker=await Tesseract.createWorker('ara+eng',1,{logger:m=>{const el=document.getElementById('incImportStatus');if(el&&m.status==='recognizing text')el.textContent='قراءة النص: '+Math.round((m.progress||0)*100)+'%'}});
+  try{const {data}=await worker.recognize(file);return data.text||''}finally{await worker.terminate()}
+}
+function incidentImportOpen(){
+ if(!canWrite||!db){toast('تأكد إنك داخل بحساب له صلاحية الحفظ');return}
+ const ov=document.createElement('div');ov.id='incidentImportOverlay';ov.style.cssText='position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.68);display:flex;align-items:center;justify-content:center;padding:12px';
+ ov.innerHTML=`<div style="width:min(1050px,100%);max-height:94vh;overflow:auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 20px 60px #0008"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="font-size:19px;flex:1">استيراد تقارير الحوادث من الصور / PDF</h2><button class="btn ghost" type="button" onclick="incidentImportClose()">✕ إغلاق</button></div><p class="muted" style="margin:6px 0 12px">اختر الصور أو ملفات PDF. سيحاول النظام قراءة النص، ثم يتيح لك مراجعة كل البيانات قبل الحفظ. لو التقرير صورتان، فعّل «ضم للصورة السابقة» في الصفحة الثانية. القراءة الآلية للخط اليدوي قد تخطئ.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="btn primary" style="cursor:pointer">اختيار الصور وملفات PDF<input id="incImportFiles" type="file" accept="image/*,application/pdf,.pdf" multiple hidden></label><span id="incImportStatus" class="muted">لم يتم اختيار ملفات بعد.</span></div><div id="incImportReview" style="margin-top:14px"></div><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px"><button class="btn" type="button" onclick="incidentImportClose()">إلغاء</button><button class="btn primary" id="incImportSave" type="button" disabled onclick="incidentImportSave()">حفظ التقارير المحددة</button></div></div>`;
+ document.body.appendChild(ov);incidentImportRows=[];
+ ov.querySelector('#incImportFiles').onchange=incidentImportProcess;
+}
+function incidentImportClose(){document.getElementById('incidentImportOverlay')?.remove();incidentImportRows=[]}
+async function incidentImportProcess(e){
+ const files=[...(e.target.files||[])];if(!files.length)return;const status=document.getElementById('incImportStatus'),review=document.getElementById('incImportReview'),save=document.getElementById('incImportSave');incidentImportRows=[];review.innerHTML='';save.disabled=true;
+ try{
+  let parts=[];for(const file of files){if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){status.textContent='تحويل PDF إلى صفحات: '+file.name;const pages=await incidentPdfPages(file);parts.push({pdfName:file.name,pdfOriginal:file,...pages.map((x,i)=>({...x,pdfGroup:file.name,merge:i>0}))})}else parts.push({name:file.name,file,merge:false})}
+  for(let i=0;i<parts.length;i++){const x=parts[i];status.textContent=`قراءة ${i+1} من ${parts.length}: ${x.name}`;let txt='';try{txt=await incidentOcr(x.file)}catch(err){console.warn(err);txt=''}incidentImportRows.push({...x,fields:incidentGuess(txt),ocrText:txt,selected:true,merge:!!x.merge,hash:''});incidentImportRender()}
+  status.textContent=`تم تجهيز ${incidentImportRows.length} صفحة للمراجعة. صحّح البيانات قبل الحفظ.`;save.disabled=!incidentImportRows.length;
+ }catch(err){console.error(err);status.textContent='تعذر تجهيز الملفات: '+(err.message||err);toast('فشل تجهيز الملفات')}
+}
+function incidentImportRender(){const root=document.getElementById('incImportReview');if(!root)return;root.innerHTML=incidentImportRows.map((r,i)=>{const f=r.fields;const inp=(k,label,type='text',full=false)=>`<div class="field ${full?'full':''}"><label>${label}</label>${type==='textarea'?`<textarea data-i="${i}" data-k="${k}" rows="3">${esc(f[k]||'')}</textarea>`:`<input data-i="${i}" data-k="${k}" type="${type}" value="${esc(f[k]||'')}">`}</div>`;return `<div class="card" style="margin-bottom:12px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-i="${i}" data-k="selected" ${r.selected?'checked':''}> تضمين الصفحة</label>${i?`<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-i="${i}" data-k="merge" ${r.merge?'checked':''}> ضم للصورة السابقة (صفحة ثانية لنفس التقرير)</label>`:''}<b class="grow">${esc(r.name||r.file?.name||'صورة '+(i+1))}</b></div><div class="form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">${inp('dept','الإدارة / القسم')}${inp('no','الرقم المسلسل')}${inp('date','تاريخ الحادث','date')}${inp('time','وقت الحادث','text')}${inp('place','موقع الحادث')}${inp('injury','نوع الإصابة')}${inp('victim','اسم العامل المصاب')}${inp('dmgEquip','وصف التلف للمنشأة / المعدة','textarea',true)}${inp('dmgEnv','وصف التلف للبيئة المحيطة','textarea',true)}${inp('desc','وصف الحادث','textarea',true)}${inp('other','أسباب أخرى','textarea',true)}${inp('immediate','الإجراء الفوري','textarea',true)}${inp('resp','المسؤول')}${inp('timeline','الجدول الزمني')}${inp('corrective','الإجراءات التصحيحية / التحقيقات','textarea',true)}${inp('writer','كاتب التقرير')}${inp('writerJob','وظيفة كاتب التقرير')}${inp('wDate','تاريخ كاتب التقرير','date')}${inp('mgr','مدير السلامة والصحة المهنية')}${inp('mgrJob','وظيفة المدير')}${inp('mgrDate','تاريخ المدير','date')}</div><details style="margin-top:8px"><summary>نص OCR المقروء (للمراجعة)</summary><pre style="white-space:pre-wrap;max-height:180px;overflow:auto;font:12px/1.6 monospace">${esc(r.ocrText||'لم يتم استخراج نص؛ أدخل البيانات يدويًا.')}</pre></details></div>`}).join('');
+ root.querySelectorAll('[data-i][data-k]').forEach(el=>el.onchange=()=>{const r=incidentImportRows[+el.dataset.i],k=el.dataset.k;if(!r)return;if(k==='selected'||k==='merge')r[k]=el.checked;else r.fields[k]=el.value});
+}
+async function incidentImportSave(){
+ const rows=incidentImportRows.filter(r=>r.selected);if(!rows.length){toast('حدد تقريرًا واحدًا على الأقل');return}if(!assetsNS){toast('خدمة رفع المرفقات غير متاحة');return}
+ const btn=document.getElementById('incImportSave');btn.disabled=true;let saved=0,skipped=0,failed=0;const groups=[];
+ for(const r of rows){if(r.merge&&groups.length){const g=groups[groups.length-1];g.pages.push(r);for(const k of ['dmgEquip','dmgEnv','desc','other','immediate','corrective','ocrText'])if(r.fields[k])g.fields[k]=[g.fields[k],r.fields[k]].filter(Boolean).join('\n');for(const k of ['date','time','place','injury','victim','dept','no','resp','timeline','writer','writerJob','wDate','mgr','mgrJob','mgrDate'])if(!g.fields[k]&&r.fields[k])g.fields[k]=r.fields[k]}else groups.push({fields:{...r.fields},pages:[r]})}
+ try{for(const g of groups){const f=g.fields;const hash=await incidentHashGroup(g);const duplicate=S.records.some(x=>x.form==='F-HSE-03-01'&&x.f?.importHash&&x.f.importHash===hash);if(duplicate){skipped++;continue}
+   const at=[];for(const pg of g.pages){const file=pg.file;const type=file.type||'image/jpeg';const uploaded=await assetsNS.upload(file,{type});at.push({a:uploaded.id,kind:'photo',type:uploaded.contentType||type,at:Date.now(),name:pg.name||file.name});}
+   const data={form:'F-HSE-03-01',f:{...f,causes:Array.isArray(f.causes)?f.causes:[],importHash:hash,importedFrom:'ocr-review'},rows:[],att:at,date:/^\d{4}-\d\d-\d\d$/.test(f.date||'')?f.date:today(),serial:nextRecSerial('F-HSE-03-01'),createdAt:Date.now(),createdBy:ME.id||'',updatedAt:Date.now(),approved:null};
+   const id='INC-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);try{const ok=await write(()=>upsert('records',id,data));if(!ok){failed++;continue}if(S.records&&!S.records.some(x=>x.id===id))S.records.push({id,...data});saved++}catch(err){console.error(err);failed++}}
+  toast(`تم حفظ ${saved} تقرير${skipped?'، تم تجاوز '+skipped+' مكرر':''}${failed?'، فشل '+failed:''}`);if(saved){incidentImportClose();refresh()}
+ }catch(err){console.error(err);toast('حصل خطأ أثناء الحفظ؛ راجع الاتصال والصلاحيات')}finally{const b=document.getElementById('incImportSave');if(b)b.disabled=false}
+}
+async function incidentHashGroup(g){const bits=[];for(const p of g.pages){const f=p.file;if(!window.crypto?.subtle){bits.push([f.name,f.size,f.lastModified||0].join(':'));continue}const b=await f.arrayBuffer();const h=await crypto.subtle.digest('SHA-256',b);bits.push([...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join(''))}return bits.join('-')}
+
 let _sigEmpty=true;
 function initSigPad(){const cv=document.getElementById("sigCanvas");if(!cv)return;const x=cv.getContext("2d");x.lineWidth=6;x.lineCap="round";x.lineJoin="round";x.strokeStyle="#16306b";_sigEmpty=true;let dr=false,lx=0,ly=0;const pos=e=>{const r=cv.getBoundingClientRect();return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]};cv.onpointerdown=e=>{e.preventDefault();dr=true;[lx,ly]=pos(e);try{cv.setPointerCapture(e.pointerId)}catch(_){}};cv.onpointermove=e=>{if(!dr)return;e.preventDefault();const p=pos(e);x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1];_sigEmpty=false};cv.onpointerup=cv.onpointercancel=()=>{dr=false};}
 function sigClear(){const cv=document.getElementById("sigCanvas");if(cv){cv.getContext("2d").clearRect(0,0,cv.width,cv.height);_sigEmpty=true}}
