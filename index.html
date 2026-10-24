@@ -443,24 +443,99 @@ async function remove(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);i
 const COLS={actions:"actions",tasks:"tasks",equipment:"equipment",contractors:"contractors",records:"records",employees:"employees",items:"ppe_items",moves:"ppe_moves",permits:"permits",kpi:"kpi_entries",att:"attendance",leaves:"leaves"};
 async function boot(){
   setSync("بيتصل…","");
-  if(!window.claude?.use){booted=true;setSync("مش متصل","off");show(tab);return}
-  db = await window.claude.use("db");
-  userNS = await window.claude.use("user");
-  window.claude.use("assets").then(a=>{assetsNS=a;if(a)refresh()}).catch(()=>{});
-  try{ME.id=(await userNS?.id())||"";ME.name=(await userNS?.name())||"";const mb=document.getElementById("meBtn");if(mb)mb.textContent="👤 "+ME.name}catch(e){}
-  booted=true;
-  if(!db){setSync("مش متصل","off");show(tab);return}
-  try{canDelete = await userNS?.canEdit() ?? false; isOwner = await userNS?.isOwner() ?? false}catch(e){}
-  try{const w=await userNS?.can("data.write"); if(w===false) canWrite=false}catch(e){}
-  BASE={del:canDelete,write:canWrite};
-  setSync("متصل","on"); online=true;
-  for(const [k,p] of Object.entries(COLS)){
-    db.collection(p).onSnapshot(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refresh()},()=>setSync("الاتصال اتقطع","off"));
+
+  // Try Supabase first
+  if(!window.SB){
+    booted=true;setSync("مش متصل","off");show(tab);return;
   }
-  db.collection("legacy").onSnapshot(s=>{const acc={};for(const d of s.docs){const x=d.data();(acc[x.kind]??=[]).push(...(x.rows||[]))}LEG=acc;legacyLoaded=true;for(const k of Object.keys(COLS))merge(k);refresh()},()=>{});
-  db.collection("__profiles").onSnapshot(s=>{S.profiles=s.docs.map(d=>({id:d.id,...d.data()}));const me=S.profiles.find(p=>p.id===ME.id);if(me){window.SBA.profile=me;if(me.disabled){location.reload()}}applyRole();if(tab==="settings")refresh()},()=>{});
-  db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==="settings")refresh()},()=>{});
-  db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();document.getElementById("projectName").textContent="HSE · "+(S.settings.project||"المشروع");refresh()},()=>{});
+
+  // Check user session
+  const {data: {session}, error} = await window.SB.auth.getSession();
+  if(error || !session) {
+    booted=true;setSync("مش متصل","off");show(tab);return;
+  }
+
+  // Set user info
+  ME.id = session.user?.id || "";
+  ME.name = session.user?.email || "";
+  const mb = document.getElementById("meBtn");
+  if(mb) mb.textContent = "👤 " + ME.name;
+
+  booted=true;
+  if(!window.SB) {setSync("مش متصل","off");show(tab);return}
+
+  canDelete = true;
+  isOwner = false;
+  canWrite = true;
+  BASE = {del:canDelete, write:canWrite};
+  setSync("متصل","on");
+  online = true;
+
+  // Load data from Supabase
+  db = {
+    collection: (name) => ({
+      onSnapshot: async (callback, error) => {
+        try {
+          const {data, error: err} = await window.SB.from(name).select('*');
+          if(err) throw err;
+          callback({docs: data.map(d => ({id: d.id, data: () => d}))});
+        } catch(e) {
+          if(error) error(e);
+        }
+      }
+    }),
+    doc: (path) => ({
+      onSnapshot: async (callback, error) => {
+        try {
+          const [coll, docId] = path.split('/');
+          const {data, error: err} = await window.SB.from(coll).select('*').eq('id', docId).single();
+          if(err) throw err;
+          callback({exists: !!data, data: () => data});
+        } catch(e) {
+          if(error) error(e);
+        }
+      }
+    })
+  };
+  // Load data from Supabase
+  const loadTable = async (k, p) => {
+    try {
+      const {data, error} = await window.SB.from(p).select('*');
+      if(error) throw error;
+      S[k] = data || [];
+      loaded[k] = true;
+      refresh();
+    } catch(e) {
+      console.error('Error loading ' + p + ':', e);
+      setSync("خطأ في تحميل البيانات","off");
+    }
+  };
+
+  for(const [k,p] of Object.entries(COLS)) {
+    loadTable(k, p);
+  }
+
+  // Load profiles
+  try {
+    const {data, error} = await window.SB.from('profiles').select('*');
+    if(!error) {
+      S.profiles = data || [];
+      applyRole();
+      if(tab==="settings") refresh();
+    }
+  } catch(e) {}
+
+  // Load settings
+  try {
+    const {data, error} = await window.SB.from('settings').select('*').eq('id', 'main').single();
+    if(!error && data) {
+      S.settings = data;
+      loaded.settings = true;
+      applyRole();
+      document.getElementById("projectName").textContent = "HSE · " + (S.settings.project || "المشروع");
+      refresh();
+    }
+  } catch(e) {}
   show(tab);
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
@@ -1012,7 +1087,7 @@ async function sendInvite(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!
 async function newPin(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const pin=genPin();
   try{await SBA.fn("reset",{user_id:uid,password:pin});await savePin(uid,{pin,username:p.username});toast("اتعملت كلمة سر جديدة");setTimeout(()=>sendInvite(uid),300)}catch(e){toast(SBA.ar(e))}}
 function meMenuBase(){openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p><div class="form">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
-  <button type="button" class="btn danger" style="margin-top:14px" onclick="SB.auth.signOut()">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
+  <button type="button" class="btn danger" style="margin-top:14px" onclick="window.SB.auth.signOut().then(()=>location.href='/')">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(!window.SB)return "مش متصل";if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await window.SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
 function settleInvites(){}
 // reminders
 function remindersBase(){
@@ -3103,7 +3178,7 @@ function refresh(){refreshBase();clearTimeout(window._navT);window._navT=setTime
 
 /* ---------- daily reminders (07:45 · 12:55 · 15:00) ---------- */
 const NOTIFY_URL=()=>(window.SB_URL||"")+"/functions/v1/notify";
-async function notifyCall(body,auth){const h={"Content-Type":"application/json",apikey:window.SB_KEY||""};if(auth){const {data:{session}}=await SB.auth.getSession();if(session)h.Authorization="Bearer "+session.access_token}
+async function notifyCall(body,auth){const h={"Content-Type":"application/json",apikey:window.SB_KEY||""};if(auth&&window.SB){const {data:{session}}=await window.SB.auth.getSession();if(session)h.Authorization="Bearer "+session.access_token}
   const r=await fetch(NOTIFY_URL(),{method:"POST",headers:h,body:JSON.stringify(body)});const x=await r.json().catch(()=>({}));if(!r.ok||x.error)throw new Error(x.error||("http_"+r.status));return x}
 const pushSupported=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
 const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
