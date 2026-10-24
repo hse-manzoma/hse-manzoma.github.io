@@ -7,6 +7,12 @@ const sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,a
 window.SB=sb;window.SB_URL=SB_URL;window.SB_KEY=SB_KEY;
 const emailOf=u=>`${String(u).trim().toLowerCase().replace(/[^a-z0-9._-]/g,"")}@${DOMAIN}`;
 window.SBA={emailOf,DOMAIN,profile:null,user:null};
+async function cleanupLocalPush(){
+  try{const reg=await navigator.serviceWorker?.getRegistration();if(!reg)return;const [sub,notifs]=await Promise.all([reg.pushManager?.getSubscription(),reg.getNotifications?.()||[]]);for(const n of notifs||[])try{n.close()}catch(e){}if(sub){try{await sb.from("push_subs").delete().eq("endpoint",sub.endpoint)}catch(e){console.warn("Could not remove push subscription row",e)}try{await sub.unsubscribe()}catch(e){}}}catch(e){console.warn("Push cleanup skipped",e)}
+}
+async function cleanupOtherPushRows(){try{const reg=await navigator.serviceWorker?.getRegistration(),sub=await reg?.pushManager?.getSubscription();let q=sb.from("push_subs").delete();if(sub)q=q.neq("endpoint",sub.endpoint);const {error}=await q;if(error){console.warn("Could not remove push subscriptions from other browsers",error);window.SBA.pushCleanupWarning=true;return false}window.SBA.pushCleanupWarning=false;return true}catch(e){console.warn("Other-browser push cleanup skipped",e);window.SBA.pushCleanupWarning=true;return false}}
+window.SBA.cleanupLocalPush=cleanupLocalPush;
+window.SBA.logout=async()=>{await cleanupLocalPush();const {error}=await sb.auth.signOut({scope:"local"});if(error)throw error};
 
 /* ---------- auth gate ---------- */
 let readyResolve;const ready=new Promise(r=>readyResolve=r);
@@ -33,7 +39,7 @@ function gateHTML(first){return `<div id="gate" style="position:fixed;inset:0;z-
     <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">كلمة السر</label>
     <input name="p" type="password" dir="ltr" autocomplete="${first?"new-password":"current-password"}" required style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cfd8d3;border-radius:10px;font-size:15px;margin-bottom:12px">
     ${first?`<label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">تأكيد كلمة السر</label><input name="p2" type="password" dir="ltr" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cfd8d3;border-radius:10px;font-size:15px;margin-bottom:12px">`:""}
-    <div id="gateMsg" style="color:#c92a2a;font-size:13px;min-height:18px;margin-bottom:8px"></div>
+    <div id="gateMsg" style="color:#c92a2a;font-size:13px;min-height:18px;margin-bottom:8px">${(()=>{try{const m=sessionStorage.getItem("hse.session.enforce.error")||"";sessionStorage.removeItem("hse.session.enforce.error");return m}catch(e){return ""}})()}</div>
     <button style="width:100%;padding:12px;border:0;border-radius:10px;background:#d9480f;color:#fff;font-size:15px;font-weight:700;cursor:pointer">${first?"إنشاء الحساب والدخول":"دخول"}</button>
   </form></div>`}
 async function showGate(){
@@ -48,13 +54,16 @@ async function showGate(){
 async function loadProfile(uid){const {data}=await sb.from("profiles").select("*").eq("user_id",uid).maybeSingle();return data}
 async function afterLogin(session){
   window.SBA.user=session.user;const prof=await loadProfile(session.user.id);window.SBA.profile=prof;
-  if(!prof||prof.disabled){document.getElementById("gate")?.remove();document.body.insertAdjacentHTML("beforeend",`<div id="gate" style="position:fixed;inset:0;z-index:9999;background:#f4f6f5;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:system-ui;padding:16px"><div style="background:#fff;border-radius:16px;padding:26px;max-width:380px;text-align:center"><h2 style="font-size:17px">${prof?"حسابك موقوف":"الحساب ده مالوش صلاحيات"}</h2><p style="color:#6b7a73;font-size:14px">كلّم مدير المنظومة.</p><button onclick="SB.auth.signOut().then(()=>location.reload())" style="padding:10px 18px;border:0;border-radius:10px;background:#d9480f;color:#fff">خروج</button></div></div>`);return}
+  if(!prof||prof.disabled){document.getElementById("gate")?.remove();document.body.insertAdjacentHTML("beforeend",`<div id="gate" style="position:fixed;inset:0;z-index:9999;background:#f4f6f5;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:system-ui;padding:16px"><div style="background:#fff;border-radius:16px;padding:26px;max-width:380px;text-align:center"><h2 style="font-size:17px">${prof?"حسابك موقوف":"الحساب ده مالوش صلاحيات"}</h2><p style="color:#6b7a73;font-size:14px">كلّم مدير المنظومة.</p><button onclick="SBA.logout().then(()=>location.reload())" style="padding:10px 18px;border:0;border-radius:10px;background:#d9480f;color:#fff">خروج</button></div></div>`);return}
+  const {error:sessionErr}=await sb.auth.signOut({scope:"others"});
+  if(sessionErr){console.error("Could not enforce a single active session",sessionErr);try{sessionStorage.setItem("hse.session.enforce.error","تعذر إنهاء جلسات المتصفحات الأخرى. تحقق من الاتصال ثم حاول تسجيل الدخول مرة أخرى.")}catch(e){}await sb.auth.signOut({scope:"local"});return}
+  await cleanupOtherPushRows();
   document.getElementById("gate")?.remove();readyResolve();
 }
 let started=false;
 sb.auth.onAuthStateChange((ev,session)=>{
   if(session&&!started){started=true;afterLogin(session)}
-  if(!session&&ev==="SIGNED_OUT")location.reload();
+  if(!session&&ev==="SIGNED_OUT")cleanupLocalPush().finally(()=>location.reload());
 });
 sb.auth.getSession().then(({data:{session}})=>{if(session){if(!started){started=true;afterLogin(session)}}else showGate()});
 

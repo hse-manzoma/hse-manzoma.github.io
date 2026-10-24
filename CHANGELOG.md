@@ -1,5 +1,15 @@
 # منظومة السلامة - الإصدار v5 - ملخص التحديثات
 
+## جلسات الدخول والتنبيهات
+- عند تسجيل الدخول، ينهي التطبيق جلسات الحساب الأخرى مع إبقاء جلسة المتصفح الحالي.
+- زر تسجيل الخروج ينهي جلسة هذا المتصفح بعد إزالة اشتراك التنبيهات الخاص به وإغلاق الإشعارات المفتوحة.
+- عند الدخول من متصفح جديد، يحاول التطبيق إزالة اشتراكات التنبيه الخاصة بالمتصفحات الأخرى مع الإبقاء على اشتراك المتصفح الحالي.
+- عند اكتشاف تسجيل خروج من الخادم، يحاول التطبيق تنظيف اشتراك وإشعارات المتصفح قبل إعادة تحميل صفحة الدخول.
+
+## استكمال أوقات التصاريح التاريخية
+- زر خاص بمدير المنظومة لمراجعة التصاريح المغلقة القديمة التي ينقصها وقت البداية أو النهاية.
+- بعد التأكيد، تُملأ الخانات الناقصة فقط بـ 08:00 و16:00؛ لا تُستبدل الأوقات الموجودة ولا تُنشأ توقيعات إلكترونية.
+
 ## 🎯 الأدوار الجديدة (New Roles)
 
 ### 1. **المراقب (🔍 Monitor)**
@@ -43,7 +53,7 @@
 1. **الموظف/المراقب**: يسجل المخالفة (محرر فقط)
    - يرسلها للادمن للمراجعة
 
-2. **الادمن**: 
+2. **الادمن**:
    - يراجع المخالفة
    - يعدّل عليها
    - يوقّع عليها كمحرر للمخالفة
@@ -113,12 +123,3 @@
 **نسخة**: v5
 **التاريخ**: 2026-10-23
 **الحالة**: جاهز للاختبار والرفع
-
-
-## 2026-10-24 — Bulk incident import
-- Added a bulk import workflow to the F-HSE-03-01 incident form list.
-- Accepts multiple photos and PDF files; PDFs are converted into page images for OCR and attachment.
-- Uses Arabic/English OCR as a draft only, with editable fields and raw OCR text shown for review before saving.
-- Supports merging a page into the previous page/report, so two-page incident reports can be kept together.
-- Uploads source page images as incident attachments and stores an import fingerprint to avoid importing the same pages twice.
-- OCR requires internet access to load Tesseract.js, Arabic language data, and PDF.js. Handwritten text must be checked manually.
