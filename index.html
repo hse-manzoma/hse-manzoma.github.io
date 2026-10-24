@@ -475,7 +475,7 @@ function showBase(t){
   try{localStorage.setItem("hse.tab",tab)}catch(e){}
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
   const m=document.getElementById("main");
-  m.innerHTML=(booted&&!db?`<div class="banner">الصفحة مش متصلة بقاعدة البيانات دلوقتي. اتأكد من النت وحدّث الصفحة.</div>`:(!BASE.write?`<div class="banner">عندك صلاحية مشاهدة بس.</div>`:(!canWrite&&tab!=="dash"&&tab!=="join"?`<div class="banner">القسم ده متاح لك للمشاهدة بس.</div>`:"")))+VIEWS[tab].shell();
+  m.innerHTML=(window.SBA?.pushCleanupWarning?`<div class="banner">تعذر حذف اشتراكات التنبيهات القديمة من متصفحات أخرى. افتح كل متصفح قديم وسجّل الخروج منه مرة واحدة لإيقاف التنبيهات عليه.</div>`:"")+(booted&&!db?`<div class="banner">الصفحة مش متصلة بقاعدة البيانات دلوقتي. اتأكد من النت وحدّث الصفحة.</div>`:(!BASE.write?`<div class="banner">عندك صلاحية مشاهدة بس.</div>`:(!canWrite&&tab!=="dash"&&tab!=="join"?`<div class="banner">القسم ده متاح لك للمشاهدة بس.</div>`:"")))+VIEWS[tab].shell();
   VIEWS[tab].bind?.(m);
   VIEWS[tab].fill();
 }
@@ -1012,7 +1012,7 @@ async function sendInvite(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!
 async function newPin(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const pin=genPin();
   try{await SBA.fn("reset",{user_id:uid,password:pin});await savePin(uid,{pin,username:p.username});toast("اتعملت كلمة سر جديدة");setTimeout(()=>sendInvite(uid),300)}catch(e){toast(SBA.ar(e))}}
 function meMenuBase(){openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p><div class="form">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
-  <button type="button" class="btn danger" style="margin-top:14px" onclick="SB.auth.signOut()">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
+  <button type="button" class="btn danger" style="margin-top:14px" onclick="SBA.logout().then(()=>location.reload()).catch(()=>toast('تعذر تسجيل الخروج'))">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
 function settleInvites(){}
 // reminders
 function remindersBase(){
@@ -3138,7 +3138,7 @@ async function enablePush(){
     let sub=await reg.pushManager.getSubscription();if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(pub)});
     const {error}=await SB.from("push_subs").upsert({endpoint:sub.endpoint,sub:sub.toJSON(),ua:navigator.userAgent.slice(0,200)});if(error)throw error;
     toast("اتفعلت التنبيهات اليومية ✔");refresh();return true}catch(e){console.error(e);toast("مقدرتش أفعّل التنبيهات دلوقتي، جرّب تاني");return false}}
-async function disablePush(){try{const reg=await navigator.serviceWorker.getRegistration();const s=await reg?.pushManager.getSubscription();if(s){await SB.from("push_subs").delete().eq("endpoint",s.endpoint);await s.unsubscribe()}toast("اتقفلت التنبيهات");refresh()}catch(e){toast("حصلت مشكلة")}}
+async function disablePush(){try{await SBA.cleanupLocalPush();toast("اتقفلت تنبيهات هذا المتصفح");refresh()}catch(e){toast("حصلت مشكلة")}}
 async function testPush(){try{const x=await notifyCall({action:"test",slot:"morning"},true);toast(x.sent?"اتبعت تنبيه تجربة ✔":"مفيش جهاز متفعل عليه التنبيهات")}catch(e){toast("التجربة فشلت")}}
 /* in-app fallback while the app is open */
 const SLOT_T=[["morning",465],["break",775],["end",900]];
