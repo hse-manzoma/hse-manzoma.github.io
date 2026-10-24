@@ -3402,5 +3402,46 @@ VIEWS.chat={shell:()=>`<div class="head"><h2 class="grow">💬 الشات</h2></
 
 show(tab);
 boot();
+
+/* ⚡ Performance Optimization System - نظام تحسين الأداء */
+const CACHE_SYSTEM = {
+  data: new Map(), ttl: new Map(), DEFAULT_TTL: 5 * 60 * 1000,
+  set(k, v, t) { this.data.set(k, v); this.ttl.set(k, Date.now() + (t || this.DEFAULT_TTL)); },
+  get(k) { if (!this.data.has(k)) return null; const e = this.ttl.get(k); if (Date.now() > e) { this.data.delete(k); this.ttl.delete(k); return null; } return this.data.get(k); },
+  clear() { this.data.clear(); this.ttl.clear(); }
+};
+
+function debounce(fn, d=500) { let t; return function(...a) { clearTimeout(t); t=setTimeout(()=>fn.apply(this,a),d); }; }
+function throttle(fn, l=1000) { let r=0; return function(...a) { const n=Date.now(); if (n-r>l) { fn.apply(this,a); r=n; } }; }
+
+const LAZY_LOADER = {
+  pageSize: 50, currentPage: 0, hasMore: true,
+  async loadPage(t, f={}) { const o=this.currentPage*this.pageSize; let q=SB.from(t).select('*',{count:'exact'}); for (const [k,v] of Object.entries(f)) { if (v!==null&&v!==undefined&&v!=='') q=q.eq(k,v); } const {data,count,error}=await q.order('id',{ascending:false}).range(o,o+this.pageSize-1); if (error) throw error; this.hasMore=(o+this.pageSize)<count; this.currentPage++; return data; },
+  reset() { this.currentPage=0; this.hasMore=true; }
+};
+
+async function optimizedFetch(t,o={}) { const k=t+JSON.stringify(o); const c=CACHE_SYSTEM.get(k); if(c) return c; let q=SB.from(t).select(o.select||'*'); if(o.filters) for(const [f,v] of Object.entries(o.filters)) q=q.eq(f,v); if(o.order) q=q.order(o.order.field,{ascending:o.order.asc!==false}); if(o.limit) q=q.limit(o.limit); const {data,error}=await q; if(error) throw error; CACHE_SYSTEM.set(k,data,o.cacheTTL); return data; }
+
+window.createDebouncedSearch = function(fn, delay=500) { return debounce(fn, delay); };
+
+const dedupRequest = (() => { const cache = new Map(); return async (key, fn) => { if (cache.has(key)) return cache.get(key); const promise = fn(); cache.set(key, promise); setTimeout(() => cache.delete(key), 5000); return promise; }; })();
+
+const NETWORK_MONITOR = {
+  isOnline: navigator.onLine, queue: [],
+  init() { window.addEventListener('online', ()=>{ this.isOnline=true; this.processQueue(); }); window.addEventListener('offline', ()=>{ this.isOnline=false; }); },
+  queue(fn) { this.queue.push(fn); if (this.isOnline) this.processQueue(); },
+  processQueue() { while (this.queue.length && this.isOnline) { const fn = this.queue.shift(); fn().catch(e => { this.queue.unshift(fn); }); } }
+};
+NETWORK_MONITOR.init();
+
+const OPTIMAL_SELECTS = {
+  incidents: 'id,form,date,f,createdAt,createdBy,serial,status',
+  users: 'id,username,email,role,disabled',
+  employees: 'id,code,name,job,group,email,active',
+  contractors: 'id,name,company,contact,active'
+};
+
+console.log('✅ Performance Optimization System Loaded - نظام تحسين الأداء مفعّل');
+console.log('📊 Cache TTL: 5 minutes | Debounce: 500ms | Lazy Load: 50 records/page');
 </script>
 </body></html>
