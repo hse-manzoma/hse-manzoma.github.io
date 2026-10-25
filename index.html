@@ -434,229 +434,33 @@ async function write(fn, okMsg){
     console.error(e);return false
   }
 }
-let LEG={},legacyLoaded=false,legacyDb=null;const LIVE={},STORAGE_MODE={};
+let LEG={},legacyLoaded=false;const LIVE={};
 function merge(k){const live=LIVE[k]||[];const leg=LEG[k]||[];if(!leg.length){S[k]=live.filter(x=>!x._deleted);return}
   const ids=new Map(live.map(x=>[x.id,x]));const out=[];for(const r of leg){const o=ids.get(r.id);if(o){ids.delete(r.id);if(!o._deleted)out.push(o)}else out.push(r)}for(const o of ids.values())if(!o._deleted)out.push(o);S[k]=out}
-async function readDocsCollection(name){
-  if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-  if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
-  return new Promise((resolve,reject)=>{
-    let unsubscribe=()=>{},done=false;
-    unsubscribe=legacyDb.collection(name).onSnapshot(s=>{if(done)return;done=true;unsubscribe();resolve(s.docs.map(d=>({id:d.id,...d.data()})))},e=>{if(done)return;done=true;unsubscribe();reject(e)});
-  });
-}
 function current(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);return (S[k]||[]).find(x=>x.id===id)}
-async function upsert(col,id,data){
-  if(!window.SB) throw new Error("مش متصل");
-  if(STORAGE_MODE[col]==="docs"){
-    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-    if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
-    await legacyDb.doc(col+"/"+id).update(data);return;
-  }
-  const {error} = await window.SB.from(col).upsert({id,...data});
-  if(error){
-    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-    if(!legacyDb) throw error;
-    await legacyDb.doc(col+"/"+id).update(data);STORAGE_MODE[col]="docs";
-  }
-}
-async function remove(col,id){
-  if(!window.SB) throw new Error("مش متصل");
-  if(STORAGE_MODE[col]==="docs"){
-    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-    if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
-    await legacyDb.doc(col+"/"+id).delete();return;
-  }
-  const {error} = await window.SB.from(col).delete().eq('id',id);
-  if(error){
-    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-    if(!legacyDb) throw error;
-    await legacyDb.doc(col+"/"+id).delete();STORAGE_MODE[col]="docs";
-  }
-}
-async function removeBulk(col,ids){
-  if(!window.SB) throw new Error("مش متصل");
-  if(!ids.length) return;
-  if(STORAGE_MODE[col]==="docs"){
-    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-    if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
-    for(const id of ids) await legacyDb.doc(col+"/"+id).delete();return;
-  }
-  const {error} = await window.SB.from(col).delete().in('id',ids);
-  if(error){
-    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-    if(!legacyDb) throw error;
-    for(const id of ids) await legacyDb.doc(col+"/"+id).delete();STORAGE_MODE[col]="docs";
-  }
-}
+async function upsert(col,id,data){const cur=current(col,id)||{};const {id:_,...rest}=cur;await db.doc(col+"/"+id).set({...rest,...data})}
+async function remove(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);if((LEG[k]||[]).some(r=>r.id===id))await db.doc(col+"/"+id).set({_deleted:true});else await db.doc(col+"/"+id).delete()}
 const COLS={actions:"actions",tasks:"tasks",equipment:"equipment",contractors:"contractors",records:"records",employees:"employees",items:"ppe_items",moves:"ppe_moves",permits:"permits",kpi:"kpi_entries",att:"attendance",leaves:"leaves"};
 async function boot(){
   setSync("بيتصل…","");
-
-  // Wait until supa.js finishes restoring the saved login session. Starting
-  // getSession() before that can incorrectly mark the app as disconnected.
-  try{if(window.SBA?.ready) await window.SBA.ready}catch(e){console.warn("Session restore wait failed",e)}
-
-  // Try Supabase first
-  if(!window.SB){
-    booted=true;setSync("مش متصل","off");show(tab);return;
-  }
-
-  // Check user session
-  const {data: {session}, error} = await window.SB.auth.getSession();
-  if(error || !session) {
-    booted=true;setSync("مش متصل","off");show(tab);return;
-  }
-
-  try{legacyDb=await window.claude?.use?.("db")}catch(e){console.warn("Legacy docs store unavailable",e)}
-
-  // Set user info
-  ME.id = session.user?.id || "";
-  ME.name = session.user?.email || "";
-  const mb = document.getElementById("meBtn");
-  if(mb) mb.textContent = "👤 " + ME.name;
-
+  if(!window.claude?.use){booted=true;setSync("مش متصل","off");show(tab);return}
+  db = await window.claude.use("db");
+  userNS = await window.claude.use("user");
+  window.claude.use("assets").then(a=>{assetsNS=a;if(a)refresh()}).catch(()=>{});
+  try{ME.id=(await userNS?.id())||"";ME.name=(await userNS?.name())||"";const mb=document.getElementById("meBtn");if(mb)mb.textContent="👤 "+ME.name}catch(e){}
   booted=true;
-  if(!window.SB) {setSync("مش متصل","off");show(tab);return}
-
-  canDelete = true;
-  isOwner = false;
-  canWrite = true;
-  BASE = {del:canDelete, write:canWrite};
-  setSync("متصل","on");
-  online = true;
-
-  // Load data from Supabase
-  db = {
-    collection: (name) => ({
-      add: async (value) => {
-        const key = Object.keys(COLS).find(k => COLS[k] === name);
-        if(STORAGE_MODE[name]==="docs"){
-          if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-          if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
-          const ref=await legacyDb.collection(name).add(value);
-          if(key) S[key]=[...(S[key]||[]),{id:ref.id,...value}];
-          if(!importing) refresh();
-          return ref;
-        }
-        let data;
-        try{
-          const result=await window.SB.from(name).insert(value).select('*').single();
-          if(result.error) throw result.error;
-          data=result.data;STORAGE_MODE[name]="table";
-        }catch(err){
-          if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-          if(!legacyDb) throw err;
-          const ref=await legacyDb.collection(name).add(value);STORAGE_MODE[name]="docs";
-          if(key) S[key]=[...(S[key]||[]),{id:ref.id,...value}];
-          if(!importing) refresh();
-          return ref;
-        }
-        if(key && data) S[key] = [...(S[key] || []), data];
-        if(!importing) refresh();
-        return {id: data?.id};
-      },
-      onSnapshot: async (callback, error) => {
-        try {
-          const {data, error: err} = await window.SB.from(name).select('*');
-          if(err) throw err;
-          callback({docs: data.map(d => ({id: d.id, data: () => d}))});
-        } catch(e) {
-          if(error) error(e);
-        }
-      }
-    }),
-    doc: (path) => {
-      const [coll, docId] = path.split('/');
-      const docsRef = async () => {
-        if(!legacyDb) legacyDb=await window.claude?.use?.("db");
-        if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
-        return legacyDb.doc(path);
-      };
-      const setLocal = value => {if(coll==="settings"){S.settings=value||{};loaded.settings=true;document.getElementById("projectName").textContent="HSE · "+(S.settings.project||"المشروع");refresh()}};
-      return {
-        get: async () => {
-          if(STORAGE_MODE[coll]==="docs") return (await docsRef()).get();
-          const {data,error:err}=await window.SB.from(coll).select('*').eq('id',docId).maybeSingle();
-          if(!err) return {exists:!!data,id:docId,data:()=>data};
-          const ref=await docsRef();STORAGE_MODE[coll]="docs";return ref.get();
-        },
-        set: async value => {
-          if(STORAGE_MODE[coll]==="docs"){const ref=await docsRef();await ref.set(value);setLocal(value);return}
-          const {error:err}=await window.SB.from(coll).upsert({id:docId,...value});
-          if(err){const ref=await docsRef();await ref.set(value);STORAGE_MODE[coll]="docs"}setLocal(value);
-        },
-        update: async value => {
-          if(STORAGE_MODE[coll]==="docs"){const ref=await docsRef();await ref.update(value);return}
-          const {error:err}=await window.SB.from(coll).upsert({id:docId,...value});
-          if(err){const ref=await docsRef();await ref.update(value);STORAGE_MODE[coll]="docs"}
-        },
-        delete: async () => {
-          if(STORAGE_MODE[coll]==="docs"){const ref=await docsRef();return ref.delete()}
-          const {error:err}=await window.SB.from(coll).delete().eq('id',docId);
-          if(err){const ref=await docsRef();await ref.delete();STORAGE_MODE[coll]="docs"}
-        },
-        onSnapshot: async (callback, error) => {
-          try {
-            if(STORAGE_MODE[coll]==="docs"){(await docsRef()).onSnapshot(callback,error);return}
-            const {data, error: err} = await window.SB.from(coll).select('*').eq('id', docId).maybeSingle();
-            if(err) throw err;
-            callback({exists: !!data, data: () => data});
-          } catch(e) {
-            if(error) error(e);
-          }
-        }
-      };
-    }
-  };
-  // Load data from Supabase
-  const loadTable = async (k, p) => {
-    try {
-      const direct=await window.SB.from(p).select('*');
-      if(direct.error){
-        S[k]=await readDocsCollection(p);STORAGE_MODE[p]="docs";
-      }else if((direct.data||[]).length){
-        S[k]=direct.data;STORAGE_MODE[p]="table";
-      }else{
-        try{
-          const oldRows=await readDocsCollection(p);
-          if(oldRows.length){S[k]=oldRows;STORAGE_MODE[p]="docs"}
-          else{S[k]=direct.data||[];STORAGE_MODE[p]="table"}
-        }catch(e){S[k]=direct.data||[];STORAGE_MODE[p]="table"}
-      }
-      loaded[k] = true;
-      refresh();
-    } catch(e) {
-      console.error('Error loading ' + p + ':', e);
-      setSync("خطأ في تحميل البيانات","off");
-    }
-  };
-
-  for(const [k,p] of Object.entries(COLS)) {
-    loadTable(k, p);
+  if(!db){setSync("مش متصل","off");show(tab);return}
+  try{canDelete = await userNS?.canEdit() ?? false; isOwner = await userNS?.isOwner() ?? false}catch(e){}
+  try{const w=await userNS?.can("data.write"); if(w===false) canWrite=false}catch(e){}
+  BASE={del:canDelete,write:canWrite};
+  setSync("متصل","on"); online=true;
+  for(const [k,p] of Object.entries(COLS)){
+    db.collection(p).onSnapshot(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refresh()},()=>setSync("الاتصال اتقطع","off"));
   }
-
-  // Load profiles
-  try {
-    const {data, error} = await window.SB.from('profiles').select('*');
-    if(!error) {
-      S.profiles = data || [];
-      applyRole();
-      if(tab==="settings") refresh();
-    }
-  } catch(e) {}
-
-  // Load settings
-  try {
-    const direct=await window.SB.from('settings').select('*').eq('id', 'main').maybeSingle();
-    if(!direct.error&&direct.data){S.settings=direct.data;STORAGE_MODE.settings="table"}
-    else if(legacyDb){const old=await legacyDb.doc("settings/main").get();if(old.exists){S.settings=old.data()||{};STORAGE_MODE.settings="docs"}else STORAGE_MODE.settings=direct.error?"docs":"table"}
-    else STORAGE_MODE.settings=direct.error?"docs":"table";
-    loaded.settings=true;
-    applyRole();
-    document.getElementById("projectName").textContent = "HSE · " + (S.settings.project || "المشروع");
-    refresh();
-  } catch(e) {console.error("Error loading settings:",e);setSync("خطأ في تحميل البيانات","off")}
+  db.collection("legacy").onSnapshot(s=>{const acc={};for(const d of s.docs){const x=d.data();(acc[x.kind]??=[]).push(...(x.rows||[]))}LEG=acc;legacyLoaded=true;for(const k of Object.keys(COLS))merge(k);refresh()},()=>{});
+  db.collection("__profiles").onSnapshot(s=>{S.profiles=s.docs.map(d=>({...d.data(),id:d.id,user_id:d.data()?.user_id||d.id}));const me=S.profiles.find(p=>p.id===ME.id);if(me){window.SBA.profile=me;if(me.disabled){location.reload()}}applyRole();if(tab==="settings")refresh()},()=>{});
+  db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==="settings")refresh()},()=>{});
+  db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();document.getElementById("projectName").textContent="HSE · "+(S.settings.project||"المشروع");refresh()},()=>{});
   show(tab);
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
@@ -2362,16 +2166,16 @@ async function printPermit(id){
   const draft=["requested","supok","rejected"].includes(p.status);
   const V=openViewer(`${p.number} · ${PTW_TYPES[p.type]?.ar||""}`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""}.pdf`,
     note:draft?"ده لسه طلب ما اتعتمدش من السلامة، التصريح بيطلع برقم بعد اعتماد مسؤول السلامة.":p.status==="closed"&&p.closedAt?`اتقفل ${fmtDate(p.closedAt)} الساعة ${esc(p.closedTime||"—")} بواسطة ${esc(p.closeName||"مسؤول التصريح")}.`:(miss.length?`ناقص في التصريح: ${miss.join("، ")}. <button type="button" class="btn sm" onclick="pvClose();ptwForm('${p.id}')">كمّل البيانات</button>`:""),
-    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">✔ إغلاق التصريح</button>`:"")+(!draft&&myNameIn([v.req,v.site,v.hse,v.sup])?(p.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")});
+    extra:signCancelAdminHTML("permits",p.id,p)+(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">✔ إغلاق التصريح</button>`:"")+(!draft&&myNameIn([v.req,v.site,v.hse,v.sup])?(p.signs?.[ME.id]?`<button class="btn" data-extra onclick="requestSignCancel('permits','${p.id}',()=>printPermit('${p.id}'))">طلب إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")});
   try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
   const spec=(await loadForms2())[r.form];const personalSig=await mySig();await sigData();
-  const canAp=!!personalSig&&SIG_FIELDS[r.form]&&(r.form!=="F-HSE-07-01"||(myRole&&myRole()==="admin"));
+  const canAp=!!personalSig&&SIG_FIELDS[r.form]&&(!ADMIN_APPROVAL_FORMS.has(r.form)||myRole()==="admin");
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
-  const ext2=extra+corrHTML(r)+((r.form==="F-HSE-07-01"&&!r.approved&&myRole&&myRole()!=="admin")?`<button class="btn sign" data-extra onclick="submitViol('${r.id}')">📨 إرسال للاعتماد</button>`:"")+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
+  const ext2=extra+corrHTML(r)+recordReviewButton(r)+signCancelAdminHTML("records",r.id,r)+((r.form==="F-HSE-07-01"&&!r.approved&&myRole&&myRole()!=="admin")?`<button class="btn sign" data-extra onclick="submitViol('${r.id}')">📨 إرسال للأدمن للمراجعة</button>`:"")+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="requestSignCancel('records','${r.id}',()=>printRecord('${r.id}'))">طلب إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
   const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext2,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
@@ -2410,14 +2214,13 @@ async function renderGeneric(fid,rec){
 window.corrHTML=function(r){try{if(!(r.form==="F-HSE-07-01"||r.form==="F-HSE-07-03"))return "";const role=myRole&&myRole();const c=r.correct||{};let s="";if((role==="admin"||role==="officer"||role==="hsesup")&&!c.owner)s+=`<button class="btn" data-extra onclick="assignCorrect('${r.id}')">👷 تعيين مسؤول تصحيح</button>`;if(c.owner&&c.owner===ME.id&&!c.solution)s+=`<button class="btn sign" data-extra onclick="correctSolve('${r.id}')">🛠 حط الحل</button>`;return s}catch(e){return ""}};
 window.assignCorrect=async function(id){const r=S.records.find(x=>x.id===id);if(!r)return;const ppl=(S.profiles||[]).filter(p=>!p.disabled);if(!ppl.length){toast("مفيش مستخدمين");return}openSheet("تعيين مسؤول تصحيح",`<div class="form">${f("المستخدم","owner",{opts:[["","— اختر —"],...ppl.map(p=>[p.id,profName(p.id)])],req:true})}</div>`,async fd=>{if(!fd.owner)return "اختر مستخدم";const nm=profName(fd.owner);const ok=await write(()=>upsert("records",id,{correct:{owner:fd.owner,ownerName:nm,by:ME.id,at:Date.now()}}),"اتعيّن مسؤول التصحيح ✔");if(ok){try{notifyUsers([fd.owner],"🛠 إجراء تصحيحي مطلوب",((r.f&&r.f.place)||r.form)+" — افتح وحط الحل","?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}return ok?null:"الحفظ فشل"},"تعيين")};
 window.correctSolve=async function(id){const r=S.records.find(x=>x.id===id);if(!r)return;openSheet("حل الإجراء التصحيحي",`<div class="form"><div class="field full"><label>الحل / الإجراء المتخذ</label><textarea name="sol" rows="4"></textarea></div></div>`,async fd=>{const sv=(fd.sol||"").trim();if(!sv)return "اكتب الحل";const cur={...(r.correct||{})};cur.solution=sv;cur.doneBy=ME.id;cur.doneName=myEmpName();cur.doneAt=Date.now();const ok=await write(()=>upsert("records",id,{correct:cur}),"اتسجّل الحل ✔");if(ok){try{const _ad=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);notifyUsers([...(cur.by?[cur.by]:[]),..._ad],"✅ تم وضع حل الإجراء التصحيحي",(myEmpName()||"")+": "+sv.slice(0,60),"?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}return ok?null:"الحفظ فشل"},"حفظ الحل")};
-window.submitViol=async function submitViol(id){const r=S.records.find(x=>x.id===id);if(!r)return;const ok=await write(()=>upsert("records",id,{submitted:true,reporter:r.reporter||myEmpName(),submittedAt:Date.now()}),"اتبعت المخالفة للاعتماد 📨");if(ok){try{const _ad=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);notifyUsers(_ad,"🚩 مخالفة مستنية الاعتماد",(myEmpName()||"الفريق")+" بلّغ عن مخالفة محتاجة اعتماد وتوقيع محرّر المخالفة","?go=rec&id="+id)}catch(e){}try{pvClose()}catch(e){}}}
-async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;if(r.form==="F-HSE-07-01"&&myRole&&myRole()!=="admin"){toast("اعتماد المخالفة وتوقيع محرّرها للأدمن بس");return}const f={...(r.f||{})};
+window.submitRecordForApproval=async function submitRecordForApproval(id){const r=S.records.find(x=>x.id===id);if(!r||!ADMIN_APPROVAL_FORMS.has(r.form))return;if(myRole()==="admin"){toast("الأدمن يراجع ويعتمد مباشرة");return}if(r.submitted){toast("تم إرسال التقرير للمراجعة بالفعل");return}const title={"F-HSE-07-01":"مخالفة","F-HSE-03-01":"حادث / حادث وشيك","F-HSE-07-03":"ظرف أو تصرف غير آمن"}[r.form]||"تقرير";const ok=await write(()=>upsert("records",id,{submitted:true,reporter:r.reporter||myEmpName(),submittedBy:ME.id,submittedAt:Date.now()}),"تم إرسال التقرير للأدمن للمراجعة");if(ok){try{const admins=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);notifyUsers(admins,"تقرير يحتاج مراجعة واعتماد",(myEmpName()||"مستخدم")+" أرسل "+title+" للمراجعة والتوقيع","?go=rec&id="+encodeURIComponent(id))}catch(e){}try{pvClose()}catch(e){}}};window.submitViol=window.submitRecordForApproval;function recordReviewButton(r){if(!r||!ADMIN_APPROVAL_FORMS.has(r.form)||r.form==="F-HSE-07-01"||r.approved||myRole()==="admin")return "";return '<button class="btn sign" data-extra onclick="submitRecordForApproval(\''+r.id+'\')">📨 إرسال للأدمن للمراجعة</button>'} async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;if(ADMIN_APPROVAL_FORMS.has(r.form)&&myRole()!=="admin"){toast("اعتماد هذا النموذج للأدمن فقط");return}const f={...(r.f||{})};
   for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=myEmpName();const e=S.employees.find(x=>normName(x.name)===normName(f[k]));if(e)f[k+"_id"]=e.id}
   const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
   // Store approvalSig in f.approvedSig field for v5 separate signatures
   f.approvedSig=signature;
   if(await write(()=>upsert("records",id,{f,approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد بتوقيعك ✔")){setTimeout(()=>printRecord(id),300)}}
-async function unapproveRecord(id){if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300)}
+async function unapproveRecord(id){const r=S.records.find(x=>x.id===id);if(r&&ADMIN_APPROVAL_FORMS.has(r.form)&&myRole()!=="admin"){toast("إلغاء الاعتماد للأدمن فقط");return}if(await write(()=>upsert("records",id,{approved:null}),"اتلغى الاعتماد"))setTimeout(()=>printRecord(id),300)}
 const apPill=x=>x?.approved?'<span class="pill p-sign">✔ معتمد</span>':"";
 
 /* ---------- forms: preview before saving ---------- */
@@ -3059,7 +2862,7 @@ async function mrView(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;await
     <table style="margin-top:4mm"><thead><tr><th class="num">م</th><th>الصنف</th><th style="width:28mm">الكود</th><th style="width:20mm">الكمية</th><th style="width:20mm">الوحدة</th><th style="width:30mm">ملاحظات</th></tr></thead><tbody class="tall2">${rows.map((l,i)=>`<tr><td>${i+1}</td><td class="r">${l?esc(l.name):""}</td><td>${l?esc(l.code||""):""}</td><td>${l?num(l.qty):""}</td><td>${l?esc(l.unit||""):""}</td><td></td></tr>`).join("")}</tbody></table>
     <p><b>السبب / ملاحظات:</b> ${esc(r.note||"")}</p>${r.status==="rejected"?`<p style="color:#b42318"><b>مرفوض:</b> ${esc(r.rejNote||"")}</p>`:""}${r.status==="issued"?`<p><b>اتصرف بتاريخ:</b> ${fmtDate(r.issuedAt||"")} ${r.issueRef?`— مستند رقم ${esc(r.issueRef)}`:""}</p>`:""}
     <table style="margin-top:auto"><thead><tr><th>الطالب</th><th>اعتماد مسئول السلامة</th><th>أمين المخزن</th></tr></thead><tbody><tr><td>${esc(r.reqName||"")}</td><td>${r.status==="approved"||r.status==="issued"?esc(r.approved?.name||r.apName||""):""}</td><td>${esc(r.issuedBy||"")}</td></tr><tr style="height:16mm"><td>${await personSig(r,r.reqName)}</td><td>${sig}</td><td>${await personSig(r,r.issuedBy)}</td></tr></tbody></table></div></div>`;
-  const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:(personalSig&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:"")+(!isLeaderName(myEmpName())&&myNameIn([r.reqName,r.issuedBy])?(r.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('matreq','${r.id}',()=>mrView('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('matreq','${r.id}',{reopen:()=>mrView('${r.id}')})">✍ توقيعي</button>`):"")});V.setHtml(html)}
+  const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:signCancelAdminHTML("matreq",r.id,r)+(personalSig&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:"")+(!isLeaderName(myEmpName())&&myNameIn([r.reqName,r.issuedBy])?(r.signs?.[ME.id]?`<button class="btn" data-extra onclick="requestSignCancel('matreq','${r.id}',()=>mrView('${r.id}'))">طلب إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('matreq','${r.id}',{reopen:()=>mrView('${r.id}')})">✍ توقيعي</button>`):"")});V.setHtml(html)}
 async function mrSign(id){const r=S.matreq.find(x=>x.id===id);const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}const d={approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}};if(r.status==="new")Object.assign(d,{status:"approved",apName:myEmpName(),apAt:Date.now()});if(await write(()=>upsert("matreq",id,d),"اتعتمد ✔"))setTimeout(()=>mrView(id),300)}
 async function personSig(r,name){const s=signsOf(r).find(x=>name&&normName(x.name)===normName(name));if(!s)return "";const mine=s.signature||(s.uid===ME.id?await mySig():"");return mine?`<img class="sigimg" src="${mine}" alt="توقيع ${esc(s.name||"")}">`:""}
 
@@ -3170,11 +2973,11 @@ async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);c
   for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field)||ptwSkipRepeatedApproval(p.type,b,F.pages.length))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=permitSignRect(F.boxes,b,R,isD);if(r)await stampOn(pages[b.page||0],r,s.uid===ME.id?mine:"",s)}
   return pages}
 function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(v=>normName(v)===n)}
-async function signDoc(col,id,{reopen}={}){const src=await mySig();if(!src){toast("ضيف توقيعك الأول من 👤 حسابي ← ✍ توقيعي");sigEditor();return}
-  const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;const signs={...(x.signs||{}),[ME.id]:{uid:ME.id,name:myEmpName(),at:Date.now(),signature:src}};
-  if(await write(()=>upsert(col,id,{signs}),"اتوقّع ✔"))setTimeout(()=>reopen&&reopen(),300)}
-async function unsignDoc(col,id,reopen){const x=current(col,id)||S.matreq.find(r=>r.id===id);const signs={...(x?.signs||{})};delete signs[ME.id];if(await write(()=>upsert(col,id,{signs}),"اتشال توقيعك"))setTimeout(()=>reopen&&reopen(),300)}
-/* editor */
+async function signDoc(col,id,{reopen}={}){const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;if(x.signs?.[ME.id]){toast("أنت موقّع بالفعل");return}if(col==="records"){const spec=(await loadForms2())[x.form];const vals=(spec?.fields||[]).filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,x,f.k));if(!myNameIn(vals)){toast("التوقيع متاح فقط للشخص المذكور في التقرير");return}}else if(col==="permits"){const v=ptwValues(x);if(!myNameIn([v.req,v.site,v.hse,v.sup])){toast("التوقيع متاح فقط للأشخاص المذكورين في التصريح");return}}const src=await mySig();if(!src){toast("ضيف توقيعك الأول من 👤 حسابي ← ✍ توقيعي");sigEditor();return}const signs={...(x.signs||{}),[ME.id]:{uid:ME.id,name:myEmpName(),at:Date.now(),signature:src}};if(await write(()=>upsert(col,id,{signs}),"اتوقّع ✔"))setTimeout(()=>reopen&&reopen(),300)}
+function signCancelAdminHTML(col,id,doc){if(myRole()!=="admin")return "";const pending=Object.entries(doc?.signCancelRequests||{}).filter(([,q])=>q?.status==="pending");return pending.map(([uid,q])=>'<span class="muted" data-extra>طلب إلغاء توقيع من '+esc(q.name||uid)+'</span><button class="btn sm ok" data-extra onclick="decideSignCancel(\''+col+'\',\''+id+'\',\''+uid+'\',true)">موافقة</button><button class="btn sm danger" data-extra onclick="decideSignCancel(\''+col+'\',\''+id+'\',\''+uid+'\',false)">رفض</button>').join("")}
+async function requestSignCancel(col,id,reopen){const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x||!x.signs?.[ME.id]){toast("لا يوجد توقيع لك على هذا المستند");return}const requests={...(x.signCancelRequests||{})};if(requests[ME.id]?.status==="pending"){toast("طلبك مستني مراجعة الأدمن");return}requests[ME.id]={uid:ME.id,name:myEmpName(),requestedAt:Date.now(),status:"pending"};if(await write(()=>upsert(col,id,{signCancelRequests:requests}),"اتبعت طلب إلغاء التوقيع للأدمن")){try{const admins=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);const url=col==="permits"?"?go=ptw&id="+encodeURIComponent(id):col==="records"?"?go=rec&id="+encodeURIComponent(id):"?go=mr";notifyUsers(admins,"طلب إلغاء توقيع",(myEmpName()||"مستخدم")+" طلب إلغاء توقيعه على مستند",url)}catch(e){}setTimeout(()=>reopen&&reopen(),300)}}
+async function decideSignCancel(col,id,uid,approve){if(myRole()!=="admin"){toast("مراجعة طلبات إلغاء التوقيع للأدمن فقط");return}const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);const requests={...(x?.signCancelRequests||{})};const q=requests[uid];if(!x||!q||q.status!=="pending"){toast("الطلب لم يعد معلقًا");return}requests[uid]={...q,status:approve?"approved":"rejected",decidedBy:ME.id,decidedName:myEmpName(),decidedAt:Date.now()};const patch={signCancelRequests:requests};if(approve){const signs={...(x.signs||{})};delete signs[uid];patch.signs=signs}if(await write(()=>upsert(col,id,patch),approve?"تمت الموافقة على إلغاء التوقيع":"تم رفض طلب إلغاء التوقيع")){try{const url=col==="permits"?"?go=ptw&id="+encodeURIComponent(id):col==="records"?"?go=rec&id="+encodeURIComponent(id):"?go=mr";notifyUsers([uid],approve?"تمت الموافقة على طلبك":"تم رفض طلب إلغاء التوقيع",approve?"وافق الأدمن على حذف توقيعك من المستند.":"رفض الأدمن حذف توقيعك من المستند.",url)}catch(e){}setTimeout(()=>{if(col==="records")printRecord(id);else if(col==="permits")printPermit(id);else mrView(id)},300)}}
+async function unsignDoc(col,id,reopen){return requestSignCancel(col,id,reopen)}/* editor */
 function sigEditor(){
   openSheet("✍ توقيعي",`<p class="muted" style="margin-top:0;font-size:13.5px">ارسم توقيعك بصباعك أو بالماوس جوه المربع، أو صوّر توقيعك على ورقة بيضا وارفعه.</p>
     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="sgC" width="900" height="300" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
@@ -3363,7 +3166,7 @@ Object.assign(BUILTIN_ROLES,{
   mgmt:{ar:"إدارة (مشاهدة التقارير)",tabs:{dash:"view",report:"view",kpi:"view",...VIEW_ALL}}
 });
 const REVIEWERS=["admin","hse","hsesup"];const AUTHORS_NEED_REVIEW=["officer","monitor"];
-const LECT_ROLES=["hse","hsesup","officer"];
+const ADMIN_APPROVAL_FORMS=new Set(["F-HSE-07-01","F-HSE-03-01","F-HSE-07-03"]);const LECT_ROLES=["hse","hsesup","officer","executionEng","sup","hseSupervisor"];
 const myRole=()=>myAccess()?.role||"";
 const profOf=uid=>(S.profiles||[]).find(p=>p.id===uid);
 VIEWS.hr={shell:()=>`<div class="head"><h2 class="grow">الموارد البشرية</h2></div><div id="hrBody"></div>`,
@@ -3428,7 +3231,7 @@ function goTo(url){const q=new URLSearchParams(String(url).split("?")[1]||"");co
   if(go==="ptw-close"){show("ptw");setTimeout(()=>ptwClose(id),500)}
   else if(go==="ptw"){show("ptw");const p=S.permits.find(x=>x.id===id);if(p&&!ptwDraft(p))setTimeout(()=>printPermit(id),200)}
   else if(go==="rec"){if(id)printRecord(id)}else if(go==="chat"){ui.chatRoom=id||"team";show("chat")}
-  else if(go==="mr"){show("matreq")}else if(go==="follow"){show("follow")}else if(go==="me"){show("me")}else show(go)}
+  else if(go==="mr"){show("matreq");if(id)setTimeout(()=>mrView(id),200)}else if(go==="follow"){show("follow")}else if(go==="me"){show("me")}else show(go)}
 function playBeep(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;const ctx=playBeep._c||(playBeep._c=new AC());if(ctx.state==="suspended")ctx.resume();const t=ctx.currentTime;[0,0.18].forEach((off,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=i?1046:784;o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.0001,t+off);g.gain.exponentialRampToValueAtTime(0.25,t+off+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+off+0.16);o.start(t+off);o.stop(t+off+0.17)})}catch(e){}}
 function startRealtime(){if(window._rtOn||!ME.id)return;window._rtOn=true;loadNotifs();
   try{SB.channel("me-"+ME.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"notif",filter:`to_uid=eq.${ME.id}`},p=>{NOTIFS.unshift(p.new);bellBadge();playBeep();showReminder({title:p.new.title,body:p.new.body||"",url:p.new.url||""})}).on("postgres_changes",{event:"INSERT",schema:"public",table:"chat"},p=>onChatInsert(p.new)).subscribe()}catch(e){}
