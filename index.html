@@ -434,25 +434,60 @@ async function write(fn, okMsg){
     console.error(e);return false
   }
 }
-let LEG={},legacyLoaded=false;const LIVE={};
+let LEG={},legacyLoaded=false,legacyDb=null;const LIVE={},STORAGE_MODE={};
 function merge(k){const live=LIVE[k]||[];const leg=LEG[k]||[];if(!leg.length){S[k]=live.filter(x=>!x._deleted);return}
   const ids=new Map(live.map(x=>[x.id,x]));const out=[];for(const r of leg){const o=ids.get(r.id);if(o){ids.delete(r.id);if(!o._deleted)out.push(o)}else out.push(r)}for(const o of ids.values())if(!o._deleted)out.push(o);S[k]=out}
+async function readDocsCollection(name){
+  if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+  if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
+  return new Promise((resolve,reject)=>{
+    let unsubscribe=()=>{},done=false;
+    unsubscribe=legacyDb.collection(name).onSnapshot(s=>{if(done)return;done=true;unsubscribe();resolve(s.docs.map(d=>({id:d.id,...d.data()})))},e=>{if(done)return;done=true;unsubscribe();reject(e)});
+  });
+}
 function current(col,id){const k=Object.keys(COLS).find(x=>COLS[x]===col);return (S[k]||[]).find(x=>x.id===id)}
 async function upsert(col,id,data){
   if(!window.SB) throw new Error("مش متصل");
+  if(STORAGE_MODE[col]==="docs"){
+    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+    if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
+    await legacyDb.doc(col+"/"+id).update(data);return;
+  }
   const {error} = await window.SB.from(col).upsert({id,...data});
-  if(error) throw error;
+  if(error){
+    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+    if(!legacyDb) throw error;
+    await legacyDb.doc(col+"/"+id).update(data);STORAGE_MODE[col]="docs";
+  }
 }
 async function remove(col,id){
   if(!window.SB) throw new Error("مش متصل");
+  if(STORAGE_MODE[col]==="docs"){
+    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+    if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
+    await legacyDb.doc(col+"/"+id).delete();return;
+  }
   const {error} = await window.SB.from(col).delete().eq('id',id);
-  if(error) throw error;
+  if(error){
+    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+    if(!legacyDb) throw error;
+    await legacyDb.doc(col+"/"+id).delete();STORAGE_MODE[col]="docs";
+  }
 }
 async function removeBulk(col,ids){
   if(!window.SB) throw new Error("مش متصل");
   if(!ids.length) return;
+  if(STORAGE_MODE[col]==="docs"){
+    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+    if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
+    for(const id of ids) await legacyDb.doc(col+"/"+id).delete();return;
+  }
   const {error} = await window.SB.from(col).delete().in('id',ids);
-  if(error) throw error;
+  if(error){
+    if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+    if(!legacyDb) throw error;
+    for(const id of ids) await legacyDb.doc(col+"/"+id).delete();STORAGE_MODE[col]="docs";
+  }
 }
 const COLS={actions:"actions",tasks:"tasks",equipment:"equipment",contractors:"contractors",records:"records",employees:"employees",items:"ppe_items",moves:"ppe_moves",permits:"permits",kpi:"kpi_entries",att:"attendance",leaves:"leaves"};
 async function boot(){
@@ -468,6 +503,8 @@ async function boot(){
   if(error || !session) {
     booted=true;setSync("مش متصل","off");show(tab);return;
   }
+
+  try{legacyDb=await window.claude?.use?.("db")}catch(e){console.warn("Legacy docs store unavailable",e)}
 
   // Set user info
   ME.id = session.user?.id || "";
@@ -489,9 +526,28 @@ async function boot(){
   db = {
     collection: (name) => ({
       add: async (value) => {
-        const {data, error: err} = await window.SB.from(name).insert(value).select('*').single();
-        if(err) throw err;
         const key = Object.keys(COLS).find(k => COLS[k] === name);
+        if(STORAGE_MODE[name]==="docs"){
+          if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+          if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
+          const ref=await legacyDb.collection(name).add(value);
+          if(key) S[key]=[...(S[key]||[]),{id:ref.id,...value}];
+          if(!importing) refresh();
+          return ref;
+        }
+        let data;
+        try{
+          const result=await window.SB.from(name).insert(value).select('*').single();
+          if(result.error) throw result.error;
+          data=result.data;STORAGE_MODE[name]="table";
+        }catch(err){
+          if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+          if(!legacyDb) throw err;
+          const ref=await legacyDb.collection(name).add(value);STORAGE_MODE[name]="docs";
+          if(key) S[key]=[...(S[key]||[]),{id:ref.id,...value}];
+          if(!importing) refresh();
+          return ref;
+        }
         if(key && data) S[key] = [...(S[key] || []), data];
         if(!importing) refresh();
         return {id: data?.id};
@@ -506,25 +562,64 @@ async function boot(){
         }
       }
     }),
-    doc: (path) => ({
-      onSnapshot: async (callback, error) => {
-        try {
-          const [coll, docId] = path.split('/');
-          const {data, error: err} = await window.SB.from(coll).select('*').eq('id', docId).single();
-          if(err) throw err;
-          callback({exists: !!data, data: () => data});
-        } catch(e) {
-          if(error) error(e);
+    doc: (path) => {
+      const [coll, docId] = path.split('/');
+      const docsRef = async () => {
+        if(!legacyDb) legacyDb=await window.claude?.use?.("db");
+        if(!legacyDb) throw new Error("مخزن البيانات القديم غير متاح");
+        return legacyDb.doc(path);
+      };
+      const setLocal = value => {if(coll==="settings"){S.settings=value||{};loaded.settings=true;document.getElementById("projectName").textContent="HSE · "+(S.settings.project||"المشروع");refresh()}};
+      return {
+        get: async () => {
+          if(STORAGE_MODE[coll]==="docs") return (await docsRef()).get();
+          const {data,error:err}=await window.SB.from(coll).select('*').eq('id',docId).maybeSingle();
+          if(!err) return {exists:!!data,id:docId,data:()=>data};
+          const ref=await docsRef();STORAGE_MODE[coll]="docs";return ref.get();
+        },
+        set: async value => {
+          if(STORAGE_MODE[coll]==="docs"){const ref=await docsRef();await ref.set(value);setLocal(value);return}
+          const {error:err}=await window.SB.from(coll).upsert({id:docId,...value});
+          if(err){const ref=await docsRef();await ref.set(value);STORAGE_MODE[coll]="docs"}setLocal(value);
+        },
+        update: async value => {
+          if(STORAGE_MODE[coll]==="docs"){const ref=await docsRef();await ref.update(value);return}
+          const {error:err}=await window.SB.from(coll).upsert({id:docId,...value});
+          if(err){const ref=await docsRef();await ref.update(value);STORAGE_MODE[coll]="docs"}
+        },
+        delete: async () => {
+          if(STORAGE_MODE[coll]==="docs"){const ref=await docsRef();return ref.delete()}
+          const {error:err}=await window.SB.from(coll).delete().eq('id',docId);
+          if(err){const ref=await docsRef();await ref.delete();STORAGE_MODE[coll]="docs"}
+        },
+        onSnapshot: async (callback, error) => {
+          try {
+            if(STORAGE_MODE[coll]==="docs"){(await docsRef()).onSnapshot(callback,error);return}
+            const {data, error: err} = await window.SB.from(coll).select('*').eq('id', docId).maybeSingle();
+            if(err) throw err;
+            callback({exists: !!data, data: () => data});
+          } catch(e) {
+            if(error) error(e);
+          }
         }
-      }
-    })
+      };
+    }
   };
   // Load data from Supabase
   const loadTable = async (k, p) => {
     try {
-      const {data, error} = await window.SB.from(p).select('*');
-      if(error) throw error;
-      S[k] = data || [];
+      const direct=await window.SB.from(p).select('*');
+      if(direct.error){
+        S[k]=await readDocsCollection(p);STORAGE_MODE[p]="docs";
+      }else if((direct.data||[]).length){
+        S[k]=direct.data;STORAGE_MODE[p]="table";
+      }else{
+        try{
+          const oldRows=await readDocsCollection(p);
+          if(oldRows.length){S[k]=oldRows;STORAGE_MODE[p]="docs"}
+          else{S[k]=direct.data||[];STORAGE_MODE[p]="table"}
+        }catch(e){S[k]=direct.data||[];STORAGE_MODE[p]="table"}
+      }
       loaded[k] = true;
       refresh();
     } catch(e) {
@@ -549,15 +644,15 @@ async function boot(){
 
   // Load settings
   try {
-    const {data, error} = await window.SB.from('settings').select('*').eq('id', 'main').single();
-    if(!error && data) {
-      S.settings = data;
-      loaded.settings = true;
-      applyRole();
-      document.getElementById("projectName").textContent = "HSE · " + (S.settings.project || "المشروع");
-      refresh();
-    }
-  } catch(e) {}
+    const direct=await window.SB.from('settings').select('*').eq('id', 'main').maybeSingle();
+    if(!direct.error&&direct.data){S.settings=direct.data;STORAGE_MODE.settings="table"}
+    else if(legacyDb){const old=await legacyDb.doc("settings/main").get();if(old.exists){S.settings=old.data()||{};STORAGE_MODE.settings="docs"}else STORAGE_MODE.settings=direct.error?"docs":"table"}
+    else STORAGE_MODE.settings=direct.error?"docs":"table";
+    loaded.settings=true;
+    applyRole();
+    document.getElementById("projectName").textContent = "HSE · " + (S.settings.project || "المشروع");
+    refresh();
+  } catch(e) {console.error("Error loading settings:",e);setSync("خطأ في تحميل البيانات","off")}
   show(tab);
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
