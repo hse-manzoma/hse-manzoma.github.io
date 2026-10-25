@@ -493,6 +493,10 @@ const COLS={actions:"actions",tasks:"tasks",equipment:"equipment",contractors:"c
 async function boot(){
   setSync("بيتصل…","");
 
+  // Wait until supa.js finishes restoring the saved login session. Starting
+  // getSession() before that can incorrectly mark the app as disconnected.
+  try{if(window.SBA?.ready) await window.SBA.ready}catch(e){console.warn("Session restore wait failed",e)}
+
   // Try Supabase first
   if(!window.SB){
     booted=true;setSync("مش متصل","off");show(tab);return;
