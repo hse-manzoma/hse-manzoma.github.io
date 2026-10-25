@@ -2119,11 +2119,12 @@ const RIGHTS_RESOURCES={
 };
 const RIGHTS_ACTIONS={view:"مشاهدة",create:"إضافة",edit:"تعديل",delete:"حذف",approve:"اعتماد",sign:"توقيع"};
 const TAB_RESOURCE={dash:"actions",actions:"actions",ptw:"permits",ppe:"inventory",manpower:"employees",contractors:"contractors",equip:"equipment",team:"attendance",kpi:"kpi",report:"reports",forms:"records",office:"office",matreq:"matreq",settings:"settings",hr:"attendance",follow:"actions"};
-function rightsFromTabs(tabs={}){const out={};for(const [k,r] of Object.entries(RIGHTS_RESOURCES)){const lv=tabs[r.tab];const visible=!!lv&&lv!=="view"?true:!!lv;const edit=lv==="edit"||lv==="full";const full=lv==="full";out[k]={view:visible,create:edit,edit,delete:full,approve:edit,sign:edit}}return out}
+function rightsFromTabs(tabs={}){const out={};for(const [k,r] of Object.entries(RIGHTS_RESOURCES)){const lv=tabs[r.tab];const visible=!!lv&&lv!=="view"?true:!!lv;const edit=lv==="edit"||lv==="full";const full=lv==="full";out[k]={view:visible,create:edit,edit,delete:full,approve:false,sign:edit}}return out}
 function tabsWithRights(tabs={},rights={}){const out={...tabs};delete out.__rights;out.__rights=rights;return out}
 function rightsMatrix(cur={}){return `<div class="field full"><label>صلاحيات كل نوع سجل وإجراء</label><div class="tbl" style="border:0;max-height:420px;overflow:auto"><table><thead><tr><th>السجل</th>${Object.values(RIGHTS_ACTIONS).map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${Object.entries(RIGHTS_RESOURCES).map(([k,r])=>`<tr><td>${r.label}</td>${Object.keys(RIGHTS_ACTIONS).map(a=>`<td style="text-align:center"><input type="checkbox" name="right_${k}_${a}" ${cur[k]?.[a]===true?"checked":""} aria-label="${r.label} - ${RIGHTS_ACTIONS[a]}"></td>`).join("")}</tr>`).join("")}</tbody></table></div><small class="muted">المشاهدة لا تمنح التعديل. الاعتماد والتوقيع صلاحيتان مستقلتان.</small></div>`}
 function readRights(form){const out={};for(const k of Object.keys(RIGHTS_RESOURCES)){out[k]={};for(const a of Object.keys(RIGHTS_ACTIONS))out[k][a]=!!form.querySelector(`[name="right_${k}_${a}"]`)?.checked}return out}
-for(const r of Object.values(BUILTIN_ROLES))if(!r.rights)r.rights=rightsFromTabs(r.tabs||{});
+const PTW_APPROVER_ROLES=new Set(["officer","hseSupervisor","executionEng","hse","sup","execution_manager","site_supervisor","site_safety_manager","safety_specialist"]);
+for(const [name,r] of Object.entries(BUILTIN_ROLES))if(!r.rights){r.rights=rightsFromTabs(r.tabs||{});if(PTW_APPROVER_ROLES.has(name)&&r.rights.permits){r.rights.permits.approve=true;r.rights.permits.sign=true}}
 Object.assign(PTW_STATUS,{requested:["طلب جديد","p-susp"],supok:["اعتمد المشرف","p-open"],closing:["مستني اعتماد الغلق","p-susp"],rejected:["مرفوض","p-canc"]});
 const LEADER=()=>S.settings.leaderName||"اسلام بكر عباس";
 const isLeaderName=v=>!!v&&normName(v)===normName(LEADER());

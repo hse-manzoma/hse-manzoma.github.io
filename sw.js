@@ -1,7 +1,7 @@
 /* network-first service worker + daily push reminders */
-const C="hse-v3";
+const C="hse-v4";
 self.addEventListener("install",()=>self.skipWaiting());
-self.addEventListener("activate",e=>e.waitUntil(self.clients.claim()));
+self.addEventListener("activate",e=>e.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith("hse-")&&k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));
 self.addEventListener("fetch",e=>{const r=e.request;const u=new URL(r.url);if(r.method!=="GET"||u.origin!==location.origin)return;
   e.respondWith(fetch(r).then(res=>{if(res.ok){const cp=res.clone();caches.open(C).then(c=>c.put(r,cp)).catch(()=>{})}return res}).catch(()=>caches.match(r).then(m=>m||caches.match("./"))))});
 self.addEventListener("push",e=>{let d={};try{d=e.data.json()}catch(x){d={title:"منظومة السلامة",body:e.data&&e.data.text()}}

@@ -10,7 +10,11 @@ window.SBA={emailOf,DOMAIN,profile:null,user:null};
 async function cleanupLocalPush(){
   try{const reg=await navigator.serviceWorker?.getRegistration();if(!reg)return;const [sub,notifs]=await Promise.all([reg.pushManager?.getSubscription(),reg.getNotifications?.()||[]]);for(const n of notifs||[])try{n.close()}catch(e){}if(sub){try{await sb.from("push_subs").delete().eq("endpoint",sub.endpoint)}catch(e){console.warn("Could not remove push subscription row",e)}try{await sub.unsubscribe()}catch(e){}}}catch(e){console.warn("Push cleanup skipped",e)}
 }
-async function cleanupOtherPushRows(){try{const reg=await navigator.serviceWorker?.getRegistration(),sub=await reg?.pushManager?.getSubscription();if(!sub){window.SBA.pushCleanupWarning=false;return true}const {error}=await sb.from("push_subs").delete().neq("endpoint",sub.endpoint);if(error){console.warn("Could not remove push subscriptions from other browsers",error);window.SBA.pushCleanupWarning=true;return false}window.SBA.pushCleanupWarning=false;return true}catch(e){console.warn("Other-browser push cleanup skipped",e);window.SBA.pushCleanupWarning=true;return false}}
+async function cleanupOtherPushRows(){
+  // push_subs has no user_id column, so deleting every other endpoint could remove other users' alerts.
+  window.SBA.pushCleanupWarning=false;
+  return true;
+}
 window.SBA.cleanupLocalPush=cleanupLocalPush;
 window.SBA.logout=async()=>{await cleanupLocalPush();const {error}=await sb.auth.signOut({scope:"local"});if(error)throw error};
 
@@ -53,7 +57,7 @@ async function showGate(message="",retrySession=null){
       const {error}=await sb.auth.signInWithPassword({email:emailOf(u),password:p});if(error)throw error;
     }catch(err){msg.textContent=window.SBA.ar(err)}};
 }
-async function loadProfile(uid){const {data}=await sb.from("profiles").select("*").eq("user_id",uid).maybeSingle();return data}
+async function loadProfile(uid){const {data,error}=await sb.from("profiles").select("*").eq("user_id",uid).maybeSingle();if(error){const e=new Error("Could not load the account profile");e.code="profile_load_failed";e.cause=error;throw e}return data}
 async function afterLogin(session){
   window.SBA.user=session.user;const prof=await loadProfile(session.user.id);window.SBA.profile=prof;
   if(!prof||prof.disabled){document.getElementById("gate")?.remove();document.body.insertAdjacentHTML("beforeend",`<div id="gate" style="position:fixed;inset:0;z-index:9999;background:#f4f6f5;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:system-ui;padding:16px"><div style="background:#fff;border-radius:16px;padding:26px;max-width:380px;text-align:center"><h2 style="font-size:17px">${prof?"حسابك موقوف":"الحساب ده مالوش صلاحيات"}</h2><p style="color:#6b7a73;font-size:14px">كلّم مدير المنظومة.</p><button onclick="SBA.logout().then(()=>location.reload())" style="padding:10px 18px;border:0;border-radius:10px;background:#d9480f;color:#fff">خروج</button></div></div>`);return}
@@ -69,7 +73,7 @@ function acceptSession(session){
   // Supabase auth callbacks run under its auth lock. Defer all follow-up Supabase calls.
   loginFlow=loginFlow.catch(()=>{}).then(()=>new Promise(resolve=>setTimeout(resolve,0)))
     .then(()=>afterLogin(session))
-    .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";await showGate("تم تسجيل الدخول لكن تعذر تحميل صلاحيات الحساب. الجلسة محفوظة؛ اضغط إعادة المحاولة.",session)});
+    .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";await showGate("تم تسجيل الدخول لكن تعذرت قراءة ملف الصلاحيات من Supabase. الجلسة محفوظة؛ راجع سجل profiles وسياسات RLS ثم أعد المحاولة.",session)});
 }
 sb.auth.onAuthStateChange((ev,session)=>{
   if(session)acceptSession(session);
