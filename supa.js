@@ -10,7 +10,7 @@ window.SBA={emailOf,DOMAIN,profile:null,user:null};
 async function cleanupLocalPush(){
   try{const reg=await navigator.serviceWorker?.getRegistration();if(!reg)return;const [sub,notifs]=await Promise.all([reg.pushManager?.getSubscription(),reg.getNotifications?.()||[]]);for(const n of notifs||[])try{n.close()}catch(e){}if(sub){try{await sb.from("push_subs").delete().eq("endpoint",sub.endpoint)}catch(e){console.warn("Could not remove push subscription row",e)}try{await sub.unsubscribe()}catch(e){}}}catch(e){console.warn("Push cleanup skipped",e)}
 }
-async function cleanupOtherPushRows(){try{const reg=await navigator.serviceWorker?.getRegistration(),sub=await reg?.pushManager?.getSubscription();let q=sb.from("push_subs").delete();if(sub)q=q.neq("endpoint",sub.endpoint);const {error}=await q;if(error){console.warn("Could not remove push subscriptions from other browsers",error);window.SBA.pushCleanupWarning=true;return false}window.SBA.pushCleanupWarning=false;return true}catch(e){console.warn("Other-browser push cleanup skipped",e);window.SBA.pushCleanupWarning=true;return false}}
+async function cleanupOtherPushRows(){try{const reg=await navigator.serviceWorker?.getRegistration(),sub=await reg?.pushManager?.getSubscription();if(!sub){window.SBA.pushCleanupWarning=false;return true}const {error}=await sb.from("push_subs").delete().neq("endpoint",sub.endpoint);if(error){console.warn("Could not remove push subscriptions from other browsers",error);window.SBA.pushCleanupWarning=true;return false}window.SBA.pushCleanupWarning=false;return true}catch(e){console.warn("Other-browser push cleanup skipped",e);window.SBA.pushCleanupWarning=true;return false}}
 window.SBA.cleanupLocalPush=cleanupLocalPush;
 window.SBA.logout=async()=>{await cleanupLocalPush();const {error}=await sb.auth.signOut({scope:"local"});if(error)throw error};
 
@@ -42,11 +42,12 @@ function gateHTML(first){return `<div id="gate" style="position:fixed;inset:0;z-
     <div id="gateMsg" style="color:#c92a2a;font-size:13px;min-height:18px;margin-bottom:8px">${(()=>{try{const m=sessionStorage.getItem("hse.session.enforce.error")||"";sessionStorage.removeItem("hse.session.enforce.error");return m}catch(e){return ""}})()}</div>
     <button style="width:100%;padding:12px;border:0;border-radius:10px;background:#d9480f;color:#fff;font-size:15px;font-weight:700;cursor:pointer">${first?"إنشاء الحساب والدخول":"دخول"}</button>
   </form></div>`}
-async function showGate(message=""){
+async function showGate(message="",retrySession=null){
   let first=false;try{const {data}=await sb.rpc("has_admin");first=data===false}catch(e){}
   document.getElementById("gate")?.remove();document.body.insertAdjacentHTML("beforeend",gateHTML(first));
   const f=document.getElementById("gateForm"),msg=document.getElementById("gateMsg");
   if(message)msg.textContent=message;
+  if(retrySession){const retry=document.createElement("button");retry.type="button";retry.textContent="إعادة المحاولة";retry.style.cssText="width:100%;margin-top:8px;padding:11px;border:1px solid #cfd8d3;border-radius:10px;background:transparent;font-size:14px;cursor:pointer";retry.onclick=()=>{retry.disabled=true;retry.textContent="جارٍ إعادة المحاولة…";started=false;activeUid="";acceptSession(retrySession)};f.appendChild(retry)}
   f.onsubmit=async e=>{e.preventDefault();msg.textContent="";const u=f.u.value.trim().toLowerCase(),p=f.p.value;
     try{if(first){if(p!==f.p2.value){msg.textContent="كلمتين السر مش زي بعض";return}await fn("bootstrap",{username:u,password:p})}
       const {error}=await sb.auth.signInWithPassword({email:emailOf(u),password:p});if(error)throw error;
@@ -68,7 +69,7 @@ function acceptSession(session){
   // Supabase auth callbacks run under its auth lock. Defer all follow-up Supabase calls.
   loginFlow=loginFlow.catch(()=>{}).then(()=>new Promise(resolve=>setTimeout(resolve,0)))
     .then(()=>afterLogin(session))
-    .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";try{await sb.auth.signOut({scope:"local"})}catch(_){}await showGate("تعذر تحميل صلاحيات الحساب. تحقق من الاتصال ثم سجّل الدخول مرة أخرى.")});
+    .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";await showGate("تم تسجيل الدخول لكن تعذر تحميل صلاحيات الحساب. الجلسة محفوظة؛ اضغط إعادة المحاولة.",session)});
 }
 sb.auth.onAuthStateChange((ev,session)=>{
   if(session)acceptSession(session);
