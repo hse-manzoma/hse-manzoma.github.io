@@ -57,7 +57,8 @@ async function afterLogin(session){
   window.SBA.user=session.user;const prof=await loadProfile(session.user.id);window.SBA.profile=prof;
   if(!prof||prof.disabled){document.getElementById("gate")?.remove();document.body.insertAdjacentHTML("beforeend",`<div id="gate" style="position:fixed;inset:0;z-index:9999;background:#f4f6f5;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:system-ui;padding:16px"><div style="background:#fff;border-radius:16px;padding:26px;max-width:380px;text-align:center"><h2 style="font-size:17px">${prof?"حسابك موقوف":"الحساب ده مالوش صلاحيات"}</h2><p style="color:#6b7a73;font-size:14px">كلّم مدير المنظومة.</p><button onclick="SBA.logout().then(()=>location.reload())" style="padding:10px 18px;border:0;border-radius:10px;background:#d9480f;color:#fff">خروج</button></div></div>`);return}
   const {error:sessionErr}=await sb.auth.signOut({scope:"others"});
-  if(sessionErr){console.error("Could not enforce a single active session",sessionErr);try{sessionStorage.setItem("hse.session.enforce.error","تعذر إنهاء جلسات المتصفحات الأخرى. تحقق من الاتصال ثم حاول تسجيل الدخول مرة أخرى.")}catch(e){}await sb.auth.signOut({scope:"local"});return}
+  if(sessionErr){console.warn("Could not end sessions in other browsers; keeping the current session active",sessionErr);window.SBA.sessionCleanupWarning=true}
+  else window.SBA.sessionCleanupWarning=false;
   await cleanupOtherPushRows();
   document.getElementById("gate")?.remove();readyResolve();
 }
