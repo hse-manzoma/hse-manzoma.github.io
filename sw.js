@@ -1,5 +1,5 @@
 /* network-first service worker + daily push reminders */
-const C="hse-v4";
+const C="hse-v5";
 self.addEventListener("install",()=>self.skipWaiting());
 self.addEventListener("activate",e=>e.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith("hse-")&&k!==C).map(k=>caches.delete(k)));await self.clients.claim()})()));
 self.addEventListener("fetch",e=>{const r=e.request;const u=new URL(r.url);if(r.method!=="GET"||u.origin!==location.origin)return;
