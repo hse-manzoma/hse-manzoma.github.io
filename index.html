@@ -950,7 +950,7 @@ const BUILTIN_ROLES={admin:{ar:"مدير المنظومة",tabs:allTabs("full"),
   sup:{ar:"مشرف / مهندس موقع",tabs:{dash:"view",actions:"edit",ptw:"edit",forms:"edit"}},
   hr:{ar:"شؤون عاملين / حضور",tabs:{dash:"view",team:"edit",manpower:"edit"}},
   mgmt:{ar:"إدارة (مشاهدة التقارير)",tabs:{dash:"view",report:"view",kpi:"view",actions:"view"}}};
-function ROLES_ALL(){return {...BUILTIN_ROLES,...(S.settings.roles||{})}}
+function ROLES_ALL(){const out={...BUILTIN_ROLES,...(S.settings.roles||{})};for(const k of (S.settings.deletedRoles||[]))delete out[k];return out}
 const ROLES=new Proxy({},{get:(_,k)=>ROLES_ALL()[k]});
 function roleTabs(u){const r=ROLES_ALL()[u.role];let tb=u.role==="custom"||!r?(u.tabs||{}):r.tabs;if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));const out={...(tb||{})};delete out.__rights;return out}
 function myMember(){return (S.members||[]).find(m=>m.id===ME.id)}
@@ -995,7 +995,7 @@ function roleAccessSummary(r){
 function rolesCardHTML(){const R=ROLES_ALL();
   return `<div class="card" style="margin-top:14px"><div style="display:flex;align-items:center;gap:10px"><h3 class="grow" style="margin:0">الأدوار والصلاحيات</h3><button class="btn" onclick="roleForm()">+ دور جديد</button></div>
   <p class="muted" style="font-size:13px">حدد ما يظهر لكل دور، ثم اضبط المشاهدة والإضافة والتعديل والحذف والاعتماد والتوقيع لكل سجل. النماذج لها صلاحيات منفصلة، والأدوار الجاهزة قابلة للتعديل.</p>
-  <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${roleAccessSummary(r)}</div></div>${r.fixed?"":`<div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div>`}</div>`).join("")}</div></div>`}
+  <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${roleAccessSummary(r)}</div></div>${k==="admin"?"":`<div class="row-actions">${r.fixed?"":`<button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>`}${BUILTIN_ROLES[k]&&S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleRestore('${k}')">رجّعه للأصل</button>`:""}<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف الدور</button></div>`}</div>`).join("")}</div></div>`}
 async function roleForm(key){
   const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
   let catalog={},formsReady=false;try{catalog=await loadForms2();formsReady=Object.keys(catalog||{}).length>0}catch(e){}
@@ -1015,8 +1015,17 @@ async function roleForm(key){
     return ok?null:"الحفظ فشل"
   })
 }
-function roleDelete(k){const used=Object.values(S.settings.users||{}).concat(Object.values(S.settings.invites||{})).filter(u=>u.role===k).length;
-  confirmSheet(BUILTIN_ROLES[k]?"رجوع الدور لأصله":"حذف الدور",used&&!BUILTIN_ROLES[k]?`فيه ${used} مستخدم على الدور ده، هيتحولوا لـ «مشاهدة الرئيسية بس» لحد ما تغيّر دورهم.`:"متأكد؟",()=>{const roles={...(S.settings.roles||{})};delete roles[k];return write(()=>db.doc("settings/main").update({roles}),"تم")},BUILTIN_ROLES[k]?"رجّعه":"احذف")}
+function roleRestore(k){if(!BUILTIN_ROLES[k]||k==="admin")return;confirmSheet("رجوع الدور لأصله",`سيتم استرجاع الصلاحيات الافتراضية لدور «${BUILTIN_ROLES[k].ar}».`,()=>{const roles={...(S.settings.roles||{})};delete roles[k];return write(()=>db.doc("settings/main").update({roles}),"رجع الدور لأصله")},"رجّعه")}
+function roleDelete(k){
+  if(!k||k==="admin")return;
+  const assigned=(S.profiles||[]).filter(u=>u.role===k);
+  const legacy=Object.values(S.settings.users||{}).filter(u=>u?.role===k);
+  const invites=Object.values(S.settings.invites||{}).filter(u=>u?.role===k);
+  const used=[],seen=new Set();
+  [...assigned,...legacy,...invites].forEach((u,i)=>{const keys=[u.id&&`id:${u.id}`,u.user_id&&`id:${u.user_id}`,u.uid&&`id:${u.uid}`,u.username&&`user:${String(u.username).toLowerCase()}`,u.email&&`email:${String(u.email).toLowerCase()}`,(u.emp_id||u.empId)&&`emp:${u.emp_id||u.empId}`].filter(Boolean);if(keys.some(x=>seen.has(x)))return;keys.forEach(x=>seen.add(x));used.push(u)});
+  if(used.length){const names=used.map(u=>u.username||u.name||u.email||u.empId||u.emp_id).filter(Boolean).slice(0,6);const extra=used.length>6?` وآخرون (${used.length-6})`:"";const detail=names.length?` الحسابات: ${names.join("، ")}${extra}.`:"";confirmSheet("لا يمكن حذف الدور الآن",`يوجد ${used.length} حساب أو دعوة مسجلة بدور «${ROLES_ALL()[k]?.ar||k}». غيّر دور المستخدمين من إدارة المستخدمين أو ألغِ الدعوات المعلقة أولًا، ثم احذف الدور.${detail}`,()=>{},"فهمت");return}
+  confirmSheet("حذف الدور",`سيُحذف دور «${ROLES_ALL()[k]?.ar||k}» ولن يظهر في قائمة الأدوار أو عند تعيين مستخدم جديد.`,()=>{const roles={...(S.settings.roles||{})};delete roles[k];const deletedRoles=[...new Set([...(S.settings.deletedRoles||[]),...(BUILTIN_ROLES[k]?[k]:[])])];return write(()=>db.doc("settings/main").update({roles,deletedRoles}),"تم حذف الدور")} ,"احذف الدور")
+}
 async function userForm(uid){
   let catalog={},formsReady=false;try{catalog=await loadForms2();formsReady=Object.keys(catalog||{}).length>0}catch(e){}
   registerFormRights(catalog);
