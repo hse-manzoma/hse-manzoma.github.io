@@ -1379,7 +1379,7 @@ VIEWS.manpower={
       <select id="mpG"><option value="">كل المجموعات</option>${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${ui.mpG===k?"selected":""}>${v}</option>`).join("")}</select>
       <select id="mpCtr"><option value="">كل المقاولين</option>${S.contractors.map(c=>`<option value="${c.id}" ${ui.mpCtr===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select>
       <select id="mpID"><option value="">البطاقة: الكل</option><option value="no" ${ui.mpID==="no"?"selected":""}>من غير بطاقة</option><option value="yes" ${ui.mpID==="yes"?"selected":""}>بطاقتهم مرفوعة</option></select>
-      <button class="btn primary" onclick="empForm(null,{group:ui.mpG||'worker'})">+ شخص</button><button class="btn" onclick="importForm('employees')">لصق من Excel</button></div>
+      <button class="btn primary" onclick="empForm(null,{group:ui.mpG||'worker'})">+ شخص</button><button class="btn" onclick="importForm('employees')">لصق من Excel</button>${hasRight("employees","edit")?`<button class="btn" onclick="updateManpowerByCode()">تحديث بالكود</button>`:""}</div>
     <div id="mpList"></div>`;
     $("mpQ").oninput=e=>{ui.mpQ=e.target.value;this.list()};
     $("mpG").onchange=e=>{ui.mpG=e.target.value;refresh()};$("mpCtr").onchange=e=>{ui.mpCtr=e.target.value;this.list()};$("mpID").onchange=e=>{ui.mpID=e.target.value;this.list()};
@@ -1522,6 +1522,32 @@ function importForm(kind,ctrId){
 }
 function parseRows(t){return String(t||"").split(/\r?\n/).map(l=>l.split("\t").map(c=>c.trim())).filter(r=>r.some(Boolean)).filter(r=>!/^(الاسم|name|الكود|code)$/i.test(r[0]))}
 
+function manpowerCodeKey(v){return String(v??"").trim().replace(/[٠-٩]/g,d=>String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/\.0$/,"").trim().toLowerCase()}
+function manpowerCodePlan(text){
+  const rows=parseRows(text).filter(r=>!/^($|الكود|كود الموظف|رقم الكود|code|employee code)$/i.test(String(r[0]||"").trim()));
+  const freq=new Map();for(const r of rows){const k=manpowerCodeKey(r[0]);if(k)freq.set(k,(freq.get(k)||0)+1)}
+  const plan={updates:[],missingCode:0,unknown:0,duplicateInput:0,ambiguous:0,invalid:0,empty:0};
+  for(const r of rows){const code=manpowerCodeKey(r[0]);if(!code){plan.missingCode++;continue}if(freq.get(code)>1){plan.duplicateInput++;continue}
+    const matches=S.employees.filter(e=>manpowerCodeKey(e.code)===code);if(!matches.length){plan.unknown++;continue}if(matches.length>1){plan.ambiguous++;continue}
+    const e=matches[0],patch={};if(r[1])patch.name=r[1];if(r[2])patch.job=r[2];if(r[3])patch.phone=r[3];if(r[4])patch.nid=r[4];
+    if(r[5]){const g=xlGroup(r[5]);if(!g){plan.invalid++;continue}patch.group=g;if(g!=="ctr")patch.contractorId=""}
+    const contractorText=String(r[6]||"").trim();if(contractorText){if((patch.group||e.group)!=="ctr"){plan.invalid++;continue}const cs=S.contractors.filter(c=>normName(c.name)===normName(contractorText)||manpowerCodeKey(c.code)===manpowerCodeKey(contractorText));if(cs.length!==1){plan.invalid++;continue}patch.contractorId=cs[0].id}
+    if(!Object.keys(patch).length){plan.empty++;continue}plan.updates.push({id:e.id,name:e.name,code:e.code,patch});
+  }
+  return plan
+}
+function updateManpowerByCode(){
+  if(!hasRight("employees","edit")){toast("لا تملك صلاحية تعديل القوى العاملة");return}
+  if(!db){toast("مفيش اتصال بقاعدة البيانات");return}
+  openSheet("تحديث القوى العاملة بالكود",`<p class="muted" style="margin-top:0">انسخ الصفوف من Excel والصقها بالترتيب: <b>الكود · الاسم · الوظيفة · الموبايل · الرقم القومي · المجموعة · اسم المقاول</b>. الأعمدة بعد الكود اختيارية؛ الخانة الفارغة تترك بياناتها كما هي.</p><p class="muted" style="font-size:12.5px">سيتم تحديث الموظفين الموجودين ذوي الكود المطابق فقط. الأكواد غير الموجودة أو المكررة تُستبعد؛ لا تتم إضافة أو حذف أو إعادة تفعيل أي موظف. اترك الكود في Excel كنص للحفاظ على الأصفار في بدايته.</p><div class="field full"><label for="mpCodeUpdate">بيانات التحديث</label><textarea name="paste" id="mpCodeUpdate" style="min-height:220px;direction:rtl" placeholder="كود الموظف&#9;الاسم الجديد&#9;الوظيفة&#9;الموبايل&#9;الرقم القومي&#9;المجموعة"></textarea></div><div id="mpCodePreview" class="muted" style="font-size:13px;margin-top:8px">الصق البيانات لعرض معاينة المطابقة.</div>`,async fd=>{
+    const plan=manpowerCodePlan(fd.paste);if(!plan.updates.length)return "لم أجد أكوادًا مطابقة بسجلات موظفين وبها بيانات قابلة للتحديث.";
+    let done=0,fail=0;importing=true;for(const item of plan.updates){try{await upsert("employees",item.id,{...item.patch,updatedAt:Date.now()});done++}catch(e){fail++}}importing=false;refresh();
+    if(!done&&fail)return "تعذر حفظ التحديث. تحقق من اتصال قاعدة البيانات وصلاحية تعديل القوى العاملة.";
+    toast(`تم تحديث ${done} موظف بالكود${fail?`، وتعذر حفظ ${fail}`:""}`);return null
+  },"تحديث المطابقين فقط");
+  const updatePreview=()=>{const box=$("mpCodePreview");if(!box)return;const value=$("mpCodeUpdate")?.value||"";if(!value.trim()){box.textContent="الصق البيانات لعرض معاينة المطابقة.";return}const p=manpowerCodePlan(value);box.textContent=`سيتم تحديث ${p.updates.length} · كود غير موجود ${p.unknown} · مكرر في الملف ${p.duplicateInput} · مكرر في المنظومة ${p.ambiguous} · بدون كود ${p.missingCode} · بيانات غير صالحة ${p.invalid} · بلا تغييرات ${p.empty}`};
+  $("mpCodeUpdate").addEventListener("input",updatePreview);
+}
 /* ---------- safe Excel workbook import ---------- */
 let excelImportRows=null,excelImportPlan=null;
 function mountExcelImportCard(){
@@ -3430,7 +3456,7 @@ function crCard(c){const F=c.kind==="employee"?EMP_F:CTR_F;const diff=c.action==
 /* view-only manpower & contractors with request buttons */
 {const _pf=personFileHTML;personFileHTML=function(e){const h=_pf(e);if(tabLevel("manpower")!=="view")return h;
   return `<div class="banner" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="grow">ملف للاطلاع. أي تعديل بيتبعت كطلب للأدمن.</span><button class="btn sm" onclick="chgReq('employee','edit','${e.id}')">✏️ اطلب تعديل</button><button class="btn sm danger" onclick="chgReq('employee','del','${e.id}')">🗑 اطلب حذف</button></div>`+h.replace(/<button class="btn" onclick="empForm\('[^']+'\)">تعديل البيانات<\/button>/,"")}}
-{const _mf=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mf.call(this);if(tabLevel("manpower")==="view"&&!ui.personSel){const F=document.querySelector("#mpBody .filters");if(F&&!$("mpReqAdd")){F.querySelectorAll("button.btn").forEach(b=>{if(/\+ شخص|لصق/.test(b.textContent))b.remove()});F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpReqAdd" onclick="chgReq('employee','add')">+ اطلب إضافة شخص</button>`)}}}}
+{const _mf=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mf.call(this);if(tabLevel("manpower")==="view"&&!ui.personSel){const F=document.querySelector("#mpBody .filters");if(F&&!$("mpReqAdd")){F.querySelectorAll("button.btn").forEach(b=>{if(/\+ شخص|لصق|تحديث بالكود/.test(b.textContent))b.remove()});F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpReqAdd" onclick="chgReq('employee','add')">+ اطلب إضافة شخص</button>`)}}}}
 {const _ch=contractorsHTML;contractorsHTML=function(){const h=_ch();if(tabLevel("contractors")!=="view")return h;
   if(ui.ctrSel&&contractor(ui.ctrSel))return `<div class="banner" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="grow">ملف المقاول للاطلاع. التعديل بطلب للأدمن.</span><button class="btn sm" onclick="chgReq('contractor','edit','${ui.ctrSel}')">✏️ اطلب تعديل</button><button class="btn sm" onclick="chgReq('employee','add')">+ اطلب إضافة عامل</button><button class="btn sm danger" onclick="chgReq('contractor','del','${ui.ctrSel}')">🗑 اطلب حذف</button></div>`+h;
   return h.replace(`<button class="btn primary" onclick="contractorForm()">+ مقاول</button>`,`<button class="btn" onclick="chgReq('contractor','add')">+ اطلب إضافة مقاول</button>`)}}
