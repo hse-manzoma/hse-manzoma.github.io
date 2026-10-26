@@ -938,13 +938,6 @@ function saveAtt(date,records,announce){
 }
 /* ---------- users, roles & reminders ---------- */
 const TAB_NAMES={dash:"الرئيسية",actions:"المتابعة",ptw:"تصاريح العمل",ppe:"مخزن المهمات",manpower:"القوى العاملة",contractors:"المقاولين",equip:"المعدات والطوارئ",team:"التيم والحضور",hr:"الموارد البشرية",kpi:"KPIs",report:"التقرير الشهري",forms:"النماذج والسجلات",settings:"الإعدادات"};
-const TAB_ACCESS_GROUPS=[
-  ["الرئيسية والمتابعة",["dash","follow","actions"]],
-  ["التصاريح والتشغيل",["ptw","ppe","matreq"]],
-  ["الموارد والموقع",["manpower","contractors","equip","team","hr"]],
-  ["النماذج والتقارير",["forms","kpi","report","office"]],
-  ["الحساب والتواصل",["chat","me"]]
-];
 const LV={view:"مشاهدة",edit:"إضافة وتعديل",full:"إضافة وتعديل ومسح"};
 const allTabs=lv=>Object.fromEntries(Object.keys(TAB_NAMES).map(k=>[k,lv]));
 const BUILTIN_ROLES={admin:{ar:"مدير المنظومة",tabs:allTabs("full"),fixed:1},
@@ -966,10 +959,10 @@ function myAccess(){const p=myProfile();if(!p||p.disabled)return null;if(p.role=
   const role=ROLES_ALL()[p.role];let raw=p.tabs&&Object.keys(p.tabs).length?p.tabs:(role?.tabs||{dash:"view"});if(Array.isArray(raw))raw=Object.fromEntries(raw.map(k=>[k,"edit"]));const savedRights=raw.__rights||p.rights||role?.rights;const tb={...raw};delete tb.__rights;const rights=savedRights||rightsFromTabs(tb);return {role:p.role,tabs:tb,rights,scope:p.scope||"all",empId:p.emp_id}}
 function hasRight(resource,action){const a=myAccess();if(!a)return false;if(a.role==="admin")return true;const grant=a.rights?.[resource];if(grant&&typeof grant[action]==="boolean")return grant[action];const meta=RIGHTS_RESOURCES[resource];if(meta?.formId){const legacy=LEGACY_FORM_RIGHTS[meta.formId],old=legacy&&a.rights?.[legacy]?.[action];if(typeof old==="boolean")return old;const general=a.rights?.records?.[action];if(typeof general==="boolean")return general}const tab=meta?.tab;const lv=tab&&(a.tabs?.[tab]||"view");if(action==="view")return !!lv&&lv!=="view"||lv==="view";if(action==="delete")return lv==="full";return lv==="edit"||lv==="full"}
 function tabResource(tabName){return TAB_RESOURCE[tabName]||null}
-function resourceForCollection(col){return ({actions:"actions",tasks:"actions",records:"records",permits:"permits",ppe_items:"inventory",ppe_moves:"inventory",employees:"employees",contractors:"contractors",equipment:"equipment",kpi_entries:"kpi",attendance:"attendance",leaves:"attendance",leavereq:"attendance",matreq:"matreq",office:"office",reports:"reports",settings:"settings",changereq:"records"})[col]||null}
+function resourceForCollection(col){return ({actions:"actions",tasks:"actions",records:"records",permits:"permits",ppe_items:"inventory",ppe_moves:"inventory",employees:"employees",contractors:"contractors",equipment:"equipment",kpi_entries:"kpi",attendance:"attendance",leaves:"attendance",leavereq:"attendance",matreq:"matreq",office:"office",reports:"reports",settings:"settings",changereq:"changeRequests"})[col]||null}
 function resourceForForm(fid){return formRightKey(fid)}
 function resourceForDocument(col,id,data){if(col==="records"){const r=data?.form?data:(typeof current==="function"?current(col,id):null);return resourceForForm(r?.form)}return resourceForCollection(col)}
-function specialWriteAction(col,id,data){const before=typeof current==="function"?current(col,id)||{}:{};const changed=k=>Object.prototype.hasOwnProperty.call(data||{},k)&&JSON.stringify(data[k])!==JSON.stringify(before[k]);if(col==="records"&&changed("approved"))return "approve";if(col==="records"&&changed("signs"))return "sign";if(col==="office"&&changed("approved"))return "approve";if(col==="matreq"&&changed("approved"))return "sign";if(col==="permits"&&changed("closeApprovals"))return "sign";if(col==="permits"&&["engOk","supOk","hseOk"].some(k=>changed(k)&&data?.[k]===true))return "approve";if(col==="permits"&&(changed("pendingExtension")||changed("extensions")))return "approve";if(col==="permits"&&changed("status")&&data?.status==="rejected")return "approve";return ""}
+function specialWriteAction(col,id,data){const before=typeof current==="function"?current(col,id)||{}:{};const changed=k=>Object.prototype.hasOwnProperty.call(data||{},k)&&JSON.stringify(data[k])!==JSON.stringify(before[k]);if(col==="changereq"&&changed("status"))return "approve";if(col==="records"&&changed("approved"))return "approve";if(col==="records"&&changed("signs"))return "sign";if(col==="office"&&changed("approved"))return "approve";if(col==="matreq"&&changed("approved"))return "sign";if(col==="permits"&&changed("closeApprovals"))return "sign";if(col==="permits"&&["engOk","supOk","hseOk"].some(k=>changed(k)&&data?.[k]===true))return "approve";if(col==="permits"&&(changed("pendingExtension")||changed("extensions")))return "approve";if(col==="permits"&&changed("status")&&data?.status==="rejected")return "approve";return ""}
 function permitNeedsApprovalSignature(col,id,data){if(col!=="permits")return false;const before=typeof current==="function"?current(col,id)||{}:{};const changed=k=>Object.prototype.hasOwnProperty.call(data||{},k)&&JSON.stringify(data[k])!==JSON.stringify(before[k]);return changed("closeApprovals")||["engOk","supOk","hseOk"].some(k=>changed(k)&&data?.[k]===true)||(changed("pendingExtension")&&data?.pendingExtension?.status!=="rejected")||(changed("pendingExtension")&&data?.pendingExtension===null&&changed("extensions"))}
 function permissionError(){return Object.assign(new Error("permission_denied"),{code:"permission_denied"})}
 function guardDatabase(raw){const wrapDoc=(col,id,d)=>({id,get:d.get,onSnapshot:d.onSnapshot,set:async data=>{if(col!=="private"){const res=resourceForDocument(col,id,data),existing=res&&typeof current==="function"?current(col,id):null,action=existing?"edit":"create",special=specialWriteAction(col,id,data);if(!res||special&&!hasRight(res,special)||permitNeedsApprovalSignature(col,id,data)&&!hasRight(res,"sign")||!special&&!hasRight(res,action))throw permissionError()}return d.set(data)},update:async data=>{if(col!=="private"){const res=resourceForDocument(col,id,data),special=specialWriteAction(col,id,data);if(!res||special&&!hasRight(res,special)||permitNeedsApprovalSignature(col,id,data)&&!hasRight(res,"sign")||!special&&!hasRight(res,"edit"))throw permissionError()}return d.update(data)},delete:async()=>{const res=resourceForDocument(col,id,null);if(!res||!hasRight(res,"delete"))throw permissionError();return d.delete()}});return {collection:col=>{const c=raw.collection(col);return {onSnapshot:c.onSnapshot,doc:id=>wrapDoc(col,id,c.doc(id)),add:async data=>{const res=resourceForDocument(col,"",data);if(!res||!hasRight(res,"create"))throw permissionError();return c.add(data)}}},doc:path=>{const [col,...rest]=path.split("/");return wrapDoc(col,rest.join("/"),raw.doc(path))}}}
@@ -984,48 +977,71 @@ async function usersCardHTML(){
   const tr=p=>{const e=emp(p.emp_id);const raw=p.role==="admin"?allTabs("full"):(p.tabs||{});const tb=Object.fromEntries(Object.entries(raw).filter(([k])=>k!=="__rights"));const self=p.id===ME.id;
     return `<tr><td><b>${esc(e?.name||p.username)}</b><div class="muted" style="font-size:12px" dir="ltr">👤 ${esc(p.username)}${e?.job?` · ${esc(e.job)}`:""}</div></td>
       <td>${esc(p.role==="admin"?"مدير المنظومة":ROLES_ALL()[p.role]?.ar||"مخصص")}${p.scope==="own"?'<div class="muted" style="font-size:12px">شغله بس</div>':""}</td>
-      <td style="font-size:12.5px;max-width:320px">${p.role==="admin"?"كل الأقسام":Object.entries(tb).map(([k,l])=>`${TAB_NAMES[k]||k}${l==="view"?" (مشاهدة)":l==="full"?" (+مسح)":""}`).join("، ")}</td>
+      <td style="font-size:12.5px;max-width:320px">${p.role==="admin"?"كل الأقسام":roleAccessSummary({tabs:tb,rights:raw.__rights||p.rights})}</td>
       <td>${p.disabled?'<span class="pill p-closed">موقوف</span>':'<span class="pill p-appr">شغال</span>'}${self?' <span class="pill p-open">أنت</span>':""}</td>
       <td><div class="row-actions">${self?"":`<button class="btn ghost sm" style="color:#128C7E" onclick="sendInvite('${p.id}')">📲 واتساب</button><button class="btn ghost sm" onclick="userForm('${p.id}')">تعديل</button><button class="btn ghost sm" onclick="newPin('${p.id}')">كلمة سر جديدة</button><button class="btn ghost sm" onclick="userToggle('${p.id}')">${p.disabled?"تفعيل":"إيقاف"}</button><button class="btn ghost sm danger" onclick="userDelete('${p.id}')">حذف</button>`}</div></td></tr>`};
   return `<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h3 class="grow" style="margin:0">المستخدمين (${rows.length})</h3><button class="btn primary" onclick="userForm()">+ مستخدم جديد</button></div>
     <p class="muted" style="font-size:13px">كل مستخدم له دور ونطاق سجلات وصلاحيات منفصلة للمشاهدة والإضافة والتعديل والحذف والاعتماد والتوقيع. تفعيل حماية البيانات من الوصول المباشر يتطلب أيضًا ضبط سياسات الأمان في Supabase.</p>
-    <div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th>الدور</th><th>الأقسام</th><th>الحالة</th><th></th></tr></thead><tbody>${rows.map(tr).join("")}</tbody></table></div></div>`;
+    <div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th>الدور</th><th>الصلاحيات المتاحة</th><th>الحالة</th><th></th></tr></thead><tbody>${rows.map(tr).join("")}</tbody></table></div></div>`;
+}
+function roleAccessSummary(r){
+  const rights=mergeRights(r.tabs||{},r.rights||{});
+  const keys=activeRightKeys(rights).filter(k=>rightValue(rights,k,"view"));
+  const forms=keys.filter(k=>k.startsWith("form_")||RIGHTS_RESOURCES[k]?.formId).length;
+  const labels=keys.filter(k=>!k.startsWith("form_")&&!RIGHTS_RESOURCES[k]?.formId).map(k=>RIGHTS_RESOURCES[k]?.label||k);
+  const shown=labels.slice(0,4).join("، ")+(labels.length>4?"، +"+(labels.length-4):"");
+  return (shown||"لا توجد سجلات مشاهدة")+(forms?" · "+forms+" نموذج":"")
 }
 function rolesCardHTML(){const R=ROLES_ALL();
   return `<div class="card" style="margin-top:14px"><div style="display:flex;align-items:center;gap:10px"><h3 class="grow" style="margin:0">الأدوار والصلاحيات</h3><button class="btn" onclick="roleForm()">+ دور جديد</button></div>
-  <p class="muted" style="font-size:13px">حدد الأقسام وأنواع السجلات المسموح بها لكل دور، وافصل بين المشاهدة والإضافة والتعديل والحذف والاعتماد والتوقيع. الأدوار الجاهزة قابلة للتعديل، ويمكنك إنشاء أدوار خاصة.</p>
-  <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${Object.entries(r.tabs||{}).map(([t,l])=>`${TAB_NAMES[t]||t} (${LV[l]||l})`).join("، ")}</div></div>${r.fixed?"":`<div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div>`}</div>`).join("")}</div></div>`}
-function tabsMatrix(cur){
-  const used=new Set();
-  const groups=TAB_ACCESS_GROUPS.map(([label,keys],i)=>{const rows=keys.filter(k=>k!=="settings"&&TAB_NAMES[k]);rows.forEach(k=>used.add(k));return rows.length?`<details class="access-group" ${i===0?"open":""}><summary>${label}<span class="muted">${rows.filter(k=>cur[k]).length} محدد</span></summary><div class="access-tab-list">${rows.map(k=>`<label class="access-tab-row"><span>${TAB_NAMES[k]}</span><select name="lv_${k}"><option value="">مخفي</option>${Object.entries(LV).map(([v,n])=>`<option value="${v}" ${cur[k]===v?"selected":""}>${n}</option>`).join("")}</select></label>`).join("")}</div></details>`:""}).join("");
-  const other=Object.entries(TAB_NAMES).filter(([k])=>k!=="settings"&&!used.has(k));
-  const extra=other.length?`<details class="access-group"><summary>أقسام أخرى<span class="muted">${other.filter(([k])=>cur[k]).length} محدد</span></summary><div class="access-tab-list">${other.map(([k,l])=>`<label class="access-tab-row"><span>${l}</span><select name="lv_${k}"><option value="">مخفي</option>${Object.entries(LV).map(([v,n])=>`<option value="${v}" ${cur[k]===v?"selected":""}>${n}</option>`).join("")}</select></label>`).join("")}</div></details>`:"";
-  return `<div class="field full"><label>الأقسام التي تظهر للمستخدم</label><div class="access-groups">${groups}${extra}</div></div>`
-}const readMatrix=form=>{const o={};for(const k of Object.keys(TAB_NAMES)){const v=form.querySelector(`[name="lv_${k}"]`)?.value;if(v)o[k]=v}return o};
-async function roleForm(key){const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};let catalog={};try{catalog=await loadForms2()}catch(e){}registerFormRights(catalog);const initialRights=mergeRights(r.tabs||{},r.rights||{});
-  openSheet(key?"تعديل الدور":"دور جديد",`<div class="form">${f("اسم الدور","ar",{value:r.ar,req:true,full:true,attrs:'placeholder="مثلاً: مراقب سلامة مقاول"'})}${tabsMatrix(r.tabs||{})}${rightsMatrix(initialRights,catalog)}</div>`,async(fd,form)=>{
-    if(!fd.ar.trim())return "اكتب اسم الدور";const tabs=readMatrix(form);if(!Object.keys(tabs).length)return "اختار قسم واحد على الأقل";const updatedRights=readRights(form,initialRights);
-    const k=key||("r"+Date.now().toString(36));const roles={...(S.settings.roles||{}),[k]:{ar:fd.ar.trim(),tabs,rights:updatedRights}};
-    const ok=await write(()=>db.doc("settings/main").update({roles}),"اتحفظ الدور");if(ok){for(const p of (S.profiles||[]).filter(p=>p.role===k))await SB.from("profiles").update({tabs:tabsWithRights(tabs,updatedRights)}).eq("user_id",p.id)}return ok?null:"الحفظ فشل"})}
+  <p class="muted" style="font-size:13px">حدد ما يظهر لكل دور، ثم اضبط المشاهدة والإضافة والتعديل والحذف والاعتماد والتوقيع لكل سجل. النماذج لها صلاحيات منفصلة، والأدوار الجاهزة قابلة للتعديل.</p>
+  <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${roleAccessSummary(r)}</div></div>${r.fixed?"":`<div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div>`}</div>`).join("")}</div></div>`}
+async function roleForm(key){
+  const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
+  let catalog={};try{catalog=await loadForms2()}catch(e){}
+  registerFormRights(catalog);
+  const initialRights=normalizeRights(mergeRights(r.tabs||{},r.rights||{}));
+  const title=key?"تعديل الدور":"دور جديد";
+  const html='<div class="form">'+f("اسم الدور","ar",{value:r.ar,req:true,full:true,attrs:'placeholder="مثلاً: مراقب سلامة مقاول"'})+rightsMatrix(initialRights,catalog)+'</div>';
+  openSheet(title,html,async(fd,form)=>{
+    if(!fd.ar.trim())return "اكتب اسم الدور";
+    const updatedRights=readRights(form,initialRights),tabs=tabsFromRights(updatedRights);
+    if(!Object.keys(tabs).length)return "حدد صلاحية مشاهدة لسجل واحد على الأقل";
+    const k=key||("r"+Date.now().toString(36));
+    const roles={...(S.settings.roles||{}),[k]:{ar:fd.ar.trim(),tabs,rights:updatedRights}};
+    const ok=await write(()=>db.doc("settings/main").update({roles}),"اتحفظ الدور");
+    if(ok)for(const prof of (S.profiles||[]).filter(x=>x.role===k))await SB.from("profiles").update({tabs:tabsWithRights(tabs,updatedRights)}).eq("user_id",prof.id);
+    return ok?null:"الحفظ فشل"
+  })
+}
 function roleDelete(k){const used=Object.values(S.settings.users||{}).concat(Object.values(S.settings.invites||{})).filter(u=>u.role===k).length;
   confirmSheet(BUILTIN_ROLES[k]?"رجوع الدور لأصله":"حذف الدور",used&&!BUILTIN_ROLES[k]?`فيه ${used} مستخدم على الدور ده، هيتحولوا لـ «مشاهدة الرئيسية بس» لحد ما تغيّر دورهم.`:"متأكد؟",()=>{const roles={...(S.settings.roles||{})};delete roles[k];return write(()=>db.doc("settings/main").update({roles}),"تم")},BUILTIN_ROLES[k]?"رجّعه":"احذف")}
 async function userForm(uid){
-  let catalog={};try{catalog=await loadForms2()}catch(e){}registerFormRights(catalog);
-  const p=uid?(S.profiles||[]).find(x=>x.id===uid):null;const u=p?{role:p.role,scope:p.scope,empId:p.emp_id,tabs:p.tabs,rights:p.tabs?.__rights||p.rights}:{role:"hse",scope:"all",empId:""};
+  let catalog={};try{catalog=await loadForms2()}catch(e){}
+  registerFormRights(catalog);
+  const p=uid?(S.profiles||[]).find(x=>x.id===uid):null;
+  const u=p?{role:p.role,scope:p.scope,empId:p.emp_id,tabs:p.tabs,rights:p.tabs?.__rights||p.rights}:{role:"hse",scope:"all",empId:""};
   const roleOpts=[["admin","مدير المنظومة (كل حاجة)"],...Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,v])=>[k,v.ar]),["custom","مخصص (أحدده هنا)"]];
-  openSheet(p?"تعديل مستخدم":"مستخدم جديد",`<div class="form"><div class="field full"><label for="f_ue">الموظف</label><input id="f_ue" name="emp" list="empListAll" autocomplete="off" value="${esc(emp(u.empId)?.name||"")}" placeholder="اكتب الاسم أو الكود"></div>
-    ${p?`<div class="field"><label>اسم المستخدم</label><div class="serial" dir="ltr">${esc(p.username)}</div></div>`:f("اسم المستخدم (إنجليزي أو أرقام)","uname",{attrs:'dir="ltr" placeholder="تلقائي = كود الموظف"'})}
-    ${f("الدور","role",{value:u.role,opts:roleOpts})}
-    ${f("نطاق السجلات","scope",{value:u.scope||"all",opts:[["all","كل السجلات المسموحة"],["own","السجلات التي أنشأها أو هو مسؤول عنها"]]})}
-    <div id="cust" ${u.role==="custom"?"":"hidden"} class="full">${tabsMatrix(u.tabs||{dash:"view"})}${rightsMatrix(mergeRights(u.tabs||{dash:"view"},u.rights||{}),catalog)}</div></div>${empDatalist2()}`,async(fd,form)=>{
+  const customRights=normalizeRights(mergeRights(u.tabs||{dash:"view"},u.rights||{}));
+  const empField='<div class="field full"><label for="f_ue">الموظف</label><input id="f_ue" name="emp" list="empListAll" autocomplete="off" value="'+esc(emp(u.empId)?.name||"")+'" placeholder="اكتب الاسم أو الكود"></div>';
+  const unameField=p?'<div class="field"><label>اسم المستخدم</label><div class="serial" dir="ltr">'+esc(p.username)+'</div></div>':f("اسم المستخدم (إنجليزي أو أرقام)","uname",{attrs:'dir="ltr" placeholder="تلقائي = كود الموظف"'});
+  const scopeField=f("نطاق السجلات","scope",{value:u.scope||"all",opts:[["all","كل السجلات المسموحة"],["own","السجلات التي أنشأها أو هو مسؤول عنها"]]});
+  const customField='<div id="cust" class="full"'+(u.role==="custom"?"":" hidden")+">"+rightsMatrix(customRights,catalog)+"</div>";
+  const html='<div class="form">'+empField+unameField+f("الدور","role",{value:u.role,opts:roleOpts})+scopeField+customField+'</div>'+empDatalist2();
+  openSheet(p?"تعديل مستخدم":"مستخدم جديد",html,async(fd,form)=>{
     const e=resolveEmp(fd.emp);if(!e)return "اختار الموظف من القائمة";
-    const tabs=fd.role==="custom"?readMatrix(form):fd.role==="admin"?{}:(ROLES_ALL()[fd.role]?.tabs||{});if(fd.role==="custom"&&!Object.keys(tabs).length)return "اختار قسم واحد على الأقل";const rights=fd.role==="custom"?readRights(form,mergeRights(u.tabs||{dash:"view"},u.rights||{})):(ROLES_ALL()[fd.role]?.rights||rightsFromTabs(tabs));const savedTabs=fd.role==="admin"?{}:tabsWithRights(tabs,rights);
+    let rights,tabs;
+    if(fd.role==="admin"){rights={};tabs={}}
+    else if(fd.role==="custom"){rights=readRights(form,customRights);tabs=tabsFromRights(rights);if(!Object.keys(tabs).length)return "حدد صلاحية مشاهدة لسجل واحد على الأقل"}
+    else{rights=normalizeRights(ROLES_ALL()[fd.role]?.rights||rightsFromTabs(ROLES_ALL()[fd.role]?.tabs||{}));tabs=ROLES_ALL()[fd.role]?.tabs||tabsFromRights(rights)}
+    const savedTabs=fd.role==="admin"?{}:tabsWithRights(tabs,rights);
     if(p){const {error}=await SB.from("profiles").update({role:fd.role,scope:fd.scope,emp_id:e.id,tabs:savedTabs}).eq("user_id",p.id);if(error)return "الحفظ فشل";toast("اتحفظ");return null}
     let uname=String(fd.uname||e.code||"").trim().toLowerCase();if(!/^[a-z0-9._-]{3,40}$/.test(uname))return "اكتب اسم مستخدم إنجليزي أو أرقام (٣ حروف على الأقل)";
     const pin=genPin();
     try{const r=await SBA.fn("create",{username:uname,password:pin,role:fd.role,tabs:savedTabs,scope:fd.scope,empId:e.id});await savePin(r.user_id,{pin,username:uname});setTimeout(()=>sendInvite(r.user_id),500)}catch(err){return SBA.ar(err)}
-    toast("اتسجل المستخدم");return null},p?"حفظ":"تسجيل وإرسال على واتساب");
-  form_role_toggle();
+    toast("اتسجل المستخدم");return null
+  },p?"حفظ":"تسجيل وإرسال على واتساب");
+  form_role_toggle()
 }
 function form_role_toggle_base(){const s=document.querySelector('#shForm [name="role"]');if(s)s.onchange=()=>{const c=$("cust");if(c)c.hidden=s.value!=="custom"}}
 async function userToggle(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const {error}=await SB.from("profiles").update({disabled:!p.disabled}).eq("user_id",uid);toast(error?"فشل":"تم")}
@@ -2158,23 +2174,61 @@ const RIGHTS_RESOURCES={
   permits:{label:"تصاريح العمل",tab:"ptw"},records:{label:"بقية النماذج والسجلات",tab:"forms"},incidentRecords:{label:"سجل الحوادث والحوادث الوشيكة",tab:"forms"},violationRecords:{label:"سجل المخالفات",tab:"forms"},unsafeRecords:{label:"الأوضاع والتصرفات غير الآمنة",tab:"forms"},trainingRecords:{label:"محاضرات التوعية TBT",tab:"forms"},actions:{label:"المتابعة والمهام",tab:"actions"},
   inventory:{label:"مخزن المهمات",tab:"ppe"},employees:{label:"الموظفون والقوى العاملة",tab:"manpower"},contractors:{label:"المقاولون",tab:"contractors"},
   equipment:{label:"المعدات والطوارئ",tab:"equip"},attendance:{label:"الحضور والموارد البشرية",tab:"team"},kpi:{label:"مؤشرات الأداء",tab:"kpi"},
-  reports:{label:"التقارير",tab:"report"},office:{label:"مكتب السلامة",tab:"office"},matreq:{label:"طلبات المهمات",tab:"matreq"},users:{label:"المستخدمون",tab:"settings"},settings:{label:"إعدادات النظام",tab:"settings"}
+  reports:{label:"التقارير",tab:"report"},office:{label:"مكتب السلامة",tab:"office"},matreq:{label:"طلبات المهمات",tab:"matreq"},changeRequests:{label:"طلبات تعديل البيانات",tab:"follow"},users:{label:"المستخدمون",tab:"settings"},settings:{label:"إعدادات النظام",tab:"settings"}
 };
 const RIGHTS_ACTIONS={view:"مشاهدة",create:"إضافة",edit:"تعديل",delete:"حذف",approve:"اعتماد",sign:"توقيع"};
 const CORE_RIGHT_KEYS=["employees","contractors","equipment","attendance","kpi","reports","office","matreq","users","settings"];
+const OPERATION_RIGHT_KEYS=["actions","inventory","changeRequests"];
 const LEGACY_FORM_RIGHTS={"F-HSE-03-01":"incidentRecords","F-HSE-07-01":"violationRecords","F-HSE-07-03":"unsafeRecords","F-HSE-24-02":"trainingRecords"};
 const formRightKey=fid=>"form_"+String(fid||"").replace(/[^a-zA-Z0-9]/g,"_");
 function registerFormRights(catalog={}){for(const [fid,spec] of Object.entries(catalog||{})){const k=formRightKey(fid);RIGHTS_RESOURCES[k]={label:`${fid} · ${spec.title||"نموذج"}`,tab:"forms",formId:fid,group:spec.group||"other"}}}
 const formRightKeys=()=>Object.keys(RIGHTS_RESOURCES).filter(k=>RIGHTS_RESOURCES[k].formId);
 function rightValue(rights,key,action){const own=rights?.[key]?.[action];if(typeof own==="boolean")return own;const meta=RIGHTS_RESOURCES[key];if(meta?.formId){const legacy=LEGACY_FORM_RIGHTS[meta.formId],old=legacy&&rights?.[legacy]?.[action];if(typeof old==="boolean")return old;const general=rights?.records?.[action];if(typeof general==="boolean")return general}return false}
-const TAB_RESOURCE={dash:"actions",actions:"actions",ptw:"permits",ppe:"inventory",manpower:"employees",contractors:"contractors",equip:"equipment",team:"attendance",kpi:"kpi",report:"reports",forms:"records",office:"office",matreq:"matreq",settings:"settings",hr:"attendance",follow:"actions"};
-function rightsFromTabs(tabs={}){const out={};for(const [k,r] of Object.entries(RIGHTS_RESOURCES)){const lv=tabs[r.tab];const visible=!!lv&&lv!=="view"?true:!!lv;const edit=lv==="edit"||lv==="full";const full=lv==="full";out[k]={view:visible,create:edit,edit,delete:full,approve:false,sign:edit}}return out}
-function mergeRights(tabs={},saved={}){const out=rightsFromTabs(tabs);for(const [k,v] of Object.entries(saved||{}))out[k]={...(out[k]||{}),...(v||{})};return out}
+const TAB_RESOURCE={dash:"actions",actions:"actions",ptw:"permits",ppe:"inventory",manpower:"employees",contractors:"contractors",equip:"equipment",team:"attendance",kpi:"kpi",report:"reports",forms:"records",office:"office",matreq:"matreq",settings:"settings",hr:"attendance",follow:"changeRequests"};
+function rightsFromTabs(tabs={}){const out={};for(const [k,r] of Object.entries(RIGHTS_RESOURCES)){const lv=tabs[r.tab]||(k==="changeRequests"?tabs.forms:null);const visible=!!lv&&lv!=="view"?true:!!lv;const edit=lv==="edit"||lv==="full";const full=lv==="full";out[k]={view:visible,create:edit,edit,delete:full,approve:false,sign:edit}}return out}
+function mergeRights(tabs={},saved={}){
+  const out=rightsFromTabs(tabs);
+  for(const [k,v] of Object.entries(saved||{}))out[k]={...(out[k]||{}),...(v||{})};
+  if(!saved?.changeRequests){const legacyReq=saved?.records||out.records;if(legacyReq)out.changeRequests={...(out.changeRequests||{}),...legacyReq}}
+  for(const k of formRightKeys()){
+    const oldKey=LEGACY_FORM_RIGHTS[RIGHTS_RESOURCES[k]?.formId];
+    for(const a of Object.keys(RIGHTS_ACTIONS)){
+      if(Object.prototype.hasOwnProperty.call(saved?.[k]||{},a))continue;
+      const old=oldKey&&saved?.[oldKey]?.[a],generic=saved?.records?.[a];
+      if(typeof old==="boolean")out[k][a]=old;else if(typeof generic==="boolean")out[k][a]=generic;
+    }
+  }
+  return out
+}
+function tabsFromRights(rights={}){
+  const out={};
+  for(const [tab,res] of Object.entries(TAB_RESOURCE)){
+    let allowed=false;
+    if(tab==="forms"){const keys=[...new Set([...formRightKeys(),...Object.keys(rights||{}).filter(k=>/^form_/.test(k))])];allowed=keys.some(k=>rightValue(rights,k,"view"))||(!keys.length&&rightValue(rights,"records","view"))}
+    else allowed=rightValue(rights,res,"view");
+    if(allowed)out[tab]="view";
+  }
+  return out
+}
+function activeRightKeys(cur={}){return [...new Set([...CORE_RIGHT_KEYS,...OPERATION_RIGHT_KEYS,"permits",...formRightKeys(),...Object.keys(cur||{}).filter(k=>/^form_/.test(k))])] }
+function normalizeRights(cur={}){const out={};for(const k of activeRightKeys(cur)){out[k]={};for(const a of Object.keys(RIGHTS_ACTIONS))out[k][a]=rightValue(cur,k,a)}return out}
 function tabsWithRights(tabs={},rights={}){const out={...tabs};delete out.__rights;out.__rights=rights;return out}
 function rightsTable(keys,cur={}){return `<div class="permission-scroll"><table><thead><tr><th>السجل</th>${Object.values(RIGHTS_ACTIONS).map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${keys.filter(k=>RIGHTS_RESOURCES[k]).map(k=>{const r=RIGHTS_RESOURCES[k];return `<tr><td>${esc(r.label)}</td>${Object.keys(RIGHTS_ACTIONS).map(a=>`<td data-action="${RIGHTS_ACTIONS[a]}"><input type="checkbox" name="right_${k}_${a}" ${rightValue(cur,k,a)?"checked":""} aria-label="${esc(r.label)} - ${RIGHTS_ACTIONS[a]}"></td>`).join("")}</tr>`}).join("")}</tbody></table></div>`}
 function formRightsTable(cur={},catalog={}){const rows=Object.entries(catalog||{});if(!rows.length)return `<p class="muted">تعذر تحميل قائمة النماذج. صلاحيات النماذج الحالية محفوظة.</p>`;const groups={};for(const [fid,spec] of rows){const g=spec.group||"other";(groups[g]??=[]).push([fid,spec])}return `<div class="permission-groups">${Object.entries(groups).map(([g,list])=>`<details class="access-group"><summary>${esc(FORM_GROUPS[g]||({equip:"فحوص المعدات",emerg:"الطوارئ"}[g]||g))}<span class="muted">${list.length} نموذج</span></summary>${rightsTable(list.map(([fid])=>formRightKey(fid)),cur)}</details>`).join("")}</div>`}
-function rightsMatrix(cur={},catalog={}){const forms=Object.keys(catalog||{}).length;return `<div class="field full"><label>صلاحيات السجلات والإجراءات</label><details class="access-group" open><summary>الصلاحيات العامة <span class="muted">آخر 10</span></summary>${rightsTable(CORE_RIGHT_KEYS,cur)}</details><details class="access-group"><summary>تصاريح العمل <span class="muted">مراحل التصريح</span></summary>${rightsTable(["permits"],cur)}</details><details class="access-group"><summary>النماذج حسب سجل المنظومة <span class="muted">${forms} نموذج</span></summary>${formRightsTable(cur,catalog)}</details><small class="muted">المشاهدة لا تمنح التعديل. الاعتماد والتوقيع صلاحيتان مستقلتان. لكل نموذج صلاحيات منفصلة.</small></div>`}
-function readRights(form,cur={}){const out={...cur};for(const k of [...CORE_RIGHT_KEYS,"permits",...formRightKeys()]){out[k]={...(cur[k]||{})};for(const a of Object.keys(RIGHTS_ACTIONS))out[k][a]=!!form.querySelector(`[name="right_${k}_${a}"]`)?.checked}return out}
+function rightsMatrix(cur={},catalog={}){
+  const forms=Object.keys(catalog||{}).length;
+  return '<div class="field full"><label>مصفوفة الصلاحيات الموحدة</label>'+
+    '<details class="access-group" open><summary>الصلاحيات العامة <span class="muted">10 موارد</span></summary>'+rightsTable(CORE_RIGHT_KEYS,cur)+'</details>'+
+    '<details class="access-group"><summary>التشغيل والطلبات <span class="muted">3 موارد</span></summary>'+rightsTable(OPERATION_RIGHT_KEYS,cur)+'</details>'+
+    '<details class="access-group"><summary>تصاريح العمل <span class="muted">مراحل التصريح</span></summary>'+rightsTable(["permits"],cur)+'</details>'+
+    '<details class="access-group"><summary>النماذج حسب سجل المنظومة <span class="muted">'+forms+' نموذج</span></summary>'+formRightsTable(cur,catalog)+'</details>'+
+    '<small class="muted">هذه مصفوفة واحدة؛ مشاهدة الأقسام تُستنتج من صلاحية مشاهدة كل سجل. لكل نموذج وتصريح صلاحيات مستقلة.</small></div>'
+}
+function readRights(form,cur={}){
+  const out=normalizeRights(cur);
+  for(const k of activeRightKeys(cur))for(const a of Object.keys(RIGHTS_ACTIONS)){const el=form.querySelector('[name="right_'+k+'_'+a+'"]');if(el)out[k][a]=!!el.checked}
+  return out
+}
 const PTW_APPROVER_ROLES=new Set(["officer","hseSupervisor","executionEng","hse","sup","execution_manager","site_supervisor","site_safety_manager","safety_specialist"]);
 for(const [name,r] of Object.entries(BUILTIN_ROLES))if(!r.rights){r.rights=rightsFromTabs(r.tabs||{});if(PTW_APPROVER_ROLES.has(name)&&r.rights.permits){r.rights.permits.approve=true;r.rights.permits.sign=true}}
 Object.assign(PTW_STATUS,{requested:["طلب جديد","p-susp"],supok:["اعتمد المشرف","p-open"],closing:["مستني اعتماد الغلق","p-susp"],rejected:["مرفوض","p-canc"]});
