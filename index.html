@@ -956,7 +956,7 @@ function roleTabs(u){const r=ROLES_ALL()[u.role];let tb=u.role==="custom"||!r?(u
 function myMember(){return (S.members||[]).find(m=>m.id===ME.id)}
 function myProfile(){return (S.profiles||[]).find(p=>p.id===ME.id)||window.SBA?.profile||null}
 function myAccess(){const p=myProfile();if(!p||p.disabled)return null;if(p.role==="admin")return {role:"admin",tabs:allTabs("full"),rights:Object.fromEntries(Object.keys(RIGHTS_RESOURCES).map(k=>[k,Object.fromEntries(Object.keys(RIGHTS_ACTIONS).map(a=>[a,true]))])),scope:"all",empId:p.emp_id};
-  const role=ROLES_ALL()[p.role];let raw=p.tabs&&Object.keys(p.tabs).length?p.tabs:(role?.tabs||{dash:"view"});if(Array.isArray(raw))raw=Object.fromEntries(raw.map(k=>[k,"edit"]));const savedRights=raw.__rights||p.rights||role?.rights;const tb={...raw};delete tb.__rights;const rights=savedRights||rightsFromTabs(tb);return {role:p.role,tabs:tb,rights,scope:p.scope||"all",empId:p.emp_id}}
+  const role=ROLES_ALL()[p.role];let raw=p.tabs&&Object.keys(p.tabs).length?p.tabs:(role?.tabs||{dash:"view"});if(Array.isArray(raw))raw=Object.fromEntries(raw.map(k=>[k,"edit"]));const tb={...raw};delete tb.__rights;const profileRights=raw.__rights||p.rights;const useProfileRights=p.role==="custom"||!role?.rights;const rights=useProfileRights?(profileRights||role?.rights||rightsFromTabs(tb)):role.rights;const tabs=!useProfileRights&&role?.tabs&&Object.keys(role.tabs).length?role.tabs:tb;return {role:p.role,tabs,rights,scope:p.scope||"all",empId:p.emp_id}}
 function hasRight(resource,action){const a=myAccess();if(!a)return false;if(a.role==="admin")return true;const grant=a.rights?.[resource];if(grant&&typeof grant[action]==="boolean")return grant[action];const meta=RIGHTS_RESOURCES[resource];if(meta?.formId){const legacy=LEGACY_FORM_RIGHTS[meta.formId],old=legacy&&a.rights?.[legacy]?.[action];if(typeof old==="boolean")return old;const general=a.rights?.records?.[action];if(typeof general==="boolean")return general}const tab=meta?.tab;const lv=tab&&(a.tabs?.[tab]||"view");if(action==="view")return !!lv&&lv!=="view"||lv==="view";if(action==="delete")return lv==="full";return lv==="edit"||lv==="full"}
 function tabResource(tabName){return TAB_RESOURCE[tabName]||null}
 function resourceForCollection(col){return ({actions:"actions",tasks:"actions",records:"records",permits:"permits",ppe_items:"inventory",ppe_moves:"inventory",employees:"employees",contractors:"contractors",equipment:"equipment",kpi_entries:"kpi",attendance:"attendance",leaves:"attendance",leavereq:"attendance",matreq:"matreq",office:"office",reports:"reports",settings:"settings",changereq:"changeRequests"})[col]||null}
@@ -998,12 +998,13 @@ function rolesCardHTML(){const R=ROLES_ALL();
   <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${roleAccessSummary(r)}</div></div>${r.fixed?"":`<div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div>`}</div>`).join("")}</div></div>`}
 async function roleForm(key){
   const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
-  let catalog={};try{catalog=await loadForms2()}catch(e){}
+  let catalog={},formsReady=false;try{catalog=await loadForms2();formsReady=Object.keys(catalog||{}).length>0}catch(e){}
   registerFormRights(catalog);
   const initialRights=normalizeRights(mergeRights(r.tabs||{},r.rights||{}));
   const title=key?"تعديل الدور":"دور جديد";
   const html='<div class="form">'+f("اسم الدور","ar",{value:r.ar,req:true,full:true,attrs:'placeholder="مثلاً: مراقب سلامة مقاول"'})+rightsMatrix(initialRights,catalog)+'</div>';
   openSheet(title,html,async(fd,form)=>{
+    if(!formsReady)return "لم يتم تحميل قائمة النماذج؛ أعد المحاولة قبل حفظ الدور حتى لا تضيع صلاحيات النماذج.";
     if(!fd.ar.trim())return "اكتب اسم الدور";
     const updatedRights=readRights(form,initialRights),tabs=tabsFromRights(updatedRights);
     if(!Object.keys(tabs).length)return "حدد صلاحية مشاهدة لسجل واحد على الأقل";
@@ -1017,7 +1018,7 @@ async function roleForm(key){
 function roleDelete(k){const used=Object.values(S.settings.users||{}).concat(Object.values(S.settings.invites||{})).filter(u=>u.role===k).length;
   confirmSheet(BUILTIN_ROLES[k]?"رجوع الدور لأصله":"حذف الدور",used&&!BUILTIN_ROLES[k]?`فيه ${used} مستخدم على الدور ده، هيتحولوا لـ «مشاهدة الرئيسية بس» لحد ما تغيّر دورهم.`:"متأكد؟",()=>{const roles={...(S.settings.roles||{})};delete roles[k];return write(()=>db.doc("settings/main").update({roles}),"تم")},BUILTIN_ROLES[k]?"رجّعه":"احذف")}
 async function userForm(uid){
-  let catalog={};try{catalog=await loadForms2()}catch(e){}
+  let catalog={},formsReady=false;try{catalog=await loadForms2();formsReady=Object.keys(catalog||{}).length>0}catch(e){}
   registerFormRights(catalog);
   const p=uid?(S.profiles||[]).find(x=>x.id===uid):null;
   const u=p?{role:p.role,scope:p.scope,empId:p.emp_id,tabs:p.tabs,rights:p.tabs?.__rights||p.rights}:{role:"hse",scope:"all",empId:""};
@@ -1032,7 +1033,7 @@ async function userForm(uid){
     const e=resolveEmp(fd.emp);if(!e)return "اختار الموظف من القائمة";
     let rights,tabs;
     if(fd.role==="admin"){rights={};tabs={}}
-    else if(fd.role==="custom"){rights=readRights(form,customRights);tabs=tabsFromRights(rights);if(!Object.keys(tabs).length)return "حدد صلاحية مشاهدة لسجل واحد على الأقل"}
+    else if(fd.role==="custom"){if(!formsReady)return "لم يتم تحميل قائمة النماذج؛ أعد المحاولة قبل حفظ الصلاحيات.";rights=readRights(form,customRights);tabs=tabsFromRights(rights);if(!Object.keys(tabs).length)return "حدد صلاحية مشاهدة لسجل واحد على الأقل"}
     else{rights=normalizeRights(ROLES_ALL()[fd.role]?.rights||rightsFromTabs(ROLES_ALL()[fd.role]?.tabs||{}));tabs=ROLES_ALL()[fd.role]?.tabs||tabsFromRights(rights)}
     const savedTabs=fd.role==="admin"?{}:tabsWithRights(tabs,rights);
     if(p){const {error}=await SB.from("profiles").update({role:fd.role,scope:fd.scope,emp_id:e.id,tabs:savedTabs}).eq("user_id",p.id);if(error)return "الحفظ فشل";toast("اتحفظ");return null}
@@ -2189,7 +2190,6 @@ function rightsFromTabs(tabs={}){const out={};for(const [k,r] of Object.entries(
 function mergeRights(tabs={},saved={}){
   const out=rightsFromTabs(tabs);
   for(const [k,v] of Object.entries(saved||{}))out[k]={...(out[k]||{}),...(v||{})};
-  if(!saved?.changeRequests){const legacyReq=saved?.records||out.records;if(legacyReq)out.changeRequests={...(out.changeRequests||{}),...legacyReq}}
   for(const k of formRightKeys()){
     const oldKey=LEGACY_FORM_RIGHTS[RIGHTS_RESOURCES[k]?.formId];
     for(const a of Object.keys(RIGHTS_ACTIONS)){
