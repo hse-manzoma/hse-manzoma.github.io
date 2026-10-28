@@ -824,7 +824,7 @@ function fillDuties(el){
   const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const c={};for(const l of L)c[l.kind]=(c[l.kind]||0)+1;
   el.innerHTML=L.length?`<p class="muted" style="margin-top:0">${Object.entries(DUTY_K).map(([k,v])=>`${v}: ${c[k]||0}`).join(" · ")}</p><div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>التفاصيل</th><th></th></tr></thead><tbody>
-    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printMission('${l.id}')">فردي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printMission('${l.id}')">فردي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
   </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات في "+monthName(ui.dutyMonth),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
 }
 function leaveForm(){
@@ -857,14 +857,14 @@ function dutyForm(){
     <div class="full" id="dutyOne" hidden>${f("الموظف","empId",{opts:empOpts(hseTeam()),full:true})}</div>
     <div class="full field" id="dutyMany"><label id="dutyManyLbl">الموظفين (لحد 10 في النموذج)</label><div class="list" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px">
       ${hseTeam().map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="emps" value="${e.id}"> <span class="grow">${esc(e.name)}</span><span class="muted" style="font-size:12px">${esc(e.job||"")}</span></label>`).join("")}</div></div>
-    <div class="form full" id="dutyMission" hidden>${f("جهة المأمورية","destination",{full:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today()})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.project||""})}${f("رقم الإدارة / القسم","deptCode",{})}</div>
+    <div class="form full" id="dutyMission" hidden>${f("جهة المأمورية","destination",{full:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today()})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.project||""})}${f("رقم الإدارة / القسم","deptCode",{})}${f("المعتمد (مدير الإدارة / المدير المختص)","approver",{full:true,opts:[["","— من غير اعتماد إلكتروني (يتمضى بالقلم) —"],...missionApproverOpts()]})}<p class="muted full" style="font-size:12.5px;margin:0">${missionApproverIds().length?"دول أصحاب صلاحية اعتماد المأموريات.":"لسه ما حددتش أصحاب صلاحية الاعتماد — اتفضل الإعدادات ← صلاحية اعتماد المأموريات."}</p></div>
     <div class="full" id="dutyReason">${f("السبب / العمل المكلفين به","reason",{value:"متابعة أعمال الموقع",full:true})}</div>
     <div class="full form" id="dutyHours" hidden>${f("من الساعة","from",{value:"2 م"})}${f("لحد الساعة","toH",{value:"4 م"})}</div></div>`,
   async(fd,form)=>{
     const kind=fd.kind;let ids=(kind==="duty"||kind==="missiong")?[...form.querySelectorAll("input[name=emps]:checked")].map(i=>i.value):[fd.empId].filter(Boolean);
     if(!ids.length)return (kind==="duty"||kind==="missiong")?"اختار موظف واحد على الأقل":"اختار الموظف";
     let newId=null;
-    const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now()};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim()}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
+    const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now(),createdBy:ME.id||""};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim();data.approverId=fd.approver||"";data.approverName=fd.approver?empName(fd.approver):""}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
     if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="missiong")setTimeout(()=>printMissionGroup(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(newId)setTimeout(()=>printMission(newId),400)}
     return ok?null:"الحفظ فشل";
   },"سجّل");
@@ -1001,6 +1001,8 @@ function remindersBase(){
   if(al.includes("contractors")){const w=S.employees.filter(e=>e.group==="ctr"&&e.active!==false);const noId=w.filter(e=>!hasID(e)).length,noInd=w.filter(e=>!S.records.some(r=>r.form==="F-HSE-24-01"&&(r.rows||[]).some(x=>x&&x.name_id===e.id))).length;
     if(noId)R.push({lv:"warn",t:`${noId} عامل مقاول من غير صورة بطاقة`,go:"ui.mpG='ctr';ui.mpID='no';show('manpower')"});if(noInd)R.push({lv:"warn",t:`${noInd} عامل مقاول ما حضرش محاضرة Induction`,go:"show('contractors')"})}
   if(al.includes("team")&&hseTeam().length&&!attDoc(t0))R.push({lv:"warn",t:"حضور النهارده لسه ما اتسجلش",go:"ui.teamSub='att';show('team')"});
+  {const mm=S.leaves.filter(l=>isMissionKind(l.kind)&&canSignMission(l)&&!iSignedMission(l));
+   if(mm.length)R.push({lv:"warn",t:`عندك ${mm.length} مأمورية مستنية توقيعك الإلكتروني`,go:"ui.teamSub='duties';show('team')"});}
   if(al.includes("forms")){const d=new Date();if(d.getDate()>=20){const m=thisMonth();const did=S.records.some(r=>r.form==="F-HSE-24-02"&&(r.date||"").startsWith(m)&&mineRec(r));if(!did)R.push({lv:"warn",t:"مفيش محاضرة توعية (TBT) اتسجلت الشهر ده",go:"ui.formSel='F-HSE-24-02';show('forms')"})}}
   const T=S.tasks.filter(x=>x.status!=="done"&&(x.assignee===me||(!ownScope()&&myAccess()?.role==="admin")));
   return {R,T};
@@ -1820,9 +1822,75 @@ async function printPerm(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
   printDoc({title:"إذن خروج / تأخير · "+(e.name||""),T:"PERM",vals:{name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(l.date),dayName:dayName(l.date),from:l.from||"",to:l.to||""},opt:{leader:isLeader(e)},filename:`اذن ساعتين ${e.name||""} ${l.date}.pdf`,rec:l});
 }
+/* ---------- mission e-signature ---------- */
+const isMissionKind=k=>k==="mission"||k==="missiong";
+function missionApproverId(l){return l?.approverId||""}
+function missionApproverIds(){const a=S.settings.missionApprovers;return Array.isArray(a)?a:[]}
+function isMissionApprover(empId){return !!empId&&missionApproverIds().includes(empId)}
+function missionApproverPool(){const ids=missionApproverIds();
+  const L=ids.length?ids.map(id=>emp(id)).filter(Boolean):S.employees.filter(e=>e.active!==false);
+  return L.slice().sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
+function missionApproverOpts(){return missionApproverPool().map(e=>[e.id,e.name+(e.job?" · "+e.job:"")])}
+/* who may press «اعتماد وتوقيع»: the admin, or an account that carries the
+   approval permission — and when a specific approver was named on the
+   mission, only that one. */
+function canApproveMission(l){
+  if(myAccess()?.role==="admin")return true;
+  const me=myEmpId();if(!me||!l)return false;
+  const ids=missionApproverIds();
+  if(ids.length&&!ids.includes(me))return false;   // القائمة مرجعية لما تتحدد
+  if(l.approverId)return l.approverId===me;        // المعتمد المحدد هو اللي يوقّع
+  return ids.includes(me);                         // غير كده لازم تكون صاحب الصلاحية
+}
+function isMissionRequester(l){const me=myEmpId();return !!(me&&l&&l.empId===me)}
+function canSignMission(l){return isMissionRequester(l)||canApproveMission(l)}
+function iSignedMission(l){return signsOf(l).some(s=>s.uid===ME.id)}
+function missionSignedName(l,nm){const n=normName(nm);return !!n&&signsOf(l).some(s=>normName(s.name)===n)}
+async function stampMissionSigs(T,rec,vals,pages){
+  const F=(await loadForms())[T];const SB=F&&F.sigBoxes;if(!SB||!SB.length)return pages;
+  const L=signsOf(rec);if(!L.length)return pages;
+  const mine=await mySig();
+  for(const b of SB){
+    const want=normName(vals[b.field]);if(!want)continue;
+    const s=L.find(z=>normName(z.name)===want);if(!s)continue;
+    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],s.uid===ME.id?mine:"",s);
+  }
+  return pages;
+}
+function missionSignBtns(l){
+  const out=[],n=signsOf(l).length,mine=iSignedMission(l);
+  const isReq=isMissionRequester(l),isApp=canApproveMission(l);
+  if(!mine&&canSignMission(l))out.push(`<button class="btn ghost sm" style="color:var(--ok)" onclick="signMission('${l.id}')">✍ ${isApp&&!isReq?"اعتماد وتوقيع":"وقّع"}</button>`);
+  if(mine)out.push(`<button class="btn ghost sm" style="color:var(--ok)" onclick="unsignMission('${l.id}')" title="اضغط لشيل توقيعك">✔ وقّعت</button>`);
+  else if(n)out.push(`<span class="pill p-appr" title="عدد التوقيعات">✔ ${n}</span>`);
+  const admin=myAccess()?.role==="admin";
+  if((admin||l.createdBy===ME.id)&&l.empId&&!isReq)out.push(`<button class="btn ghost sm" onclick="sendMissionForSign('${l.id}')" title="ابعتها للموظف يمضيها إلكترونيًا">✉ للتوقيع</button>`);
+  return out.join("");
+}
+async function signMission(id){
+  const l=S.leaves.find(x=>x.id===id);if(!l)return;
+  if(!canSignMission(l)){toast("التوقيع للموظف صاحب المأمورية أو المعتمد المحدد بس");return}
+  if(canApproveMission(l)&&!isMissionRequester(l)&&!l.approvedAt)
+    await write(()=>upsert("leaves",id,{approvedAt:Date.now(),approvedBy:ME.id||"",approverName:l.approverName||myEmpName()}),null);
+  await signDoc("leaves",id);
+}
+async function unsignMission(id){await unsignDoc("leaves",id)}
+async function sendMissionForSign(id){
+  const l=S.leaves.find(x=>x.id===id);if(!l)return;
+  const targets=l.kind==="missiong"?S.leaves.filter(x=>x.kind==="missiong"&&x.date===l.date):[l];
+  const names=targets.map(x=>empName(x.empId)).filter(Boolean);
+  if(!names.length){toast("مفيش موظفين على المأمورية دي");return}
+  const ttl=`وقّع نموذج ${DUTY_K[l.kind]||"المأمورية"} بتاريخ ${fmtDate(l.date)}`;
+  await write(async()=>{
+    for(const x of targets){
+      await upsert("leaves",x.id,{sentForSign:{at:Date.now(),by:ME.id||""}});
+      if(x.empId)await db.collection("tasks").add({title:ttl,assignee:x.empId,due:x.date,note:x.destination||"",status:"open",createdBy:ME.id||"",createdAt:Date.now()});
+    }
+  },names.length>1?`اتبعتت لـ ${names.length} موظف للتوقيع`:`اتبعتت لـ ${names[0]} للتوقيع`);
+}
 async function printMission(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
-  const mgr=S.settings.leaderName||"اسلام بكر عباس";
+  const mgr=l.approverName||(l.approverId?empName(l.approverId):"");
   const vals={
     deptCode:l.deptCode||"",
     name:e.name||"", code:e.code||"", job:e.job||"",
@@ -1834,8 +1902,11 @@ async function printMission(id){
     reqDate:dmy(l.date), mgrDate:dmy(l.date)
   };
   const miss=[];if(!l.destination)miss.push("جهة المأمورية");if(!l.reason)miss.push("الغرض من المأمورية");
+  if(!mgr)miss.push("المعتمد (مدير الإدارة)");
+  if(!missionSignedName(l,e.name))miss.push("توقيع طالب المأمورية");
+  if(mgr&&!missionSignedName(l,mgr))miss.push("توقيع المعتمد");
   printDoc({title:"طلب القيام بمأمورية عمل · "+(e.name||""),T:"MISSION",vals,
-    opt:{leader:isLeader(e)},miss,
+    opt:{leader:false},miss,sign:p=>stampMissionSigs("MISSION",l,vals,p),
     filename:`مأمورية ${e.name||""} ${l.date}.pdf`,rec:l});
 }
 async function printMissionGroup(date){
@@ -1843,7 +1914,7 @@ async function printMissionGroup(date){
   const ALL=S.leaves.filter(l=>l.kind==="missiong"&&l.date===date&&!seen.has(l.empId)&&seen.add(l.empId));
   if(!ALL.length){toast("مفيش مأمورية مجمع في اليوم ده");return}
   const L=ALL.slice(0,18),h=L[0];
-  const mgr=S.settings.leaderName||"اسلام بكر عباس";
+  const mgr=h.approverName||(h.approverId?empName(h.approverId):"");
   const vals={
     section:h.department||S.settings.project||"",
     department:h.department||S.settings.project||"",
@@ -1855,8 +1926,13 @@ async function printMissionGroup(date){
   L.forEach((l,i)=>{const e=emp(l.empId)||{};vals["code"+i]=e.code||"";vals["name"+i]=e.name||""});
   const miss=[];if(ALL.length>18)miss.push("النموذج بياخد 18 فرد بس، الباقي محتاج نموذج تاني");
   if(!h.destination)miss.push("جهة المأمورية");if(!h.reason)miss.push("الغرض من المأمورية");
+  if(!mgr)miss.push("المعتمد (المدير المختص)");
+  if(mgr&&!missionSignedName(h,mgr))miss.push("توقيع المعتمد");
+  const unsigned=L.filter(x=>!missionSignedName(x,empName(x.empId))).length;
+  if(unsigned)miss.push(`${unsigned} من الأفراد لسه ما وقّعوش`);
+  const allSigns={signs:Object.assign({},...L.map(x=>x.signs||{}),h.signs||{})};
   printDoc({title:"طلب القيام بمأمورية مجمع · "+fmtDate(date),T:"MISSIONG",vals,
-    opt:{leader:false},miss,
+    opt:{leader:false},miss,sign:p=>stampMissionSigs("MISSIONG",allSigns,vals,p),
     filename:`مأمورية مجمع ${date}.pdf`});
 }
 async function printTeamDuty(date){
@@ -2107,9 +2183,9 @@ async function htmlPdf(html){return permitPdfBlob(await htmlCanvases(html))}
 
 /* ---------- print functions now open the full-screen viewer ---------- */
 async function printPages(title,make,filename){const V=openViewer(title,{filename});try{V.setPages(await make())}catch(e){console.error(e);V.fail()}}
-async function printDoc({title,T,vals,opt={},miss=[],fixBtn="",filename,rec}){
+async function printDoc({title,T,vals,opt={},miss=[],fixBtn="",filename,rec,sign}){
   const V=openViewer(title,{filename,note:miss.length?`ناقص: ${esc(miss.join("، "))}. ${fixBtn}`:""});
-  try{let pages=await renderForm(T,vals,opt);const sm=pages.sigMissing;if(rec)pages=[...pages,...await photoPages(rec,title,"صور مرفقة",title+(rec.date?" — "+fmtDate(rec.date):""))];V.setPages(pages);
+  try{let pages=await renderForm(T,vals,opt);const sm=pages.sigMissing;if(sign)pages=await sign(pages);if(rec)pages=[...pages,...await photoPages(rec,title,"صور مرفقة",title+(rec.date?" — "+fmtDate(rec.date):""))];V.setPages(pages);
     if(sm&&!miss.length)V.note("التوقيع بيظهر بس لما صاحب التوقيع يطبع. النموذج ده هيطلع من غير توقيع ويتمضي بالقلم.")}catch(e){console.error(e);V.fail()}}
 async function printPermit(id){
   let p=S.permits.find(x=>x.id===id);for(let i=0;!p&&i<10;i++){await new Promise(r=>setTimeout(r,200));p=S.permits.find(x=>x.id===id)}
@@ -2220,6 +2296,22 @@ function ptwTeamsEditor(){const T=S.settings.ptwTeams||{};
  setTimeout(()=>{document.querySelectorAll(".ptSrch").forEach(inp=>{inp.oninput=e=>{const t=e.target.dataset.t,q=normName(e.target.value);document.querySelectorAll('.ptList[data-t="'+t+'"] [data-n]').forEach(l=>l.hidden=q&&!l.dataset.n.includes(q))}})},60);
 }
 {const _sfT=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sfT.call(this);if(canDelete&&!$("ptwTeamsCard")){const c=document.createElement("div");c.className="card";c.id="ptwTeamsCard";c.style.marginTop="14px";c.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">فرق التصاريح</h3><div class="muted" style="font-size:13px">حدّد مسؤولي السلامة ومشرفي التنفيذ ومهندسي التنفيذ من القوى العاملة، عشان يظهروا في قوايم اختيار التصريح.</div></div><button class="btn primary" type="button" onclick="ptwTeamsEditor()">تعديل الفرق</button></div>';$("setBody").appendChild(c)}}}
+
+function missionApproversEditor(){
+ const cur=new Set(missionApproverIds());
+ const pool=S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+ openSheet("صلاحية اعتماد المأموريات",`<p class="muted" style="margin-top:0;font-size:13px">اختار مين من القوى العاملة له حق اعتماد وتوقيع المأموريات. دول بس اللي هيظهروا في خانة «المعتمد» وقت تسجيل المأمورية، وهم بس اللي يقدروا يدوسوا «اعتماد وتوقيع» بتوقيعهم المحفوظ. اللي مكتوب جنبه «محتاج حساب» لازم تعمله حساب من «المستخدمين» عشان يقدر يوقّع.</p>
+  <div class="field full"><label>أصحاب صلاحية الاعتماد <span class="muted" style="font-weight:400">(${cur.size} متحدد)</span></label>
+  <input type="search" id="maSrch" placeholder="ابحث بالاسم أو الكود" autocomplete="off">
+  <div id="maList" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-top:4px">${pool.map(e=>{
+    const acc=(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled);const sg=!!e.id;
+    return `<label class="chk" data-n="${esc(normName(e.name+" "+(e.code||"")))}"><input type="checkbox" name="ma" value="${e.id}" ${cur.has(e.id)?"checked":""}> ${esc(e.name)} <span class="muted" style="font-size:12px">${esc(e.job||"")}</span> ${acc?'<span class="pill p-appr" style="font-size:11px">له حساب</span>':'<span class="pill p-closed" style="font-size:11px">محتاج حساب</span>'}</label>`}).join("")}</div></div>`,
+  async(fd,form)=>{const missionApprovers=[...form.querySelectorAll('input[name="ma"]:checked')].map(i=>i.value);
+    return (await write(()=>db.doc("settings/main").set({...S.settings,missionApprovers,updatedAt:Date.now()}),"اتحفظت صلاحية الاعتماد"))?null:"الحفظ فشل"},"حفظ الصلاحية");
+ setTimeout(()=>{const inp=$("maSrch");if(inp)inp.oninput=e=>{const q=normName(e.target.value);
+   document.querySelectorAll('#maList [data-n]').forEach(l=>l.hidden=q&&!l.dataset.n.includes(q))}},60);
+}
+{const _sfM=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sfM.call(this);if(canDelete&&!$("missionApprCard")){const c=document.createElement("div");c.className="card";c.id="missionApprCard";c.style.marginTop="14px";c.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">صلاحية اعتماد المأموريات</h3><div class="muted" style="font-size:13px">حدّد مين له حق اعتماد وتوقيع نماذج المأمورية (الفردي والمجمع) بتوقيعه المحفوظ.</div></div><button class="btn primary" type="button" onclick="missionApproversEditor()">تعديل الصلاحية</button></div>';$("setBody").appendChild(c)}}}
 
 function pendingForMe(){const R=ptwRole();const out={sup:[],final:[],mine:[]};
   for(const p of S.permits){const rq=isReq(p);
