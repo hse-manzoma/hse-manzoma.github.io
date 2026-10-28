@@ -356,7 +356,7 @@ const KPIS = [
   {k:"tbt",ar:"محاضرات التوعية",def:7}
 ];
 const LEAVE_T = {casual:"عارضة",annual:"اعتيادي",other:"أخرى"};
-const DUTY_K = {duty:"تيم ديوتي",mission:"مأمورية",perm:"إذن ساعتين"};
+const DUTY_K = {duty:"تيم ديوتي",mission:"مأمورية فردي",missiong:"مأمورية مجمع",perm:"إذن ساعتين"};
 const GROUPS = {hse:"فريق السلامة",sup:"فريق الإشراف",worker:"موظفين الشركة",ctr:"عمالة مقاول",other:"أخرى"};
 
 /* ---------- state ---------- */
@@ -824,7 +824,7 @@ function fillDuties(el){
   const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const c={};for(const l of L)c[l.kind]=(c[l.kind]||0)+1;
   el.innerHTML=L.length?`<p class="muted" style="margin-top:0">${Object.entries(DUTY_K).map(([k,v])=>`${v}: ${c[k]||0}`).join(" · ")}</p><div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>التفاصيل</th><th></th></tr></thead><tbody>
-    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":l.kind==="mission"?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printMission('${l.id}')">فردي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 عرض</button>`:""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printMission('${l.id}')">فردي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
   </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات في "+monthName(ui.dutyMonth),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
 }
 function leaveForm(){
@@ -855,19 +855,25 @@ function dutyForm(){
   openSheet("تيم ديوتي / مأمورية / إذن",`<div class="form">
     ${f("النوع","kind",{opts:Object.entries(DUTY_K)})}${f("التاريخ","date",{type:"date",value:today(),req:true})}
     <div class="full" id="dutyOne" hidden>${f("الموظف","empId",{opts:empOpts(hseTeam()),full:true})}</div>
-    <div class="full field" id="dutyMany"><label>الموظفين (لحد 10 في النموذج)</label><div class="list" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px">
+    <div class="full field" id="dutyMany"><label id="dutyManyLbl">الموظفين (لحد 10 في النموذج)</label><div class="list" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px">
       ${hseTeam().map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="emps" value="${e.id}"> <span class="grow">${esc(e.name)}</span><span class="muted" style="font-size:12px">${esc(e.job||"")}</span></label>`).join("")}</div></div>
+    <div class="form full" id="dutyMission" hidden>${f("جهة المأمورية","destination",{full:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today()})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.project||""})}${f("رقم الإدارة / القسم","deptCode",{})}</div>
     <div class="full" id="dutyReason">${f("السبب / العمل المكلفين به","reason",{value:"متابعة أعمال الموقع",full:true})}</div>
     <div class="full form" id="dutyHours" hidden>${f("من الساعة","from",{value:"2 م"})}${f("لحد الساعة","toH",{value:"4 م"})}</div></div>`,
   async(fd,form)=>{
-    const kind=fd.kind;let ids=kind==="duty"?[...form.querySelectorAll("input[name=emps]:checked")].map(i=>i.value):[fd.empId].filter(Boolean);
-    if(!ids.length)return kind==="duty"?"اختار موظف واحد على الأقل":"اختار الموظف";
+    const kind=fd.kind;let ids=(kind==="duty"||kind==="missiong")?[...form.querySelectorAll("input[name=emps]:checked")].map(i=>i.value):[fd.empId].filter(Boolean);
+    if(!ids.length)return (kind==="duty"||kind==="missiong")?"اختار موظف واحد على الأقل":"اختار الموظف";
     let newId=null;
-    const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now()};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
-    if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(newId)setTimeout(()=>printMission(newId),400)}
+    const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now()};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim()}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
+    if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="missiong")setTimeout(()=>printMissionGroup(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(newId)setTimeout(()=>printMission(newId),400)}
     return ok?null:"الحفظ فشل";
   },"سجّل");
-  const sync=()=>{const k=$("f_kind").value;$("dutyHours").hidden=k!=="perm";$("dutyReason").hidden=k==="perm";$("dutyMany").hidden=k!=="duty";$("dutyOne").hidden=k==="duty"};
+  const sync=()=>{const k=$("f_kind").value,isM=(k==="mission"||k==="missiong"),many=(k==="duty"||k==="missiong");
+    $("dutyHours").hidden=k!=="perm";$("dutyReason").hidden=k==="perm";$("dutyMission").hidden=!isM;
+    $("dutyMany").hidden=!many;$("dutyOne").hidden=many;
+    const lbl=$("dutyManyLbl");if(lbl)lbl.textContent=k==="missiong"?"الموظفين (لحد 18 في النموذج)":"الموظفين (لحد 10 في النموذج)";
+    const rl=document.querySelector('label[for="f_reason"]')||$("dutyReason").querySelector("label");
+    if(rl)rl.textContent=isM?"الغرض من المأمورية":"السبب / العمل المكلفين به"};
   $("f_kind").onchange=sync;sync();
 }
 let attBusy=Promise.resolve();
@@ -1632,7 +1638,7 @@ async function renderForm(T,vals,opt={}){
       if(b.hideIfLeader&&opt.leader)continue;
       const txt=b.static??vals[b.field];if(txt==null||txt==="")continue;
       const bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H;
-      if(["date","serial","today","reqDate","pdate","startDate","endDate"].includes(b.field)){x.fillStyle="#fff";x.fillRect(bx+2,by+2,bw-4,bh-4)}
+      if(["date","serial","today","reqDate","pdate","startDate","endDate","returnDate","mgrDate","purpose"].includes(b.field)){x.fillStyle="#fff";x.fillRect(bx+2,by+2,bw-4,bh-4)}
       const padX=Math.min(8,Math.max(2,bw*.035)),padY=Math.min(2,bh*.08),maxW=Math.max(1,bw-padX*2),innerH=Math.max(1,bh-padY*2);
       const font=s=>`600 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
       const baseFs=Math.min((b.sz||11)*pxPerPt,bh*.72),minFs=Math.min(8,baseFs);let fs=baseFs,lines=[],maxLines=1;
@@ -1816,7 +1822,42 @@ async function printPerm(id){
 }
 async function printMission(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
-  printDoc({title:"تكليف إضافي لموظف · "+(e.name||""),T:"ONE",vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",today:ymdSlash(today())},opt:{leader:isLeader(e)},filename:`تكليف ${e.name||""} ${l.date}.pdf`,rec:l});
+  const mgr=S.settings.leaderName||"اسلام بكر عباس";
+  const vals={
+    deptCode:l.deptCode||"",
+    name:e.name||"", code:e.code||"", job:e.job||"",
+    department:l.department||S.settings.project||"",
+    startDate:dmy(l.date), returnDate:dmy(l.returnDate||l.date),
+    destination:l.destination||"", returnTime:l.returnTime||"",
+    purpose:l.reason||"",
+    reqName:e.name||"", mgrName:mgr,
+    reqDate:dmy(l.date), mgrDate:dmy(l.date)
+  };
+  const miss=[];if(!l.destination)miss.push("جهة المأمورية");if(!l.reason)miss.push("الغرض من المأمورية");
+  printDoc({title:"طلب القيام بمأمورية عمل · "+(e.name||""),T:"MISSION",vals,
+    opt:{leader:isLeader(e)},miss,
+    filename:`مأمورية ${e.name||""} ${l.date}.pdf`,rec:l});
+}
+async function printMissionGroup(date){
+  const seen=new Set();
+  const ALL=S.leaves.filter(l=>l.kind==="missiong"&&l.date===date&&!seen.has(l.empId)&&seen.add(l.empId));
+  if(!ALL.length){toast("مفيش مأمورية مجمع في اليوم ده");return}
+  const L=ALL.slice(0,18),h=L[0];
+  const mgr=S.settings.leaderName||"اسلام بكر عباس";
+  const vals={
+    section:h.department||S.settings.project||"",
+    department:h.department||S.settings.project||"",
+    deptCode:h.deptCode||"", job:(emp(h.empId)||{}).job||"",
+    startDate:dmy(date), returnDate:dmy(h.returnDate||date),
+    destination:h.destination||"", purpose:h.reason||"",
+    mgrName:mgr, mgrDate:dmy(date)
+  };
+  L.forEach((l,i)=>{const e=emp(l.empId)||{};vals["code"+i]=e.code||"";vals["name"+i]=e.name||""});
+  const miss=[];if(ALL.length>18)miss.push("النموذج بياخد 18 فرد بس، الباقي محتاج نموذج تاني");
+  if(!h.destination)miss.push("جهة المأمورية");if(!h.reason)miss.push("الغرض من المأمورية");
+  printDoc({title:"طلب القيام بمأمورية مجمع · "+fmtDate(date),T:"MISSIONG",vals,
+    opt:{leader:false},miss,
+    filename:`مأمورية مجمع ${date}.pdf`});
 }
 async function printTeamDuty(date){
   const seen=new Set();const ALL=S.leaves.filter(l=>l.kind==="duty"&&l.date===date&&!seen.has(l.empId)&&seen.add(l.empId));const L=ALL.slice(0,10);if(!L.length)return;
