@@ -382,14 +382,20 @@ function empName(id){return emp(id)?.name||"—"}
 function item(id){return S.items.find(i=>i.id===id)}
 function hseTeam(){return S.employees.filter(e=>e.group==="hse"&&e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
 function activeEmps(){return S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
-/* مغادر = شغّال في المنظومة بس مكانش في آخر كشف اترفع */
-const isLeft=e=>!!e&&e.active!==false&&!!e.mpFlag;
+/* مغادر = شغّال في المنظومة لكن إما مكانش في آخر كشف اترفع،
+   أو اتعملّه إخلاء طرف (ترك الخدمة رسميًا). */
+const hasClearance=e=>!!(e&&e.clearance&&e.clearance.date);
+const isLeft=e=>!!e&&e.active!==false&&(!!e.mpFlag||hasClearance(e));
+const CLEAR_WHY={resign:"استقالة",contract:"انتهاء عقد",transfer:"نقل لموقع تاني",end:"إنهاء خدمة",other:"أخرى"};
+/* ليه الشخص في المغادرون */
+function leftWhy(e){if(hasClearance(e))return "إخلاء طرف"+(CLEAR_WHY[e.clearance.why]?" — "+CLEAR_WHY[e.clearance.why]:"");
+  return "مش في آخر تحديث"}
 const isVisitor=e=>!!e&&e.group==="visit";
 /* العدد الإحصائي = الكشف الفعلي من آخر تحديث بس:
    من غير المغادرين ومن غير التدريب والزائرين. */
-function countedEmps(){return S.employees.filter(e=>e.active!==false&&!e.mpFlag&&e.group!=="visit")}
-function leftEmps(){return S.employees.filter(e=>e.active!==false&&!!e.mpFlag)}
-function visitorEmps(){return S.employees.filter(e=>e.active!==false&&!e.mpFlag&&e.group==="visit")}
+function countedEmps(){return S.employees.filter(e=>e.active!==false&&!isLeft(e)&&e.group!=="visit")}
+function leftEmps(){return S.employees.filter(e=>e.active!==false&&isLeft(e))}
+function visitorEmps(){return S.employees.filter(e=>e.active!==false&&!isLeft(e)&&e.group==="visit")}
 function typeChip(t){const T=PTW_TYPES[t]||{ar:t,c:"--muted"};return `<span class="type"><i style="background:var(${T.c})"></i>${esc(T.ar)}</span>`}
 function statusPill(s){const p=PTW_STATUS[s]||[s,"p-closed"];return `<span class="pill ${p[1]}">${p[0]}</span>`}
 function toast(t){const el=document.createElement("div");el.className="toast";el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),2200)}
@@ -1307,6 +1313,28 @@ async function quickUpload(col,id,kind,inp){const file=inp.files&&inp.files[0];i
     if(await write(()=>upsert(col,id,{att}),"اترفعت")){for(const o of old){try{await assetsNS.delete(o)}catch(e){}}}}
   catch(err){toast(err?.code==="unsupported_type"?"نوع الملف مش مدعوم (JPG/PNG أو PDF)":err?.code==="too_large"?"الملف أكبر من 20 ميجا":"الرفع فشل")}}
 function personBack(){ui.personSel="";const b=ui.personBack;ui.personBack="";show(b||"manpower")}
+/* ---------- إخلاء الطرف ----------
+   تسجيله بينقل الموظف لقائمة المغادرون ويشيله من كل عدد إحصائي،
+   من غير ما يتمسح ولا يتوقف — وتقدر تلغيه في أي وقت. */
+function clearanceForm(id){
+  const e=emp(id);if(!e){toast("الموظف مش موجود");return}
+  const c=e.clearance||{};
+  openSheet("إخلاء طرف · "+e.name,`<div class="form">
+    ${f("تاريخ إخلاء الطرف","date",{type:"date",value:c.date||today(),req:true})}
+    ${f("سبب ترك الخدمة","why",{value:c.why||"resign",opts:Object.entries(CLEAR_WHY)})}
+    ${f("ملاحظات","note",{value:c.note||"",full:true})}</div>
+    <p class="muted" style="font-size:13px;margin:10px 0 0">أول ما تحفظ، الموظف هيتنقل لقائمة <b>🚪 المغادرون</b> و<b>مايتحسبش في أي إحصائية</b> — من غير حذف ولا إيقاف. صورة إخلاء الطرف ترفعها من <b>📎 مرفقات</b> ← <b>إخلاء الطرف</b>.</p>`,
+  async fd=>{
+    if(!fd.date)return "اكتب تاريخ إخلاء الطرف";
+    const data={clearance:{date:fd.date,why:fd.why,note:(fd.note||"").trim(),by:ME.id||"",at:Date.now()}};
+    return (await write(()=>upsert("employees",id,data),"اتسجل إخلاء الطرف"))?null:"الحفظ فشل";
+  },"سجّل إخلاء الطرف");
+}
+function clearanceUndo(id){
+  const e=emp(id);if(!e)return;
+  confirmSheet("إلغاء إخلاء الطرف",`${e.name} هيرجع للكشف الفعلي ويتحسب في الإحصائيات تاني. المرفقات هتفضل زي ما هي.`,
+    ()=>write(()=>upsert("employees",id,{clearance:null}),"اتلغى إخلاء الطرف"),"ارجّعه للكشف");
+}
 function personFileHTML(e){
   const id=e.id,c=e.contractorId&&contractor(e.contractorId);
   const V=personViol(id),L=personLect(id),I=S.records.filter(r=>r.form==="F-HSE-03-01"&&r.f?.victim_id===id);
@@ -1330,6 +1358,7 @@ function personFileHTML(e){
   ${sec("المهمات المستلمة من المخزن",`<button class="btn sm" onclick="issueFor('${id}')">+ إذن صرف</button>`,personHistoryHTML(e,false))}
   ${LV.length?sec("الإجازات والأذونات والتكليفات","",`<div class="list">${LV.slice(0,30).map(l=>`<div class="li"><div class="grow"><div class="t">${l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.days?" · "+num(l.days)+" يوم":""}${l.reason?" · "+esc(l.reason):""}</div></div>${hasSigned(l)?'<span class="pill p-appr">موقّع</span>':""}</div>`).join("")}</div>`):""}
   ${PT.length?sec(`تصاريح شارك فيها (${PT.length})`,"",`<div class="list">${PT.slice(0,20).map(p=>`<div class="li"><span class="num">${esc(p.number)}</span><div class="grow"><div class="t">${fmtDate(p.date)} · ${esc(PTW_TYPES[p.type]?.ar||p.type)}</div><div class="s">${esc(p.location||"")}</div></div>${statusPill(p.status)}</div>`).join("")}</div>`):""}
+  ${sec("إخلاء الطرف",tabLevel("manpower")!=="view"?`<button class="btn sm" onclick="clearanceForm('${id}')">${hasClearance(e)?"تعديل":"+ تسجيل إخلاء طرف"}</button>${hasClearance(e)?`<button class="btn sm danger" onclick="clearanceUndo('${id}')">إلغاء</button>`:""}`:"",hasClearance(e)?`<div class="li"><div class="grow"><div class="t">${fmtDate(e.clearance.date)}${e.clearance.why?" · "+esc(CLEAR_WHY[e.clearance.why]||e.clearance.why):""}</div><div class="s">${esc(e.clearance.note||"")}</div></div><span class="pill p-susp">🚪 مغادر</span></div>${thumbs(attOf(e,"clearance"))}`:'<p class="muted" style="margin:0">مفيش إخلاء طرف مسجّل — الموظف لسه على رأس العمل.</p>')}
   ${sec("مستندات تانية","",thumbs(attOf(e,"other"))||none)}`;
 }
 function newLect(W){recordForm('F-HSE-24-02',null,{rows:W.filter(Boolean).slice(0,25).map(w=>({name:w.name,name_id:w.id,pos:w.job||""}))})}
@@ -1341,7 +1370,7 @@ function contractorForm(id){
     const ok=await write(()=>id?upsert("contractors",id,data):db.collection("contractors").add({...data,createdAt:Date.now()}),"اتحفظ");return ok?null:"الحفظ فشل"});
 }
 /* ---------- attachments (ID cards, signed scans) ---------- */
-const ATT_KINDS={actions:[["before","صور قبل"],["after","صور بعد الإصلاح"]],equipment:[["photo","صور المعدة"],["docs","شهادات / مستندات"]],contractors:[["lecture","محاضرات التوعية"],["violation","سجل المخالفات"],["docs","مستندات المقاول (عقد، سجل تجاري…)"]],employees:[["idFront","البطاقة — الوش"],["idBack","البطاقة — الضهر"],["badge","كارنيه الموقع"],["lecture","محاضرات توعية حضرها"],["violation","مخالفات (ورق / صور)"],["other","مستندات تانية"]],permits:[["photo","صور الموقع / الشغل"],["signed","التصريح بعد التوقيع"]],records:[["photo","الصور"],["signed","النموذج بعد التوقيع"]],leaves:[["photo","صور / مستندات"],["signed","النموذج بعد التوقيع"]],ppe_moves:[["photo","صور / مستندات"],["signed","إذن الصرف بعد التوقيع"]]};
+const ATT_KINDS={actions:[["before","صور قبل"],["after","صور بعد الإصلاح"]],equipment:[["photo","صور المعدة"],["docs","شهادات / مستندات"]],contractors:[["lecture","محاضرات التوعية"],["violation","سجل المخالفات"],["docs","مستندات المقاول (عقد، سجل تجاري…)"]],employees:[["idFront","البطاقة — الوش"],["idBack","البطاقة — الضهر"],["clearance","إخلاء الطرف"],["badge","كارنيه الموقع"],["lecture","محاضرات توعية حضرها"],["violation","مخالفات (ورق / صور)"],["other","مستندات تانية"]],permits:[["photo","صور الموقع / الشغل"],["signed","التصريح بعد التوقيع"]],records:[["photo","الصور"],["signed","النموذج بعد التوقيع"]],leaves:[["photo","صور / مستندات"],["signed","النموذج بعد التوقيع"]],ppe_moves:[["photo","صور / مستندات"],["signed","إذن الصرف بعد التوقيع"]]};
 const ATT_TITLE={actions:a=>"صور الإجراء",equipment:q=>"مرفقات "+(q.name||q.serial||""),contractors:c=>"مرفقات المقاول "+(c.name||""),employees:e=>"مرفقات "+(e.name||""),permits:p=>"مرفقات تصريح "+(p.number||""),records:r=>"مرفقات سجل "+(r.form||"")+" #"+(r.serial||""),leaves:l=>"مرفقات "+({perm:"إذن",mission:"تكليف",duty:"تكليف"}[l.kind]||"إجازة")+" "+empName(l.empId),ppe_moves:m=>"مرفقات إذن صرف "+empName(m.empId)};
 const voucherHead=key=>S.moves.filter(m=>m.type==="issue"&&voucherKey(m)===key).sort((a,b)=>String(a.id).localeCompare(String(b.id)))[0];
 const PHOTO_LABEL=fid=>({"F-HSE-07-01":"صور المخالفة","F-HSE-07-03":"صور الملاحظة / المخالفة","F-HSE-03-01":"صور الحادث"}[fid]||"صور الملاحظات");
@@ -3570,13 +3599,13 @@ function mpPlanHTML(p){
       ${box("هيتضافوا",p.add.length,"","موظفين جداد في الملف")}
       ${box("هيتحدّثوا",p.upd.length,"","بياناتهم اتغيّرت")}
       ${box("زي ما هم",p.same.length,"","مطابقين من غير تغيير")}
-      ${box("هيتميّزوا",p.missing.length,p.missing.length?"alert":"","مش في الملف — <b>مش هيتمسحوا</b>")}
+      ${box("🚪 هيروحوا المغادرون",p.missing.length,p.missing.length?"alert":"","مش في الملف — <b>مش هيتمسحوا</b>")}
     </div>
     ${p.bad.length?`<div class="banner">${p.bad.length} صف اتخطّى (من غير اسم).</div>`:""}${p.dup.length?`<div class="banner">${p.dup.length} صف مكرر اتخطّى (نفس الكود اتكرر في الملف).</div>`:""}${p.sheets?`<p class="muted" style="font-size:13px;margin:0 0 8px">الشيتات: ${p.sheets.map(s=>esc(s.sheet)+" ("+s.n+")").join(" · ")}</p>`:""}
     ${p.add.length?`<h3 style="margin:12px 0 4px">هيتضافوا (${p.add.length})</h3><div class="list" style="max-height:180px;overflow:auto">${p.add.slice(0,60).map(r=>li(r.name,[r.code,r.job].filter(Boolean).join(" · ")||"—")).join("")}${p.add.length>60?'<div class="li muted">…</div>':""}</div>`:""}
     ${p.upd.length?`<h3 style="margin:12px 0 4px">هيتحدّثوا (${p.upd.length})</h3><div class="list" style="max-height:180px;overflow:auto">${p.upd.slice(0,60).map(u=>li(u.emp.name,Object.entries(u.ch).map(([k,v])=>`${({name:"الاسم",code:"الكود",job:"الوظيفة",phone:"الموبايل",nid:"الرقم القومي"})[k]}: ${String(u.emp[k]??"—")} ← ${v}`).join(" · "))).join("")}</div>`:""}
-    ${p.missing.length?`<h3 style="margin:12px 0 4px">هيتميّزوا — مش في الملف (${p.missing.length})</h3>
-      <p class="muted" style="font-size:13px;margin:0 0 6px">دول <b>مش هيتمسحوا ولا هيتوقفوا</b>. هتتحط عليهم علامة تقدر تراجعها بعد كده من زرار «⚠ مش في آخر تحديث».</p>
+    ${p.missing.length?`<h3 style="margin:12px 0 4px">🚪 هيروحوا المغادرون — مش في الملف (${p.missing.length})</h3>
+      <p class="muted" style="font-size:13px;margin:0 0 6px">دول <b>مش هيتمسحوا ولا هيتوقفوا</b> — هيتنقلوا لقائمة <b>المغادرون</b> و<b>مايتحسبوش في أي إحصائية</b>. تراجعهم بعد كده من زرار «🚪 المغادرون»، ولو رجعوا في كشف جديد بيرجعوا للعدد لوحدهم.</p>
       <div class="list" style="max-height:200px;overflow:auto">${p.missing.slice(0,80).map(e=>li(e.name,[e.code,e.job,GROUPS[e.group]].filter(Boolean).join(" · "))).join("")}${p.missing.length>80?'<div class="li muted">…</div>':""}</div>`:""}`;
 }
 function mpSyncSheet(){
@@ -3593,7 +3622,7 @@ function mpSyncSheet(){
   async()=>{
     const p=mpSyncPlan;if(!p)return "اختار ملف Excel الأول";
     if(!p.add.length&&!p.upd.length&&!p.missing.length)return "مفيش أي تغيير في الملف ده";
-    if(!mpSyncOk){mpSyncOk=true;return `⚠ تأكيد: هيتضاف ${p.add.length} موظف · يتحدّث ${p.upd.length} · يتميّز ${p.missing.length} (من غير حذف). اضغط «نفّذ التحديث» تاني لو موافق.`}
+    if(!mpSyncOk){mpSyncOk=true;return `⚠ تأكيد: هيتضاف ${p.add.length} موظف · يتحدّث ${p.upd.length} · يروح المغادرون ${p.missing.length} (من غير حذف). اضغط «نفّذ التحديث» تاني لو موافق.`}
     const g=$("f_newGroup").value,stamp={at:Date.now(),by:ME.id||"",file:p.file};
     const ok=await write(async()=>{
       /* معرّف ثابت مشتق من الكود — نفس اللي بيستخدمه مستورد الإكسيل القديم،
@@ -3617,7 +3646,7 @@ function mpSyncSheet(){
       for(const u of p.upd) await upsert("employees",u.emp.id,{...u.ch,mpSync:stamp,mpFlag:null});
       for(const u of p.same) await upsert("employees",u.emp.id,{mpSync:stamp,mpFlag:null});
       for(const e of p.missing) await upsert("employees",e.id,{mpFlag:{...stamp,reason:"missing"}});
-    },`اتضاف ${p.add.length} · اتحدّث ${p.upd.length} · اتميّز ${p.missing.length}`);
+    },`اتضاف ${p.add.length} · اتحدّث ${p.upd.length} · راحوا المغادرون ${p.missing.length}`);
     return ok?null:"الحفظ فشل";
   },"نفّذ التحديث");
   setTimeout(()=>{const i=$("mpFile");if(i)i.onchange=e=>mpReadFile(e.target.files[0])},60);
@@ -3650,13 +3679,13 @@ async function mpReadFile(file){
   }catch(e){mpSyncPlan=null;box.innerHTML=`<div class="msg">معرفتش أقرأ الملف: ${esc(e.message||e)}</div>`}
 }
 /* مراجعة المميّزين */
-const mpFlagged=()=>S.employees.filter(e=>e.active!==false&&e.mpFlag);
+const mpFlagged=()=>leftEmps();
 function mpFlaggedSheet(){
   const L=mpFlagged().sort((a,b)=>(b.mpFlag?.at||0)-(a.mpFlag?.at||0));
   openSheet(`🚪 المغادرون — مش في آخر تحديث (${L.length})`,L.length?`
     <p class="muted" style="margin-top:0;font-size:13.5px">دول مكانوش في آخر كشف اترفع، فاتحطوا في قائمة المغادرين و<b>مش داخلين في أي عدد إحصائي</b>. راجعهم: لو لسه بيشتغلوا شيل العلامة فيرجعوا للكشف، ولو سابوا الشغل وقّفهم خالص.</p>
-    <div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${e.mpFlag?.file?" · من ملف "+esc(e.mpFlag.file):""}</div></div>
-      <div class="row-actions"><button class="btn ghost sm" onclick="mpUnflag('${e.id}')">✔ لسه شغّال</button><button class="btn ghost sm danger" onclick="mpStopEmp('${e.id}')">وقّفه</button></div></div>`).join("")}</div>`
+    <div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")} · <b>${esc(leftWhy(e))}</b>${e.mpFlag?.file?" · من ملف "+esc(e.mpFlag.file):""}${hasClearance(e)?" · "+fmtDate(e.clearance.date):""}</div></div>
+      <div class="row-actions">${hasClearance(e)?`<button class="btn ghost sm" onclick="clearanceUndo('${e.id}')">↩ ألغِ إخلاء الطرف</button>`:`<button class="btn ghost sm" onclick="mpUnflag('${e.id}')">✔ لسه شغّال</button>`}<button class="btn ghost sm danger" onclick="mpStopEmp('${e.id}')">وقّفه</button></div></div>`).join("")}</div>`
     :'<p class="muted">مفيش حد مميّز. 👍</p>',null,null);
 }
 async function mpUnflag(id){if(await write(()=>upsert("employees",id,{mpFlag:null}),"اتشالت العلامة"))setTimeout(mpFlaggedSheet,250)}
@@ -3672,7 +3701,7 @@ async function mpStopEmp(id){if(await write(()=>upsert("employees",id,{active:fa
 }}
 /* علامة على سطر الشخص */
 {const _prF=personRow;personRow=function(e){const h=_prF(e);
-  return e.mpFlag?h.replace('<div class="row-actions">','<span class="pill p-susp" title="مكانش في آخر كشف اترفع — مش محسوب في الإحصائيات">🚪 مغادر</span><div class="row-actions">'):h}}
+  return isLeft(e)?h.replace('<div class="row-actions">',`<span class="pill p-susp" title="${esc(leftWhy(e))} — مش محسوب في الإحصائيات">🚪 ${hasClearance(e)?"إخلاء طرف":"مغادر"}</span><div class="row-actions">`):h}}
 
 /* ---------- استيراد بطاقات الموظفين بالجملة ----------
    بيقرا فولدر فيه مجلدات باسم «الكود - الاسم» وجواها صورة/PDF البطاقة،
