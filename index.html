@@ -357,7 +357,7 @@ const KPIS = [
 ];
 const LEAVE_T = {casual:"عارضة",annual:"اعتيادي",other:"أخرى"};
 const DUTY_K = {duty:"تيم ديوتي",one:"تكليف إضافي فردي",mission:"مأمورية فردي",missiong:"مأمورية مجمع",perm:"إذن ساعتين"};
-const GROUPS = {hse:"فريق السلامة",sup:"فريق الإشراف",worker:"موظفين الشركة",ctr:"عمالة مقاول",other:"أخرى"};
+const GROUPS = {hse:"فريق السلامة",sup:"فريق الإشراف",worker:"موظفين الشركة",ctr:"عمالة مقاول",visit:"التدريب والزائرين",other:"أخرى"};
 
 /* ---------- state ---------- */
 const S = {profiles:[],members:[],actions:[],tasks:[],equipment:[],contractors:[],records:[],employees:[],items:[],moves:[],permits:[],kpi:[],att:[],leaves:[],settings:{}};
@@ -382,6 +382,14 @@ function empName(id){return emp(id)?.name||"—"}
 function item(id){return S.items.find(i=>i.id===id)}
 function hseTeam(){return S.employees.filter(e=>e.group==="hse"&&e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
 function activeEmps(){return S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
+/* مغادر = شغّال في المنظومة بس مكانش في آخر كشف اترفع */
+const isLeft=e=>!!e&&e.active!==false&&!!e.mpFlag;
+const isVisitor=e=>!!e&&e.group==="visit";
+/* العدد الإحصائي = الكشف الفعلي من آخر تحديث بس:
+   من غير المغادرين ومن غير التدريب والزائرين. */
+function countedEmps(){return S.employees.filter(e=>e.active!==false&&!e.mpFlag&&e.group!=="visit")}
+function leftEmps(){return S.employees.filter(e=>e.active!==false&&!!e.mpFlag)}
+function visitorEmps(){return S.employees.filter(e=>e.active!==false&&!e.mpFlag&&e.group==="visit")}
 function typeChip(t){const T=PTW_TYPES[t]||{ar:t,c:"--muted"};return `<span class="type"><i style="background:var(${T.c})"></i>${esc(T.ar)}</span>`}
 function statusPill(s){const p=PTW_STATUS[s]||[s,"p-closed"];return `<span class="pill ${p[1]}">${p[0]}</span>`}
 function toast(t){const el=document.createElement("div");el.className="toast";el.textContent=t;document.body.appendChild(el);setTimeout(()=>el.remove(),2200)}
@@ -1268,11 +1276,13 @@ VIEWS.manpower={
     const el=$("mpBody");
     if(ui.personSel&&emp(ui.personSel)){el.innerHTML=personFileHTML(emp(ui.personSel));return}
     if(document.activeElement?.id==="mpQ"){this.list();return}
-    const all=S.employees.filter(e=>e.active!==false);
+    /* الكروت بتعدّ الكشف الفعلي بس — المغادرين والزائرين ليهم كروتهم */
+    const all=countedEmps();
     const cnt=g=>all.filter(e=>e.group===g).length;
-    el.innerHTML=`<div class="grid g4" style="margin-bottom:14px">${[["hse","فريق السلامة"],["sup","فريق الإشراف"],["worker","موظفين الشركة"],["ctr","عمالة المقاولين"]].map(([g,l])=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit;${ui.mpG===g?"outline:2px solid var(--ink)":""}" onclick="ui.mpG=ui.mpG==='${g}'?'':'${g}';refresh()"><span class="lbl">${l}</span><b class="val">${cnt(g)}</b></button>`).join("")}</div>
+    const nLeft=leftEmps().length,nVisit=visitorEmps().length;
+    el.innerHTML=`<div class="grid g4" style="margin-bottom:14px">${[["hse","فريق السلامة"],["sup","فريق الإشراف"],["worker","موظفين الشركة"],["ctr","عمالة المقاولين"],["visit","التدريب والزائرين"],["__left","المغادرون"]].map(([g,l])=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit;${ui.mpG===g?"outline:2px solid var(--ink)":""}" onclick="ui.mpG=ui.mpG==='${g}'?'':'${g}';refresh()"><span class="lbl">${l}</span><b class="val">${cnt(g)}</b></button>`).join("")}</div>
     <div class="filters" style="flex-wrap:wrap"><input type="search" id="mpQ" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" value="${esc(ui.mpQ)}" class="grow">
-      <select id="mpG"><option value="">كل المجموعات</option>${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${ui.mpG===k?"selected":""}>${v}</option>`).join("")}</select>
+      <select id="mpG"><option value="">كل المجموعات</option>${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${ui.mpG===k?"selected":""}>${v}</option>`).join("")}<option value="__left" ${ui.mpG==="__left"?"selected":""}>المغادرون (مش في آخر تحديث)</option></select>
       <select id="mpCtr"><option value="">كل المقاولين</option>${S.contractors.map(c=>`<option value="${c.id}" ${ui.mpCtr===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select>
       <select id="mpID"><option value="">البطاقة: الكل</option><option value="no" ${ui.mpID==="no"?"selected":""}>من غير بطاقة</option><option value="yes" ${ui.mpID==="yes"?"selected":""}>بطاقتهم مرفوعة</option></select>
       <button class="btn primary" onclick="empForm(null,{group:ui.mpG||'worker'})">+ شخص</button><button class="btn" onclick="importForm('employees')">لصق من Excel</button></div>
@@ -1283,7 +1293,7 @@ VIEWS.manpower={
   },
   list(){
     const q=normName(ui.mpQ||"");
-    const L=S.employees.filter(e=>e.active!==false&&(!ui.mpG||e.group===ui.mpG)&&(!ui.mpCtr||e.contractorId===ui.mpCtr)&&(!ui.mpID||(ui.mpID==="yes")===hasID(e))&&(!q||normName(e.name+" "+(e.code||"")+" "+(e.nid||"")+" "+(e.job||"")).includes(q))).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+    const L=S.employees.filter(e=>e.active!==false&&(ui.mpG==="__left"?isLeft(e):(q?true:!isLeft(e)))&&(!ui.mpG||ui.mpG==="__left"||e.group===ui.mpG)&&(!ui.mpCtr||e.contractorId===ui.mpCtr)&&(!ui.mpID||(ui.mpID==="yes")===hasID(e))&&(!q||normName(e.name+" "+(e.code||"")+" "+(e.nid||"")+" "+(e.job||"")).includes(q))).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
     const pg=page(L,"mp");
     $("mpList").innerHTML=L.length?`<div class="card"><div class="muted" style="font-size:13px;margin-bottom:6px">${L.length} شخص</div><div class="list">${pg.rows.map(personRow).join("")}</div>${pg.btn||""}</div>`:`<div class="card">${emptyState("مفيش نتايج","")}</div>`;
   }
@@ -2824,7 +2834,8 @@ function repAuto(m){
     incidents:cnt("F-HSE-03-01")}}
 function repDefaults(m){
   const prev=S.reports.filter(r=>r.id<m).sort((a,b)=>b.id.localeCompare(a.id))[0]||{};
-  const act=S.employees.filter(e=>e.active!==false);
+  /* أرقام العمالة في التقرير = الكشف الفعلي من آخر تحديث */
+  const act=countedEmps();
   return {month:m,status:"draft",man:{reg:act.filter(e=>e.group!=="ctr").length,irr:prev.man?.irr||0,ctr:act.filter(e=>e.group==="ctr").length,hours:prev.man?.hours||9,days:prev.man?.days||26},
     inc:{},incCum:{},acts:{},actsYtd:{},meetings:(prev.meetings||[]).map(x=>({...x})),corrective:[],equip:[],audits:[],improve:[...(prev.improve||[])],inv:JSON.parse(JSON.stringify(prev.inv||{})),kpiRows:null,issueDate:monthEnd(m)}}
 function repDoc(m){return S.reports.find(r=>r.id===m)}
@@ -3642,8 +3653,8 @@ async function mpReadFile(file){
 const mpFlagged=()=>S.employees.filter(e=>e.active!==false&&e.mpFlag);
 function mpFlaggedSheet(){
   const L=mpFlagged().sort((a,b)=>(b.mpFlag?.at||0)-(a.mpFlag?.at||0));
-  openSheet(`مش في آخر تحديث (${L.length})`,L.length?`
-    <p class="muted" style="margin-top:0;font-size:13.5px">دول موجودين في النظام ومكانوش في آخر ملف Excel اترفع. راجعهم: لو لسه بيشتغلوا شيل العلامة، ولو سابوا الشغل وقّفهم.</p>
+  openSheet(`🚪 المغادرون — مش في آخر تحديث (${L.length})`,L.length?`
+    <p class="muted" style="margin-top:0;font-size:13.5px">دول مكانوش في آخر كشف اترفع، فاتحطوا في قائمة المغادرين و<b>مش داخلين في أي عدد إحصائي</b>. راجعهم: لو لسه بيشتغلوا شيل العلامة فيرجعوا للكشف، ولو سابوا الشغل وقّفهم خالص.</p>
     <div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${e.mpFlag?.file?" · من ملف "+esc(e.mpFlag.file):""}</div></div>
       <div class="row-actions"><button class="btn ghost sm" onclick="mpUnflag('${e.id}')">✔ لسه شغّال</button><button class="btn ghost sm danger" onclick="mpStopEmp('${e.id}')">وقّفه</button></div></div>`).join("")}</div>`
     :'<p class="muted">مفيش حد مميّز. 👍</p>',null,null);
@@ -3657,11 +3668,11 @@ async function mpStopEmp(id){if(await write(()=>upsert("employees",id,{active:fa
   if(!$("mpSyncBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn primary" id="mpSyncBtn" onclick="mpSyncSheet()">⟳ تحديث المان باور</button>`);
   if(!$("mpCardsBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpCardsBtn" onclick="mpCardsSheet()">🪪 استيراد البطاقات</button>`);
   const n=mpFlagged().length;
-  if(n&&!$("mpFlagBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpFlagBtn" style="color:var(--warn)" onclick="mpFlaggedSheet()">⚠ مش في آخر تحديث (${n})</button>`);
+  if(n&&!$("mpFlagBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpFlagBtn" style="color:var(--warn)" onclick="mpFlaggedSheet()">🚪 المغادرون (${n})</button>`);
 }}
 /* علامة على سطر الشخص */
 {const _prF=personRow;personRow=function(e){const h=_prF(e);
-  return e.mpFlag?h.replace('<div class="row-actions">','<span class="pill p-susp" title="مكانش في آخر ملف Excel اترفع">⚠ مش في آخر تحديث</span><div class="row-actions">'):h}}
+  return e.mpFlag?h.replace('<div class="row-actions">','<span class="pill p-susp" title="مكانش في آخر كشف اترفع — مش محسوب في الإحصائيات">🚪 مغادر</span><div class="row-actions">'):h}}
 
 /* ---------- استيراد بطاقات الموظفين بالجملة ----------
    بيقرا فولدر فيه مجلدات باسم «الكود - الاسم» وجواها صورة/PDF البطاقة،
