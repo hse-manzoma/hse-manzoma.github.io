@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مأمورية خارجية - فردي</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'IBM Plex Sans Arabic', sans-serif;
+      background: #0B1526;
+      color: #EAF1FB;
+      padding: 20px;
+      direction: rtl;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #13213B;
+      border: 1px solid #243654;
+      border-radius: 12px;
+      padding: 30px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #3B7DF5;
+      padding-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+      color: #3B7DF5;
+    }
+    .header p {
+      font-size: 13px;
+      color: #93A6C4;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group.full {
+      grid-column: 1 / -1;
+    }
+    label {
+      font-weight: 600;
+      font-size: 13px;
+      color: #93A6C4;
+    }
+    input, select, textarea {
+      border: 1px solid #243654;
+      background: #0E1A30;
+      color: #EAF1FB;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font: inherit;
+      direction: rtl;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #3B7DF5;
+      box-shadow: 0 0 0 2px rgba(59, 125, 245, 0.1);
+    }
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 1px solid #243654;
+    }
+    .signature-box {
+      text-align: center;
+    }
+    .signature-line {
+      height: 40px;
+      border-bottom: 1px solid #243654;
+      margin-bottom: 10px;
+    }
+    .signature-label {
+      font-size: 12px;
+      color: #93A6C4;
+      margin-top: 10px;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: #3B7DF5;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #2456C7;
+    }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid #243654;
+      color: #93A6C4;
+    }
+    .btn-secondary:hover {
+      border-color: #3B7DF5;
+      color: #EAF1FB;
+    }
+    .form-info {
+      background: #0E1A30;
+      border-right: 4px solid #3B7DF5;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #93A6C4;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📋 مأمورية خارجية - موظف واحد</h1>
+      <p>طلب قيام بمأمورية عمل خارج الموقع</p>
+    </div>
+
+    <form id="missionForm">
+      <!-- القسم الأول: بيانات الموظف -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label>اسم الموظف *</label>
+          <input type="text" id="employeeName" required>
+        </div>
+        <div class="form-group">
+          <label>الكود الوظيفي *</label>
+          <input type="text" id="employeeCode" required>
+        </div>
+        <div class="form-group">
+          <label>الوظيفة *</label>
+          <input type="text" id="jobTitle" required>
+        </div>
+        <div class="form-group">
+          <label>القسم / الإدارة *</label>
+          <input type="text" id="department" required>
+        </div>
+
+        <!-- القسم الثاني: بيانات المأمورية -->
+        <div class="form-group">
+          <label>تاريخ بدء المأمورية *</label>
+          <input type="date" id="startDate" required>
+        </div>
+        <div class="form-group">
+          <label>تاريخ نهاية المأمورية *</label>
+          <input type="date" id="endDate" required>
+        </div>
+        <div class="form-group">
+          <label>وقت المغادرة *</label>
+          <input type="time" id="departureTime" required>
+        </div>
+        <div class="form-group">
+          <label>وقت العودة المتوقع *</label>
+          <input type="time" id="returnTime" required>
+        </div>
+
+        <!-- جهة المأمورية والغرض -->
+        <div class="form-group full">
+          <label>جهة / موقع المأمورية *</label>
+          <input type="text" id="destination" placeholder="المدينة / المشروع / الموقع" required>
+        </div>
+        <div class="form-group full">
+          <label>الغرض من المأمورية *</label>
+          <textarea id="purpose" required></textarea>
+        </div>
+
+        <!-- معلومات إضافية -->
+        <div class="form-group full">
+          <label>ملاحظات / تفاصيل إضافية</label>
+          <textarea id="notes"></textarea>
+        </div>
+      </div>
+
+      <!-- التوقيعات -->
+      <div class="signature-section">
+        <div class="signature-box">
+          <div class="signature-label">مدير القسم / الإدارة</div>
+          <div class="signature-line"></div>
+          <input type="text" placeholder="الاسم" style="width: 100%; margin-top: 10px;">
+          <input type="date" style="width: 100%; margin-top: 8px;">
+        </div>
+        <div class="signature-box">
+          <div class="signature-label">طالب المأمورية</div>
+          <div class="signature-line"></div>
+          <input type="text" placeholder="الاسم" style="width: 100%; margin-top: 10px;">
+          <input type="date" style="width: 100%; margin-top: 8px;">
+        </div>
+      </div>
+
+      <div class="form-info">
+        ✓ هذا النموذج سيتم حفظه في النظام مع إمكانية تتبع حالته والموافقات اللازمة
+      </div>
+
+      <!-- الأزرار -->
+      <div class="button-group">
+        <button type="button" class="btn-secondary" onclick="resetForm()">مسح</button>
+        <button type="button" class="btn-secondary" onclick="window.print()">طباعة</button>
+        <button type="submit" class="btn-primary">💾 حفظ المأمورية</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('missionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const missionData = {
+        type: 'mission_external_individual',
+        employee_name: document.getElementById('employeeName').value,
+        employee_code: document.getElementById('employeeCode').value,
+        job_title: document.getElementById('jobTitle').value,
+        department: document.getElementById('department').value,
+        start_date: document.getElementById('startDate').value,
+        end_date: document.getElementById('endDate').value,
+        departure_time: document.getElementById('departureTime').value,
+        return_time: document.getElementById('returnTime').value,
+        destination: document.getElementById('destination').value,
+        purpose: document.getElementById('purpose').value,
+        notes: document.getElementById('notes').value,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+
+      try {
+        if (window.HSE_SYSTEMS && window.HSE_SYSTEMS.MissionSystem) {
+          const result = await window.HSE_SYSTEMS.MissionSystem.createIndividualMission(missionData);
+          alert(`✅ تم حفظ المأمورية بنجاح!\nالرقم: ${result.id}`);
+          resetForm();
+        } else {
+          alert('⚠️ نظام المأموريات غير متاح.\nيرجى تحديث الصفحة.');
+        }
+      } catch (error) {
+        alert(`❌ خطأ: ${error.message}`);
+      }
+    });
+
+    function resetForm() {
+      document.getElementById('missionForm').reset();
+    }
+
+    // تعيين التاريخ الحالي كقيمة افتراضية
+    document.getElementById('startDate').valueAsDate = new Date();
+  </script>
+</body>
+</html>
