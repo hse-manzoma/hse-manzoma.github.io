@@ -471,11 +471,24 @@ function openSheet(title,body,onSave,saveLabel="حفظ"){
   $("shClose").onclick=close;$("shCancel").onclick=close;
   $("ov").addEventListener("click",e=>{if(e.target.id==="ov")close()});
   document.addEventListener("keydown",function k(e){if(e.key==="Escape"){close();document.removeEventListener("keydown",k)}});
+  /* حماية من الضغط المزدوج: الحفظ ممكن ياخد وقت (استيراد مثلًا)،
+     فلو الزرار فضل شغّال الضغطة التانية بتعيد نفس العملية وتكرّر البيانات. */
+  let saving=false;
   $("shForm").addEventListener("submit",async e=>{
     e.preventDefault();
-    const fd=Object.fromEntries(new FormData(e.target).entries());
-    const err=await onSave(fd,e.target);
-    if(err){$("shMsg").innerHTML=`<div class="msg" style="margin-top:12px">${esc(err)}</div>`;return}
+    if(saving)return;
+    saving=true;
+    const btn=e.target.querySelector('button[type="submit"]');
+    const lbl=btn?btn.textContent:"";
+    if(btn){btn.disabled=true;btn.textContent="بيحفظ…"}
+    let err;
+    try{
+      const fd=Object.fromEntries(new FormData(e.target).entries());
+      err=await onSave(fd,e.target);
+    }catch(ex){console.error(ex);err="حصل خطأ غير متوقع — بص على التفاصيل وجرّب تاني"}
+    saving=false;
+    if(btn&&btn.isConnected){btn.disabled=!canWrite;btn.textContent=lbl}
+    if(err){const m=$("shMsg");if(m)m.innerHTML=`<div class="msg" style="margin-top:12px">${esc(err)}</div>`;return}
     close();
   });
   setTimeout(()=>root.querySelector("input,select,textarea")?.focus(),30);
@@ -3496,7 +3509,7 @@ function mpMapCols(headers){
   });
   return out;
 }
-let mpSyncPlan=null;
+let mpSyncPlan=null,mpSyncOk=false;
 /* يحوّل صفوف شيت واحد لسجلات موحّدة (كل شيت بأعمدته) */
 function mpRows2Recs(rows,cols,sheet){
   const out=[];
@@ -3556,7 +3569,7 @@ function mpPlanHTML(p){
       <div class="list" style="max-height:200px;overflow:auto">${p.missing.slice(0,80).map(e=>li(e.name,[e.code,e.job,GROUPS[e.group]].filter(Boolean).join(" · "))).join("")}${p.missing.length>80?'<div class="li muted">…</div>':""}</div>`:""}`;
 }
 function mpSyncSheet(){
-  mpSyncPlan=null;
+  mpSyncPlan=null;mpSyncOk=false;
   openSheet("تحديث المان باور من Excel",`
     <p class="muted" style="margin-top:0;font-size:13.5px">ارفع ملف Excel فيه الموظفين. المطابقة بتتم <b>بالكود الوظيفي</b> (ولو مفيش كود، بالاسم). اللي في الملف ومش في النظام هيتضاف، واللي بياناته اتغيّرت هيتحدّث، واللي في النظام ومش في الملف <b>هيتميّز بس — مش هيتمسح</b>.</p>
     <div class="filters">
@@ -3569,11 +3582,27 @@ function mpSyncSheet(){
   async()=>{
     const p=mpSyncPlan;if(!p)return "اختار ملف Excel الأول";
     if(!p.add.length&&!p.upd.length&&!p.missing.length)return "مفيش أي تغيير في الملف ده";
+    if(!mpSyncOk){mpSyncOk=true;return `⚠ تأكيد: هيتضاف ${p.add.length} موظف · يتحدّث ${p.upd.length} · يتميّز ${p.missing.length} (من غير حذف). اضغط «نفّذ التحديث» تاني لو موافق.`}
     const g=$("f_newGroup").value,stamp={at:Date.now(),by:ME.id||"",file:p.file};
     const ok=await write(async()=>{
-      for(const r of p.add)
-        await db.collection("employees").add({name:r.name,code:r.code,job:r.job,phone:r.phone,nid:r.nid,
-          group:g,active:true,ptwAuth:false,casual:0,annual:0,createdAt:Date.now(),mpSync:stamp});
+      /* معرّف ثابت مشتق من الكود — نفس اللي بيستخدمه مستورد الإكسيل القديم،
+         فإعادة التنفيذ بتحدّث نفس الموظف مابتكررهوش. */
+      for(const r of p.add){
+        const key=mpCode(r.code);
+        const data={name:r.name,code:r.code,job:r.job,phone:r.phone,nid:r.nid,
+          group:g,active:true,ptwAuth:false,casual:0,annual:0,mpSync:stamp};
+        if(key){
+          const id="xl_emp_"+key.replace(/[^A-Za-z0-9_-]/g,"_");
+          const live=S.employees.find(e=>e.id===id||mpCode(e.code)===key);
+          if(live){await upsert("employees",live.id,{...data,mpFlag:null});continue}
+          await upsert("employees",id,{...data,createdAt:Date.now()});
+        }else{
+          const nm=normName(r.name);
+          const live=S.employees.find(e=>normName(e.name)===nm);
+          if(live){await upsert("employees",live.id,{...data,mpFlag:null});continue}
+          await db.collection("employees").add({...data,createdAt:Date.now()});
+        }
+      }
       for(const u of p.upd) await upsert("employees",u.emp.id,{...u.ch,mpSync:stamp,mpFlag:null});
       for(const u of p.same) await upsert("employees",u.emp.id,{mpSync:stamp,mpFlag:null});
       for(const e of p.missing) await upsert("employees",e.id,{mpFlag:{...stamp,reason:"missing"}});
@@ -3605,6 +3634,7 @@ async function mpReadFile(file){
     const recs=parts.flatMap(pt=>mpRows2Recs(pt.rows,pt.cols,pt.sheet));
     const p=mpBuildPlan(recs,$("f_scope").value,file.name);
     p.sheets=parts.map(pt=>({sheet:pt.sheet,n:pt.rows.length}));
+    mpSyncOk=false;
     box.innerHTML=`<p class="muted" style="font-size:13px;margin:0 0 8px">الملف: <b>${esc(file.name)}</b> · ${parts.length} شيت · ${recs.length} صف إجمالي</p>`+mpPlanHTML(p);
   }catch(e){mpSyncPlan=null;box.innerHTML=`<div class="msg">معرفتش أقرأ الملف: ${esc(e.message||e)}</div>`}
 }
@@ -3650,9 +3680,9 @@ function mpCardGroups(files){
   for(const v of g.values())v.files.sort((a,b)=>(a.name||"").localeCompare(b.name||"","ar"));
   return [...g.values()];
 }
-let mpCardPlan=null;
+let mpCardPlan=null,mpCardOk=false;
 function mpCardsSheet(){
-  mpCardPlan=null;
+  mpCardPlan=null;mpCardOk=false;
   openSheet("استيراد بطاقات الموظفين",`
     <p class="muted" style="margin-top:0;font-size:13.5px">اختار الفولدر الكبير اللي جواه مجلدات باسم <b>«الكود - الاسم»</b> وكل مجلد فيه صورة البطاقة أو PDF. المطابقة بتتم <b>بالكود</b>، وأول ملف بيتحط «البطاقة — الوش» والتاني «البطاقة — الضهر».</p>
     <div class="filters">
@@ -3667,16 +3697,18 @@ function mpCardsSheet(){
     const over=$("mpCardOver")?.checked;
     const todo=over?p.matched:p.matched.filter(m=>!hasID(m.emp));
     if(!todo.length)return "مفيش بطاقات جديدة ترفع";
+    if(!mpCardOk){mpCardOk=true;return `⚠ تأكيد: هترفع بطاقات ${todo.length} موظف${over?" مع استبدال الموجود":""}. اضغط «ارفع البطاقات» تاني لو موافق.`}
     const prog=$("mpCardProg");let done=0,bad=0,files=0;
     for(const m of todo){
       try{
         const att=[...(m.emp.att||[])].filter(a=>!(over&&(a.kind==="idFront"||a.kind==="idBack")));
         let i=0;
         for(const f of m.g.files){
+          if(att.some(a=>a.src===f.name&&(a.kind==="idFront"||a.kind==="idBack"))){i++;continue}
           const type=f.type||(/\.pdf$/i.test(f.name)?"application/pdf":"image/jpeg");
           const b=type.startsWith("image/")?await shrinkImage(f):f;
           const r=await assetsNS.upload(b,{type:b.type||type});
-          att.push({a:r.id,kind:i===0?"idFront":i===1?"idBack":"other",type:r.contentType,at:Date.now()});
+          att.push({a:r.id,kind:i===0?"idFront":i===1?"idBack":"other",type:r.contentType,at:Date.now(),src:f.name});
           i++;files++;
         }
         await upsert("employees",m.emp.id,{att});
@@ -3700,7 +3732,7 @@ function mpCardsScan(files){
   const already=matched.filter(m=>hasID(m.emp)).length;
   const noCard=pool.filter(e=>{const c=mpCode(e.code).replace(/^0+(?=\d)/,"");return !groups.some(g=>g.code===c)&&!hasID(e)});
   const bytes=groups.reduce((a,g)=>a+g.files.reduce((x,f)=>x+(f.size||0),0),0);
-  mpCardPlan={matched,orphan,already,noCard,files:files.length,bytes};
+  mpCardPlan={matched,orphan,already,noCard,files:files.length,bytes};mpCardOk=false;
   const tile=(t,n,note,cls="")=>`<div class="tile card" style="gap:2px"><span class="lbl">${t}</span><span class="val ${cls}">${n}</span><span class="note">${note}</span></div>`;
   box.innerHTML=`<p class="muted" style="font-size:13px;margin:0 0 8px">${files.length} ملف · ${groups.length} مجلد · ${(bytes/1048576).toFixed(1)} ميجا</p>
     <div class="grid g4" style="margin-bottom:10px">
@@ -3760,9 +3792,10 @@ function arcEmp(b){
   }
   return "";
 }
-let arcRows=null;
+let arcRows=null,arcOk=false;
 function arcScan(files){
   const box=$("arcBox");if(!box)return;
+  arcOk=false;
   arcRows=files.filter(f=>/\.(pdf|jpe?g|png|webp)$/i.test(f.name)).map((f,ix)=>{
     const b=f.name.replace(/\.[^.]+$/,"");
     return {ix,file:f,name:f.name,kind:arcKind(b),date:arcDate(b),empId:arcEmp(b),use:true};
@@ -3815,7 +3848,7 @@ function arcRecheck(r){
 }
 function arcCount(){const s=arcRows.filter(r=>r.use).length;const t=document.querySelectorAll("#arcBox .tile .val")[3];if(t)t.textContent=s}
 function arcSheet(){
-  arcRows=null;
+  arcRows=null;arcOk=false;
   openSheet("استيراد السجلات المعتمدة",`
     <p class="muted" style="margin-top:0;font-size:13.5px">اختار فولدر فيه النماذج الموقّعة (PDF أو صور). النظام بيستنتج <b>النوع والتاريخ والموظف</b> من اسم الملف — واللي مايعرفوش تكمّله بإيدك من الجدول. كل ملف بيترفع على سجله كـ «النموذج بعد التوقيع»، والسجلات بتتعلّم <b>تاريخية</b> فأرصدة الإجازات ما بتتأثرش.</p>
     <div class="filters">
@@ -3828,21 +3861,30 @@ function arcSheet(){
     if(!assetsNS)return "الرفع مش متاح دلوقتي — حدّث الصفحة وجرّب تاني";
     const todo=arcRows.filter(r=>r.use&&r.ready);
     if(!todo.length)return "محدش متحدد للرفع";
+    if(!arcOk){arcOk=true;const nw=todo.filter(r=>!r.dupe).length;
+      return `⚠ تأكيد: ${todo.length} ملف هيترفع · ${nw} سجل جديد · ${todo.length-nw} هيترفق على سجل موجود. اضغط «ارفع السجلات» تاني لو موافق.`}
     const prog=$("arcProg");let done=0,bad=0,made=0;
     for(const r of todo){
       try{
         let rec=r.dupe||S.leaves.find(l=>l.empId===r.empId&&l.date===r.date&&l.kind===r.kind);
         let id=rec?.id;
         if(!id){
-          const ref=await db.collection("leaves").add({kind:r.kind,empId:r.empId,date:r.date,
-            reason:"سجل تاريخي معتمد",legacy:true,createdBy:ME.id||"",createdAt:Date.now(),
-            ...(r.kind==="leave"?{leaveType:"other",to:r.date,days:0}:{})});
-          id=ref.id;made++;
+          /* معرّف ثابت من النوع والموظف والتاريخ — الضغط مرتين مايعملش سجلين */
+          id=`arc_${r.kind}_${String(r.empId).replace(/[^A-Za-z0-9_-]/g,"_")}_${r.date}`;
+          const live=S.leaves.find(l=>l.id===id);
+          if(!live){
+            await upsert("leaves",id,{kind:r.kind,empId:r.empId,date:r.date,
+              reason:"سجل تاريخي معتمد",legacy:true,createdBy:ME.id||"",createdAt:Date.now(),
+              ...(r.kind==="leave"?{leaveType:"other",to:r.date,days:0}:{})});
+            made++;
+          }
         }
         const type=r.file.type||(/\.pdf$/i.test(r.file.name)?"application/pdf":"image/jpeg");
         const b=type.startsWith("image/")?await shrinkImage(r.file):r.file;
         const up=await assetsNS.upload(b,{type:b.type||type});
         const cur=(S.leaves.find(l=>l.id===id)?.att)||[];
+        /* نفس الملف مايترفعش مرتين على نفس السجل */
+        if(cur.some(a=>a.src===r.name)){done++;continue}
         await upsert("leaves",id,{att:[...cur,{a:up.id,kind:"signed",type:up.contentType,at:Date.now(),src:r.name}]});
         done++;
       }catch(e){bad++;console.error("arc",r.name,e)}
@@ -3862,6 +3904,81 @@ function arcSheet(){
   if(tabLevel("manpower")==="view"||ui.personSel)return;
   const F=document.querySelector("#mpBody .filters");if(!F)return;
   if(!$("arcBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="arcBtn" onclick="arcSheet()">📚 استيراد السجلات المعتمدة</button>`);
+}}
+
+/* ---------- تنضيف الموظفين المكررين ----------
+   بيجمّع الموظفين الشغالين بالكود (ولو مفيش كود، بالاسم)، ويوريك
+   المجموعات اللي فيها أكتر من واحد. الإبقاء على واحد وإيقاف الباقي —
+   مش حذف، فتقدر ترجّعهم من «المحذوفين». */
+function dupGroups(){
+  const live=S.employees.filter(e=>e.active!==false);
+  const code=e=>mpCode(e.code).replace(/^0+(?=\d)/,"");
+  const seen=new Set(),out=[];
+  /* (١) نفس الكود = نفس الشخص قطعًا */
+  const byCode=new Map();
+  for(const e of live){const c=code(e);if(!c)continue;(byCode.get(c)||byCode.set(c,[]).get(c)).push(e)}
+  for(const [c,L] of byCode){if(L.length>1){L.forEach(e=>seen.add(e.id));out.push({key:"c:"+c,list:L})}}
+  /* (٢) نفس الاسم وواحد منهم على الأقل من غير كود — الأكواد المختلفة
+     معناها ناس مختلفة اتسمّت نفس الاسم، فمابنجمعهمش */
+  const byName=new Map();
+  for(const e of live){const n=normName(e.name);if(!n)continue;(byName.get(n)||byName.set(n,[]).get(n)).push(e)}
+  for(const [n,L] of byName){
+    if(L.length<2)continue;
+    const codes=new Set(L.map(code).filter(Boolean));
+    if(codes.size>1)continue;
+    const fresh=L.filter(e=>!seen.has(e.id));
+    if(fresh.length<2&&!(fresh.length&&L.some(e=>seen.has(e.id))))continue;
+    if(L.every(e=>seen.has(e.id)))continue;
+    L.forEach(e=>seen.add(e.id));
+    out.push({key:"n:"+n,list:L});
+  }
+  return out.map(g=>({key:g.key,list:g.list.slice().sort((a,b)=>dupScore(b)-dupScore(a))}));
+}
+/* الأغنى بالبيانات يفضل هو الأصل */
+function dupScore(e){
+  let s=0;
+  if((e.att||[]).length)s+=50+(e.att||[]).length;
+  if(e.job)s+=5; if(e.phone)s+=5; if(e.nid)s+=5;
+  if(e.ptwAuth)s+=3;
+  if(num(e.casual)||num(e.annual))s+=4;
+  if(S.leaves.some(l=>l.empId===e.id))s+=20;
+  if(S.kpi.some(k=>k.empId===e.id))s+=10;
+  if((S.profiles||[]).some(p=>p.emp_id===e.id))s+=40;
+  if(!/^xl_emp_/.test(e.id))s+=2;
+  return s;
+}
+function dupSheet(){
+  const G=dupGroups();
+  const tot=G.reduce((a,g)=>a+g.list.length-1,0);
+  openSheet(`الموظفين المكررين (${G.length} حالة · ${tot} سجل زايد)`,
+    G.length?`<p class="muted" style="margin-top:0;font-size:13.5px">دول موظفين متسجلين أكتر من مرة بنفس الكود أو نفس الاسم. اللي عليه علامة <b>الأصل</b> هو الأغنى بالبيانات (مرفقات وسجلات وحساب مستخدم) وهو اللي هيفضل. الباقي <b>هيتوقف مش هيتمسح</b> وتقدر ترجّعه من «🗑 المحذوفين».</p>
+      <div class="list" style="max-height:420px;overflow:auto">${G.map(g=>`
+        <div style="border-bottom:1px solid var(--line);padding:8px 0">
+          <div class="muted" style="font-size:12.5px;margin-bottom:4px">${g.key.startsWith("c:")?"كود "+esc(g.key.slice(2)):"بالاسم"}</div>
+          ${g.list.map((e,i)=>`<div class="li" style="padding:4px 0">
+            <div class="grow"><div class="t">${esc(e.name)} ${i===0?'<span class="pill p-appr">الأصل</span>':'<span class="pill p-canc">هيتوقف</span>'}</div>
+            <div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${(e.att||[]).length?` · 📎${(e.att||[]).length}`:""}${S.leaves.some(l=>l.empId===e.id)?" · له سجلات":""}</div></div>
+          </div>`).join("")}
+        </div>`).join("")}</div>`
+    :'<p class="muted">مفيش تكرار. 👍</p>',
+  G.length?async()=>{
+    if(!window._dupOk){window._dupOk=true;return `⚠ تأكيد: هيتوقف ${tot} سجل مكرر (مش هيتمسح). اضغط تاني لو موافق.`}
+    let n=0,bad=0;
+    for(const g of G)for(const e of g.list.slice(1)){
+      try{await upsert("employees",e.id,{active:false,removedAt:Date.now(),dupOf:g.list[0].id});n++}
+      catch(err){bad++;console.error("dup",e.id,err)}
+    }
+    window._dupOk=false;
+    toast(`اتوقف ${n} سجل مكرر${bad?` · ${bad} فشل`:""}`);refresh();
+    return bad&&!n?"الحفظ فشل":null;
+  }:null, "وقّف المكرر");
+  window._dupOk=false;
+}
+{const _mfD=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mfD.call(this);
+  if(tabLevel("manpower")==="view"||ui.personSel)return;
+  const F=document.querySelector("#mpBody .filters");if(!F)return;
+  const n=dupGroups().reduce((a,g)=>a+g.list.length-1,0);
+  if(n&&!$("dupBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="dupBtn" style="color:var(--bad)" onclick="dupSheet()">🧹 مكرر (${n})</button>`);
 }}
 
 /* ---------- team follow-up (admin) + team chat ---------- */
