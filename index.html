@@ -1,6 +1,6 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#D9480F"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="منظومة السلامة"><meta name="apple-mobile-web-app-status-bar-style" content="default"><title>منظومة السلامة HSE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 </head><body>
 <style>
@@ -356,7 +356,7 @@ const KPIS = [
   {k:"tbt",ar:"محاضرات التوعية",def:7}
 ];
 const LEAVE_T = {casual:"عارضة",annual:"اعتيادي",other:"أخرى"};
-const DUTY_K = {duty:"تيم ديوتي",mission:"مأمورية فردي",missiong:"مأمورية مجمع",perm:"إذن ساعتين"};
+const DUTY_K = {duty:"تيم ديوتي",one:"تكليف إضافي فردي",mission:"مأمورية فردي",missiong:"مأمورية مجمع",perm:"إذن ساعتين"};
 const GROUPS = {hse:"فريق السلامة",sup:"فريق الإشراف",worker:"موظفين الشركة",ctr:"عمالة مقاول",other:"أخرى"};
 
 /* ---------- state ---------- */
@@ -824,7 +824,7 @@ function fillDuties(el){
   const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const c={};for(const l of L)c[l.kind]=(c[l.kind]||0)+1;
   el.innerHTML=L.length?`<p class="muted" style="margin-top:0">${Object.entries(DUTY_K).map(([k,v])=>`${v}: ${c[k]||0}`).join(" · ")}</p><div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>التفاصيل</th><th></th></tr></thead><tbody>
-    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printMission('${l.id}')">فردي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printOneDuty('${l.id}')">تكليف فردي</button>`:l.kind==="one"?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')">👁 نموذج التكليف الإضافي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>${isLegacyAssignment(l)?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')" title="السجل ده اتسجل قبل فصل المأمورية عن التكليف">تكليف إضافي</button>`:""}`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
   </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات في "+monthName(ui.dutyMonth),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
 }
 function leaveForm(){
@@ -850,14 +850,15 @@ function leaveForm(){
 }
 function leaveDel(id){const l=S.leaves.find(x=>x.id===id);const fld=l.kind==="leave"&&(l.leaveType==="casual"||l.leaveType==="annual")?l.leaveType:null;
   confirmSheet("مسح التسجيل",fld&&!l.legacy?`هيتمسح ويرجع ${num(l.days)} يوم لرصيد ${LEAVE_T[fld]}.`:"التسجيل هيتمسح نهائياً.",()=>write(async()=>{await remove("leaves",id);const e=emp(l.empId);if(fld&&!l.legacy&&e)await upsert("employees",l.empId,{[fld]:num(e[fld])+num(l.days)})},"اتمسح"))}
-function dutyForm(){
+function dutyForm(presetKind){
   if(!hseTeam().length){toast("ضيف فريق السلامة الأول");return}
-  openSheet("تيم ديوتي / مأمورية / إذن",`<div class="form">
-    ${f("النوع","kind",{opts:Object.entries(DUTY_K)})}${f("التاريخ","date",{type:"date",value:today(),req:true})}
+  const k0=DUTY_K[presetKind]?presetKind:"duty";
+  openSheet(DUTY_K[presetKind]?`تسجيل ${DUTY_K[presetKind]}`:"تيم ديوتي / مأمورية / إذن",`<div class="form">
+    ${f("النوع","kind",{value:k0,opts:Object.entries(DUTY_K)})}${f("التاريخ","date",{type:"date",value:today(),req:true})}
     <div class="full" id="dutyOne" hidden>${f("الموظف","empId",{opts:empOpts(hseTeam()),full:true})}</div>
     <div class="full field" id="dutyMany"><label id="dutyManyLbl">الموظفين (لحد 10 في النموذج)</label><div class="list" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px">
       ${hseTeam().map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="emps" value="${e.id}"> <span class="grow">${esc(e.name)}</span><span class="muted" style="font-size:12px">${esc(e.job||"")}</span></label>`).join("")}</div></div>
-    <div class="form full" id="dutyMission" hidden>${f("جهة المأمورية","destination",{full:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today()})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.project||""})}${f("رقم الإدارة / القسم","deptCode",{})}${f("المعتمد (مدير الإدارة / المدير المختص)","approver",{full:true,opts:[["","— من غير اعتماد إلكتروني (يتمضى بالقلم) —"],...missionApproverOpts()]})}<p class="muted full" style="font-size:12.5px;margin:0">${missionApproverIds().length?"دول أصحاب صلاحية اعتماد المأموريات.":"لسه ما حددتش أصحاب صلاحية الاعتماد — اتفضل الإعدادات ← صلاحية اعتماد المأموريات."}</p></div>
+    <div class="form full" id="dutyMission" hidden>${f("جهة المأمورية","destination",{full:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today()})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.deptName||S.settings.project||""})}${f("رقم الإدارة / القسم","deptCode",{})}${f("المعتمد (مدير الإدارة / المدير المختص)","approver",{full:true,opts:[["","— من غير اعتماد إلكتروني (يتمضى بالقلم) —"],...missionApproverOpts()]})}<p class="muted full" style="font-size:12.5px;margin:0">${missionApproverIds().length?"دول أصحاب صلاحية اعتماد المأموريات.":"لسه ما حددتش أصحاب صلاحية الاعتماد — اتفضل الإعدادات ← صلاحية اعتماد المأموريات."}</p></div>
     <div class="full" id="dutyReason">${f("السبب / العمل المكلفين به","reason",{value:"متابعة أعمال الموقع",full:true})}</div>
     <div class="full form" id="dutyHours" hidden>${f("من الساعة","from",{value:"2 م"})}${f("لحد الساعة","toH",{value:"4 م"})}</div></div>`,
   async(fd,form)=>{
@@ -865,7 +866,7 @@ function dutyForm(){
     if(!ids.length)return (kind==="duty"||kind==="missiong")?"اختار موظف واحد على الأقل":"اختار الموظف";
     let newId=null;
     const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now(),createdBy:ME.id||""};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim();data.approverId=fd.approver||"";data.approverName=fd.approver?empName(fd.approver):""}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
-    if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="missiong")setTimeout(()=>printMissionGroup(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(newId)setTimeout(()=>printMission(newId),400)}
+    if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="missiong")setTimeout(()=>printMissionGroup(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(kind==="mission"&&newId)setTimeout(()=>printMission(newId),400);else if(newId)setTimeout(()=>printOneDuty(newId),400)}
     return ok?null:"الحفظ فشل";
   },"سجّل");
   const sync=()=>{const k=$("f_kind").value,isM=(k==="mission"||k==="missiong"),many=(k==="duty"||k==="missiong");
@@ -873,7 +874,7 @@ function dutyForm(){
     $("dutyMany").hidden=!many;$("dutyOne").hidden=many;
     const lbl=$("dutyManyLbl");if(lbl)lbl.textContent=k==="missiong"?"الموظفين (لحد 18 في النموذج)":"الموظفين (لحد 10 في النموذج)";
     const rl=document.querySelector('label[for="f_reason"]')||$("dutyReason").querySelector("label");
-    if(rl)rl.textContent=isM?"الغرض من المأمورية":"السبب / العمل المكلفين به"};
+    if(rl)rl.textContent=isM?"الغرض من المأمورية":(k==="one"?"السبب / العمل المكلف به":"السبب / العمل المكلفين به")};
   $("f_kind").onchange=sync;sync();
 }
 let attBusy=Promise.resolve();
@@ -1411,7 +1412,7 @@ function mountExcelImportCard(){
   c.innerHTML=`<h3 style="margin:0 0 6px">استيراد ملف Excel القديم بمعاينة</h3><p class="muted" style="font-size:13px;margin:0">اختر ملف .xlsm أو .xlsx. ستظهر الصفوف الجديدة والمطابقة والمكررة قبل الحفظ. لا يتم رفع الملف نفسه لأي مكان.</p><div class="filters" style="margin-top:10px"><label class="btn primary" style="cursor:pointer">اختيار ملف Excel<input type="file" id="excelWorkbook" accept=".xlsm,.xlsx,.xls" style="display:none"></label><div class="field" style="min-width:220px"><label for="excelDefaultGroup">مجموعة الموظفين الجدد إذا لم يحددها الملف</label><select id="excelDefaultGroup">${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${k==="worker"?"selected":""}>${esc(v)}</option>`).join("")}</select></div></div><div id="excelImportPreview" style="margin-top:12px"></div>`;
   $("setBody").appendChild(c);$("excelWorkbook").onchange=e=>readExcelWorkbook(e.target.files[0]);$("excelDefaultGroup").onchange=()=>{if(excelImportRows)buildExcelImportPlan()};
 }
-function xlNorm(v){return String(v??"").normalize("NFKC").toLowerCase().replace(/[\u064B-\u065F\u0670\u0640]/g,"").replace(/[\s\u00a0_\/-]/g,"")}
+function xlNorm(v){return String(v??"").normalize("NFKC").toLowerCase().replace(/[\u064B-\u065F\u0670\u0640]/g,"").replace(/[أإآٱ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").replace(/ؤ/g,"و").replace(/ئ/g,"ي").replace(/[\s\u00a0_\/-]/g,"")}
 function xlSheet(wb,name){const n=wb.SheetNames.find(x=>xlNorm(x)===xlNorm(name));if(!n)return null;const a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:""});return {name:n,headers:(a.shift()||[]).map(x=>String(x??"").trim()),rows:a.filter(r=>r.some(v=>String(v??"").trim()))}}
 function xlCol(sheet,row,aliases){if(!sheet)return"";const keys=aliases.map(xlNorm);const ix=sheet.headers.findIndex(h=>keys.includes(xlNorm(h)));return ix<0?"":String(row[ix]??"").trim()}
 function xlNum(v){const s=String(v??"").replace(/[٠-٩]/g,d=>String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[٬،]/g,",").replace(/,/g,"").replace(/[^0-9.+-]/g,"");const n=Number(s);return Number.isFinite(n)?n:0}
@@ -1419,7 +1420,100 @@ function xlDate(v){if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(
 function xlCode(v){return String(v??"").trim().replace(/\.0$/," ").trim()}
 function xlGroup(v){const n=xlNorm(v);if(!n)return"";if(n==="hse"||n.includes("سلامة")||n.includes("السلامة"))return"hse";if(n.includes("مقاول")||n.includes("contractor"))return"ctr";if(n.includes("اشراف")||n.includes("supervisor"))return"sup";for(const [k,label] of Object.entries(GROUPS))if(n===xlNorm(k)||n===xlNorm(label))return k;return""}
 function xlPtwType(v){const n=xlNorm(v);if(n.includes("cold")||n.includes("بارد"))return"COLD";if(n.includes("hot")||n.includes("ساخن"))return"HOT";if(n.includes("height")||n.includes("ارتفاع"))return"HEIGHT";if(n.includes("lift")||n.includes("رفع"))return"LIFT";if(n.includes("confined")||n.includes("مغلقة"))return"CONF";return""}
-async function readExcelWorkbook(file){if(!file)return;const box=$("excelImportPreview");if(!box)return;box.innerHTML='<p class="muted">بيقرأ الملف محليًا…</p>';try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");const data=await file.arrayBuffer();const wb=XLSX.read(data,{type:"array",cellDates:true});excelImportRows={name:file.name,employees:xlSheet(wb,"Employees"),stock:xlSheet(wb,"Stock"),transactions:xlSheet(wb,"Transactions"),permits:xlSheet(wb,"PTW_DATABASE")};if(!excelImportRows.employees&&!excelImportRows.stock&&!excelImportRows.permits)throw new Error("مش لاقي شيت Employees أو Stock أو PTW_DATABASE");buildExcelImportPlan()}catch(e){excelImportRows=null;excelImportPlan=null;box.innerHTML=`<div class="msg">معرفتش أقرأ الملف: ${esc(e.message||e)}</div>`}}
+async function readExcelWorkbook(file){if(!file)return;const box=$("excelImportPreview");if(!box)return;box.innerHTML='<p class="muted">بيقرأ الملف محليًا…</p>';try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");const data=await file.arrayBuffer();const wb=XLSX.read(data,{type:"array",cellDates:true});excelImportRows={name:file.name,employees:xlSheet(wb,"Employees"),stock:xlSheet(wb,"Stock"),transactions:xlSheet(wb,"Transactions"),permits:xlSheet(wb,"PTW_DATABASE"),vac:xlSheet(wb,"hsevacation"),duty:xlSheet(wb,"hseteamduty"),perm:xlSheet(wb,"2hourslist"),one:xlSheet(wb,"onedutylist"),kpi:xlSheet(wb,"Monthly_Summary")};if(!excelImportRows.employees&&!excelImportRows.stock&&!excelImportRows.permits&&!excelImportRows.vac&&!excelImportRows.duty&&!excelImportRows.perm)throw new Error("مش لاقي شيت Employees أو Stock أو PTW_DATABASE أو شيتات السجلات");buildExcelImportPlan()}catch(e){excelImportRows=null;excelImportPlan=null;box.innerHTML=`<div class="msg">معرفتش أقرأ الملف: ${esc(e.message||e)}</div>`}}
+/* ---------- سجلات تاريخية من منظومة الإكسيل القديمة ----------
+   كل سجل بياخد id ثابت مشتق من الكود والتاريخ، فإعادة الاستيراد
+   بتحدّث نفس السجل مكانش بتكرره. وكلها legacy عشان الأرصدة ما تتأثرش. */
+function xlEmpByCodeName(code,name){
+  const c=xlCode(code);
+  if(c){const m=S.employees.filter(e=>xlCode(e.code)===c);if(m.length===1)return m[0]}
+  const n=normName(name);
+  if(n){const m=S.employees.filter(e=>normName(e.name)===n);
+    if(m.length===1)return m[0];
+    /* اسم كامل (٣ كلمات فأكتر) متكرر في الكشف = نفس الشخص متسجل مرتين */
+    if(m.length>1&&n.split(" ").filter(x=>x.length>1).length>=3)return m[0];
+    /* الاسم ممكن يكون ناقص/زايد كلمة بين كشف وكشف (نور طارق طه ↔ نور طارق طه النجار):
+       نقبل لو ٣ كلمات مشتركة على الأقل وفيه فائز واحد واضح */
+    const t=n.split(" ").filter(x=>x.length>1);
+    if(t.length>=3){
+      let best=null,tie=false;
+      for(const e of S.employees){
+        const et=normName(e.name).split(" ").filter(x=>x.length>1);
+        const hit=et.filter(x=>t.includes(x)).length;
+        if(hit<3)continue;
+        if(!best||hit>best.hit){best={hit,e};tie=false}
+        else if(hit===best.hit&&normName(best.e.name)!==normName(e.name))tie=true;
+      }
+      if(best&&!tie)return best.e;
+    }}
+  return null;
+}
+const xlSafeId=s=>String(s||"").replace(/[^0-9A-Za-z_-]/g,"_").slice(0,48);
+function xlLeaveType(v){const n=xlNorm(v);if(n.includes("عارض"))return "casual";if(n.includes("اعتيادي")||n.includes("سنوي"))return "annual";return "other"}
+function buildHistoryPlan(src){
+  const out=[],skip={noEmp:0,noDate:0},used=new Map();
+  /* نفس الموظف ممكن يكون ليه أكتر من سجل في نفس اليوم — نرقّمهم
+     بترتيب ثابت عشان الـ id يفضل ثابت ومايدهسش حاجة */
+  const push=(base,data)=>{const n=(used.get(base)||0)+1;used.set(base,n);
+    out.push({col:"leaves",id:n===1?base:`${base}_${n}`,data})};
+  const row=(sh,r,al)=>xlCol(sh,r,al);
+  /* الإجازات */
+  for(const r of (src.vac?.rows||[])){
+    const e=xlEmpByCodeName(row(src.vac,r,["الكود","كود","code"]),row(src.vac,r,["الاسم","الأسم","name"]));
+    const d=xlDate(row(src.vac,r,["بداية من","من","التاريخ","from"]));
+    if(!e){skip.noEmp++;continue} if(!d){skip.noDate++;continue}
+    const to=xlDate(row(src.vac,r,["الي","إلى","to"]))||d;
+    push(`xl_vac_${xlSafeId(e.code||e.id)}_${d}`,{kind:"leave",empId:e.id,date:d,to,
+      leaveType:xlLeaveType(row(src.vac,r,["نوع الاجازة","نوع الإجازة","type"])),
+      days:xlNum(row(src.vac,r,["عدد الايام","عدد الأيام","days"]))||1,
+      reason:"سجل تاريخي من منظومة الإكسيل",legacy:true});
+  }
+  /* تيم ديوتي */
+  for(const r of (src.duty?.rows||[])){
+    const e=xlEmpByCodeName(row(src.duty,r,["الكود","كود","code"]),row(src.duty,r,["الاسم","الأسم","name"]));
+    const d=xlDate(row(src.duty,r,["التاريخ","date"]));
+    if(!e){skip.noEmp++;continue} if(!d){skip.noDate++;continue}
+    push(`xl_duty_${xlSafeId(e.code||e.id)}_${d}`,{kind:"duty",empId:e.id,date:d,
+      reason:row(src.duty,r,["السبب","reason"])||"متابعة أعمال الموقع",legacy:true});
+  }
+  /* إذن ساعتين */
+  for(const r of (src.perm?.rows||[])){
+    const e=xlEmpByCodeName(row(src.perm,r,["الكود","كود","code"]),row(src.perm,r,["الاسم","الأسم","name"]));
+    const d=xlDate(row(src.perm,r,["التاريخ","date"]));
+    if(!e){skip.noEmp++;continue} if(!d){skip.noDate++;continue}
+    const t=xlSafeId(row(src.perm,r,["ميعاد كتابة الاذن","ميعاد كتابة الإذن","time"]));
+    push(`xl_perm_${xlSafeId(e.code||e.id)}_${d}${t?"_"+t:""}`,{kind:"perm",empId:e.id,date:d,
+      from:row(src.perm,r,["ميعاد الانصراف","من","from"])||"",
+      to:row(src.perm,r,["الي","إلى","to"])||"",legacy:true});
+  }
+  /* تكليف إضافي فردي */
+  let oi=0;
+  /* شيت onedutylist سطر عناوينه فاضي، فنقرا بالموضع:
+     [0] تاريخ · [1] يوم · [2] اسم · [3] كود · [4] وظيفة · [5] سبب */
+  for(const r of (src.one?.rows||[])){
+    const e=xlEmpByCodeName(row(src.one,r,["الكود","كود","code"])||r[3],
+                            row(src.one,r,["الاسم","الأسم","name"])||r[2]);
+    const d=xlDate(row(src.one,r,["التاريخ","date"]))||xlDate(r[0]);
+    if(!e){skip.noEmp++;continue} if(!d){skip.noDate++;continue}
+    push(`xl_one_${xlSafeId(e.code||e.id)}_${d}_${oi++}`,{kind:"one",empId:e.id,date:d,
+      reason:row(src.one,r,["السبب","reason"])||String(r[5]||""),legacy:true});
+  }
+  /* KPIs من الملخص الشهري */
+  const kpiJobs=[];
+  const KMAP=[["inspection",["الفحص الدوري"]],["unsafeCond",["الظروف غير الآمنة"]],
+    ["unsafeActs",["الأفعال غير الآمنة"]],["corrective",["الإجراءات التصحيحية"]],["tbt",["محاضرات التوعية"]]];
+  for(const r of (src.kpi?.rows||[])){
+    const e=xlEmpByCodeName("",row(src.kpi,r,["اسم الموظف","الاسم","الأسم"]));
+    const m=String(row(src.kpi,r,["الشهر","month"])||"").trim().slice(0,7);
+    if(!e||!/^\d{4}-\d{2}$/.test(m)){if(!e)skip.noEmp++;else skip.noDate++;continue}
+    const d=`${m}-28`;
+    const data={empId:e.id,date:d,note:"ملخص شهري مستورد من الإكسيل",
+      behavior:xlNum(row(src.kpi,r,["السلوك الشخصي"]))};
+    for(const [k,al] of KMAP)data[k]=xlNum(row(src.kpi,r,al));
+    kpiJobs.push({col:"kpi_entries",id:`${d}_${e.id}`,data});
+  }
+  return {leaves:out,kpi:kpiJobs,skip};
+}
 function buildExcelImportPlan(){
   if(!excelImportRows)return;const src=excelImportRows,group=$("excelDefaultGroup")?.value||"worker",employees=[],stock=[],closed=[],counts={missingEmp:0,dupEmp:0,ambEmp:0,missingStock:0,dupStock:0,ambStock:0,openPermits:0,invalidPermits:0,dupPermits:0};
   const ec=(src.employees?.rows||[]).map(r=>({r,code:xlCode(xlCol(src.employees,r,["كود","الكود","code","employee code"])),name:xlCol(src.employees,r,["الاسم","اسم الموظف","name"])})).filter(x=>x.name),ef=new Map();for(const x of ec)if(x.code)ef.set(x.code,(ef.get(x.code)||0)+1);
@@ -1428,13 +1522,14 @@ function buildExcelImportPlan(){
   for(const x of sc){if(!x.code||!x.name){counts.missingStock++;continue}if(sf.get(x.code)>1){counts.dupStock++;continue}const m=S.items.filter(i=>xlCode(i.code)===x.code);if(m.length>1){counts.ambStock++;continue}stock.push({id:m[0]?.id||`xl_item_${x.code.replace(/[^A-Za-z0-9_-]/g,"_")}`,existing:!!m[0],code:x.code,name:x.name,available:xlNum(xlCol(src.stock,x.r,["الرصيد المتاح","الرصيد الحالي","available"]))})}
   const pc=src.permits?.rows||[],pf=new Set(),existingP=new Set(S.permits.map(p=>`${p.type}-${p.serial||String(p.number||"").split("-").pop()}`));
   for(const r of pc){const status=xlNorm(xlCol(src.permits,r,["الحالة","status"]));if(status.includes("open")||status.includes("مفتوح")){counts.openPermits++;continue}if(!(status.includes("closed")||status.includes("مغلق")))continue;const type=xlPtwType(xlCol(src.permits,r,["نوع التصريح","النوع","type"])),serial=xlCode(xlCol(src.permits,r,["رقم المسلسل","الرقم المسلسل","رقم التصريح","serial","number"])),date=xlDate(xlCol(src.permits,r,["تاريخ الإصدار","تاريخ التصريح","التاريخ","date"]));if(!type||!serial||!date){counts.invalidPermits++;continue}const id=`${type}-${serial}`;if(pf.has(id)||existingP.has(id)){counts.dupPermits++;continue}pf.add(id);closed.push({id,type,serial,date,safetyName:xlCol(src.permits,r,["مسؤول السلامة","المسؤول","safety"]),source:xlCol(src.permits,r,["المصدر","source"])})}
-  const transCount=(src.transactions?.rows||[]).length;excelImportPlan={employees,stock,closed,counts,transCount};
-  const box=$("excelImportPreview");if(!box)return;box.innerHTML=`<div class="card" style="padding:12px"><b>معاينة الملف: ${esc(src.name)}</b><div class="grid g3" style="margin-top:8px"><div>الموظفون: <b>${employees.filter(x=>!x.existing).length}</b> جديد · ${employees.filter(x=>x.existing).length} تحديث · ${counts.missingEmp+counts.dupEmp+counts.ambEmp} مستبعدون</div><div>أصناف المخزن: <b>${stock.filter(x=>!x.existing).length}</b> جديد · ${stock.filter(x=>x.existing).length} تحديث · ${counts.missingStock+counts.dupStock+counts.ambStock} مستبعدة</div><div>تصاريح مغلقة: <b>${closed.length}</b> قابلة للأرشفة · ${counts.dupPermits} مكرر</div></div><div class="form" style="margin-top:10px"><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportBalances"> حدّث الرصيد المتاح للأصناف من الملف. ستُضبط قيمة الرصيد الافتتاحي مع إبقاء حركات المنظومة الحالية.</label><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportClosed"> استورد ${closed.length} تصريحًا مغلقًا كسجل تاريخي مختصر</label></div><p class="muted" style="font-size:12.5px;margin:8px 0">${counts.openPermits} تصريح مفتوح مستبعد من النقل الآلي لتجنب تنبيهات الإغلاق الجماعية. ${transCount} صف حركة مخزن لم يُستورد: عمود التاريخ بلا عنوان ورقم الإذن غير موجود، فلا يمكن منع التكرار بأمان. البيانات لا تُحفظ إلا بعد الضغط على زر التطبيق.</p><button class="btn primary" id="excelApply" type="button">تطبيق الصفوف الآمنة المحددة</button></div>`;$("excelApply").onclick=applyExcelImport;
+  const transCount=(src.transactions?.rows||[]).length;const hist=buildHistoryPlan(src);excelImportPlan={employees,stock,closed,counts,transCount,hist};
+  const box=$("excelImportPreview");if(!box)return;box.innerHTML=`<div class="card" style="padding:12px"><b>معاينة الملف: ${esc(src.name)}</b><div class="grid g3" style="margin-top:8px"><div>الموظفون: <b>${employees.filter(x=>!x.existing).length}</b> جديد · ${employees.filter(x=>x.existing).length} تحديث · ${counts.missingEmp+counts.dupEmp+counts.ambEmp} مستبعدون</div><div>أصناف المخزن: <b>${stock.filter(x=>!x.existing).length}</b> جديد · ${stock.filter(x=>x.existing).length} تحديث · ${counts.missingStock+counts.dupStock+counts.ambStock} مستبعدة</div><div>تصاريح مغلقة: <b>${closed.length}</b> قابلة للأرشفة · ${counts.dupPermits} مكرر</div><div>سجلات تاريخية (إجازات · ديوتي · أذونات · تكليفات): <b>${hist.leaves.length}</b></div><div>ملخصات KPI شهرية: <b>${hist.kpi.length}</b></div><div class="muted">مستبعد من السجلات: ${hist.skip.noEmp} مالوش موظف · ${hist.skip.noDate} من غير تاريخ</div></div><div class="form" style="margin-top:10px"><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportBalances"> حدّث الرصيد المتاح للأصناف من الملف. ستُضبط قيمة الرصيد الافتتاحي مع إبقاء حركات المنظومة الحالية.</label><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportClosed"> استورد ${closed.length} تصريحًا مغلقًا كسجل تاريخي مختصر</label></div><p class="muted" style="font-size:12.5px;margin:8px 0">${counts.openPermits} تصريح مفتوح مستبعد من النقل الآلي لتجنب تنبيهات الإغلاق الجماعية. ${transCount} صف حركة مخزن لم يُستورد: عمود التاريخ بلا عنوان ورقم الإذن غير موجود، فلا يمكن منع التكرار بأمان. البيانات لا تُحفظ إلا بعد الضغط على زر التطبيق.</p><button class="btn primary" id="excelApply" type="button">تطبيق الصفوف الآمنة المحددة</button></div>`;$("excelApply").onclick=applyExcelImport;
 }
 function applyExcelImport(){
   if(!isOwner||!db||!excelImportPlan){toast("اختار ملف Excel أولًا بصلاحية صاحب المنظومة");return}const plan=excelImportPlan,doBal=$("excelImportBalances")?.checked,doClosed=$("excelImportClosed")?.checked,jobs=[];
   for(const x of plan.employees){const data={...x.data,updatedAt:Date.now()};if(!x.existing){data.active=true;data.createdAt=Date.now()}jobs.push({col:"employees",id:x.id,data})}
   const mt=moveTotals();for(const x of plan.stock){const cur=S.items.find(i=>i.id===x.id);const data={code:x.code,name:x.name,updatedAt:Date.now()};if(!cur){data.unit="قطعة";data.min=0;data.createdAt=Date.now()}if(doBal){const net=cur?(mt[x.id]?.inn||0)-(mt[x.id]?.out||0):0;data.opening=x.available-net}jobs.push({col:"ppe_items",id:x.id,data})}
+  if(plan.hist){for(const j of plan.hist.leaves)jobs.push(j);for(const j of plan.hist.kpi)jobs.push(j)}
   if(doClosed)for(const x of plan.closed)jobs.push({col:"permits",id:x.id,data:{type:x.type,serial:Number(x.serial)||x.serial,number:x.id,date:x.date,status:"closed",risk:"med",safetyName:x.safetyName||"",desc:"سجل تاريخي مختصر مستورد من ملف Excel؛ تفاصيل الموقع ووصف العمل غير متوفرة في المصدر.",legacySource:x.source||"Excel",legacyImport:true,createdAt:Date.now(),updatedAt:Date.now()}});
   if(!jobs.length){toast("مافيش صفوف محددة للاستيراد");return}confirmSheet("تأكيد استيراد Excel",`هيتحفظ ${plan.employees.length} موظف و${plan.stock.length} صنف${doClosed?` و${plan.closed.length} تصريح مغلق أرشيفي`:""} في قاعدة المنظومة الخاصة. راجع المعاينة قبل المتابعة.`,async()=>{
     let i=0,done=0,fail=0;importing=true;const box=$("excelImportPreview");const work=async()=>{while(i<jobs.length){const j=jobs[i++];let ok=false;for(let t=0;t<3&&!ok;t++){try{await upsert(j.col,j.id,j.data);ok=true}catch(e){if(t<2)await new Promise(r=>setTimeout(r,250*(t+1)))}}if(ok)done++;else fail++;if(box&&done%10===0)box.querySelector("b")&&(box.querySelector("b").textContent=`اتحفظ ${done} من ${jobs.length}…`)}};await Promise.all(Array.from({length:6},work));importing=false;refresh();if(fail)toast(`اتحفظ ${done} صف، وتعذر حفظ ${fail}. أعد اختيار الملف للمتابعة`);else toast(`تم استيراد ${done} سجل`)
@@ -1620,8 +1715,47 @@ async function loadSig(){if(SIG!==null)return SIG;SIG={};if(!db||!isOwner)return
 function normName(s){return String(s||"").replace(/\s+/g," ").trim().replace(/[ىي]/g,"ي").replace(/[أإآا]/g,"ا").replace(/ة/g,"ه")}
 function isLeader(e){if(!e)return false;const ln=normName(S.settings.leaderName||"اسلام بكر عباس");return String(e.code)===String(S.settings.leaderCode||"5160")||normName(e.name)===ln}
 function wrapLines(x,txt,maxW){const words=String(txt).split(/\s+/);const lines=[];let cur="";for(const w of words){const t=cur?cur+" "+w:w;if(x.measureText(t).width<=maxW||!cur)cur=t;else{lines.push(cur);cur=w}}if(cur)lines.push(cur);return lines}
+/* ====== محرك رسم النصوص الموحّد لكل النماذج والسجلات ======
+   كان فيه خوارزميتين مختلفتين: واحدة للنماذج (forms.json) وواحدة للسجلات
+   (forms2.json) بتفترض إن كل الصور 150 DPI. دلوقتي الاتنين بيستخدموا ده،
+   والمقياس بيتحسب من الصورة نفسها، والوزن والهوامش وارتفاع السطر موحّدين. */
+const FORM_W=700;                       /* وزن الخط — أتقل من 600 القديم */
+const FORM_MIN_PT=7.5;                  /* أصغر حجم مسموح بيه بالنقاط */
+const FORM_LH=1.16;                     /* ارتفاع السطر */
+const formFont=px=>`${FORM_W} ${px}px "IBM Plex Sans Arabic",Arial,sans-serif`;
+/* المقياس الحقيقي للصورة: ارتفاعها بالبكسل ÷ ارتفاع الصفحة بالنقاط */
+function formPxPerPt(W,H,pageHpt){return H/(pageHpt||(H>=W?841.89:595.28))}
+function drawBoxText(x,W,H,rect,txt,{szPt=11,pxPerPt=1,algn="ctr",lines=1,fill=false}={}){
+  if(txt==null||txt==="")return;txt=String(txt);
+  const bx=rect[0]*W,by=rect[1]*H,bw=rect[2]*W,bh=rect[3]*H;
+  if(bw<=0||bh<=0)return;
+  if(fill){x.fillStyle="#fff";x.fillRect(bx+1.5,by+1.5,Math.max(1,bw-3),Math.max(1,bh-3))}
+  const padX=Math.min(8,Math.max(2,bw*.035)),padY=Math.min(3,bh*.08);
+  const maxW=Math.max(1,bw-padX*2),innerH=Math.max(1,bh-padY*2);
+  x.direction=/[؀-ۿ]/.test(txt)?"rtl":"ltr";
+  const cap=lines>1?bh/lines*0.78:bh*0.72;
+  const baseFs=Math.max(1,Math.min(szPt*pxPerPt,cap)),minFs=Math.min(FORM_MIN_PT*pxPerPt,baseFs);
+  const mk=()=>txt.split(/\r?\n/).flatMap(l=>l?wrapLines(x,l,maxW):[""]);
+  let fs=baseFs,L=[],maxL=1;
+  for(;;){x.font=formFont(fs);maxL=Math.max(1,Math.floor(innerH/(fs*FORM_LH)));L=mk();
+    if((L.length<=maxL&&L.every(l=>x.measureText(l).width<=maxW))||fs<=minFs)break;
+    fs=Math.max(minFs,fs-.5)}
+  x.font=formFont(fs);maxL=Math.max(1,Math.floor(innerH/(fs*FORM_LH)));L=mk();
+  const fit=l=>{if(x.measureText(l).width<=maxW)return l;const a=[...l];
+    while(a.length&&x.measureText(a.join("")+"…").width>maxW)a.pop();return a.length?a.join("")+"…":"…"};
+  if(L.length>maxL){L=L.slice(0,maxL);L[maxL-1]=fit(L[maxL-1])}else L=L.map(fit);
+  const align=algn==="r"?"right":algn==="l"?"left":"center";
+  const tx=align==="right"?bx+bw-padX:align==="left"?bx+padX:bx+bw/2;
+  x.fillStyle="#111";x.textBaseline="middle";x.textAlign=align;
+  const lh=fs*FORM_LH,top=by+bh/2-(L.length-1)*lh/2;
+  x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();
+  L.forEach((l,i)=>x.fillText(l,tx,top+i*lh));x.restore();
+}
 async function renderForm(T,vals,opt={}){
   const F=(await loadForms())[T];if(!F)throw new Error("no form "+T);
+  /* القيم اللي كانت متحطة كصور جوه النماذج — بقت نصوص بتقرا من الإعدادات */
+  vals={project:S.settings.project||"",leaderName:S.settings.leaderName||"اسلام بكر عباس",
+        deptName:S.settings.deptName||"HSE",...vals};
   try{await document.fonts.load('600 24px "IBM Plex Sans Arabic"')}catch(e){}
   const sig=await loadSig();const out=[];let sigMissing=false;
   for(let k=0;k<F.pages.length;k++){
@@ -1634,30 +1768,15 @@ async function renderForm(T,vals,opt={}){
       let src=s.img;if(s.sig){src=sig[s.img];if(!src){sigMissing=true;continue}}
       try{const im=await loadImg(src);x.drawImage(im,s.x*W,s.y*H,s.w*W,s.h*H)}catch(e){}
     }
-    const pxPerPt=H/F.pageHpt;
+    const pxPerPt=formPxPerPt(W,H,F.pageHpt);
+    const WHITEOUT=["date","serial","today","reqDate","pdate","startDate","endDate","returnDate","mgrDate","purpose","reason","desc","note","notes"];
     for(const b of [...F.boxes.filter(b=>b.page===k),...(opt.extraBoxes||[]).filter(b=>b.page===k)]){
       if(opt.skipBox?.(b))continue;
       if(b.hideIfLeader&&opt.leader)continue;
       const txt=b.static??vals[b.field];if(txt==null||txt==="")continue;
-      const bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H;
-      if(["date","serial","today","reqDate","pdate","startDate","endDate","returnDate","mgrDate","purpose"].includes(b.field)){x.fillStyle="#fff";x.fillRect(bx+2,by+2,bw-4,bh-4)}
-      const padX=Math.min(8,Math.max(2,bw*.035)),padY=Math.min(2,bh*.08),maxW=Math.max(1,bw-padX*2),innerH=Math.max(1,bh-padY*2);
-      const font=s=>`600 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
-      const baseFs=Math.min((b.sz||11)*pxPerPt,bh*.72),minFs=Math.min(8,baseFs);let fs=baseFs,lines=[],maxLines=1;
-      x.direction=/[؀-ۿ]/.test(String(txt))?"rtl":"ltr";
-      const makeLines=()=>String(txt).split(/\r?\n/).flatMap(line=>line?wrapLines(x,line,maxW):[""]);
-      for(;;){x.font=font(fs);maxLines=Math.max(1,Math.floor(innerH/(fs*1.16)));lines=makeLines();
-        if((lines.length<=maxLines&&lines.every(l=>x.measureText(l).width<=maxW))||fs<=minFs)break;
-        fs=Math.max(minFs,fs-.5)}
-      x.font=font(fs);maxLines=Math.max(1,Math.floor(innerH/(fs*1.16)));lines=makeLines();
-      const fitLine=l=>{if(x.measureText(l).width<=maxW)return l;let a=[...l];while(a.length&&x.measureText(a.join("")+"…").width>maxW)a.pop();return a.length?a.join("")+"…":"…"};
-      if(lines.length>maxLines){lines=lines.slice(0,maxLines);lines[maxLines-1]=fitLine(lines[maxLines-1])}else lines=lines.map(fitLine);
-      const align=b.algn==="r"?"right":b.algn==="l"?"left":"center",tx=align==="right"?bx+bw-padX:align==="left"?bx+padX:bx+bw/2;
-      x.fillStyle="#111";x.textBaseline="middle";x.textAlign=align;
-      const lh=fs*1.16,top=by+bh/2-(lines.length-1)*lh/2;
-      x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();lines.forEach((l,i)=>x.fillText(l,tx,top+i*lh));x.restore();
-    }
-    out.push(c);
+      drawBoxText(x,W,H,[b.x,b.y,b.w,b.h],txt,{szPt:b.sz||11,pxPerPt,algn:b.algn||"ctr",
+        lines:b.lines||1,fill:WHITEOUT.includes(b.field)||!!b.fill});
+    }    out.push(c);
   }
   out.sigMissing=sigMissing;return out;
 }
@@ -1822,6 +1941,15 @@ async function printPerm(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
   printDoc({title:"إذن خروج / تأخير · "+(e.name||""),T:"PERM",vals:{name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(l.date),dayName:dayName(l.date),from:l.from||"",to:l.to||""},opt:{leader:isLeader(e)},filename:`اذن ساعتين ${e.name||""} ${l.date}.pdf`,rec:l});
 }
+/* التكليف الإضافي الفردي — نموذج f-ONE، منفصل تمامًا عن المأمورية */
+async function printOneDuty(id){
+  const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
+  printDoc({title:"تكليف إضافي لموظف · "+(e.name||""),T:"ONE",
+    vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",today:ymdSlash(today())},
+    opt:{leader:isLeader(e)},filename:`تكليف ${e.name||""} ${l.date}.pdf`,rec:l});
+}
+/* سجل قديم اتسجل أيام ما «مأمورية» كانت بتطبع نموذج التكليف الإضافي */
+function isLegacyAssignment(l){return l&&l.kind==="mission"&&!l.destination&&!l.returnTime&&!l.approverId&&!l.department}
 /* ---------- mission e-signature ---------- */
 const isMissionKind=k=>k==="mission"||k==="missiong";
 function missionApproverId(l){return l?.approverId||""}
@@ -1994,7 +2122,7 @@ async function renderGenericBase(fid,rec){
     const bg=await loadImg(spec.pages[k]);const W=bg.naturalWidth,H=bg.naturalHeight;
     const c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
     x.fillStyle="#fff";x.fillRect(0,0,W,H);x.drawImage(bg,0,0,W,H);const pxPt=150/72;
-    const font=s=>`600 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
+    const font=s=>`700 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
     const text=(t,r,opt={})=>{if(t==null||t==="")return;t=String(t);const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
       if(opt.fill){x.fillStyle="#fff";x.fillRect(bx+1,by+1,bw-2,bh-2)}
       x.fillStyle="#111";x.textBaseline="middle";const rtl=/[؀-ۿ]/.test(t);x.direction=rtl?"rtl":"ltr";
@@ -2029,10 +2157,14 @@ VIEWS.forms={
     if(ui.formSel&&F2[ui.formSel])return fillFormRecords(el,ui.formSel,F2[ui.formSel]);
     const byG={};for(const [fid,s] of Object.entries(F2))(byG[s.group]??=[]).push([fid,s]);
 
-    // أضف أزرار المأموريات الجديدة في الأعلى
-    let missionHTML = `<h3 style="margin-top:6px">📋 المأموريات</h3><div class="grid g4" style="margin-bottom:18px">`;
-    missionHTML += `<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit;background:#13213B;border:1px solid #243654" onclick="window.open('mission_external_individual.html','_blank')"><span style="font-weight:600;font-size:15px">👤 مأمورية فردي</span><span class="note">مأمورية خارجية لموظف واحد</span></button>`;
-    missionHTML += `<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit;background:#13213B;border:1px solid #243654" onclick="window.open('mission_group.html','_blank')"><span style="font-weight:600;font-size:15px">👥 مأمورية مجموع</span><span class="note">مأمورية مجموعة من الموظفين</span></button>`;
+    /* تسجيل مأمورية أو تكليف — بيفتح نفس شاشة التسجيل بنوعها مظبوط،
+       والنموذج الرسمي بيتطبع من جوه السجل نفسه. */
+    const mkBtn=(kind,icon,note)=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="dutyForm('${kind}')"><span style="font-weight:600;font-size:15px">${icon} ${esc(DUTY_K[kind])}</span><span class="note">${esc(note)}</span></button>`;
+    let missionHTML = `<h3 style="margin-top:6px">📋 المأموريات والتكليفات</h3><div class="grid g4" style="margin-bottom:18px">`;
+    missionHTML += mkBtn("mission","👤","مأمورية خارجية لموظف واحد — F-ADM-01-03");
+    missionHTML += mkBtn("missiong","👥","مأمورية مجمع لحد 18 فرد — F-ADM-01-04");
+    missionHTML += mkBtn("one","📝","تكليف إضافي لموظف — F-ADM-01-01");
+    missionHTML += mkBtn("duty","🗓","تيم ديوتي للفريق — F-ADM-01-02");
     missionHTML += `</div>`;
 
     el.innerHTML = missionHTML + Object.entries(FORM_GROUPS).filter(([g])=>byG[g]).map(([g,gl])=>`<h3 style="margin-top:6px">${gl}</h3><div class="grid g4" style="margin-bottom:18px">${byG[g].sort().map(([fid,s])=>{const n=recsOf(fid).length;return `<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.formSel='${fid}';refresh()"><span class="lbl num" style="direction:ltr;text-align:right">${fid}</span><span style="font-weight:600;font-size:15px">${esc(s.title)}</span><span class="note">${n?n+" سجل":"لسه مفيش سجلات"}</span></button>`}).join("")}</div>`).join("");
@@ -3341,6 +3473,396 @@ function removedSheet(){const L=S.employees.filter(e=>e.active===false).sort((a,
 {const _pf2=personFileHTML;personFileHTML=function(e){const h=_pf2(e);if(tabLevel("manpower")==="view")return h;
   return h.replace(/(<button class="btn" onclick="empForm\('[^']+'\)">تعديل البيانات<\/button>)/,`$1<button class="btn danger" onclick="empDel('${e.id}')">🗑 حذف</button>`)}}
 {const _mf2=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mf2.call(this);if(tabLevel("manpower")!=="view"&&!ui.personSel){const F=document.querySelector("#mpBody .filters");const n=S.employees.filter(e=>e.active===false).length;if(F&&!$("mpRemoved"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpRemoved" onclick="removedSheet()">🗑 المحذوفين (${n})</button>`)}}}
+
+/* ---------- تحديث المان باور من ملف Excel ----------
+   يطابق بالكود، يضيف الجديد، ويميّز اللي مش في الملف من غير ما يمسحه. */
+const MP_HEAD={
+  name :["اسم الموظف","الاسم","الأسم","اسم","employee name","full name","name"],
+  code :["الكود الوظيفي","الكود","كود الموظف","كود","emp code","employee code","code"],
+  job  :["المسمى الوظيفي","الوظيفة","الوظيفه","job title","position","title","job"],
+  phone:["رقم الموبايل","الموبايل","موبايل","التليفون","تليفون","mobile","phone"],
+  nid  :["الرقم القومي","رقم قومي","national id","nid"]
+};
+const mpNorm=s=>String(s??"").replace(/\s+/g," ").trim().toLowerCase();
+const mpCode=s=>String(s??"").replace(/\s+/g,"").trim();
+function mpMapCols(headers){
+  const out={};
+  headers.forEach((h,i)=>{
+    const n=mpNorm(h);if(!n)return;
+    for(const [k,keys] of Object.entries(MP_HEAD)){
+      if(out[k]!=null)continue;
+      if(keys.some(x=>n===mpNorm(x)||n.includes(mpNorm(x))))out[k]=i;
+    }
+  });
+  return out;
+}
+let mpSyncPlan=null;
+/* يحوّل صفوف شيت واحد لسجلات موحّدة (كل شيت بأعمدته) */
+function mpRows2Recs(rows,cols,sheet){
+  const out=[];
+  for(const r of rows){
+    const name=String(r[cols.name]??"").trim();
+    const code=mpCode(cols.code!=null?r[cols.code]:"");
+    if(!name&&!code)continue;
+    out.push({name,code,sheet,
+      job  :cols.job  !=null?String(r[cols.job]  ??"").trim():"",
+      phone:cols.phone!=null?String(r[cols.phone]??"").trim():"",
+      nid  :cols.nid  !=null?String(r[cols.nid]  ??"").trim():""});
+  }
+  return out;
+}
+function mpBuildPlan(recs,scope,file){
+  const byCode=new Map(),byName=new Map();
+  const pool=S.employees.filter(e=>e.active!==false&&(scope==="*"||e.group===scope));
+  for(const e of pool){
+    if(mpCode(e.code))byCode.set(mpCode(e.code),e);
+    byName.set(normName(e.name),e);
+  }
+  const seen=new Set(),add=[],upd=[],same=[],bad=[],dup=[];
+  const taken=new Set();
+  for(const rec of recs){
+    const {name,code}=rec;
+    if(!name){bad.push({code,why:"صف من غير اسم"});continue}
+    const dk=code?"c:"+code:"n:"+normName(name);
+    if(taken.has(dk)){dup.push(rec);continue}
+    taken.add(dk);
+    const hit=(code&&byCode.get(code))||byName.get(normName(name));
+    if(hit){
+      seen.add(hit.id);
+      const ch={};
+      for(const k of ["name","code","job","phone","nid"])
+        if(rec[k]&&String(hit[k]??"").trim()!==rec[k])ch[k]=rec[k];
+      (Object.keys(ch).length?upd:same).push({emp:hit,rec,ch});
+    } else add.push(rec);
+  }
+  const missing=pool.filter(e=>!seen.has(e.id));
+  mpSyncPlan={add,upd,same,missing,bad,dup,scope,file};
+  return mpSyncPlan;
+}
+function mpPlanHTML(p){
+  const box=(t,n,cls,extra="")=>`<div class="tile card" style="gap:2px"><span class="lbl">${t}</span><span class="val ${cls}">${n}</span><span class="note">${extra}</span></div>`;
+  const li=(t,s)=>`<div class="li"><div class="grow"><div class="t">${esc(t)}</div><div class="s">${esc(s)}</div></div></div>`;
+  return `<div class="grid g4" style="margin-bottom:12px">
+      ${box("هيتضافوا",p.add.length,"","موظفين جداد في الملف")}
+      ${box("هيتحدّثوا",p.upd.length,"","بياناتهم اتغيّرت")}
+      ${box("زي ما هم",p.same.length,"","مطابقين من غير تغيير")}
+      ${box("هيتميّزوا",p.missing.length,p.missing.length?"alert":"","مش في الملف — <b>مش هيتمسحوا</b>")}
+    </div>
+    ${p.bad.length?`<div class="banner">${p.bad.length} صف اتخطّى (من غير اسم).</div>`:""}${p.dup.length?`<div class="banner">${p.dup.length} صف مكرر اتخطّى (نفس الكود اتكرر في الملف).</div>`:""}${p.sheets?`<p class="muted" style="font-size:13px;margin:0 0 8px">الشيتات: ${p.sheets.map(s=>esc(s.sheet)+" ("+s.n+")").join(" · ")}</p>`:""}
+    ${p.add.length?`<h3 style="margin:12px 0 4px">هيتضافوا (${p.add.length})</h3><div class="list" style="max-height:180px;overflow:auto">${p.add.slice(0,60).map(r=>li(r.name,[r.code,r.job].filter(Boolean).join(" · ")||"—")).join("")}${p.add.length>60?'<div class="li muted">…</div>':""}</div>`:""}
+    ${p.upd.length?`<h3 style="margin:12px 0 4px">هيتحدّثوا (${p.upd.length})</h3><div class="list" style="max-height:180px;overflow:auto">${p.upd.slice(0,60).map(u=>li(u.emp.name,Object.entries(u.ch).map(([k,v])=>`${({name:"الاسم",code:"الكود",job:"الوظيفة",phone:"الموبايل",nid:"الرقم القومي"})[k]}: ${String(u.emp[k]??"—")} ← ${v}`).join(" · "))).join("")}</div>`:""}
+    ${p.missing.length?`<h3 style="margin:12px 0 4px">هيتميّزوا — مش في الملف (${p.missing.length})</h3>
+      <p class="muted" style="font-size:13px;margin:0 0 6px">دول <b>مش هيتمسحوا ولا هيتوقفوا</b>. هتتحط عليهم علامة تقدر تراجعها بعد كده من زرار «⚠ مش في آخر تحديث».</p>
+      <div class="list" style="max-height:200px;overflow:auto">${p.missing.slice(0,80).map(e=>li(e.name,[e.code,e.job,GROUPS[e.group]].filter(Boolean).join(" · "))).join("")}${p.missing.length>80?'<div class="li muted">…</div>':""}</div>`:""}`;
+}
+function mpSyncSheet(){
+  mpSyncPlan=null;
+  openSheet("تحديث المان باور من Excel",`
+    <p class="muted" style="margin-top:0;font-size:13.5px">ارفع ملف Excel فيه الموظفين. المطابقة بتتم <b>بالكود الوظيفي</b> (ولو مفيش كود، بالاسم). اللي في الملف ومش في النظام هيتضاف، واللي بياناته اتغيّرت هيتحدّث، واللي في النظام ومش في الملف <b>هيتميّز بس — مش هيتمسح</b>.</p>
+    <div class="filters">
+      <label class="btn primary" style="cursor:pointer">📄 اختار ملف Excel<input type="file" id="mpFile" accept=".xlsx,.xlsm,.xls" hidden></label>
+      ${f("مجموعة الموظفين الجداد","newGroup",{value:ui.mpG||"worker",opts:Object.entries(GROUPS)})}
+      ${f("نطاق المطابقة (مين الملف بيغطيهم)","scope",{value:ui.mpG||"*",opts:[["*","كل المجموعات"],...Object.entries(GROUPS)]})}
+    </div>
+    <p class="muted" style="font-size:12.5px;margin:4px 0 0">نطاق المطابقة مهم: لو الملف بتاع «موظفين الشركة» بس، خلي النطاق عليهم عشان فريق السلامة والمقاولين ما يتعلّمش عليهم غلط.</p>
+    <div id="mpPlan" style="margin-top:12px"></div>`,
+  async()=>{
+    const p=mpSyncPlan;if(!p)return "اختار ملف Excel الأول";
+    if(!p.add.length&&!p.upd.length&&!p.missing.length)return "مفيش أي تغيير في الملف ده";
+    const g=$("f_newGroup").value,stamp={at:Date.now(),by:ME.id||"",file:p.file};
+    const ok=await write(async()=>{
+      for(const r of p.add)
+        await db.collection("employees").add({name:r.name,code:r.code,job:r.job,phone:r.phone,nid:r.nid,
+          group:g,active:true,ptwAuth:false,casual:0,annual:0,createdAt:Date.now(),mpSync:stamp});
+      for(const u of p.upd) await upsert("employees",u.emp.id,{...u.ch,mpSync:stamp,mpFlag:null});
+      for(const u of p.same) await upsert("employees",u.emp.id,{mpSync:stamp,mpFlag:null});
+      for(const e of p.missing) await upsert("employees",e.id,{mpFlag:{...stamp,reason:"missing"}});
+    },`اتضاف ${p.add.length} · اتحدّث ${p.upd.length} · اتميّز ${p.missing.length}`);
+    return ok?null:"الحفظ فشل";
+  },"نفّذ التحديث");
+  setTimeout(()=>{const i=$("mpFile");if(i)i.onchange=e=>mpReadFile(e.target.files[0])},60);
+}
+async function mpReadFile(file){
+  const box=$("mpPlan");if(!box||!file)return;
+  box.innerHTML='<p class="muted">بيقرأ الملف على جهازك…</p>';
+  try{
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+    /* كل شيت فيه عمود اسم بيتقرا — مش الأكبر بس */
+    const parts=[];
+    for(const sn of wb.SheetNames){
+      const a=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:""});
+      let best=null;
+      for(let h=0;h<Math.min(8,a.length);h++){
+        const cols=mpMapCols(a[h]||[]);
+        if(cols.name==null)continue;
+        const rows=a.slice(h+1).filter(r=>r.some(v=>String(v??"").trim()));
+        if(!best||rows.length>best.rows.length)best={cols,rows};
+      }
+      if(best&&best.rows.length)parts.push({sheet:sn,...best});
+    }
+    if(!parts.length)throw new Error("مش لاقي عمود للاسم في أي شيت. لازم يكون فيه عمود «الاسم» أو Name");
+    const recs=parts.flatMap(pt=>mpRows2Recs(pt.rows,pt.cols,pt.sheet));
+    const p=mpBuildPlan(recs,$("f_scope").value,file.name);
+    p.sheets=parts.map(pt=>({sheet:pt.sheet,n:pt.rows.length}));
+    box.innerHTML=`<p class="muted" style="font-size:13px;margin:0 0 8px">الملف: <b>${esc(file.name)}</b> · ${parts.length} شيت · ${recs.length} صف إجمالي</p>`+mpPlanHTML(p);
+  }catch(e){mpSyncPlan=null;box.innerHTML=`<div class="msg">معرفتش أقرأ الملف: ${esc(e.message||e)}</div>`}
+}
+/* مراجعة المميّزين */
+const mpFlagged=()=>S.employees.filter(e=>e.active!==false&&e.mpFlag);
+function mpFlaggedSheet(){
+  const L=mpFlagged().sort((a,b)=>(b.mpFlag?.at||0)-(a.mpFlag?.at||0));
+  openSheet(`مش في آخر تحديث (${L.length})`,L.length?`
+    <p class="muted" style="margin-top:0;font-size:13.5px">دول موجودين في النظام ومكانوش في آخر ملف Excel اترفع. راجعهم: لو لسه بيشتغلوا شيل العلامة، ولو سابوا الشغل وقّفهم.</p>
+    <div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${e.mpFlag?.file?" · من ملف "+esc(e.mpFlag.file):""}</div></div>
+      <div class="row-actions"><button class="btn ghost sm" onclick="mpUnflag('${e.id}')">✔ لسه شغّال</button><button class="btn ghost sm danger" onclick="mpStopEmp('${e.id}')">وقّفه</button></div></div>`).join("")}</div>`
+    :'<p class="muted">مفيش حد مميّز. 👍</p>',null,null);
+}
+async function mpUnflag(id){if(await write(()=>upsert("employees",id,{mpFlag:null}),"اتشالت العلامة"))setTimeout(mpFlaggedSheet,250)}
+async function mpStopEmp(id){if(await write(()=>upsert("employees",id,{active:false,removedAt:Date.now(),mpFlag:null}),"اتوقف"))setTimeout(mpFlaggedSheet,250)}
+/* الأزرار في شاشة القوى العاملة */
+{const _mfS=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mfS.call(this);
+  if(tabLevel("manpower")==="view"||ui.personSel)return;
+  const F=document.querySelector("#mpBody .filters");if(!F)return;
+  if(!$("mpSyncBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn primary" id="mpSyncBtn" onclick="mpSyncSheet()">⟳ تحديث المان باور</button>`);
+  if(!$("mpCardsBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpCardsBtn" onclick="mpCardsSheet()">🪪 استيراد البطاقات</button>`);
+  const n=mpFlagged().length;
+  if(n&&!$("mpFlagBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpFlagBtn" style="color:var(--warn)" onclick="mpFlaggedSheet()">⚠ مش في آخر تحديث (${n})</button>`);
+}}
+/* علامة على سطر الشخص */
+{const _prF=personRow;personRow=function(e){const h=_prF(e);
+  return e.mpFlag?h.replace('<div class="row-actions">','<span class="pill p-susp" title="مكانش في آخر ملف Excel اترفع">⚠ مش في آخر تحديث</span><div class="row-actions">'):h}}
+
+/* ---------- استيراد بطاقات الموظفين بالجملة ----------
+   بيقرا فولدر فيه مجلدات باسم «الكود - الاسم» وجواها صورة/PDF البطاقة،
+   ويطابق بالكود ويرفعها على حساب الموظف. */
+const MP_CARD_RE=/(?:^|\/)\s*(\d{2,})\s*-\s*([^\/]+?)\s*(?:\/|$)/;
+function mpCardGroups(files){
+  const g=new Map();
+  for(const f of files){
+    const path=f.webkitRelativePath||f.name;
+    const m=path.match(MP_CARD_RE);
+    if(!m)continue;
+    const code=m[1].replace(/^0+(?=\d)/,""),label=m[2];
+    if(!g.has(code))g.set(code,{code,label,files:[]});
+    g.get(code).files.push(f);
+  }
+  for(const v of g.values())v.files.sort((a,b)=>(a.name||"").localeCompare(b.name||"","ar"));
+  return [...g.values()];
+}
+let mpCardPlan=null;
+function mpCardsSheet(){
+  mpCardPlan=null;
+  openSheet("استيراد بطاقات الموظفين",`
+    <p class="muted" style="margin-top:0;font-size:13.5px">اختار الفولدر الكبير اللي جواه مجلدات باسم <b>«الكود - الاسم»</b> وكل مجلد فيه صورة البطاقة أو PDF. المطابقة بتتم <b>بالكود</b>، وأول ملف بيتحط «البطاقة — الوش» والتاني «البطاقة — الضهر».</p>
+    <div class="filters">
+      <label class="btn primary" style="cursor:pointer">📁 اختار فولدر البطاقات<input type="file" id="mpCardDir" webkitdirectory directory multiple hidden></label>
+    </div>
+    <label class="chk" style="display:block;margin-top:6px"><input type="checkbox" id="mpCardOver"> استبدل البطاقات الموجودة (الافتراضي: يتخطّى اللي عنده بطاقة)</label>
+    <div id="mpCardPlanBox" style="margin-top:12px"></div>
+    <div id="mpCardProg" style="margin-top:10px"></div>`,
+  async()=>{
+    const p=mpCardPlan;if(!p)return "اختار الفولدر الأول";
+    if(!assetsNS)return "الرفع مش متاح دلوقتي — حدّث الصفحة وجرّب تاني";
+    const over=$("mpCardOver")?.checked;
+    const todo=over?p.matched:p.matched.filter(m=>!hasID(m.emp));
+    if(!todo.length)return "مفيش بطاقات جديدة ترفع";
+    const prog=$("mpCardProg");let done=0,bad=0,files=0;
+    for(const m of todo){
+      try{
+        const att=[...(m.emp.att||[])].filter(a=>!(over&&(a.kind==="idFront"||a.kind==="idBack")));
+        let i=0;
+        for(const f of m.g.files){
+          const type=f.type||(/\.pdf$/i.test(f.name)?"application/pdf":"image/jpeg");
+          const b=type.startsWith("image/")?await shrinkImage(f):f;
+          const r=await assetsNS.upload(b,{type:b.type||type});
+          att.push({a:r.id,kind:i===0?"idFront":i===1?"idBack":"other",type:r.contentType,at:Date.now()});
+          i++;files++;
+        }
+        await upsert("employees",m.emp.id,{att});
+        done++;
+      }catch(e){bad++;console.error("card",m.code,e)}
+      if(prog)prog.innerHTML=`<div class="muted">بيرفع… ${done+bad} / ${todo.length}${bad?` · ${bad} فشل`:""}</div>`;
+    }
+    toast(`اترفعت بطاقات ${done} موظف (${files} ملف)${bad?` · ${bad} فشل`:""}`);
+    refresh();
+    return bad&&!done?"الرفع فشل":null;
+  },"ارفع البطاقات");
+  setTimeout(()=>{const i=$("mpCardDir");if(i)i.onchange=e=>mpCardsScan([...e.target.files])},60);
+}
+function mpCardsScan(files){
+  const box=$("mpCardPlanBox");if(!box)return;
+  const groups=mpCardGroups(files);
+  const pool=S.employees.filter(e=>e.active!==false);
+  const byCode=new Map();for(const e of pool){const c=mpCode(e.code).replace(/^0+(?=\d)/,"");if(c)byCode.set(c,e)}
+  const matched=[],orphan=[];
+  for(const g of groups){const e=byCode.get(g.code);if(e)matched.push({code:g.code,emp:e,g});else orphan.push(g)}
+  const already=matched.filter(m=>hasID(m.emp)).length;
+  const noCard=pool.filter(e=>{const c=mpCode(e.code).replace(/^0+(?=\d)/,"");return !groups.some(g=>g.code===c)&&!hasID(e)});
+  const bytes=groups.reduce((a,g)=>a+g.files.reduce((x,f)=>x+(f.size||0),0),0);
+  mpCardPlan={matched,orphan,already,noCard,files:files.length,bytes};
+  const tile=(t,n,note,cls="")=>`<div class="tile card" style="gap:2px"><span class="lbl">${t}</span><span class="val ${cls}">${n}</span><span class="note">${note}</span></div>`;
+  box.innerHTML=`<p class="muted" style="font-size:13px;margin:0 0 8px">${files.length} ملف · ${groups.length} مجلد · ${(bytes/1048576).toFixed(1)} ميجا</p>
+    <div class="grid g4" style="margin-bottom:10px">
+      ${tile("هتترفع",matched.length-already,"بطاقات هتتحط على موظفين")}
+      ${tile("عنده بطاقة",already,"هيتخطّى غير لو فعّلت الاستبدال")}
+      ${tile("مش في المنظومة",orphan.length,"كود مالوش موظف",orphan.length?"alert":"")}
+      ${tile("من غير بطاقة",noCard.length,"موظف مفيش له مجلد")}
+    </div>
+    ${orphan.length?`<h3 style="margin:10px 0 4px">أكواد مالهاش موظف (${orphan.length})</h3><div class="list" style="max-height:150px;overflow:auto">${orphan.slice(0,40).map(g=>`<div class="li"><div class="grow"><div class="t">${esc(g.label)}</div><div class="s">كود ${esc(g.code)} · ${g.files.length} ملف</div></div></div>`).join("")}</div><p class="muted" style="font-size:12.5px">استورد المان باور الأول عشان دول يتطابقوا.</p>`:""}
+    ${noCard.length?`<h3 style="margin:10px 0 4px">موظفين من غير بطاقة (${noCard.length})</h3><div class="list" style="max-height:150px;overflow:auto">${noCard.slice(0,40).map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job].filter(Boolean).map(esc).join(" · ")}</div></div></div>`).join("")}</div>`:""}`;
+}
+/* ---------- استيراد السجلات المعتمدة (تاريخ السنة) ----------
+   بيقرا فولدر فيه PDF/صور للأذونات والتكليفات والإجازات الموقّعة،
+   يستنتج النوع والتاريخ والموظف من اسم الملف، يعمل السجل ويرفق النموذج
+   الموقّع عليه. السجلات بتتعلّم legacy عشان أرصدة الإجازات ما تتأثرش. */
+const ARC_KINDS={perm:"إذن ساعتين",one:"تكليف إضافي فردي",leave:"إجازة",duty:"تيم ديوتي",mission:"مأمورية فردي"};
+function arcNorm(s){return normName(String(s||"").replace(/[_\-]+/g," ")).toLowerCase()}
+function arcDate(b){
+  let m=b.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return `${m[1]}-${m[2]}-${m[3]}`;
+  m=b.match(/(\d{1,2})[._\-](\d{1,2})[._\-](\d{4})/);
+  if(m)return `${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+  m=b.match(/(\d{1,2})[._\-](\d{1,2})[._\-](\d{2})(?!\d)/);
+  if(m)return `20${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+  return "";
+}
+function arcKind(b){
+  const t=arcNorm(b);
+  if(/اذن|تاخير|ساعتين|2hours?|perm/.test(t))return "perm";
+  if(/تكليف|oneduty|one duty/.test(t))return "one";
+  if(/تيم ?ديوتي|teamduty|team duty/.test(t))return "duty";
+  if(/مامور|mission/.test(t))return "mission";
+  if(/اجاز|عارضه|اعتيادي|vacation|leave/.test(t))return "leave";
+  return "";
+}
+function arcEmp(b){
+  const t=arcNorm(b);
+  const code=(b.match(/(?:^|[_\s\-])(\d{2,8})(?:[_\s\-]|$)/)||[])[1];
+  const pool=S.employees.filter(e=>e.active!==false);
+  if(code){const hit=pool.find(e=>mpCode(e.code)===code);if(hit)return hit.id}
+  let best=null;
+  for(const e of pool){
+    const toks=arcNorm(e.name).split(" ").filter(x=>x.length>1);
+    if(!toks.length)continue;
+    const hit=toks.filter(x=>t.includes(x)).length;
+    if(hit>=2||(hit===1&&toks.length===1)){
+      const sc=hit*100+toks.join("").length;
+      if(!best||sc>best.sc)best={sc,id:e.id};
+    }
+  }
+  if(best)return best.id;
+  /* اسم واحد مميّز: لو فيه موظف واحد بس عنده الكلمة دي، يبقى هو */
+  const words=t.split(" ").filter(x=>x.length>=4);
+  for(const w of words){
+    const hits=pool.filter(e=>arcNorm(e.name).split(" ").includes(w));
+    if(hits.length===1)return hits[0].id;
+  }
+  return "";
+}
+let arcRows=null;
+function arcScan(files){
+  const box=$("arcBox");if(!box)return;
+  arcRows=files.filter(f=>/\.(pdf|jpe?g|png|webp)$/i.test(f.name)).map((f,ix)=>{
+    const b=f.name.replace(/\.[^.]+$/,"");
+    return {ix,file:f,name:f.name,kind:arcKind(b),date:arcDate(b),empId:arcEmp(b),use:true};
+  });
+  for(const r of arcRows){
+    r.dupe=r.empId&&r.date&&r.kind?S.leaves.find(l=>l.empId===r.empId&&l.date===r.date&&l.kind===r.kind):null;
+    r.ready=!!(r.empId&&r.date&&r.kind);
+    if(!r.ready)r.use=false;
+  }
+  arcDraw();
+}
+function arcDraw(){
+  const box=$("arcBox");if(!box||!arcRows)return;
+  const ready=arcRows.filter(r=>r.ready),part=arcRows.filter(r=>!r.ready);
+  const dup=ready.filter(r=>r.dupe).length,sel=arcRows.filter(r=>r.use).length;
+  const opts=(v,list)=>list.map(([k,t])=>`<option value="${esc(k)}" ${String(k)===String(v)?"selected":""}>${esc(t)}</option>`).join("");
+  const empList=[["","— اختار الموظف —"],...S.employees.filter(e=>e.active!==false)
+     .sort((a,b)=>a.name.localeCompare(b.name,"ar")).map(e=>[e.id,e.name+(e.code?" · "+e.code:"")])];
+  const row=r=>`<tr data-ix="${r.ix}" ${r.ready?"":'style="background:var(--warn-soft)"'}>
+    <td><input type="checkbox" class="arcUse" ${r.use?"checked":""} ${r.ready?"":"disabled"}></td>
+    <td style="font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.name)}">${esc(r.name)}</td>
+    <td><select class="arcKind">${opts(r.kind,[["","—"],...Object.entries(ARC_KINDS)])}</select></td>
+    <td><input type="date" class="arcDate" value="${esc(r.date)}" style="min-width:140px"></td>
+    <td><select class="arcEmp">${opts(r.empId,empList)}</select></td>
+    <td>${r.dupe?'<span class="pill p-susp" title="فيه سجل بنفس النوع والتاريخ — هيترفق عليه بدل ما يتعمل جديد">موجود</span>':""}</td></tr>`;
+  box.innerHTML=`<div class="grid g4" style="margin-bottom:10px">
+      <div class="tile card"><span class="lbl">اتعرف بالكامل</span><span class="val">${ready.length}</span><span class="note">نوع + تاريخ + موظف</span></div>
+      <div class="tile card"><span class="lbl">ناقص بيانات</span><span class="val ${part.length?"alert":""}">${part.length}</span><span class="note">كمّلها من الجدول</span></div>
+      <div class="tile card"><span class="lbl">سجل موجود</span><span class="val">${dup}</span><span class="note">هيترفق عليه مش هيتكرر</span></div>
+      <div class="tile card"><span class="lbl">متحدد للرفع</span><span class="val">${sel}</span><span class="note">من ${arcRows.length} ملف</span></div>
+    </div>
+    <div class="filters"><button type="button" class="btn sm" id="arcAll">حدد الجاهز كله</button><button type="button" class="btn sm" id="arcNone">شيل التحديد</button></div>
+    <div class="tbl" style="max-height:420px;overflow:auto"><table><thead><tr>
+      <th></th><th>الملف</th><th>النوع</th><th>التاريخ</th><th>الموظف</th><th></th></tr></thead>
+      <tbody>${[...part,...ready].map(row).join("")}</tbody></table></div>
+    <div id="arcProg" style="margin-top:8px"></div>`;
+  const find=el=>arcRows.find(r=>r.ix===+el.closest("tr").dataset.ix);
+  box.querySelectorAll(".arcUse").forEach(c=>c.onchange=e=>{find(e.target).use=e.target.checked;arcCount()});
+  box.querySelectorAll(".arcKind").forEach(c=>c.onchange=e=>{const r=find(e.target);r.kind=e.target.value;arcRecheck(r)});
+  box.querySelectorAll(".arcDate").forEach(c=>c.onchange=e=>{const r=find(e.target);r.date=e.target.value;arcRecheck(r)});
+  box.querySelectorAll(".arcEmp").forEach(c=>c.onchange=e=>{const r=find(e.target);r.empId=e.target.value;arcRecheck(r)});
+  $("arcAll").onclick=()=>{arcRows.forEach(r=>{if(r.ready)r.use=true});arcDraw()};
+  $("arcNone").onclick=()=>{arcRows.forEach(r=>r.use=false);arcDraw()};
+}
+function arcRecheck(r){
+  r.ready=!!(r.empId&&r.date&&r.kind);
+  r.dupe=r.ready?S.leaves.find(l=>l.empId===r.empId&&l.date===r.date&&l.kind===r.kind):null;
+  if(r.ready)r.use=true;
+  arcDraw();
+}
+function arcCount(){const s=arcRows.filter(r=>r.use).length;const t=document.querySelectorAll("#arcBox .tile .val")[3];if(t)t.textContent=s}
+function arcSheet(){
+  arcRows=null;
+  openSheet("استيراد السجلات المعتمدة",`
+    <p class="muted" style="margin-top:0;font-size:13.5px">اختار فولدر فيه النماذج الموقّعة (PDF أو صور). النظام بيستنتج <b>النوع والتاريخ والموظف</b> من اسم الملف — واللي مايعرفوش تكمّله بإيدك من الجدول. كل ملف بيترفع على سجله كـ «النموذج بعد التوقيع»، والسجلات بتتعلّم <b>تاريخية</b> فأرصدة الإجازات ما بتتأثرش.</p>
+    <div class="filters">
+      <label class="btn primary" style="cursor:pointer">📁 اختار فولدر السجلات<input type="file" id="arcDir" webkitdirectory directory multiple hidden></label>
+      <label class="btn" style="cursor:pointer">📄 أو ملفات متفرقة<input type="file" id="arcFiles" accept=".pdf,image/*" multiple hidden></label>
+    </div>
+    <div id="arcBox" style="margin-top:12px"></div>`,
+  async()=>{
+    if(!arcRows)return "اختار الملفات الأول";
+    if(!assetsNS)return "الرفع مش متاح دلوقتي — حدّث الصفحة وجرّب تاني";
+    const todo=arcRows.filter(r=>r.use&&r.ready);
+    if(!todo.length)return "محدش متحدد للرفع";
+    const prog=$("arcProg");let done=0,bad=0,made=0;
+    for(const r of todo){
+      try{
+        let rec=r.dupe||S.leaves.find(l=>l.empId===r.empId&&l.date===r.date&&l.kind===r.kind);
+        let id=rec?.id;
+        if(!id){
+          const ref=await db.collection("leaves").add({kind:r.kind,empId:r.empId,date:r.date,
+            reason:"سجل تاريخي معتمد",legacy:true,createdBy:ME.id||"",createdAt:Date.now(),
+            ...(r.kind==="leave"?{leaveType:"other",to:r.date,days:0}:{})});
+          id=ref.id;made++;
+        }
+        const type=r.file.type||(/\.pdf$/i.test(r.file.name)?"application/pdf":"image/jpeg");
+        const b=type.startsWith("image/")?await shrinkImage(r.file):r.file;
+        const up=await assetsNS.upload(b,{type:b.type||type});
+        const cur=(S.leaves.find(l=>l.id===id)?.att)||[];
+        await upsert("leaves",id,{att:[...cur,{a:up.id,kind:"signed",type:up.contentType,at:Date.now(),src:r.name}]});
+        done++;
+      }catch(e){bad++;console.error("arc",r.name,e)}
+      if(prog)prog.innerHTML=`<div class="muted">بيرفع… ${done+bad} / ${todo.length}${bad?` · ${bad} فشل`:""}</div>`;
+    }
+    toast(`اترفع ${done} سجل · ${made} سجل جديد${bad?` · ${bad} فشل`:""}`);
+    refresh();
+    return bad&&!done?"الرفع فشل":null;
+  },"ارفع السجلات");
+  setTimeout(()=>{
+    const d=$("arcDir"),g=$("arcFiles");
+    if(d)d.onchange=e=>arcScan([...e.target.files]);
+    if(g)g.onchange=e=>arcScan([...e.target.files]);
+  },60);
+}
+{const _mfA=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mfA.call(this);
+  if(tabLevel("manpower")==="view"||ui.personSel)return;
+  const F=document.querySelector("#mpBody .filters");if(!F)return;
+  if(!$("arcBtn"))F.insertAdjacentHTML("beforeend",`<button class="btn" id="arcBtn" onclick="arcSheet()">📚 استيراد السجلات المعتمدة</button>`);
+}}
 
 /* ---------- team follow-up (admin) + team chat ---------- */
 const TEAM_ROLES=["hsesup","hse","officer","monitor","sup","eng","store"];
