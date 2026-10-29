@@ -1203,6 +1203,7 @@ async function attendSign(recId){
   const rec=S.records.find(r=>r.id===recId);if(!rec){toast("السجل مش موجود");return}
   const spec=(await loadForms2())[rec.form];const col=attendCol(spec);
   if(!col){toast("النموذج ده مفيهوش عمود توقيع");return}
+  if(!canSignGroup("attend")){toast("مالكش صلاحية توقيعات الحضور");return}
   const L=attendRows(rec,spec);
   if(!L.length){toast("ضيف أسماء الحضور الأول من «تعديل»");return}
   const st=attendStats(rec,spec);
@@ -1265,6 +1266,75 @@ function attendPad(recId,i){
     o.getContext("2d").drawImage(c,x0,y0,x1-x0,y1-y0,0,0,o.width,o.height);
     return o.toDataURL("image/png");
   };
+}
+/* ================= صلاحيات التوقيع والاعتماد =================
+   مكان واحد بيحكم مين يوقّع ومين يعتمد في كل نوع نماذج، ويتظبط من الإعدادات.
+   الافتراضيات محافظة على اللي كان شغال، ما عدا الاعتماد اللي بقى لازمله صلاحية. */
+const SIGN_GROUPS={
+  ptw:"التصاريح",
+  records:"السجلات والنماذج الرسمية",
+  mission:"المأموريات",
+  leave:"الأذون والتكليفات والإجازات",
+  attend:"توقيعات الحضور (المحاضرات)"
+};
+const SIGN_DEF={
+  ptw:{sign:"named",approve:"role"},
+  records:{sign:"write",approve:"role"},
+  mission:{sign:"owner",approve:"list"},
+  leave:{sign:"write",approve:"role"},
+  attend:{sign:"write",approve:"role"}
+};
+const SIGN_OPTS=[["write","أي حد عنده صلاحية كتابة"],["named","اللي اسمه مكتوب في النموذج بس"],["owner","صاحب المستند أو اللي اسمه مكتوب فيه"],["list","قائمة محددة بالأسماء"]];
+const APPROVE_OPTS=[["role","مدير المنظومة ومسؤولي السلامة"],["list","قائمة محددة بالأسماء"],["named","المعتمد المحدد على المستند نفسه"]];
+function signPol(g){const p=(S.settings.signPerm||{})[g]||{};return {...(SIGN_DEF[g]||{sign:"write",approve:"role"}),...p}}
+function signListOf(g){
+  if(g==="mission")return missionApproverIds();           /* المأموريات ليها قائمتها من زمان */
+  const a=signPol(g).list;return Array.isArray(a)?a:[]
+}
+function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.role)||tabLevel(tab)==="full")}
+function canSignGroup(g,{names=[],ownerId=""}={}){
+  if(myAccess()?.role==="admin")return true;
+  if(!canWrite)return false;
+  const pol=signPol(g),me=myEmpId();
+  if(pol.sign==="list")return !!me&&signListOf(g).includes(me);
+  if(pol.sign==="named")return myNameIn(names);
+  if(pol.sign==="owner")return (!!me&&!!ownerId&&me===ownerId)||myNameIn(names);
+  return true;
+}
+function canApproveGroup(g,{approverId=""}={}){
+  if(myAccess()?.role==="admin")return true;
+  if(!canWrite)return false;                                /* الثغرة القديمة: حساب مشاهدة كان بيعتمد */
+  const pol=signPol(g),me=myEmpId();
+  if(pol.approve==="named")return !!me&&!!approverId&&me===approverId;
+  if(pol.approve==="list")return !!me&&signListOf(g).includes(me);
+  return hseFinal();
+}
+function signPermEditor(){
+  const gs=Object.entries(SIGN_GROUPS);
+  const emps=S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
+  const body=gs.map(([g,ar])=>{const pol=signPol(g),list=signListOf(g);
+    return `<div class="card" style="margin-bottom:12px">
+      <h3 style="margin:0 0 8px">${esc(ar)}</h3>
+      <div class="form">
+        ${f("مين يقدر يوقّع","sg_"+g,{opts:SIGN_OPTS,value:pol.sign})}
+        ${f("مين يقدر يعتمد","ap_"+g,{opts:APPROVE_OPTS,value:pol.approve})}
+      </div>
+      <details style="margin-top:8px" ${list.length?"open":""}><summary class="muted" style="cursor:pointer;font-size:13px">القائمة المحددة (${list.length})${g==="mission"?" — نفس قائمة معتمدي المأموريات":""}</summary>
+        <div class="list" style="max-height:240px;overflow:auto;margin-top:6px">${emps.map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="L_${g}_${e.id}" ${list.includes(e.id)?"checked":""} style="width:17px;height:17px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?" · "+esc(e.code):""}</div></div></label>`).join("")}</div>
+      </details></div>`}).join("");
+  openSheet("صلاحيات التوقيع والاعتماد",
+    `<p class="muted" style="margin-top:0;font-size:13px">مدير المنظومة دايمًا يقدر يوقّع ويعتمد. وأي صلاحية هنا محتاجة كمان إن حساب الشخص يكون عنده <b>صلاحية كتابة</b> على القسم.</p>${body}`,
+    async(fd,form)=>{
+      const cur={...(S.settings.signPerm||{})};const patch={};
+      for(const [g] of gs){
+        const list=[...form.querySelectorAll(`input[name^="L_${g}_"]:checked`)].map(i=>i.name.slice(("L_"+g+"_").length));
+        cur[g]={sign:fd["sg_"+g]||SIGN_DEF[g].sign,approve:fd["ap_"+g]||SIGN_DEF[g].approve,list};
+        if(g==="mission")patch.missionApprovers=list;        /* القائمة الأصلية تفضل هي المرجع */
+      }
+      patch.signPerm=cur;
+      const ok=await write(()=>upsert("settings","app",patch),"اتحفظت الصلاحيات");
+      return ok?null:"الحفظ فشل";
+    },"حفظ الصلاحيات");
 }
 function taskForm(id){const x=id?S.tasks.find(t=>t.id===id):{};
   openSheet(id?"تعديل مهمة":"مهمة جديدة",`<div class="form">${f("المطلوب","title",{value:x.title||"",req:true,full:true})}<div class="field"><label for="f_as">لمين</label><input id="f_as" name="as" list="empListAll" autocomplete="off" value="${esc(x.assignee?empName(x.assignee):"")}"></div>${f("آخر ميعاد","due",{type:"date",value:x.due||""})}${f("ملاحظات","note",{value:x.note||"",full:true})}</div>${empDatalist2()}`,async fd=>{
@@ -2022,7 +2092,10 @@ VIEWS.settings = {
     {const ex=document.createElement("div");ex.className="card";ex.style.marginTop="14px";ex.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">تصدير Excel وGoogle Sheets</h3><div class="muted" style="font-size:13px">نزّل ملف Excel الذي يحتوي على كل البيانات. لاستيراده في Sheets: افتح «ملف ← استيراد ← تحميل». لا تُرسل البيانات تلقائيًا إلى Google.</div></div><button class="btn primary" onclick="exportExcel()">تنزيل ملف لـ Google Sheets</button><a class="btn" href="https://sheets.google.com" target="_blank" rel="noopener">فتح Google Sheets</a></div>`;$("setBody").prepend(ex);const xm=document.createElement("div");xm.className="card";xm.id="xlMirrorCard";xm.style.marginTop="14px";ex.after(xm);xlMirrorRender();
       const tk=document.createElement("div");tk.className="card";tk.style.marginTop="14px";
       tk.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">صلاحية توزيع المهام</h3><div class="muted" style="font-size:13px">${(()=>{const n=taskAssignerIds().length;return n?`${n} شخص ليهم حق يبعتوا نماذج كمهام للفريق.`:"المدير والتيم ليدر بس هما اللي يقدروا يوزّعوا مهام دلوقتي."})()}</div></div><button class="btn primary" onclick="taskAssignersEditor()">تحديد المسؤولين</button></div>`;
-      xm.after(tk)}
+      xm.after(tk);
+      const sp=document.createElement("div");sp.className="card";sp.style.marginTop="14px";
+      sp.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">صلاحيات التوقيع والاعتماد</h3><div class="muted" style="font-size:13px">${Object.entries(SIGN_GROUPS).map(([g,ar])=>`${ar}: ${(SIGN_OPTS.find(o=>o[0]===signPol(g).sign)||["","?"])[1]}`).join(" · ")}</div></div><button class="btn primary" onclick="signPermEditor()">ضبط الصلاحيات</button></div>`;
+      tk.after(sp)}
     if(isOwner){const im=document.createElement("div");im.className="card";im.style.marginTop="14px";im.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">استيراد بيانات المنظومة القديمة</h3><div class="muted" style="font-size:13px">ملف النقل (migration.json) من نسخة Claude.</div></div><label class="btn" style="cursor:pointer">اختار الملف<input type="file" id="migFile" accept="application/json,.json" style="display:none"></label></div><div id="migMsg" class="muted" style="font-size:13px;margin-top:6px"></div>`;$("setBody").appendChild(im);$("migFile").onchange=e=>runMigration(e.target.files[0])}
     if(isOwner||BASE.del){settleInvites();const box=document.createElement("div");box.style.marginBottom="18px";$("setBody").prepend(box);usersCardHTML().then(h=>{box.innerHTML=h+rolesCardHTML()+'<h3 style="margin:22px 0 8px">إعدادات المشروع</h3>'})}
     $("setForm").onsubmit=async e=>{
@@ -2749,7 +2822,7 @@ function docSignBtns(col,id,reopen){
 }
 async function printDoc({title,T,vals,opt={},miss=[],fixBtn="",filename,rec,sign,signCol="",reopen=""}){
   const sid=rec&&rec.id?rec.id:"";
-  const canSign=!!(signCol&&sid);
+  const canSign=!!(signCol&&sid)&&canSignGroup("leave",{names:[vals&&vals.name,vals&&vals.leaderName].filter(Boolean),ownerId:(rec&&rec.empId)||""});
   const iSigned=canSign&&signsOf(rec).some(z=>z.uid===ME.id);
   const V=openViewer(title,{filename,note:miss.length?`ناقص: ${esc(miss.join("، "))}. ${fixBtn}`:"",
     extra:canSign?docSignBtns(signCol,sid,reopen):""});
@@ -2772,19 +2845,19 @@ async function printPermit(id){
   const draft=["requested","supok","rejected"].includes(p.status);
   const V=openViewer(`${p.number} · ${PTW_TYPES[p.type]?.ar||""}`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""}.pdf`,
     note:draft?"ده لسه طلب ما اتعتمدش من السلامة، التصريح بيطلع برقم بعد اعتماد مسؤول السلامة.":p.status==="closed"&&p.closedAt?`اتقفل ${fmtDate(p.closedAt)} الساعة ${esc(p.closedTime||"—")} بواسطة ${esc(p.closeName||"مسؤول التصريح")}.`:(miss.length?`ناقص في التصريح: ${miss.join("، ")}. <button type="button" class="btn sm" onclick="pvClose();ptwForm('${p.id}')">كمّل البيانات</button>`:""),
-    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">✔ إغلاق التصريح</button>`:"")+(!draft&&myNameIn([v.req,v.site,v.hse,v.sup])?(p.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")});
+    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">✔ إغلاق التصريح</button>`:"")+(!draft&&canSignGroup("ptw",{names:[v.req,v.site,v.hse,v.sup],ownerId:p.safetyId})?(p.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")});
   try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
   const spec=(await loadForms2())[r.form];const personalSig=await mySig();await sigData();
-  const canAp=!!personalSig&&SIG_FIELDS[r.form];
+  const canAp=!!personalSig&&!!SIG_FIELDS[r.form]&&canApproveGroup("records");
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
-  const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&canWrite?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
+  const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&canSignGroup("records",{names:nameVals})?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
   const atc=attendCol(spec);
   const atst=atc?attendStats(r,spec):null;
-  const ext3=ext2+(atc&&canWrite?`<button class="btn" data-extra onclick="pvClose();attendSign('${r.id}')">✍ توقيعات الحضور${atst&&atst.total?` (${atst.signed}/${atst.total})`:""}</button>`:"");
+  const ext3=ext2+(atc&&canSignGroup("attend")?`<button class="btn" data-extra onclick="pvClose();attendSign('${r.id}')">✍ توقيعات الحضور${atst&&atst.total?` (${atst.signed}/${atst.total})`:""}</button>`:"");
   const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext3,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
