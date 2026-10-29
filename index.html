@@ -2026,11 +2026,15 @@ function drawBoxText(x,W,H,rect,txt,{szPt=11,pxPerPt=1,algn="ctr",lines=1,fill=f
   x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();
   L.forEach((l,i)=>x.fillText(l,tx,top+i*lh));x.restore();
 }
+/* القيم اللي كانت متحطة كصور جوه النماذج — بقت نصوص بتقرا من الإعدادات.
+   لازم الرسم وتوزيع التوقيعات يشوفوا نفس القيم، عشان مطابقة الأسماء تظبط. */
+function formVals(vals){
+  return {project:S.settings.project||"",leaderName:S.settings.leaderName||"اسلام بكر عباس",
+          deptName:S.settings.deptName||"HSE",...(vals||{})};
+}
 async function renderForm(T,vals,opt={}){
   const F=(await loadForms())[T];if(!F)throw new Error("no form "+T);
-  /* القيم اللي كانت متحطة كصور جوه النماذج — بقت نصوص بتقرا من الإعدادات */
-  vals={project:S.settings.project||"",leaderName:S.settings.leaderName||"اسلام بكر عباس",
-        deptName:S.settings.deptName||"HSE",...vals};
+  vals=formVals(vals);
   try{await document.fonts.load('600 24px "IBM Plex Sans Arabic"')}catch(e){}
   const sig=await loadSig();const out=[];let sigMissing=false;
   for(let k=0;k<F.pages.length;k++){
@@ -2041,11 +2045,9 @@ async function renderForm(T,vals,opt={}){
       if(s.hideIfLeader&&opt.leader)continue;
       if(s.cond&&s.cond!==opt.cond)continue;
       let src=s.img;
-      if(s.sig){
-        /* التوقيع المحفوظ ما بينزلش لوحده — لازم صاحبه يوافق من زرار «وقّع واعتمد» */
-        if(!opt.autoSig){sigMissing=true;continue}
-        src=sig[s.img];if(!src){sigMissing=true;continue}
-      }
+      /* خانات التوقيع مابتترسمش من المخزن القديم خالص — التوقيع بييجي من اللي وقّع فعلاً
+         (signs) عشان اللي بيطبع واللي استلم النموذج يشوفوا نفس التوقيع بالظبط */
+      if(s.sig){sigMissing=true;continue}
       try{const im=await loadImg(src);x.drawImage(im,s.x*W,s.y*H,s.w*W,s.h*H)}catch(e){}
     }
     const pxPerPt=formPxPerPt(W,H,F.pageHpt);
@@ -2345,10 +2347,17 @@ async function printMissionGroup(date){
 }
 async function printTeamDuty(date){
   const seen=new Set();const ALL=S.leaves.filter(l=>l.kind==="duty"&&l.date===date&&!seen.has(l.empId)&&seen.add(l.empId));const L=ALL.slice(0,10);if(!L.length)return;
-  const vals={today:ymdSlash(today()),dayName:dayName(date),date:dmyShort(date),reason:L[0].reason||""};
+  /* أول صف في اليوم هو حامل الاعتماد للتكليف المجمع كله (زي المأمورية المجمع) */
+  const h=L[0];
+  const vals={today:ymdSlash(today()),dayName:dayName(date),date:dmyShort(date),reason:h.reason||""};
   L.forEach((l,i)=>{const e=emp(l.empId)||{};vals["code"+i]=e.code||"";vals["name"+i]=e.name||"";vals["job"+i]=e.job||""});
   const more=ALL.length>10;
-  printDoc({title:"تكليف إضافي (تيم ديوتي) · "+fmtDate(date),T:"TEAM",vals,miss:more?["النموذج بياخد 10 بس، الباقي محتاج نموذج تاني"]:[],filename:`تيم ديوتي ${date}.pdf`});
+  const miss=more?["النموذج بياخد 10 بس، الباقي محتاج نموذج تاني"]:[];
+  const groupSigns={id:h.id,signs:Object.assign({},...L.map(x=>x.signs||{}))};
+  if(!signsOf(groupSigns).length)miss.push("اعتماد الرئيس المباشر");
+  printDoc({title:"تكليف إضافي (تيم ديوتي) · "+fmtDate(date),T:"TEAM",vals,miss,
+    filename:`تيم ديوتي ${date}.pdf`,rec:groupSigns,signCol:"leaves",
+    reopen:`printTeamDuty('${date}')`});
 }
 async function printPermit_orig(id){
   let p=S.permits.find(x=>x.id===id);
@@ -2604,15 +2613,27 @@ async function htmlPdf(html){return permitPdfBlob(await htmlCanvases(html))}
 async function printPages(title,make,filename){const V=openViewer(title,{filename});try{V.setPages(await make())}catch(e){console.error(e);V.fail()}}
 /* بيحط التوقيعات اللي اتسجّلت على السجل في خانات التوقيع بتاعة النموذج،
    عشان أي حد يطبع النموذج يشوف التوقيع — مش صاحبه بس. */
-async function stampSavedSigs(T,rec,pages){
+async function stampSavedSigs(T,rec,pages,vals){
   const F=(await loadForms())[T];if(!F)return pages;
-  const slots=(F.stamps||[]).filter(z=>z.sig);
-  const L=signsOf(rec);
-  if(!slots.length||!L.length)return pages;
+  vals=formVals(vals);
+  const L=signsOf(rec);if(!L.length)return pages;
   const mine=await mySig();
-  for(let i=0;i<slots.length&&i<L.length;i++){
-    const z=slots[i],sg=L[i];
-    await stampOn(pages[z.page||0],[z.x,z.y,z.w,z.h],sg.uid===ME.id?mine:"",sg);
+  const used=new Set();
+  /* الأول: كل واحد يمضي في الخانة اللي مكتوب فيها اسمه */
+  for(const b of (F.sigBoxes||[])){
+    const want=normName((vals||{})[b.field]||"");if(!want)continue;
+    const i=L.findIndex((z,k)=>!used.has(k)&&normName(z.name)===want);
+    if(i<0)continue;used.add(i);
+    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[i].uid===ME.id?mine:"",L[i]);
+  }
+  /* الباقي: أي توقيع ما لقاش خانة باسمه ياخد أول خانة فاضية */
+  const free=(F.sigBoxes||[]).filter(b=>{const w=normName((vals||{})[b.field]||"");
+    return !w||!L.some((z,k)=>used.has(k)&&normName(z.name)===w)});
+  let fi=0;
+  for(let k=0;k<L.length;k++){
+    if(used.has(k))continue;
+    const b=free[fi++];if(!b)break;
+    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[k].uid===ME.id?mine:"",L[k]);
   }
   return pages;
 }
@@ -2631,8 +2652,8 @@ async function printDoc({title,T,vals,opt={},miss=[],fixBtn="",filename,rec,sign
   const iSigned=canSign&&signsOf(rec).some(z=>z.uid===ME.id);
   const V=openViewer(title,{filename,note:miss.length?`ناقص: ${esc(miss.join("، "))}. ${fixBtn}`:"",
     extra:canSign?docSignBtns(signCol,sid,reopen):""});
-  try{let pages=await renderForm(T,vals,{...opt,autoSig:iSigned});const sm=pages.sigMissing;
-    if(canSign)pages=await stampSavedSigs(T,rec,pages);
+  try{let pages=await renderForm(T,vals,opt);const sm=pages.sigMissing;
+    if(canSign)pages=await stampSavedSigs(T,rec,pages,vals);
     if(sign)pages=await sign(pages);
     if(rec)pages=[...pages,...await photoPages(rec,title,"صور مرفقة",title+(rec.date?" — "+fmtDate(rec.date):""))];
     V.setPages(pages);
@@ -3360,9 +3381,24 @@ async function waShare({getPdf,filename,title}){
   // desktop / no file sharing: download the PDF then open WhatsApp with a ready message
   pvPanel(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>ابعت لـ</b><input id="waTo" list="empListAll" placeholder="اسم الموظف أو رقم الموبايل" style="flex:1;min-width:200px" autocomplete="off"><button class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" id="waGo">📲 فتح واتساب</button><button class="btn ghost sm" id="waX">✕</button></div><div class="muted" style="font-size:12.5px;margin-top:6px">الملف هينزل على جهازك، وواتساب هيفتح برسالة جاهزة — اسحب الملف جوه المحادثة.</div>${empDatalist2()}`);
   $("waX").onclick=()=>pvPanel("");
-  $("waGo").onclick=async()=>{const v=$("waTo").value.trim();const e=resolveEmp(v);const ph=e?.phone||(/^[\d+\s-]{8,}$/.test(v)?v:"");
-    const w=window.open("","_blank");try{const blob=await getPdf();const dl=await window.claude?.use?.("downloads");await dl.save({filename,data:blob})}catch(err){}
-    const url=`https://wa.me/${ph?waPhone(ph):""}?text=${encodeURIComponent(msg+"\n(مرفق ملف PDF)")}`;if(w)w.location=url;else window.open(url,"_blank");pvPanel("")}}
+  $("waGo").onclick=()=>{
+    const v=$("waTo").value.trim();const e=resolveEmp(v);const ph=e?.phone||(/^[\d+\s-]{8,}$/.test(v)?v:"");
+    const num=ph?waPhone(ph):"";
+    /* على الكمبيوتر wa.me بيودّي لصفحة تحميل التطبيق — واتساب ويب بياخد send مباشرة */
+    const url=num?`https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(msg+"\n(مرفق ملف PDF)")}`
+                 :`https://web.whatsapp.com/`;
+    /* الفتح لازم يحصل جوّه الضغطة نفسها، قبل أي await، وإلا المتصفح بيمنعه */
+    const w=window.open(url,"_blank","noopener");
+    if(!w){pvPanel(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" href="${esc(url)}" target="_blank" rel="noopener">📲 افتح واتساب</a><span class="muted" style="font-size:12.5px">المتصفح منع الفتح التلقائي — دوس الزرار ده.</span><button class="btn ghost sm" id="waX2">✕</button></div>`);
+      const x=$("waX2");if(x)x.onclick=()=>pvPanel("")}
+    else pvPanel(`<div class="muted" style="font-size:12.5px">واتساب اتفتح في تاب جديد${num?"":" — اختار المحادثة بنفسك"}. بينزّل الملف دلوقتي…</div>`);
+    /* وبعدين ننزّل الملف عشان يسحبه جوّه المحادثة */
+    (async()=>{try{const blob=await getPdf();const dl=await window.claude?.use?.("downloads");
+      if(!dl)throw new Error("no downloads");await dl.save({filename,data:blob});
+      if(w)pvPanel(`<div class="muted" style="font-size:12.5px">✔ الملف اتنزل على جهازك — اسحبه جوه محادثة واتساب.</div>`);
+      else toast("الملف اتنزل — اسحبه جوه المحادثة")}
+      catch(err){console.error(err);toast("معرفتش أنزّل الملف")}})();
+  }}
 
 /* printers */
 const PRN_T={wifi:"واي فاي / شبكة",eprint:"ليها إيميل (HP ePrint وغيره)",pc:"متوصلة بكمبيوتر",usb:"USB / بلوتوث"};
