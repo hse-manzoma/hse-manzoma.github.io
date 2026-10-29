@@ -1157,6 +1157,36 @@ async function taskFinish(taskId,{recId="",eqId=""}={}){
     try{await signDoc("records",recId,{})}catch(e){console.error("توقيع المهمة فشل",e)}
   }
 }
+/* ================= منع تكرار النماذج في نفس اليوم =================
+   قبل ما يتحفظ سجل جديد، بنشوف فيه سجل زيه بنفس النموذج ونفس اليوم ونفس الشخص/المكان.
+   لو فيه، بنوقف ونعرض اللي موجود، والمستخدم يقرر يكمل ولا يفتح القديم. */
+function recIdentity(spec,rec){
+  const keys=[];
+  for(const f of (spec?.fields||[])){
+    if(f.type==="emp"||/^(emp|name|worker|code|driver|operator)(_\d)?$/i.test(f.k)){
+      const v=recVal(spec,rec,f.k);if(v)keys.push(normName(String(v)))
+    }
+  }
+  if(!keys.length){
+    for(const k of ["place","site","location","area"]){
+      const v=rec?.f?.[k];if(v){keys.push(normName(String(v)));break}
+    }
+  }
+  return keys.sort().join("|");
+}
+async function recDupes(fid,rec,selfId){
+  const spec=(await loadForms2())[fid];if(!spec)return [];
+  const d=rec?.f?.date||rec?.date||today();
+  const key=recIdentity(spec,rec);
+  return S.records.filter(r=>r.id!==selfId&&r.form===fid&&(r.date||r.f?.date)===d
+    &&(!key||recIdentity(spec,r)===key));
+}
+function dupWarnMsg(fid,list){
+  const spec=FORMS2&&FORMS2[fid];
+  const names=list.slice(0,4).map(r=>`${(spec&&spec.title)||fid}${r.serial?" رقم "+esc(r.serial):""}`).join("، ");
+  return `⚠ فيه ${list.length===1?"سجل زيه":list.length+" سجلات زيه"} النهاردة بنفس النموذج ولنفس الشخص (${esc(names)}). راجعه الأول عشان ما يتكررش — ولو متأكد إن ده سجل مختلف، دوس حفظ تاني.`;
+}
+const profEmp=uid=>(S.profiles||[]).find(x=>x.id===uid)?.emp_id||"";
 function taskForm(id){const x=id?S.tasks.find(t=>t.id===id):{};
   openSheet(id?"تعديل مهمة":"مهمة جديدة",`<div class="form">${f("المطلوب","title",{value:x.title||"",req:true,full:true})}<div class="field"><label for="f_as">لمين</label><input id="f_as" name="as" list="empListAll" autocomplete="off" value="${esc(x.assignee?empName(x.assignee):"")}"></div>${f("آخر ميعاد","due",{type:"date",value:x.due||""})}${f("ملاحظات","note",{value:x.note||"",full:true})}</div>${empDatalist2()}`,async fd=>{
     if(!fd.title.trim())return "اكتب المطلوب";const e=resolveEmp(fd.as);const data={title:fd.title.trim(),assignee:e?.id||"",due:fd.due||"",note:(fd.note||"").trim(),status:"open"};
@@ -2010,7 +2040,12 @@ async function renderForm(T,vals,opt={}){
     for(const s of F.stamps.filter(s=>s.page===k)){
       if(s.hideIfLeader&&opt.leader)continue;
       if(s.cond&&s.cond!==opt.cond)continue;
-      let src=s.img;if(s.sig){src=sig[s.img];if(!src){sigMissing=true;continue}}
+      let src=s.img;
+      if(s.sig){
+        /* التوقيع المحفوظ ما بينزلش لوحده — لازم صاحبه يوافق من زرار «وقّع واعتمد» */
+        if(!opt.autoSig){sigMissing=true;continue}
+        src=sig[s.img];if(!src){sigMissing=true;continue}
+      }
       try{const im=await loadImg(src);x.drawImage(im,s.x*W,s.y*H,s.w*W,s.h*H)}catch(e){}
     }
     const pxPerPt=formPxPerPt(W,H,F.pageHpt);
@@ -2180,18 +2215,18 @@ async function printLeave(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
   const fld=l.leaveType==="casual"?"casual":l.leaveType==="annual"?"annual":null;
   const vals={name:e.name||"",job:e.job||"",code:e.code||"",mobile:String(e.phone||"").replace(/^\+/,""),from:dmy(l.date,"-"),to:dmy(l.to||l.date,"-"),days:String(num(l.days)),reqDate:dmy(l.reqDate||l.date,"-"),today:dmy(l.printDate||today(),"-"),alt:l.alt?empName(l.alt):"",balance:fld&&l.balanceAfter!=null?String(l.balanceAfter):""};
-  printDoc({title:"طلب إجازة · "+(e.name||""),T:"VAC",vals,opt:{leader:isLeader(e),cond:l.leaveType==="other"?"other":l.leaveType},miss:l.alt?[]:["القائم بالعمل"],filename:`طلب اجازة ${e.name||""} ${l.date}.pdf`,rec:l});
+  printDoc({title:"طلب إجازة · "+(e.name||""),T:"VAC",vals,opt:{leader:isLeader(e),cond:l.leaveType==="other"?"other":l.leaveType},miss:l.alt?[]:["القائم بالعمل"],filename:`طلب اجازة ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printLeave('${l.id}')`});
 }
 async function printPerm(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
-  printDoc({title:"إذن خروج / تأخير · "+(e.name||""),T:"PERM",vals:{name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(l.date),dayName:dayName(l.date),from:l.from||"",to:l.to||""},opt:{leader:isLeader(e)},filename:`اذن ساعتين ${e.name||""} ${l.date}.pdf`,rec:l});
+  printDoc({title:"إذن خروج / تأخير · "+(e.name||""),T:"PERM",vals:{name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(l.date),dayName:dayName(l.date),from:l.from||"",to:l.to||""},opt:{leader:isLeader(e)},filename:`اذن ساعتين ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printPerm('${l.id}')`});
 }
 /* التكليف الإضافي الفردي — نموذج f-ONE، منفصل تمامًا عن المأمورية */
 async function printOneDuty(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
   printDoc({title:"تكليف إضافي لموظف · "+(e.name||""),T:"ONE",
     vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",today:ymdSlash(today())},
-    opt:{leader:isLeader(e)},filename:`تكليف ${e.name||""} ${l.date}.pdf`,rec:l});
+    opt:{leader:isLeader(e)},filename:`تكليف ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printOneDuty('${l.id}')`});
 }
 /* سجل قديم اتسجل أيام ما «مأمورية» كانت بتطبع نموذج التكليف الإضافي */
 function isLegacyAssignment(l){return l&&l.kind==="mission"&&!l.destination&&!l.returnTime&&!l.approverId&&!l.department}
@@ -2423,6 +2458,7 @@ function fillFormRecords(el,fid,spec){
   ${L.length?`<div class="list">${L.map(r=>`<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s">${esc(sum(r))}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
 }
 async function recordFormBase(fid,id,preset){
+  let dupAck=false;                     /* أول حفظ بيحذّر من التكرار، والتاني بيكمّل */
   const spec=(await loadForms2())[fid];const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
   const fv=k=>rec.f?.[k]??"";
   const fieldHTML=f=>{
@@ -2461,6 +2497,10 @@ async function recordFormBase(fid,id,preset){
       while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
     data.date=data.f.date||today();
     let rid=id;
+    if(!id&&!dupAck){
+      const dupes=await recDupes(fid,data,null);
+      if(dupes.length){dupAck=true;return dupWarnMsg(fid,dupes)}
+    }
     if(TASK_RUN)data.taskId=TASK_RUN;
     const ok=await write(async()=>{if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}
@@ -2562,10 +2602,46 @@ async function htmlPdf(html){return permitPdfBlob(await htmlCanvases(html))}
 
 /* ---------- print functions now open the full-screen viewer ---------- */
 async function printPages(title,make,filename){const V=openViewer(title,{filename});try{V.setPages(await make())}catch(e){console.error(e);V.fail()}}
-async function printDoc({title,T,vals,opt={},miss=[],fixBtn="",filename,rec,sign}){
-  const V=openViewer(title,{filename,note:miss.length?`ناقص: ${esc(miss.join("، "))}. ${fixBtn}`:""});
-  try{let pages=await renderForm(T,vals,opt);const sm=pages.sigMissing;if(sign)pages=await sign(pages);if(rec)pages=[...pages,...await photoPages(rec,title,"صور مرفقة",title+(rec.date?" — "+fmtDate(rec.date):""))];V.setPages(pages);
-    if(sm&&!miss.length)V.note("التوقيع بيظهر بس لما صاحب التوقيع يطبع. النموذج ده هيطلع من غير توقيع ويتمضي بالقلم.")}catch(e){console.error(e);V.fail()}}
+/* بيحط التوقيعات اللي اتسجّلت على السجل في خانات التوقيع بتاعة النموذج،
+   عشان أي حد يطبع النموذج يشوف التوقيع — مش صاحبه بس. */
+async function stampSavedSigs(T,rec,pages){
+  const F=(await loadForms())[T];if(!F)return pages;
+  const slots=(F.stamps||[]).filter(z=>z.sig);
+  const L=signsOf(rec);
+  if(!slots.length||!L.length)return pages;
+  const mine=await mySig();
+  for(let i=0;i<slots.length&&i<L.length;i++){
+    const z=slots[i],sg=L[i];
+    await stampOn(pages[z.page||0],[z.x,z.y,z.w,z.h],sg.uid===ME.id?mine:"",sg);
+  }
+  return pages;
+}
+/* زراير «وقّع واعتمد» و«إلغاء توقيعي» — بتتحط على أي نموذج ليه سجل */
+function docSignBtns(col,id,reopen){
+  if(!col||!id)return "";
+  const x=current(col,id);const mine=signsOf(x).some(z=>z.uid===ME.id);
+  const re=reopen?`,{reopen:()=>{${reopen}}}`:",{}";
+  return mine
+    ? `<button class="btn" data-extra onclick="pvClose();unsignDoc('${col}','${id}',()=>{${reopen||""}})" title="شيل توقيعك من النموذج ده">✕ إلغاء توقيعي</button>`
+    : `<button class="btn sign" data-extra onclick="pvClose();signDoc('${col}','${id}'${re})">✍ وقّع واعتمد</button>`;
+}
+async function printDoc({title,T,vals,opt={},miss=[],fixBtn="",filename,rec,sign,signCol="",reopen=""}){
+  const sid=rec&&rec.id?rec.id:"";
+  const canSign=!!(signCol&&sid);
+  const iSigned=canSign&&signsOf(rec).some(z=>z.uid===ME.id);
+  const V=openViewer(title,{filename,note:miss.length?`ناقص: ${esc(miss.join("، "))}. ${fixBtn}`:"",
+    extra:canSign?docSignBtns(signCol,sid,reopen):""});
+  try{let pages=await renderForm(T,vals,{...opt,autoSig:iSigned});const sm=pages.sigMissing;
+    if(canSign)pages=await stampSavedSigs(T,rec,pages);
+    if(sign)pages=await sign(pages);
+    if(rec)pages=[...pages,...await photoPages(rec,title,"صور مرفقة",title+(rec.date?" — "+fmtDate(rec.date):""))];
+    V.setPages(pages);
+    if(!miss.length){
+      if(canSign&&!signsOf(rec).length)V.note("النموذج ده لسه مش متوقّع. دوس «وقّع واعتمد» وتوقيعك هينزل عليه، وأي حد يطبعه هيشوفه.");
+      else if(canSign&&iSigned)V.note("متوقّع منك ✔ — تقدر تشيل توقيعك من «إلغاء توقيعي».",true);
+      else if(sm&&!canSign)V.note("النموذج ده هيطلع من غير توقيع ويتمضي بالقلم.");
+    }
+  }catch(e){console.error(e);V.fail()}}
 async function printPermit(id){
   let p=S.permits.find(x=>x.id===id);for(let i=0;!p&&i<10;i++){await new Promise(r=>setTimeout(r,200));p=S.permits.find(x=>x.id===id)}
   if(!p){toast("التصريح مش موجود");return}
@@ -2583,7 +2659,7 @@ async function printRecord(id){
   const canAp=!!personalSig&&SIG_FIELDS[r.form];
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
-  const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&myNameIn(nameVals)?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
+  const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&canWrite?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
   const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext2,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
