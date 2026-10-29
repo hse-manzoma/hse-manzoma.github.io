@@ -1032,15 +1032,131 @@ function remindersBase(){
   {const mm=S.leaves.filter(l=>isMissionKind(l.kind)&&canSignMission(l)&&!iSignedMission(l));
    if(mm.length)R.push({lv:"warn",t:`عندك ${mm.length} مأمورية مستنية توقيعك الإلكتروني`,go:"ui.teamSub='duties';show('team')"});}
   if(al.includes("forms")){const d=new Date();if(d.getDate()>=20){const m=thisMonth();const did=S.records.some(r=>r.form==="F-HSE-24-02"&&(r.date||"").startsWith(m)&&mineRec(r));if(!did)R.push({lv:"warn",t:"مفيش محاضرة توعية (TBT) اتسجلت الشهر ده",go:"ui.formSel='F-HSE-24-02';show('forms')"})}}
-  const T=S.tasks.filter(x=>x.status!=="done"&&(x.assignee===me||(!ownScope()&&myAccess()?.role==="admin")));
+  const T=S.tasks.filter(x=>x.status!=="done"&&(x.assignee===me||x.createdBy===ME.id||(!ownScope()&&myAccess()?.role==="admin")));
   return {R,T};
 }
 function remindersHTML(){const {R,T}=reminders();const me=myEmpId();const admin=myAccess()?.role==="admin";
   const mine=T.filter(x=>x.assignee===me),others=T.filter(x=>x.assignee!==me);
-  const tl=x=>`<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${esc(x.title)}</div><div class="s">${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}</div></div>${admin?`<button class="btn ghost sm" onclick="taskForm('${x.id}')">تعديل</button>`:""}</div>`;
-  return `<div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><h3 class="grow" style="margin:0">🔔 المطلوب ${admin?"":"منك "}النهارده</h3>${admin?`<button class="btn sm" onclick="taskForm()">+ مهمة لحد</button>`:""}</div>
+  const tl=x=>{const tgt=taskTargetName(x),run=x.kind&&x.kind!=="free"&&x.assignee===me;
+    return `<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":""}${esc(x.title)}</div><div class="s">${tgt?esc(tgt)+" · ":""}${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.place?esc(x.place)+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}${x.needSign!==false&&x.kind==="form"?' · <span class="muted">يلزم توقيعك</span>':""}</div></div>${run?`<button class="btn sm primary" onclick="taskRun('${x.id}')">ابدأ ←</button>`:""}${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button>`:""}</div>`};
+  return `<div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><h3 class="grow" style="margin:0">🔔 المطلوب ${admin?"":"منك "}النهارده</h3>${canAssignTasks()?`<button class="btn sm primary" onclick="taskAssign()">📤 ابعت مهمة</button>`:""}</div>
     ${R.length||mine.length?`<div class="list" style="margin-top:8px">${R.map(r=>`<button class="li" style="width:100%;text-align:right;font:inherit;color:inherit;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer" onclick="${r.go}"><span class="dot ${r.lv==="bad"?"off":""}" style="background:${r.lv==="bad"?"var(--bad)":"var(--warn)"}"></span><div class="grow t">${esc(r.t)}</div><span class="muted">←</span></button>`).join("")}${mine.map(tl).join("")}</div>`:`<p class="muted" style="margin:8px 0 0">مفيش حاجة متأخرة. 👍</p>`}
-    ${admin&&others.length?`<h3 style="margin:14px 0 4px;font-size:14px">مهام وزعتها على الفريق (${others.length})</h3><div class="list">${others.map(tl).join("")}</div>`:""}</div>`}
+    ${others.length?`<h3 style="margin:14px 0 4px;font-size:14px">مهام وزعتها على الفريق (${others.length})</h3><div class="list">${others.map(tl).join("")}</div>`:""}</div>`}
+/* ================= توزيع المهام =================
+   التيم ليدر أو مدير سلامة الموقع يبعت نموذج لواحد من الفريق كمهمة:
+   فحص طفاية أو معدة، أو تحرير حادث/مخالفة/ملاحظة وضع أو سلوك، أو أي سجل تاني.
+   اللي اتبعتله بيفتح النموذج من المهمة على طول، وبيمضيه، والمهمة بتتقفل لوحدها. */
+const TASK_K={eq:"فحص معدة / طفاية",form:"تحرير سجل أو نموذج",free:"مهمة عامة"};
+function taskAssignerIds(){const a=S.settings.taskAssigners;return Array.isArray(a)?a:[]}
+function canAssignTasks(){
+  if(myAccess()?.role==="admin")return true;
+  const me=myEmpId();if(!me)return false;
+  const ids=taskAssignerIds();
+  if(ids.length)return ids.includes(me);
+  return isLeader(emp(me));
+}
+function taskAssignerPool(){const ids=taskAssignerIds();
+  const L=ids.length?ids.map(id=>emp(id)).filter(Boolean):S.employees.filter(e=>e.active!==false);
+  return L.slice().sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
+function taskAssignersEditor(){
+  const cur=taskAssignerIds();
+  openSheet("مين يقدر يوزّع مهام",`<p class="muted" style="margin-top:0;font-size:13px">اختار الناس اللي ليهم حق يبعتوا نماذج كمهام للفريق. لو سبتها فاضية، المدير والتيم ليدر بس هما اللي يقدروا.</p>
+    <div class="list">${S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar")).map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="as_${e.id}" ${cur.includes(e.id)?"checked":""} style="width:18px;height:18px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?" · "+esc(e.code):""}</div></div></label>`).join("")}</div>`,
+    async(fd,form)=>{const ids=[...form.querySelectorAll('input[name^="as_"]:checked')].map(i=>i.name.slice(3));
+      const ok=await write(()=>upsert("settings","app",{taskAssigners:ids}),"اتحفظت الصلاحية");return ok?null:"الحفظ فشل"},"حفظ");
+}
+let TASK_RUN=null;   /* المهمة اللي بتتنفّذ دلوقتي */
+const taskOf=id=>S.tasks.find(t=>t.id===id);
+function taskTargetName(x){
+  if(!x)return "";
+  if(x.kind==="eq"){const q=S.equipment.find(e=>e.id===x.eqId);return q?`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""}`.trim():"معدة اتشالت"}
+  if(x.kind==="form")return (FORMS2&&FORMS2[x.form]&&FORMS2[x.form].title)||x.form||"سجل";
+  return "";
+}
+/* السجلات اللي بيتبعتوا كمهام — الأكتر استخدامًا الأول */
+async function taskFormOpts(){
+  const F=await loadForms2();
+  const top=["F-HSE-07-01","F-HSE-03-01","F-HSE-07-03","F-HSE-07-02","F-HSE-05-01","F-HSE-08-02","F-HSE-30-02","F-HSE-18-01"];
+  const out=[],seen=new Set();
+  for(const k of top)if(F[k]){seen.add(k);out.push([k,(F[k].title||k)])}
+  for(const [k,v] of Object.entries(F))if(!seen.has(k))out.push([k,v.title||k]);
+  return out;
+}
+function taskEqOpts(){
+  const L=S.equipment.filter(q=>q.active!==false);
+  const byKind={};for(const q of L)(byKind[q.kind]||(byKind[q.kind]=[])).push(q);
+  const out=[["","— اختار المعدة —"]];
+  for(const [k,arr] of Object.entries(byKind))
+    for(const q of arr.sort((a,b)=>String(a.serial||a.code||"").localeCompare(String(b.serial||b.code||""))))
+      out.push([q.id,`${EQ_K[k]?.one||k} · ${q.serial||q.code||q.name||""}${q.place?" · "+q.place:""}`]);
+  return out;
+}
+async function taskAssign(id){
+  if(!canAssignTasks()){toast("مالكش صلاحية توزيع مهام");return}
+  const x=id?taskOf(id)||{}:{};
+  const fopts=await taskFormOpts();
+  const root=openSheet(id?"تعديل المهمة":"ابعت مهمة لحد من الفريق",`<div class="form">
+    ${f("نوع المهمة","kind",{opts:Object.entries(TASK_K),value:x.kind||"eq"})}
+    <div id="tkEq">${f("المعدة / الطفاية","eqId",{opts:taskEqOpts(),value:x.eqId||""})}</div>
+    <div id="tkForm">${f("النموذج المطلوب","form",{opts:[["","— اختار النموذج —"],...fopts],value:x.form||""})}</div>
+    ${f("لمين","assignee",{opts:empOpts(S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar")),"— اختار الموظف —"),value:x.assignee||"",req:true})}
+    ${f("المطلوب بالظبط","title",{value:x.title||"",full:true})}
+    ${f("المكان","place",{value:x.place||""})}
+    ${f("آخر ميعاد","due",{type:"date",value:x.due||""})}
+    ${f("ملاحظات للمنفّذ","note",{value:x.note||"",type:"textarea",full:true})}
+    <label class="field full" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="needSign" ${x.needSign===false?"":"checked"} style="width:18px;height:18px"><span>يلزم توقيع المنفّذ على النموذج بعد الإنجاز</span></label>
+  </div>`,async(fd,form)=>{
+    const kind=fd.kind||"eq";
+    if(!fd.assignee)return "اختار الموظف اللي هتبعتله";
+    if(kind==="eq"&&!fd.eqId)return "اختار المعدة أو الطفاية";
+    if(kind==="form"&&!fd.form)return "اختار النموذج المطلوب";
+    const auto=kind==="eq"?`فحص ${taskTargetName({kind,eqId:fd.eqId})}`:kind==="form"?`تحرير ${(fopts.find(o=>o[0]===fd.form)||["",fd.form])[1]}`:"";
+    if(kind==="free"&&!String(fd.title||"").trim())return "اكتب المطلوب";
+    const data={kind,title:String(fd.title||"").trim()||auto,assignee:fd.assignee,
+      eqId:kind==="eq"?fd.eqId:"",form:kind==="form"?fd.form:"",
+      place:String(fd.place||"").trim(),due:fd.due||"",note:String(fd.note||"").trim(),
+      needSign:!!form.querySelector('[name="needSign"]').checked,status:"open"};
+    const ok=await write(()=>id?upsert("tasks",id,data)
+      :db.collection("tasks").add({...data,createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()}),
+      id?"اتعدلت":"اتبعتت المهمة");
+    return ok?null:"الحفظ فشل";
+  },id?"حفظ":"ابعت المهمة");
+  const sync=()=>{const k=root.querySelector('[name="kind"]').value;
+    root.querySelector("#tkEq").style.display=k==="eq"?"":"none";
+    root.querySelector("#tkForm").style.display=k==="form"?"":"none"};
+  root.querySelector('[name="kind"]').onchange=sync;sync();
+}
+/* المنفّذ بيفتح المهمة → النموذج بيتفتح على طول وهو متعلّم إنه جاي من مهمة */
+async function taskRun(id){
+  const x=taskOf(id);if(!x){toast("المهمة مش موجودة");return}
+  if(x.status==="done"){toast("المهمة خلصت");return}
+  TASK_RUN=id;
+  try{
+    if(x.kind==="eq"){
+      const q=S.equipment.find(e=>e.id===x.eqId);
+      if(!q){TASK_RUN=null;toast("المعدة اتشالت من المنظومة");return}
+      eqInspect(x.eqId);
+    }else if(x.kind==="form"){
+      const me=emp(myEmpId());
+      await recordForm(x.form,null,{f:{place:x.place||"",desc:x.note||""},taskId:id});
+      void me;
+    }else{
+      TASK_RUN=null;
+      if(await confirmBox("تقفل المهمة؟",x.title||""))taskDone(id);
+    }
+  }catch(e){TASK_RUN=null;console.error(e);toast("معرفتش أفتح المهمة")}
+}
+/* بتتنادى بعد حفظ السجل أو الفحص اللي اتعمل من مهمة */
+async function taskFinish(taskId,{recId="",eqId=""}={}){
+  const x=taskOf(taskId);if(!x)return;
+  await write(()=>upsert("tasks",taskId,{status:"done",doneAt:today(),doneBy:ME.id||"",
+    doneByEmp:myEmpId()||"",recId:recId||"",eqRef:eqId||""}),"المهمة اتقفلت ✔");
+  if(x.needSign!==false&&recId){
+    /* السجل لسه بيوصل للحالة المحلية، فبنستناه شوية قبل ما نمضيه */
+    for(let i=0;i<12&&!S.records.some(r=>r.id===recId);i++)await new Promise(r=>setTimeout(r,120));
+    try{await signDoc("records",recId,{})}catch(e){console.error("توقيع المهمة فشل",e)}
+  }
+}
 function taskForm(id){const x=id?S.tasks.find(t=>t.id===id):{};
   openSheet(id?"تعديل مهمة":"مهمة جديدة",`<div class="form">${f("المطلوب","title",{value:x.title||"",req:true,full:true})}<div class="field"><label for="f_as">لمين</label><input id="f_as" name="as" list="empListAll" autocomplete="off" value="${esc(x.assignee?empName(x.assignee):"")}"></div>${f("آخر ميعاد","due",{type:"date",value:x.due||""})}${f("ملاحظات","note",{value:x.note||"",full:true})}</div>${empDatalist2()}`,async fd=>{
     if(!fd.title.trim())return "اكتب المطلوب";const e=resolveEmp(fd.as);const data={title:fd.title.trim(),assignee:e?.id||"",due:fd.due||"",note:(fd.note||"").trim(),status:"open"};
@@ -1059,12 +1175,11 @@ async function runMigration(file){if(!file)return;const m=$("migMsg");const say=
     let fdone=0;for(const fl of J.files||[]){const bin=Uint8Array.from(atob(fl.b64),c=>c.charCodeAt(0));const {error}=await SB.storage.from("files").upload(fl.id,new Blob([bin],{type:fl.type}),{contentType:fl.type,upsert:true});if(error&&!/exists/i.test(error.message))throw error;fdone++}
     say(`✔ خلص النقل: ${n} سجل و${fdone} صورة والتوقيع. حدّث الصفحة.`);toast("خلص النقل")}catch(e){console.error(e);say("النقل فشل: "+(e.message||e))}}
 function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`)&&window.XLSX)return res();const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
-async function exportExcel(){
-  const dl=await window.claude?.use?.("downloads");if(!dl){toast("التنزيل مش متاح هنا");return}
-  toast("بيجهّز الملف…");try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js")}catch(e){toast("معرفتش أحمّل أداة Excel");return}
+async function buildXlBlob(){
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
   const ctr=id=>contractor(id)?.name||"";const F2=await loadForms2().catch(()=>({}));
   const sheets={
-    "الموظفين":S.employees.map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","المجموعة":GROUPS[e.group]||e.group||"","المقاول":ctr(e.contractorId),"الرقم القومي":e.nid||"","الموبايل":e.phone||"","الحالة":e.active===false?"موقوف":"شغال","البطاقة مرفوعة":hasID(e)?"نعم":"لا","الكارنيه مرفوع":attOf(e,"badge").length?"نعم":"لا"})),
+    "الموظفين":countedEmps().map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","المجموعة":GROUPS[e.group]||e.group||"","المقاول":ctr(e.contractorId),"الرقم القومي":e.nid||"","الموبايل":e.phone||"","الحالة":e.active===false?"موقوف":"شغال","البطاقة مرفوعة":hasID(e)?"نعم":"لا","الكارنيه مرفوع":attOf(e,"badge").length?"نعم":"لا"})),
     "المقاولين":S.contractors.map(c=>({"المقاول":c.name,"نطاق الأعمال":c.scope||"","المسؤول":c.rep||"","الموبايل":c.phone||"","عدد العمال":ctrWorkers(c.id).length,"الحالة":c.active===false?"خلص":"شغال"})),
     "التصاريح":S.permits.map(p=>({"الرقم":p.number,"النوع":PTW_TYPES[p.type]?.ar||p.type,"التاريخ":p.date||"","بداية التصريح":p.startDate||p.date||"","من الساعة":p.from||"","النهاية المحددة":ptwEnd(p),"لحد الساعة":p.to||"","وقت الإغلاق":p.closedAt?`${p.closedAt} ${p.closedTime||""}`:"","أغلقه":p.closeName||"","المكان":p.location||"","الوصف":p.desc||"","المقاول":p.contractor||"","طالب التصريح":p.requester||"","مسؤول السلامة":p.safetyId?empName(p.safetyId):"","المشرف":p.supervisor||"","الحالة":PTW_STATUS[p.status]?.[0]||p.status||"","موقّع ومرفوع":hasSigned(p)?"نعم":""})),
     "أصناف المخزن":S.items.map(i=>({"الكود":i.code||"","الصنف":i.name,"الوحدة":i.unit||"","الرصيد الافتتاحي":num(i.opening),"الرصيد الحالي":balance(i.id),"الحد الأدنى":num(i.min)})),
@@ -1073,13 +1188,87 @@ async function exportExcel(){
     "المخالفات":S.records.filter(r=>r.form==="F-HSE-07-01").map(r=>({"رقم":r.serial||"","التاريخ":r.date||"","المخالف":r.f?.emp||"","الكود":r.f?.code||"","المكان":r.f?.place||"","الوصف":r.f?.desc||"","الإجراء":r.f?.action||""})),
     "الإجراءات التصحيحية":deriveActions().map(a=>({"النوع":a.kind||"","البند":a.title,"التفاصيل":a.detail||"","المكان":a.place||"","المصدر":a.form||"","التاريخ":a.date||"","المسؤول":actOwner(a),"الميعاد":a.due||"","الحالة":a.status==="closed"?"مقفول":a.late?"متأخر":"مفتوح","تاريخ الإغلاق":a.closedAt||"","اللي اتعمل":a.closeNote||""})),
     "السجلات":S.records.map(r=>({"النموذج":r.form,"الاسم":F2[r.form]?.title||"","رقم":r.serial||"","التاريخ":r.date||"","عدد الصفوف":(r.rows||[]).filter(Boolean).length,"موقّع ومرفوع":hasSigned(r)?"نعم":""})),
-    "الإجازات والأذونات":S.leaves.map(l=>({"الموظف":empName(l.empId),"النوع":l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||""),"من":l.date||"","إلى":l.to||"","أيام":num(l.days)||"","السبب":l.reason||l.note||""}))};
+    "الإجازات والأذونات":S.leaves.map(l=>({"الموظف":empName(l.empId),"النوع":l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||""),"من":l.date||"","إلى":l.to||"","أيام":num(l.days)||"","السبب":l.reason||l.note||""})),
+    "المغادرون":leftEmps().map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","المجموعة":GROUPS[e.group]||e.group||"","المقاول":ctr(e.contractorId),"سبب المغادرة":hasClearance(e)?"إخلاء طرف":"مش موجود في آخر تحديث مان باور","تاريخ إخلاء الطرف":e.clearance?.date||"","ملاحظات إخلاء الطرف":e.clearance?.note||"","الموبايل":e.phone||""})),
+    "التدريب والزائرين":visitorEmps().map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","الجهة":ctr(e.contractorId)||e.org||"","الموبايل":e.phone||"","البطاقة مرفوعة":hasID(e)?"نعم":"لا"})),
+    "تيم ديوتي والتكليفات":S.leaves.filter(l=>l.kind).map(l=>({"النوع":DUTY_K[l.kind]||l.kind,"الموظف":empName(l.empId),"الكود":emp(l.empId)?.code||"","التاريخ":l.date||"","وقت الخروج":l.out||l.time||"","العمل المكلف به":l.purpose||l.reason||l.note||"","المعتمد":l.approverName||(l.approverId?empName(l.approverId):""),"موقّع":hasSigned(l)?"نعم":""})),
+    "إخلاء الطرف":S.employees.filter(e=>hasClearance(e)).map(e=>({"الاسم":e.name,"الكود":e.code||"","التاريخ":e.clearance?.date||"","السبب":e.clearance?.reason||"","سلّم العهدة":e.clearance?.returned?"نعم":"","ملاحظات":e.clearance?.note||""}))};
   const wb=XLSX.utils.book_new();
   for(const [n,rows] of Object.entries(sheets)){const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"":"مفيش بيانات"}]);ws["!cols"]=Object.keys(rows[0]||{a:1}).map(k=>({wch:Math.min(40,Math.max(10,k.length+4,...rows.slice(0,200).map(r=>String(r[k]??"").length)))}));ws["!views"]=[{RTL:true}];XLSX.utils.book_append_sheet(wb,ws,n.slice(0,31))}
   wb.Workbook={Views:[{RTL:true}]};
   const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
-  try{await dl.save({filename:`منظومة السلامة ${today()}.xlsx`,data:new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})});toast("اتنزل الملف")}catch(e){toast(e?.code==="declined"?"التنزيل اتلغى":"التنزيل مش متاح هنا")}
+  return new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
+async function exportExcel(){
+  const dl=await window.claude?.use?.("downloads");if(!dl){toast("التنزيل مش متاح هنا");return}
+  toast("بيجهّز الملف…");
+  let blob;try{blob=await buildXlBlob()}catch(e){toast("معرفتش أحمّل أداة Excel");return}
+  try{await dl.save({filename:`منظومة السلامة ${today()}.xlsx`,data:blob});toast("اتنزل الملف")}catch(e){toast(e?.code==="declined"?"التنزيل اتلغى":"التنزيل مش متاح هنا")}
+}
+
+/* ---------- نسخة الإكسيل المطابقة: ملف واحد على الجهاز بيتحدّث مع كل مزامنة ---------- */
+let XLH=null,xlBusy=false;
+const xlCan=()=>typeof window.showSaveFilePicker==="function";
+async function xlHandle(){
+  if(XLH)return XLH;
+  try{XLH=await window.SBA?.store?.get("xlMirror")||null}catch(e){XLH=null}
+  return XLH;
+}
+async function xlPerm(h,ask){
+  if(!h||!h.queryPermission)return false;
+  const o={mode:"readwrite"};
+  if(await h.queryPermission(o)==="granted")return true;
+  if(!ask)return false;
+  return await h.requestPermission(o)==="granted";
+}
+async function xlMirrorPick(){
+  if(!xlCan()){toast("المتصفح ده مش بيدعم الكتابة المباشرة — استخدم زرار التنزيل");return}
+  try{
+    const h=await window.showSaveFilePicker({suggestedName:"منظومة السلامة.xlsx",
+      types:[{description:"Excel",accept:{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx"]}}]});
+    XLH=h;await window.SBA?.store?.set("xlMirror",h);
+    /* نتأكد إن المتصفح حفظ الملف فعلاً عشان يفضل متوصّل بعد ما تقفل وتفتح */
+    let kept=null;try{kept=await window.SBA?.store?.get("xlMirror")}catch(e){}
+    if(!kept)toast("اتحدّث دلوقتي، بس المتصفح مش هيفتكر الملف بعد ما تقفل — اختاره تاني وقتها");
+    await xlMirrorWrite(true);
+    xlMirrorRender();
+  }catch(e){if(e&&e.name!=="AbortError"){console.error(e);toast("معرفتش أحفظ الملف")}}
+}
+async function xlMirrorForget(){
+  XLH=null;try{await window.SBA?.store?.set("xlMirror",null)}catch(e){}
+  await window.SBA?.store?.set("xlMirrorAt",null);toast("اتفصل الملف");xlMirrorRender();
+}
+async function xlMirrorWrite(loud){
+  if(xlBusy)return false;
+  const h=await xlHandle();if(!h)return false;
+  if(!await xlPerm(h,!!loud)){if(loud)toast("محتاج إذن الكتابة على الملف");return false}
+  xlBusy=true;
+  try{
+    if(loud)toast("بيحدّث نسخة الإكسيل…");
+    const blob=await buildXlBlob();
+    const w=await h.createWritable();await w.write(blob);await w.close();
+    await window.SBA?.store?.set("xlMirrorAt",Date.now());
+    if(loud)toast("نسخة الإكسيل اتحدّثت");
+    return true;
+  }catch(e){console.error("تحديث نسخة الإكسيل فشل",e);if(loud)toast("معرفتش أحدّث الملف");return false}
+  finally{xlBusy=false}
+}
+async function xlMirrorRender(){
+  const box=document.getElementById("xlMirrorCard");if(!box)return;
+  const h=await xlHandle();const at=await window.SBA?.store?.get("xlMirrorAt");
+  const when=at?new Date(at).toLocaleString("ar-EG",{dateStyle:"short",timeStyle:"short"}):"";
+  if(!xlCan()){box.innerHTML='<h3 style="margin:0 0 4px">نسخة الإكسيل المطابقة</h3><div class="muted" style="font-size:13px">المتصفح ده مش بيدعم الكتابة المباشرة على ملف. استخدم Chrome أو Edge، أو نزّل الملف من الزرار اللي فوق.</div>';return}
+  const name=h?(h.name||"الملف المختار"):"";
+  box.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow">
+    <h3 style="margin:0 0 4px">نسخة الإكسيل المطابقة</h3>
+    <div class="muted" style="font-size:13px">${h?`الملف: <b>${esc(name)}</b>${when?` · آخر تحديث: ${esc(when)}`:""}<br>بيتحدّث لوحده بعد كل مزامنة ناجحة.`:"اختار ملف إكسيل مرة واحدة، والمنظومة هتكتب فيه نسخة مطابقة لكل بياناتها وتحدّثها لوحدها بعد كل مزامنة."}</div>
+    </div>
+    <button class="btn primary" onclick="xlMirrorPick()">${h?"تغيير الملف":"اختيار الملف"}</button>
+    ${h?'<button class="btn" onclick="xlMirrorWrite(true)">حدّث دلوقتي</button><button class="btn" onclick="xlMirrorForget()">فصل</button>':""}
+  </div>`;
+}
+/* أول ما المزامنة تخلص بنجاح، الملف بيتحدّث لوحده */
+addEventListener("hse:synced",()=>{xlMirrorWrite(false)});
 
 /* ---------- corrective actions follow-up ---------- */
 const CHECKLIST_FORMS=["F-HSE-05-01","F-HSE-08-02","F-HSE-30-02","F-HSE-07-02","F-HSE-18-01"];
@@ -1200,6 +1389,7 @@ function eqInspect(id){
     const e=resolveEmp(fd.by);const rec={date:fd.date,by:e?e.name:(fd.by||"").trim(),by_id:e?.id||"",res,notes:(fd.notes||"").trim()};if(q.kind==="machine")rec.next=fd.next||"";
     const patch={insp:[...(q.insp||[]),rec]};if(q.kind==="tower"&&fd.next)patch.certDue=fd.next;
     const ok=await write(()=>upsert("equipment",id,patch),"اتسجل الفحص");
+    if(ok&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t,{eqId:id})}catch(e){console.error(e)}}
     if(ok&&q.kind==="machine")setTimeout(()=>printTag(id),400);
     return ok?null:"الحفظ فشل"},q.kind==="machine"?"حفظ وطباعة الكارت":"حفظ الفحص");
 }
@@ -1720,7 +1910,10 @@ VIEWS.settings = {
     ${Object.keys(LEG).length?`<div class="card" style="margin-top:14px"><h3>بيانات منظومة الإكسيل</h3><p class="muted" style="margin-top:0;font-size:13.5px">اتنقلت من «منظومتنا بقولك.xlsm»: ${Object.entries(LEG).map(([k,v])=>`${({employees:"موظفين",items:"أصناف",moves:"حركات صرف",permits:"تصاريح",kpi:"إدخالات KPI",leaves:"إجازات وتيم ديوتي وأذون"})[k]||k} ${v.length}`).join(" · ")}. تقدر تعدّل أو تمسح أي سجل منهم عادي.</p></div>`:""}`;
     if($("impBtn"))$("impBtn").onclick=runImport;
     if(isOwner)mountExcelImportCard();
-    {const ex=document.createElement("div");ex.className="card";ex.style.marginTop="14px";ex.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">تصدير Excel وGoogle Sheets</h3><div class="muted" style="font-size:13px">نزّل ملف Excel الذي يحتوي على كل البيانات. لاستيراده في Sheets: افتح «ملف ← استيراد ← تحميل». لا تُرسل البيانات تلقائيًا إلى Google.</div></div><button class="btn primary" onclick="exportExcel()">تنزيل ملف لـ Google Sheets</button><a class="btn" href="https://sheets.google.com" target="_blank" rel="noopener">فتح Google Sheets</a></div>`;$("setBody").prepend(ex)}
+    {const ex=document.createElement("div");ex.className="card";ex.style.marginTop="14px";ex.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">تصدير Excel وGoogle Sheets</h3><div class="muted" style="font-size:13px">نزّل ملف Excel الذي يحتوي على كل البيانات. لاستيراده في Sheets: افتح «ملف ← استيراد ← تحميل». لا تُرسل البيانات تلقائيًا إلى Google.</div></div><button class="btn primary" onclick="exportExcel()">تنزيل ملف لـ Google Sheets</button><a class="btn" href="https://sheets.google.com" target="_blank" rel="noopener">فتح Google Sheets</a></div>`;$("setBody").prepend(ex);const xm=document.createElement("div");xm.className="card";xm.id="xlMirrorCard";xm.style.marginTop="14px";ex.after(xm);xlMirrorRender();
+      const tk=document.createElement("div");tk.className="card";tk.style.marginTop="14px";
+      tk.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">صلاحية توزيع المهام</h3><div class="muted" style="font-size:13px">${(()=>{const n=taskAssignerIds().length;return n?`${n} شخص ليهم حق يبعتوا نماذج كمهام للفريق.`:"المدير والتيم ليدر بس هما اللي يقدروا يوزّعوا مهام دلوقتي."})()}</div></div><button class="btn primary" onclick="taskAssignersEditor()">تحديد المسؤولين</button></div>`;
+      xm.after(tk)}
     if(isOwner){const im=document.createElement("div");im.className="card";im.style.marginTop="14px";im.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">استيراد بيانات المنظومة القديمة</h3><div class="muted" style="font-size:13px">ملف النقل (migration.json) من نسخة Claude.</div></div><label class="btn" style="cursor:pointer">اختار الملف<input type="file" id="migFile" accept="application/json,.json" style="display:none"></label></div><div id="migMsg" class="muted" style="font-size:13px;margin-top:6px"></div>`;$("setBody").appendChild(im);$("migFile").onchange=e=>runMigration(e.target.files[0])}
     if(isOwner||BASE.del){settleInvites();const box=document.createElement("div");box.style.marginBottom="18px";$("setBody").prepend(box);usersCardHTML().then(h=>{box.innerHTML=h+rolesCardHTML()+'<h3 style="margin:22px 0 8px">إعدادات المشروع</h3>'})}
     $("setForm").onsubmit=async e=>{
@@ -2268,8 +2461,10 @@ async function recordFormBase(fid,id,preset){
       while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
     data.date=data.f.date||today();
     let rid=id;
+    if(TASK_RUN)data.taskId=TASK_RUN;
     const ok=await write(async()=>{if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}
+    if(ok&&rid&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t,{recId:rid})}catch(e){console.error(e)}}
     if(ok&&rid)setTimeout(()=>printRecord(rid),400);
     return ok?null:"الحفظ فشل";
   },"حفظ وطباعة");
