@@ -138,6 +138,67 @@ window.SBA.tabCount=tabPing;
 setInterval(tabPing,8000);
 if(tabPing()>1)authLog("تنبيه: المنظومة مفتوحة في أكتر من تاب",{tabs:tabPing()});
 
+/* ---------- فرق ساعة الجهاز عن السيرفر ----------
+   لو ساعة الكمبيوتر مقدّمة، كل توكن جديد بيبان للمكتبة إنه خلصان خلاص،
+   فتفضل تجدّد كل ثانية (عاصفة تجديد) لحد ما الجلسة تتلغي. بنقيس الفرق من
+   ترويسة Date بتاعة السيرفر، وبنحسب ميعاد التجديد بالوقت الصح مش بوقت الجهاز. */
+let skewMs=0,skewKnown=false;
+async function measureSkew(){
+  if(!NET())return null;
+  try{
+    const t0=Date.now();
+    const r=await fetch(SB_URL+"/auth/v1/health",{cache:"no-store",headers:{apikey:SB_KEY}});
+    const t1=Date.now(),h=r.headers.get("date");
+    if(!h)return null;
+    const srv=new Date(h).getTime();
+    if(!srv||isNaN(srv))return null;
+    skewMs=Math.round((t0+(t1-t0)/2)-srv);skewKnown=true;
+    window.SBA.clockSkewSec=Math.round(skewMs/1000);
+    if(Math.abs(skewMs)>120000){
+      const mins=Math.round(Math.abs(skewMs)/60000);
+      authLog("ساعة الجهاز فارقة عن السيرفر",{err:(skewMs>0?"مقدّمة ":"متأخرة ")+mins+" دقيقة"});
+      takeOverRefresh("ساعة الجهاز فارقة "+mins+" دقيقة");
+      clockBanner(skewMs>0,mins);
+    }
+    return skewMs;
+  }catch(e){return null}
+}
+function clockBanner(ahead,mins){
+  if(document.getElementById("clkBar"))return;
+  const el=document.createElement("div");el.id="clkBar";
+  el.style.cssText="position:fixed;inset-inline:0;top:0;z-index:10000;direction:rtl;background:#e8590c;color:#fff;padding:9px 14px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font:600 13.5px 'IBM Plex Sans Arabic',system-ui";
+  el.innerHTML='<span>\u26A0 ساعة الكمبيوتر '+(ahead?"مقدّمة":"متأخرة")+" "+mins+' دقيقة عن الوقت الصح — ده بيفصل الدخول. من إعدادات ويندوز: الوقت والتاريخ \u2190 «ضبط الوقت تلقائياً».</span>'+
+    '<button onclick="document.getElementById(\'clkBar\').remove()" style="padding:5px 12px;border:0;border-radius:8px;background:#fff;color:#e8590c;font-weight:700;cursor:pointer">تمام</button>';
+  document.body.appendChild(el);
+}
+/* بنمسك التجديد بنفسنا بدل المكتبة، وبنحسب الميعاد بالوقت المصحّح */
+let myTimer=null,tookOver=false;
+function takeOverRefresh(why){
+  if(!tookOver){tookOver=true;authLog("مسكنا تجديد التوكن بنفسنا",{err:why});
+    try{sb.auth.stopAutoRefresh()}catch(e){}}
+  scheduleRefresh(window.SBA.session);
+}
+function scheduleRefresh(session){
+  clearTimeout(myTimer);
+  if(!tookOver||!session||!session.expires_at)return;
+  /* expires_at بوقت السيرفر — بنحوّله لوقت الجهاز بإضافة الفرق */
+  const dueLocal=session.expires_at*1000+skewMs;
+  const wait=Math.min(3600000,Math.max(60000,dueLocal-Date.now()-300000));
+  window.SBA.nextRefreshInSec=Math.round(wait/1000);
+  myTimer=setTimeout(()=>{refreshOnce("ميعاد مجدول").catch(()=>{})},wait);
+}
+/* عاصفة تجديد: لو المكتبة جدّدت كذا مرة في ثواني، نوقفها ونمسكها بنفسنا */
+const RBURST=[];
+function noteRefresh(){
+  const now=Date.now();RBURST.push(now);
+  while(RBURST.length&&now-RBURST[0]>20000)RBURST.shift();
+  if(RBURST.length>=5&&!tookOver){
+    authLog("عاصفة تجديد: "+RBURST.length+" تجديد في أقل من 20 ثانية — وقفنا التجديد التلقائي");
+    takeOverRefresh("عاصفة تجديد");
+    measureSkew();
+  }
+}
+
 /* ---------- بدل ما نرمي المستخدم بره: نشتغل بالنسخة المحفوظة قراءة بس ---------- */
 const RKEY="hse.auth.lastReload";
 const recentlyReloaded=()=>{try{return Date.now()-(+localStorage.getItem(RKEY)||0)<90000}catch(e){return false}};
@@ -247,6 +308,7 @@ async function afterLogin(session){
   await cleanupOtherPushRows();
   document.getElementById("gate")?.remove();readyResolve();
   badge();if(NET())syncSoon(2500);
+  if(!skewKnown)setTimeout(()=>{measureSkew().catch(()=>{})},1500);
 }
 /* فتح المنظومة وانت مفيش نت خالص: بندخل بآخر صلاحيات محفوظة على الجهاز
    بدل ما شاشة الدخول تقفل في وشك وانت مش قادر توصل للسيرفر أصلاً */
@@ -262,7 +324,7 @@ async function offlineResume(){
 let started=false,activeUid="",loginFlow=Promise.resolve();
 function acceptSession(session){
   if(!session){offlineResume().then(done=>{if(!done)showGate()});return}
-  window.SBA.session=session;keepGood(session);
+  window.SBA.session=session;keepGood(session);scheduleRefresh(session);
   if(started&&activeUid===session.user?.id)return;
   started=true;activeUid=session.user?.id||"";
   // Supabase auth callbacks run under its auth lock. Defer all follow-up Supabase calls.
@@ -275,6 +337,7 @@ function acceptSession(session){
 }
 sb.auth.onAuthStateChange((ev,session)=>{
   authLog("حدث: "+ev,{session:!!session,uid:session?.user?.id||null});
+  if(ev==="TOKEN_REFRESHED")noteRefresh();
   if(session)acceptSession(session);
   else if(ev==="SIGNED_OUT"){
     /* مش كل SIGNED_OUT معناه إن المستخدم عايز يخرج — ساعات التوكن بيفشل في التجديد.
