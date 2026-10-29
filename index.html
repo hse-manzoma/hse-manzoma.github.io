@@ -2793,9 +2793,12 @@ async function printRecord(id){
 const SIG_FIELDS={"F-HSE-07-03":["sig2"],"F-HSE-05-01":["mgr","mgr_2"],"F-HSE-08-02":["mgr"],"F-HSE-30-02":["mgr"],"F-HSE-07-02":["mgr","mgr_2","mgr_3","mgr_4"],"F-HSE-18-01":["mgr","mgr_2"],
   "F-HSE-10-01":["mgr"],"F-HSE-10-04":["mgr"],"F-HSE-10-05":["mgr"],"F-HSE-10-06":["mgr"],"F-HSE-10-07":["mgr"],"F-HSE-10-08":["mgr"],"F-HSE-08-01":["mgr","mgr_1","mgr_2","mgr_3"],
   "F-HSE-04-01":["mgr"],"F-HSE-11-01":["mgr"],"F-HSE-17-01":["mgr"],"F-HSE-24-01":["lecName"],"F-HSE-24-02":["tName"],"F-HSE-02-01":["officer"],"F-HSE-07-04":["gh","gh_2"],"F-HSE-14-01":["officer"],"F-HSE-07-01":["writer"],"F-HSE-03-01":["writer"]};
-const SIG_AUTOFILL=(fid,k)=>/^(mgr|sig2|gh)(_\d)?$/.test(k)||(["F-HSE-02-01","F-HSE-14-01"].includes(fid)&&k==="officer");
-function sigRect(spec,nf){const [x,y,w,h]=nf.rect;const pg=nf.page||0;
-  const dates=spec.fields.filter(f=>(f.page||0)===pg&&f!==nf&&f.rect[1]>y+h*0.5&&f.rect[1]<y+h*4&&Math.min(x+w,f.rect[0]+f.rect[2])-Math.max(x,f.rect[0])>w*0.5).sort((a,b)=>a.rect[1]-b.rect[1]);
+const SIG_AUTOFILL=(fid,k)=>/^(mgr|sig2|gh|writer)(_\d)?$/.test(k)||(["F-HSE-02-01","F-HSE-14-01"].includes(fid)&&k==="officer");
+function sigRect(spec,nf){if(!nf||!Array.isArray(nf.rect)||nf.rect.length<4)return null;
+  const [x,y,w,h]=nf.rect;const pg=nf.page||0;
+  /* خانات زي «نوع المخالفة» و«درجة المخالفة» مالهاش إحداثيات (checkboxes)، لازم نتخطاها */
+  const hasRect=f=>Array.isArray(f.rect)&&f.rect.length>=4;
+  const dates=spec.fields.filter(f=>hasRect(f)&&(f.page||0)===pg&&f!==nf&&f.rect[1]>y+h*0.5&&f.rect[1]<y+h*4&&Math.min(x+w,f.rect[0]+f.rect[2])-Math.max(x,f.rect[0])>w*0.5).sort((a,b)=>a.rect[1]-b.rect[1]);
   const d=dates[0];if(!d)return [x,y+h*1.15,w,h*1.3];
   const gap=d.rect[1]-y;if(gap>h*1.75)return [x,y+gap/2-h*0.15,w,h*1.3];
   return [x,d.rect[1]+gap-h*0.15,w,h*1.3]}
@@ -2804,7 +2807,7 @@ async function renderGeneric(fid,rec){
   if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages);
   const spec=(await loadForms2())[fid];const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
   for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(normName(recVal(spec,rec,nk))!==normName(rec.approved.name||""))continue;
-    const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const [rx,ry,rw,rh]=sigRect(spec,nf);const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
+    const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const sr=sigRect(spec,nf);if(!sr)continue;const [rx,ry,rw,rh]=sr;const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
     if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}}
   return renderGenericSigned(fid,rec,pages)}
 async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;const f={...(r.f||{})};
@@ -3560,8 +3563,11 @@ async function mySig(){if(MYSIG!==null)return MYSIG;if(!db||!ME.id)return "";MYS
   if(!MYSIG&&isOwner){try{MYSIG=await sigSrc()}catch(e){}}return MYSIG}
 const signsOf=x=>Object.values(x?.signs||{});
 const isDateField=f=>/date|^d\d|^d[AB]/i.test(f.k)||f.type==="date"||f.auto==="date";
-function signRect(fields,nf,getR,isDate,mode){const [x,y,w,h]=getR(nf);const pg=nf.page||0;
-  const dates=fields.filter(f=>f!==nf&&(f.page||0)===pg&&isDate(f)&&getR(f)[1]>y+h*0.5&&getR(f)[1]<y+h*4&&Math.min(x+w,getR(f)[0]+getR(f)[2])-Math.max(x,getR(f)[0])>w*0.5).sort((a,b)=>getR(a)[1]-getR(b)[1]);
+function signRect(fields,nf,getR,isDate,mode){const r0=getR(nf);
+  if(!Array.isArray(r0)||r0.length<4)return null;
+  const [x,y,w,h]=r0;const pg=nf.page||0;
+  const ok=f=>{const r=getR(f);return Array.isArray(r)&&r.length>=4};
+  const dates=fields.filter(f=>f!==nf&&ok(f)&&(f.page||0)===pg&&isDate(f)&&getR(f)[1]>y+h*0.5&&getR(f)[1]<y+h*4&&Math.min(x+w,getR(f)[0]+getR(f)[2])-Math.max(x,getR(f)[0])>w*0.5).sort((a,b)=>getR(a)[1]-getR(b)[1]);
   const d=dates[0];if(!d)return null;const dy=getR(d)[1],gap=dy-y;if(mode==="after"){const rh=gap>h*1.75?gap/2:gap;return [x,dy+rh-h*0.15,w,h*1.3]}if(gap>h*1.75)return [x,y+gap/2-h*0.15,w,h*1.3];return [x,dy+gap-h*0.15,w,h*1.3]}
 function permitSignRect(fields,nf,getR,isDate){const [x,y,w,h]=getR(nf),pg=nf.page||0;
   const d=fields.filter(f=>f!==nf&&(f.page||0)===pg&&isDate(f)&&getR(f)[1]>y+h*.5&&getR(f)[1]<y+h*4&&Math.min(x+w,getR(f)[0]+getR(f)[2])-Math.max(x,getR(f)[0])>w*.5).sort((a,b)=>getR(a)[1]-getR(b)[1])[0];
@@ -3595,7 +3601,24 @@ async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);c
 function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(v=>normName(v)===n)}
 async function signDoc(col,id,{reopen}={}){const src=await mySig();if(!src){toast("ضيف توقيعك الأول من 👤 حسابي ← ✍ توقيعي");sigEditor();return}
   const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;const signs={...(x.signs||{}),[ME.id]:{uid:ME.id,name:myEmpName(),at:Date.now(),signature:src}};
-  if(await write(()=>upsert(col,id,{signs}),"اتوقّع ✔"))setTimeout(()=>reopen&&reopen(),300)}
+  const patch={signs};
+  /* التوقيع في النماذج بيترسى على خانة اسم. لو مفيش خانة فيها اسمك (زي «محرر المخالفة»
+     لما تبقى فاضية) التوقيع مكانش بيظهر خالص — فبنملا أول خانة توقيع فاضية باسمك. */
+  if(col==="records"&&x.form){
+    try{
+      const spec=(await loadForms2())[x.form];const keys=SIG_FIELDS[x.form]||[];
+      const me=normName(myEmpName());
+      const anchored=!!spec&&spec.fields.some(f=>f.type!=="check"&&(f.type==="emp"||NAME_KEY.test(f.k))&&normName(recVal(spec,x,f.k))===me);
+      if(!anchored&&keys.length&&me){
+        const f={...(x.f||{})};
+        const slot=keys.find(k=>!String(f[k]||"").trim());
+        if(slot){f[slot]=myEmpName();
+          const e=S.employees.find(z=>normName(z.name)===me);if(e)f[slot+"_id"]=e.id;
+          patch.f=f}
+      }
+    }catch(e){console.error("ترسية التوقيع فشلت",e)}
+  }
+  if(await write(()=>upsert(col,id,patch),"اتوقّع ✔"))setTimeout(()=>reopen&&reopen(),300)}
 async function unsignDoc(col,id,reopen){const x=current(col,id)||S.matreq.find(r=>r.id===id);const signs={...(x?.signs||{})};delete signs[ME.id];if(await write(()=>upsert(col,id,{signs}),"اتشال توقيعك"))setTimeout(()=>reopen&&reopen(),300)}
 /* editor */
 function sigEditor(){
