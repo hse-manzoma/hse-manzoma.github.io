@@ -111,8 +111,15 @@ async function showGate(message="",retrySession=null){
 const PKEY="hse.profile.cache";
 async function loadProfile(uid){
   try{
-    const {data,error}=await sb.from("profiles").select("*").eq("user_id",uid).maybeSingle();
+    /* مش maybeSingle: لو الحساب له أكتر من صف في profiles كانت بترمي خطأ
+       وتطلّع المستخدم بره على طول. بناخد الصفوف وننتقي الصح. */
+    const {data:rows,error}=await sb.from("profiles").select("*").eq("user_id",uid).limit(5);
     if(error)throw error;
+    let data=null;
+    if(Array.isArray(rows)&&rows.length){
+      data=rows.find(r=>r&&!r.disabled&&r.role==="admin")||rows.find(r=>r&&!r.disabled)||rows[0];
+      if(rows.length>1)console.warn("في "+rows.length+" صفوف صلاحيات لنفس الحساب — اتاخد أعلاهم صلاحية. نضّف المكرر من جدول profiles.");
+    }
     if(data){try{localStorage.setItem(PKEY,JSON.stringify({uid,p:data,at:Date.now()}))}catch(e){}}
     window.SBA.offlineProfile=false;
     return data;
