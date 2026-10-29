@@ -67,7 +67,19 @@ async function cleanupOtherPushRows(){
   return true;
 }
 window.SBA.cleanupLocalPush=cleanupLocalPush;
-window.SBA.logout=async()=>{await cleanupLocalPush();const {error}=await sb.auth.signOut({scope:"local"});if(error)throw error};
+window.SBA.logout=async()=>{authLog("خروج بطلب المستخدم");window.SBA.__bye=true;await cleanupLocalPush();const {error}=await sb.auth.signOut({scope:"local"});if(error)throw error};
+/* ---------- سجل الجلسة: بيفضل محفوظ بعد الريفرش عشان نعرف ليه خرج ---------- */
+const ALOG="hse.auth.log";
+function authLog(msg,extra){
+  try{
+    const L=JSON.parse(localStorage.getItem(ALOG)||"[]");
+    L.push({t:new Date().toISOString(),m:String(msg),...(extra||{})});
+    localStorage.setItem(ALOG,JSON.stringify(L.slice(-25)));
+  }catch(e){}
+  console.warn("[جلسة]",msg,extra||"");
+}
+window.SBA.authLog=()=>{try{return JSON.parse(localStorage.getItem(ALOG)||"[]")}catch(e){return []}};
+window.SBA.authLogClear=()=>{try{localStorage.removeItem(ALOG)}catch(e){}};
 
 /* ---------- auth gate ---------- */
 let readyResolve;const ready=new Promise(r=>readyResolve=r);
@@ -96,7 +108,13 @@ function gateHTML(first){return `<div id="gate" style="position:fixed;inset:0;z-
     ${first?`<label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">تأكيد كلمة السر</label><input name="p2" type="password" dir="ltr" autocomplete="new-password" required style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cfd8d3;border-radius:10px;font-size:15px;margin-bottom:12px">`:""}
     <div id="gateMsg" style="color:#c92a2a;font-size:13px;min-height:18px;margin-bottom:8px">${(()=>{try{const m=sessionStorage.getItem("hse.session.enforce.error")||"";sessionStorage.removeItem("hse.session.enforce.error");return m}catch(e){return ""}})()}</div>
     <button style="width:100%;padding:12px;border:0;border-radius:10px;background:#d9480f;color:#fff;font-size:15px;font-weight:700;cursor:pointer">${first?"إنشاء الحساب والدخول":"دخول"}</button>
+    ${(()=>{const L=window.SBA.authLog();if(!L.length)return "";
+      const rows=L.slice(-12).reverse().map(x=>`<div style="padding:3px 0;border-bottom:1px solid #eee"><span style="color:#888">${esc2(x.t.slice(11,19))}</span> — ${esc2(x.m)}${x.err?` <span style="color:#c92a2a">(${esc2(x.err)})</span>`:""}</div>`).join("");
+      return `<details style="margin-top:14px"><summary style="cursor:pointer;font-size:12.5px;color:#6b7a73">سجل الجلسة (${L.length}) — افتحه لو بيطلّعك فجأة</summary>
+        <div style="max-height:190px;overflow:auto;font-size:11.5px;line-height:1.7;margin-top:6px;direction:ltr;text-align:left">${rows}</div>
+        <button type="button" onclick="SBA.authLogClear();this.closest('details').remove()" style="margin-top:6px;padding:6px 10px;border:1px solid #cfd8d3;border-radius:8px;background:transparent;font-size:12px;cursor:pointer">امسح السجل</button></details>`})()}
   </form></div>`}
+const esc2=t=>String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function showGate(message="",retrySession=null){
   let first=false;try{const {data}=await sb.rpc("has_admin");first=data===false}catch(e){}
   document.getElementById("gate")?.remove();document.body.insertAdjacentHTML("beforeend",gateHTML(first));
@@ -162,8 +180,26 @@ function acceptSession(session){
     .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";await showGate("تم تسجيل الدخول لكن تعذرت قراءة ملف الصلاحيات من Supabase. الجلسة محفوظة؛ راجع سجل profiles وسياسات RLS ثم أعد المحاولة.",session)});
 }
 sb.auth.onAuthStateChange((ev,session)=>{
+  authLog("حدث: "+ev,{session:!!session,uid:session?.user?.id||null});
   if(session)acceptSession(session);
-  else if(ev==="SIGNED_OUT"){try{localStorage.removeItem(PKEY)}catch(e){}cleanupLocalPush().finally(()=>location.reload())}
+  else if(ev==="SIGNED_OUT"){
+    /* مش كل SIGNED_OUT معناه إن المستخدم عايز يخرج — ساعات التوكن بيفشل في التجديد.
+       بنجرّب نجدّد مرة واحدة قبل ما نرميه على شاشة الدخول. */
+    if(window.SBA.__bye){authLog("خروج مؤكد — تنضيف وإعادة تحميل");try{localStorage.removeItem(PKEY)}catch(e){}cleanupLocalPush().finally(()=>location.reload());return}
+    (async()=>{
+      let rescued=false;
+      try{const rf=await sb.auth.refreshSession();
+        if(rf&&rf.data&&rf.data.session){authLog("اتنقذت الجلسة بتجديد التوكن");rescued=true;acceptSession(rf.data.session)}
+        else authLog("التجديد ما رجّعش جلسة",{err:rf&&rf.error?String(rf.error.message||rf.error):null});
+      }catch(e){authLog("التجديد رمى خطأ",{err:String(e&&e.message||e)})}
+      if(!rescued){
+        authLog("الجلسة انتهت — رجوع لشاشة الدخول");
+        try{sessionStorage.setItem("hse.session.enforce.error","الجلسة انتهت وما قدرناش نجدّدها. سجّل دخول تاني — وفي شاشة الدخول تحت هتلاقي «سجل الجلسة».")}catch(e){}
+        try{localStorage.removeItem(PKEY)}catch(e){}
+        cleanupLocalPush().finally(()=>location.reload());
+      }
+    })();
+  }
 });
 sb.auth.getSession().then(async({data:{session},error})=>{if(error)throw error;if(session)acceptSession(session);else if(!await offlineResume())showGate()})
   .catch(async e=>{console.error("Could not restore auth session",e);
