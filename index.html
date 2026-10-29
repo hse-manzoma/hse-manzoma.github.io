@@ -454,7 +454,10 @@ async function boot(){
   db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==="settings")refresh()},()=>{});
   db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();{const el=document.getElementById("projectName");el.textContent="HSE · "+(S.settings.project||"المشروع")+" · v"+APP_VER;el.title="نسخة المنظومة "+appVerLine()}refresh()},()=>{});
   show(tab);
-  setTimeout(()=>checkAppUpdate(false),5000);   /* يبص مرة لو فيه نسخة أحدث */
+  /* بعد ما الصفحة تخلص شغلها، مش وهي بتحمّل */
+  const verPeek=()=>checkAppUpdate(false);
+  if(window.requestIdleCallback)requestIdleCallback(verPeek,{timeout:20000});
+  else setTimeout(verPeek,15000);
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
 function renderBanner(){}
@@ -1038,8 +1041,8 @@ function remindersBase(){
 }
 function remindersHTML(){const {R,T}=reminders();const me=myEmpId();const admin=myAccess()?.role==="admin";
   const mine=T.filter(x=>x.assignee===me),others=T.filter(x=>x.assignee!==me);
-  const tl=x=>{const tgt=taskTargetName(x),run=x.kind&&x.kind!=="free"&&x.assignee===me;
-    return `<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":""}${esc(x.title)}</div><div class="s">${tgt?esc(tgt)+" · ":""}${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.place?esc(x.place)+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}${x.needSign!==false&&x.kind==="form"?' · <span class="muted">يلزم توقيعك</span>':""}</div></div>${run?`<button class="btn sm primary" onclick="taskRun('${x.id}')">ابدأ ←</button>`:""}${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button>`:""}</div>`};
+  const tl=x=>{const tgt=taskTargetName(x),pr=taskProgress(x),run=pr.total>0&&x.assignee===me;
+    return `<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":x.kind==="ptw"?"📋 ":x.kind==="multi"?"🗂 ":""}${esc(x.title)}</div><div class="s">${pr.total>1?`<b>${pr.done}/${pr.total} بنود</b> · `:(tgt?esc(tgt)+" · ":"")}${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.place?esc(x.place)+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}${x.needSign!==false&&x.kind==="form"?' · <span class="muted">يلزم توقيعك</span>':""}</div></div>${run?`<button class="btn sm primary" onclick="taskRun('${x.id}')">ابدأ ←</button>`:""}${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button>`:""}</div>`};
   return `<div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><h3 class="grow" style="margin:0">🔔 المطلوب ${admin?"":"منك "}النهارده</h3>${canAssignTasks()?`<button class="btn sm primary" onclick="taskAssign()">📤 ابعت مهمة</button>`:""}</div>
     ${R.length||mine.length?`<div class="list" style="margin-top:8px">${R.map(r=>`<button class="li" style="width:100%;text-align:right;font:inherit;color:inherit;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer" onclick="${r.go}"><span class="dot ${r.lv==="bad"?"off":""}" style="background:${r.lv==="bad"?"var(--bad)":"var(--warn)"}"></span><div class="grow t">${esc(r.t)}</div><span class="muted">←</span></button>`).join("")}${mine.map(tl).join("")}</div>`:`<p class="muted" style="margin:8px 0 0">مفيش حاجة متأخرة. 👍</p>`}
     ${others.length?`<h3 style="margin:14px 0 4px;font-size:14px">مهام وزعتها على الفريق (${others.length})</h3><div class="list">${others.map(tl).join("")}</div>`:""}</div>`}
@@ -1047,7 +1050,23 @@ function remindersHTML(){const {R,T}=reminders();const me=myEmpId();const admin=
    التيم ليدر أو مدير سلامة الموقع يبعت نموذج لواحد من الفريق كمهمة:
    فحص طفاية أو معدة، أو تحرير حادث/مخالفة/ملاحظة وضع أو سلوك، أو أي سجل تاني.
    اللي اتبعتله بيفتح النموذج من المهمة على طول، وبيمضيه، والمهمة بتتقفل لوحدها. */
-const TASK_K={eq:"فحص معدة / طفاية",form:"تحرير سجل أو نموذج",free:"مهمة عامة"};
+const TASK_K={eq:"فحص معدة / طفاية",form:"تحرير سجل أو نموذج",ptw:"استخراج تصريح عمل",free:"بند عام (بالوصف)"};
+/* المهمة ممكن تبقى أكتر من بند: فحص + تصريح + سجل مع بعض.
+   المهام القديمة (بند واحد في جذر المهمة) لسه شغالة زي ما هي. */
+function taskItems(x){
+  if(!x)return [];
+  if(Array.isArray(x.items)&&x.items.length)return x.items;
+  if(x.kind&&x.kind!=="free")return [{kind:x.kind,eqId:x.eqId||"",form:x.form||"",ptwType:"",title:x.title||"",done:x.status==="done",recId:x.recId||""}];
+  return [];
+}
+function taskItemName(it){
+  if(!it)return "";
+  if(it.kind==="eq"){const q=S.equipment.find(e=>e.id===it.eqId);return `فحص ${q?`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""}`.trim():"معدة اتشالت"}`}
+  if(it.kind==="form")return "تحرير "+((FORMS2&&FORMS2[it.form]&&FORMS2[it.form].title)||it.form||"سجل");
+  if(it.kind==="ptw")return "تصريح "+((PTW_TYPES[it.ptwType]||{}).ar||it.ptwType||"");
+  return it.title||"بند";
+}
+const taskProgress=x=>{const L=taskItems(x);return {done:L.filter(i=>i.done).length,total:L.length}};
 function taskAssignerIds(){const a=S.settings.taskAssigners;return Array.isArray(a)?a:[]}
 function canAssignTasks(){
   if(myAccess()?.role==="admin")return true;
@@ -1096,64 +1115,118 @@ async function taskAssign(id){
   if(!canAssignTasks()){toast("مالكش صلاحية توزيع مهام");return}
   const x=id?taskOf(id)||{}:{};
   const fopts=await taskFormOpts();
+  let items=taskItems(x).map(i=>({...i}));
+  const eqo=taskEqOpts(),ptwo=Object.entries(PTW_TYPES).filter(([k])=>FORM_TYPES.includes(k)).map(([k,v])=>[k,v.ar]);
   const root=openSheet(id?"تعديل المهمة":"ابعت مهمة لحد من الفريق",`<div class="form">
-    ${f("نوع المهمة","kind",{opts:Object.entries(TASK_K),value:x.kind||"eq"})}
-    <div id="tkEq">${f("المعدة / الطفاية","eqId",{opts:taskEqOpts(),value:x.eqId||""})}</div>
-    <div id="tkForm">${f("النموذج المطلوب","form",{opts:[["","— اختار النموذج —"],...fopts],value:x.form||""})}</div>
     ${f("لمين","assignee",{opts:empOpts(S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar")),"— اختار الموظف —"),value:x.assignee||"",req:true})}
-    ${f("المطلوب بالظبط","title",{value:x.title||"",full:true})}
+    ${f("عنوان المهمة (اختياري)","title",{value:x.title||"",full:true})}
     ${f("المكان","place",{value:x.place||""})}
     ${f("آخر ميعاد","due",{type:"date",value:x.due||""})}
     ${f("ملاحظات للمنفّذ","note",{value:x.note||"",type:"textarea",full:true})}
-    <label class="field full" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="needSign" ${x.needSign===false?"":"checked"} style="width:18px;height:18px"><span>يلزم توقيع المنفّذ على النموذج بعد الإنجاز</span></label>
-  </div>`,async(fd,form)=>{
-    const kind=fd.kind||"eq";
+    <label class="field full" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="needSign" ${x.needSign===false?"":"checked"} style="width:18px;height:18px"><span>يلزم توقيع المنفّذ على النماذج بعد الإنجاز</span></label>
+  </div>
+  <h3 style="margin:16px 0 6px">بنود المهمة <span class="muted" id="tkN" style="font-size:13px"></span></h3>
+  <p class="muted" style="font-size:13px;margin:0 0 8px">ضيف كام بند براحتك — فحص معدة، تصريح، سجل… وكلهم في مهمة واحدة.</p>
+  <div class="list" id="tkList"></div>
+  <div class="card" style="margin-top:10px"><div class="form">
+    ${f("نوع البند","nkind",{opts:Object.entries(TASK_K),value:"eq"})}
+    <div id="nEq">${f("المعدة / الطفاية","neqId",{opts:eqo})}</div>
+    <div id="nForm">${f("النموذج","nform",{opts:[["","— اختار —"],...fopts]})}</div>
+    <div id="nPtw">${f("نوع التصريح","nptw",{opts:[["","— اختار —"],...ptwo]})}</div>
+    <div id="nFree">${f("وصف البند","ntitle",{value:""})}</div>
+  </div><button type="button" class="btn primary" id="tkAdd">+ ضيف البند</button></div>`,
+  async(fd,form)=>{
     if(!fd.assignee)return "اختار الموظف اللي هتبعتله";
-    if(kind==="eq"&&!fd.eqId)return "اختار المعدة أو الطفاية";
-    if(kind==="form"&&!fd.form)return "اختار النموذج المطلوب";
-    const auto=kind==="eq"?`فحص ${taskTargetName({kind,eqId:fd.eqId})}`:kind==="form"?`تحرير ${(fopts.find(o=>o[0]===fd.form)||["",fd.form])[1]}`:"";
-    if(kind==="free"&&!String(fd.title||"").trim())return "اكتب المطلوب";
-    const data={kind,title:String(fd.title||"").trim()||auto,assignee:fd.assignee,
-      eqId:kind==="eq"?fd.eqId:"",form:kind==="form"?fd.form:"",
-      place:String(fd.place||"").trim(),due:fd.due||"",note:String(fd.note||"").trim(),
-      needSign:!!form.querySelector('[name="needSign"]').checked,status:"open"};
+    if(!items.length)return "ضيف بند واحد على الأقل";
+    const data={assignee:fd.assignee,title:String(fd.title||"").trim()||taskItemName(items[0])+(items.length>1?` +${items.length-1}`:""),
+      items,kind:items.length===1?items[0].kind:"multi",
+      eqId:"",form:"",place:String(fd.place||"").trim(),due:fd.due||"",note:String(fd.note||"").trim(),
+      needSign:!!form.querySelector('[name="needSign"]').checked,
+      status:items.every(i=>i.done)?"done":"open"};
     const ok=await write(()=>id?upsert("tasks",id,data)
       :db.collection("tasks").add({...data,createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()}),
       id?"اتعدلت":"اتبعتت المهمة");
     return ok?null:"الحفظ فشل";
   },id?"حفظ":"ابعت المهمة");
-  const sync=()=>{const k=root.querySelector('[name="kind"]').value;
-    root.querySelector("#tkEq").style.display=k==="eq"?"":"none";
-    root.querySelector("#tkForm").style.display=k==="form"?"":"none"};
-  root.querySelector('[name="kind"]').onchange=sync;sync();
+  const sync=()=>{const k=root.querySelector('[name="nkind"]').value;
+    root.querySelector("#nEq").style.display=k==="eq"?"":"none";
+    root.querySelector("#nForm").style.display=k==="form"?"":"none";
+    root.querySelector("#nPtw").style.display=k==="ptw"?"":"none";
+    root.querySelector("#nFree").style.display=k==="free"?"":"none"};
+  const draw=()=>{
+    root.querySelector("#tkN").textContent=items.length?`(${items.length})`:"";
+    root.querySelector("#tkList").innerHTML=items.length?items.map((it,i)=>
+      `<div class="li"><div class="grow"><div class="t">${it.kind==="eq"?"🧯 ":it.kind==="form"?"📝 ":it.kind==="ptw"?"📋 ":"• "}${esc(taskItemName(it))}</div><div class="s">${esc(TASK_K[it.kind]||"")}${it.done?" · ✔ اتعمل":""}</div></div><button type="button" class="btn ghost sm" data-del="${i}">✕</button></div>`).join("")
+      :`<div class="li"><div class="muted">لسه مفيش بنود — ضيف من تحت.</div></div>`;
+    root.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{items.splice(+b.dataset.del,1);draw()});
+  };
+  root.querySelector('[name="nkind"]').onchange=sync;sync();draw();
+  root.querySelector("#tkAdd").onclick=()=>{
+    const k=root.querySelector('[name="nkind"]').value;
+    const it={kind:k,eqId:"",form:"",ptwType:"",title:"",done:false,recId:""};
+    if(k==="eq"){it.eqId=root.querySelector('[name="neqId"]').value;if(!it.eqId)return toast("اختار المعدة")}
+    if(k==="form"){it.form=root.querySelector('[name="nform"]').value;if(!it.form)return toast("اختار النموذج")}
+    if(k==="ptw"){it.ptwType=root.querySelector('[name="nptw"]').value;if(!it.ptwType)return toast("اختار نوع التصريح")}
+    if(k==="free"){it.title=root.querySelector('[name="ntitle"]').value.trim();if(!it.title)return toast("اكتب وصف البند")}
+    items.push(it);draw();
+    if(k==="free")root.querySelector('[name="ntitle"]').value="";
+  };
 }
-/* المنفّذ بيفتح المهمة → النموذج بيتفتح على طول وهو متعلّم إنه جاي من مهمة */
+/* المنفّذ بيفتح المهمة → لو بند واحد بيفتح على طول، ولو أكتر بيعرضهم ويختار */
 async function taskRun(id){
   const x=taskOf(id);if(!x){toast("المهمة مش موجودة");return}
   if(x.status==="done"){toast("المهمة خلصت");return}
-  TASK_RUN=id;
+  const L=taskItems(x);
+  if(!L.length){confirmSheet("إنهاء المهمة",x.title||"","تمام، اقفلها",()=>taskDone(id));return}
+  if(L.length===1&&!L[0].done)return taskRunItem(id,0);
+  const pr=taskProgress(x);
+  const root=openSheet(`بنود المهمة · ${pr.done}/${pr.total}`,
+    `<div class="banner">${esc(x.title||"")}${x.place?" · "+esc(x.place):""}${x.note?`<div style="margin-top:4px">${esc(x.note)}</div>`:""}</div>
+     <div class="list">${L.map((it,i)=>`<div class="li">
+       <div class="grow"><div class="t">${it.done?"✔ ":""}${esc(taskItemName(it))}</div><div class="s">${esc(TASK_K[it.kind]||"")}</div></div>
+       ${it.done?'<span class="pill p-appr">خلص</span>':`<button type="button" class="btn sm primary" data-go="${i}">ابدأ ←</button>`}</div>`).join("")}</div>`,
+    async()=>null,"تمام");
+  root.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>taskRunItem(id,+b.dataset.go));
+}
+async function taskRunItem(id,idx){
+  const x=taskOf(id);if(!x)return;
+  const it=taskItems(x)[idx];if(!it){toast("البند مش موجود");return}
+  TASK_RUN={id,idx};
   try{
-    if(x.kind==="eq"){
-      const q=S.equipment.find(e=>e.id===x.eqId);
-      if(!q){TASK_RUN=null;toast("المعدة اتشالت من المنظومة");return}
-      eqInspect(x.eqId);
-    }else if(x.kind==="form"){
-      const me=emp(myEmpId());
-      await recordForm(x.form,null,{f:{place:x.place||"",desc:x.note||""},taskId:id});
-      void me;
+    if(it.kind==="eq"){
+      if(!S.equipment.find(e=>e.id===it.eqId)){TASK_RUN=null;toast("المعدة اتشالت من المنظومة");return}
+      eqInspect(it.eqId);
+    }else if(it.kind==="form"){
+      await recordForm(it.form,null,{f:{place:x.place||"",desc:x.note||""},taskId:id});
+    }else if(it.kind==="ptw"){
+      TASK_RUN=null;                       /* التصريح بيتقفل يدوي بعد ما يتحفظ */
+      ptwForm();
+      setTimeout(()=>{const sel=document.querySelector('#shForm [name="type"]');
+        if(sel){sel.value=it.ptwType;sel.dispatchEvent(new Event("change",{bubbles:true}))}
+        toast("اختار بيانات التصريح واحفظ، وبعدين علّم البند خلص")},350);
     }else{
       TASK_RUN=null;
-      if(await confirmBox("تقفل المهمة؟",x.title||""))taskDone(id);
+      confirmSheet("إنهاء البند",taskItemName(it),"تمام، خلص",()=>taskItemDone(id,idx));
     }
-  }catch(e){TASK_RUN=null;console.error(e);toast("معرفتش أفتح المهمة")}
+  }catch(e){TASK_RUN=null;console.error(e);toast("معرفتش أفتح البند")}
+}
+/* بيعلّم بند إنه خلص، ويقفل المهمة كلها لو كل البنود خلصت */
+async function taskItemDone(id,idx,extra){
+  const x=taskOf(id);if(!x)return;
+  const L=taskItems(x).map((i,k)=>k===idx?{...i,done:true,...(extra||{})}:{...i});
+  const all=L.every(i=>i.done);
+  const patch={items:L};
+  if(all){patch.status="done";patch.doneAt=today();patch.doneBy=ME.id||"";patch.doneByEmp=myEmpId()||""}
+  await write(()=>upsert("tasks",id,patch),all?"المهمة اتقفلت ✔":`البند خلص · فاضل ${L.filter(i=>!i.done).length}`);
+  return all;
 }
 /* بتتنادى بعد حفظ السجل أو الفحص اللي اتعمل من مهمة */
-async function taskFinish(taskId,{recId="",eqId=""}={}){
-  const x=taskOf(taskId);if(!x)return;
-  await write(()=>upsert("tasks",taskId,{status:"done",doneAt:today(),doneBy:ME.id||"",
-    doneByEmp:myEmpId()||"",recId:recId||"",eqRef:eqId||""}),"المهمة اتقفلت ✔");
+async function taskFinish(ref,{recId="",eqId=""}={}){
+  const id=typeof ref==="string"?ref:ref&&ref.id;
+  const idx=typeof ref==="string"?0:(ref&&ref.idx)||0;
+  const x=taskOf(id);if(!x)return;
+  await taskItemDone(id,idx,{recId:recId||"",eqRef:eqId||""});
   if(x.needSign!==false&&recId){
-    /* السجل لسه بيوصل للحالة المحلية، فبنستناه شوية قبل ما نمضيه */
     for(let i=0;i<12&&!S.records.some(r=>r.id===recId);i++)await new Promise(r=>setTimeout(r,120));
     try{await signDoc("records",recId,{})}catch(e){console.error("توقيع المهمة فشل",e)}
   }
@@ -1346,6 +1419,12 @@ function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
 async function checkAppUpdate(loud){
   try{
+    if(!loud){
+      /* ما ننزّلش الملف كله مع كل فتحة — مرة كل ساعة تكفي، وبعد ما الصفحة تهدا */
+      const last=+(await window.SBA?.store?.get("verCheckAt")||0);
+      if(Date.now()-last<3600000)return false;
+      await window.SBA?.store?.set("verCheckAt",Date.now());
+    }
     const r=await fetch("index.html?_v="+Date.now(),{cache:"no-store"});
     if(!r.ok)throw new Error("http_"+r.status);
     const t=await r.text();
@@ -2745,7 +2824,7 @@ async function recordFormBase(fid,id,preset){
       const dupes=await recDupes(fid,data,null);
       if(dupes.length){dupAck=true;return dupWarnMsg(fid,dupes)}
     }
-    if(TASK_RUN)data.taskId=TASK_RUN;
+    if(TASK_RUN)data.taskId=(typeof TASK_RUN==="string"?TASK_RUN:TASK_RUN.id)||"";
     const ok=await write(async()=>{if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}
     if(ok&&rid&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t,{recId:rid})}catch(e){console.error(e)}}

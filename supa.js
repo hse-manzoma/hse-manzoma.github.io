@@ -42,11 +42,25 @@ const cachePut=(col,id,data)=>ido("docs","readwrite",s=>s.put({k:K(col,id),col,i
 const cacheDel=(col,id)=>ido("docs","readwrite",s=>s.delete(K(col,id)));
 const cacheCol=col=>ido("docs","readonly",s=>s.getAll(IDBKeyRange.bound(col+"\u0000",col+"\u0000￿")))
   .then(r=>(r||[]).map(x=>({id:x.id,data:x.data})));
+/* نسخة القائمة كلها بتتكتب في معاملة واحدة.
+   (كانت معاملة لكل صف — مع آلاف الصفوف كانت بتخنق الصفحة وتخليها ما تحمّلش) */
 async function cacheReplaceCol(col,rows){
+  const d=await idb();if(!d)return;
   const keep=new Set(rows.map(r=>r.id));
-  const old=await cacheCol(col)||[];
-  for(const o of old)if(!keep.has(o.id))await cacheDel(col,o.id);
-  for(const r of rows)await cachePut(col,r.id,r.data);
+  try{
+    await new Promise((res,rej)=>{
+      const t=d.transaction("docs","readwrite"),st=t.objectStore("docs");
+      const cur=st.openCursor(IDBKeyRange.bound(col+"\u0000",col+"\u0000\uffff"));
+      cur.onsuccess=e=>{
+        const c=e.target.result;
+        if(c){if(!keep.has(c.value&&c.value.id))c.delete();c.continue();return}
+        const at=Date.now();
+        for(const r of rows)st.put({k:K(col,r.id),col,id:r.id,data:r.data,at});
+      };
+      cur.onerror=()=>rej(cur.error);
+      t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||new Error("aborted"));
+    });
+  }catch(e){console.warn("حفظ النسخة المحلية لـ"+col+" فشل",e)}
 }
 const outAdd=o=>ido("outbox","readwrite",s=>s.add(o));
 const outAll=()=>ido("outbox","readonly",s=>s.getAll()).then(r=>(r||[]).sort((a,b)=>a.seq-b.seq));
