@@ -15,19 +15,25 @@ html,body{margin:0}
   --f-body:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;
   --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
   --r:10px;
+  --d-lift:0 1px 0 rgba(255,255,255,.6) inset,0 1px 2px rgba(16,32,26,.10),0 3px 8px rgba(16,32,26,.07);
+  --d-lift-h:0 1px 0 rgba(255,255,255,.75) inset,0 2px 4px rgba(16,32,26,.13),0 8px 18px rgba(16,32,26,.11);
+  --d-press:0 1px 3px rgba(16,32,26,.20) inset;
+  --d-card:0 1px 0 rgba(255,255,255,.55) inset,0 1px 3px rgba(16,32,26,.06),0 10px 24px -14px rgba(16,32,26,.20);
+  --d-gloss:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0) 58%);
 }
+
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0E1412; --surface:#161F1B; --sunk:#1D2824; --ink:#E4ECE8; --muted:#93A59C; --line:#2B3833;
   --accent:#FF7A3D; --accent-ink:#1A0D05; --accent-soft:#3A2116;
   --ok:#5CC48A; --ok-soft:#173527; --warn:#E9B04F; --warn-soft:#3A2D12; --bad:#F2776B; --bad-soft:#3D1C19; --info:#7FB2E8; --info-soft:#18293B;
   --t-hot:#FF8A4C; --t-cold:#6FA8EA; --t-height:#E9B04F; --t-lift:#B39AE6; --t-conf:#4CC7BA; --t-elec:#F27BA3; --t-exc:#C8B79A;
-  color-scheme:dark}}
+  color-scheme:dark;--d-lift:0 1px 0 rgba(255,255,255,.07) inset,0 1px 2px rgba(0,0,0,.45),0 3px 10px rgba(0,0,0,.32);--d-lift-h:0 1px 0 rgba(255,255,255,.11) inset,0 2px 6px rgba(0,0,0,.55),0 10px 22px rgba(0,0,0,.42);--d-press:0 2px 5px rgba(0,0,0,.55) inset;--d-card:0 1px 0 rgba(255,255,255,.05) inset,0 2px 6px rgba(0,0,0,.38),0 14px 30px -16px rgba(0,0,0,.6);--d-gloss:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 58%)}}
 :root[data-theme="dark"]{
   --bg:#0E1412; --surface:#161F1B; --sunk:#1D2824; --ink:#E4ECE8; --muted:#93A59C; --line:#2B3833;
   --accent:#FF7A3D; --accent-ink:#1A0D05; --accent-soft:#3A2116;
   --ok:#5CC48A; --ok-soft:#173527; --warn:#E9B04F; --warn-soft:#3A2D12; --bad:#F2776B; --bad-soft:#3D1C19; --info:#7FB2E8; --info-soft:#18293B;
   --t-hot:#FF8A4C; --t-cold:#6FA8EA; --t-height:#E9B04F; --t-lift:#B39AE6; --t-conf:#4CC7BA; --t-elec:#F27BA3; --t-exc:#C8B79A;
-  color-scheme:dark}
+  color-scheme:dark;--d-lift:0 1px 0 rgba(255,255,255,.07) inset,0 1px 2px rgba(0,0,0,.45),0 3px 10px rgba(0,0,0,.32);--d-lift-h:0 1px 0 rgba(255,255,255,.11) inset,0 2px 6px rgba(0,0,0,.55),0 10px 22px rgba(0,0,0,.42);--d-press:0 2px 5px rgba(0,0,0,.55) inset;--d-card:0 1px 0 rgba(255,255,255,.05) inset,0 2px 6px rgba(0,0,0,.38),0 14px 30px -16px rgba(0,0,0,.6);--d-gloss:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 58%)}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14.5px;line-height:1.55}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
@@ -43,7 +49,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .sync{margin-inline-start:auto;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .dot.on{background:var(--ok)} .dot.off{background:var(--bad)}
-nav.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+nav.tabs{display:flex;gap:2px 4px;flex-wrap:wrap;row-gap:0}
 nav.tabs::-webkit-scrollbar{display:none}
 nav.tabs button{font:600 14px var(--f-body);color:var(--muted);background:none;border:0;padding:10px 14px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
 nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
@@ -295,6 +301,34 @@ table.ed input,table.ed textarea{width:100%}
 .dpage .stamp{display:inline-block;border:1.5px solid #1f4f8f;color:#1f4f8f;border-radius:4px;padding:.5mm 2mm;font-size:8.5pt;font-weight:700}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* ===== مظهر حديث بعمق ثلاثي الأبعاد (شكل فقط) ===== */
+.btn{background-image:var(--d-gloss);box-shadow:var(--d-lift);transition:transform .09s ease,box-shadow .15s ease,background-color .15s ease;will-change:transform}
+@media (hover:hover){.btn:hover:not(:disabled){box-shadow:var(--d-lift-h);transform:translateY(-1px)}}
+.btn:active:not(:disabled){transform:translateY(1px);box-shadow:var(--d-press)}
+.btn:disabled,.btn[disabled]{background-image:none;box-shadow:none;transform:none}
+.btn.primary{background-image:linear-gradient(180deg,color-mix(in srgb,#fff 24%,var(--accent)),var(--accent) 60%,color-mix(in srgb,#000 9%,var(--accent)));border-color:color-mix(in srgb,#000 14%,var(--accent));text-shadow:0 1px 1px rgba(0,0,0,.16)}
+.btn.sign{background-image:linear-gradient(180deg,#3a6cae,#1f4f8f 62%,#1a4479);border-color:#17395f;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+.btn.danger{background-image:linear-gradient(180deg,color-mix(in srgb,#fff 22%,var(--bad)),var(--bad) 62%,color-mix(in srgb,#000 10%,var(--bad)));border-color:color-mix(in srgb,#000 14%,var(--bad));color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.2)}
+.btn.ghost{background-image:none;box-shadow:none}
+@media (hover:hover){.btn.ghost:hover{background:var(--sunk);box-shadow:var(--d-lift);transform:none}}
+.btn.ghost:active{background:var(--sunk);box-shadow:var(--d-press);transform:none}
+.card{box-shadow:var(--d-card)}
+.tile{background-image:var(--d-gloss)}
+.pill{box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 1px 2px rgba(16,32,26,.12)}
+.mark{background-image:linear-gradient(155deg,color-mix(in srgb,#fff 22%,var(--accent)),var(--accent) 58%,color-mix(in srgb,#000 14%,var(--accent)));box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 3px 8px -2px rgba(16,32,26,.35)}
+nav.tabs button{border-radius:9px 9px 0 0;transition:background .15s ease,color .15s ease}
+@media (hover:hover){nav.tabs button:hover{background:var(--sunk)}}
+nav.tabs button[aria-selected="true"]{background:linear-gradient(180deg,var(--sunk),transparent)}
+#bnav button{transition:transform .1s ease,background .15s ease}
+#bnav button:active{transform:scale(.93)}
+#bnav button[aria-current="true"]{background:var(--accent-soft);box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 2px 6px -1px rgba(16,32,26,.14)}
+#bnav button svg{filter:drop-shadow(0 1px 1px rgba(16,32,26,.22))}
+@media (prefers-reduced-motion:reduce){.btn,.btn:hover,.btn:active,#bnav button:active{transform:none!important;transition:none!important}}
+.btn>svg.ic,#bnav button>svg.ic{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 0 rgba(16,32,26,.18))}
+#bnav button>svg.ic{width:22px;height:22px}
+.btn.ghost>svg.ic{width:18px;height:18px;stroke-width:1.8}
+h1>svg.ic,h2>svg.ic,h3>svg.ic,h4>svg.ic,span.grow>svg.ic,nav.tabs button>svg.ic{width:1.05em;height:1.05em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.15em;margin-left:.3em;opacity:.95}
+nav.tabs button>svg.ic{width:16px;height:16px;vertical-align:-.2em}
 </style>
 
 <div id="app">
@@ -1118,7 +1152,7 @@ async function taskAssign(id){
   let items=taskItems(x).map(i=>({...i}));
   const eqo=taskEqOpts(),ptwo=Object.entries(PTW_TYPES).filter(([k])=>FORM_TYPES.includes(k)).map(([k,v])=>[k,v.ar]);
   const root=openSheet(id?"تعديل المهمة":"ابعت مهمة لحد من الفريق",`<div class="form">
-    ${f("لمين","assignee",{opts:empOpts(S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar")),"— اختار الموظف —"),value:x.assignee||"",req:true})}
+    <div class="field"><label for="f_assignee">لمين</label><input id="f_assignee" name="assignee" list="empListAll" autocomplete="off" required value="${esc(x.assignee?empName(x.assignee):"")}" placeholder="اكتب الاسم أو الكود، أو اختار من القائمة"></div>
     ${f("عنوان المهمة (اختياري)","title",{value:x.title||"",full:true})}
     ${f("المكان","place",{value:x.place||""})}
     ${f("آخر ميعاد","due",{type:"date",value:x.due||""})}
@@ -1134,11 +1168,12 @@ async function taskAssign(id){
     <div id="nForm">${f("النموذج","nform",{opts:[["","— اختار —"],...fopts]})}</div>
     <div id="nPtw">${f("نوع التصريح","nptw",{opts:[["","— اختار —"],...ptwo]})}</div>
     <div id="nFree">${f("وصف البند","ntitle",{value:""})}</div>
-  </div><button type="button" class="btn primary" id="tkAdd">+ ضيف البند</button></div>`,
+  </div><button type="button" class="btn primary" id="tkAdd">+ ضيف البند</button></div>${empDatalist2()}`,
   async(fd,form)=>{
-    if(!fd.assignee)return "اختار الموظف اللي هتبعتله";
+    const who=resolveEmp(fd.assignee);
+    if(!who)return "اكتب اسم الموظف أو كوده صح، أو اختاره من القائمة";
     if(!items.length)return "ضيف بند واحد على الأقل";
-    const data={assignee:fd.assignee,title:String(fd.title||"").trim()||taskItemName(items[0])+(items.length>1?` +${items.length-1}`:""),
+    const data={assignee:who.id,title:String(fd.title||"").trim()||taskItemName(items[0])+(items.length>1?` +${items.length-1}`:""),
       items,kind:items.length===1?items[0].kind:"multi",
       eqId:"",form:"",place:String(fd.place||"").trim(),due:fd.due||"",note:String(fd.note||"").trim(),
       needSign:!!form.querySelector('[name="needSign"]').checked,
@@ -1413,7 +1448,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.1.0";
+const APP_VER="5.2.0";
 const APP_BUILD="2026-10-29";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4765,6 +4800,82 @@ VIEWS.chat={shell:()=>`<div class="head"><h2 class="grow">💬 الشات</h2></
       $("chIn").value="";onChatInsert(data);
       const to=r==="team"?(S.profiles||[]).filter(p=>!p.disabled).map(p=>p.id):[other];notifyCall({action:"send",to:to.filter(u=>u!==ME.id),title:`💬 ${myEmpName()}${r==="team"?" · الفريق":""}`,body:text||(img?"📷 صورة":"📎 "+(ref?.label||"")),url:`?go=chat&id=${r}`},true).catch(()=>{})}}};
 
+
+/* ===== أيقونات حديثة: بتستبدل الإيموجي اللي في أول الأزرار برسم SVG نضيف =====
+   مش بتلمس أي منطق — بتشيل الرمز من أول نص الزر وتحط مكانه أيقونة. */
+const IC_D={
+ eye:'<circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/>',
+ sign:'<path d="M3 20h18"/><path d="M5.5 16.5 15 7a2.1 2.1 0 1 1 3 3l-9.5 9.5-4 1 1-4Z"/>',
+ pencil:'<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/>',
+ trash:'<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6.5 7l1 13h9l1-13"/><path d="M10 11v6M14 11v6"/>',
+ phone:'<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>',
+ send:'<path d="M21.5 2.5 2.5 10l7.5 3 3 7.5 8.5-18Z"/><path d="M10 13.5 21.5 2.5"/>',
+ clip:'<path d="M20 11.5 12 19.5a5 5 0 0 1-7-7l8.5-8.5a3.4 3.4 0 1 1 4.8 4.8L9.6 17.4a1.8 1.8 0 1 1-2.5-2.5l7.9-7.9"/>',
+ cam:'<path d="M3 8.5h3.5L8 6h8l1.5 2.5H21v11H3v-11Z"/><circle cx="12" cy="13.5" r="3.5"/>',
+ print:'<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="7" rx="2"/><path d="M7 14h10v7H7z"/>',
+ save:'<path d="M4 4h12l4 4v12H4z"/><path d="M8 4v6h8V4"/><rect x="8" y="14" width="8" height="6"/>',
+ down:'<path d="M12 3v12"/><path d="m7.5 11 4.5 4.5L16.5 11"/><path d="M4 20h16"/>',
+ check:'<path d="m4.5 12.5 5 5 10-11"/>',
+ x:'<path d="M6 6l12 12M18 6 6 18"/>',
+ user:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.3-3.6 4.1-5.5 7.5-5.5S18.2 16.4 19.5 20"/>',
+ users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c1.1-3.2 3.5-5 6.5-5s5.4 1.8 6.5 5"/><path d="M16 5.2a3.5 3.5 0 0 1 0 6.6"/><path d="M18 14.8c2.1.6 3.4 2.2 4 4.7"/>',
+ pin:'<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/>',
+ bell:'<path d="M18 9a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16S18 14 18 9Z"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/>',
+ chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.5-5A8 8 0 1 1 21 12Z"/>',
+ warn:'<path d="M12 3.5 22 20H2L12 3.5Z"/><path d="M12 10v5"/><circle cx="12" cy="17.6" r=".9" fill="currentColor" stroke="none"/>',
+ mail:'<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>',
+ note:'<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 17h5"/>',
+ clip2:'<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9.5 4V2.6h5V4"/><path d="M9.5 10h5M9.5 14h5"/>',
+ door:'<path d="M14 3H5v18h9"/><path d="M19 12H9.5"/><path d="m15 8 4 4-4 4"/>',
+ badge:'<rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><circle cx="8.5" cy="12" r="2.6"/><path d="M14 10h4M14 14h4"/>',
+ like:'<path d="M7 21V10l4.5-7.5c1.5.2 2.3 1.2 2 3L13 9h5.5a2.2 2.2 0 0 1 2.1 2.8l-1.8 7A2.6 2.6 0 0 1 16.3 21H7Z"/><path d="M7 10H3v11h4"/>',
+ chart:'<path d="M3 20h18"/><path d="M6 20v-6M11 20V8M16 20v-9M21 20V5"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
+ refresh:'<path d="M20 11A8 8 0 0 0 6.3 6.3L4 8.5"/><path d="M4 4v4.5h4.5"/><path d="M4 13a8 8 0 0 0 13.7 4.7L20 15.5"/><path d="M20 20v-4.5h-4.5"/>',
+ lock:'<rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/>',
+ cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17"/><path d="M8 3v4M16 3v4"/>',
+ tools:'<path d="M14.6 6.6a3.5 3.5 0 0 0 4.6 4.6L21 13l-8 8-2-2 8-8"/><path d="m7 3 4 4-2.5 2.5L4.5 5.5 7 3Z"/><path d="m3 17 5-5 3 3-5 5H3v-3Z"/>',
+ office:'<path d="M3 20h18"/><path d="m12 3.5 8.5 4.5h-17L12 3.5Z"/><path d="M6.5 8v12M10 8v12M14 8v12M17.5 8v12"/>',
+ checkc:'<circle cx="12" cy="12" r="8.6"/><path d="m8.2 12.2 2.6 2.6 5-5.4"/>',
+ star:'<path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 17l-5.3 2.8 1.1-5.9L3.5 9.8l5.9-.8L12 3.6Z"/>'
+};
+const IC_MAP={"\u{1F441}":"eye","\u{1F440}":"eye","✍":"sign","✏":"pencil","\u{1F4DD}":"note","\u{1F5D1}":"trash",
+ "\u{1F4F2}":"phone","\u{1F4F1}":"phone","\u{1F4E4}":"send","\u{1F4E8}":"send","\u{1F4CE}":"clip","\u{1F4F7}":"cam","\u{1F4F8}":"cam",
+ "\u{1F5A8}":"print","\u{1F4BE}":"save","⬇":"down","✔":"check","✅":"checkc","✓":"check",
+ "✕":"x","❌":"x","✖":"x","\u{1F464}":"user","\u{1F465}":"users","\u{1F4CD}":"pin","\u{1F514}":"bell",
+ "\u{1F4AC}":"chat","⚠":"warn","✉":"mail","\u{1F4CB}":"clip2","\u{1F6AA}":"door","\u{1FAAA}":"badge",
+ "\u{1F44D}":"like","\u{1F4C8}":"chart","\u{1F4C9}":"chart","\u{1F4CA}":"chart","➕":"plus","\u{1F50D}":"search",
+ "\u{1F504}":"refresh","\u{1F512}":"lock","\u{1F4C5}":"cal","\u{1F5D3}":"cal","+":"plus","\u{1F6E0}":"tools","\u{1F527}":"tools","\u{1F3DB}":"office","⭐":"star","\u{1F31F}":"star"};
+const IC_LBL={eye:"عرض",sign:"توقيع",pencil:"تعديل",trash:"مسح",phone:"واتساب",send:"إرسال",clip:"مرفقات",cam:"صورة",
+ print:"طباعة",save:"حفظ",down:"تنزيل",check:"تم",x:"إغلاق",user:"مستخدم",users:"الفريق",pin:"الموقع",bell:"تنبيه",
+ chat:"محادثة",warn:"تنبيه",mail:"بريد",note:"ملاحظة",clip2:"سجل",door:"خروج",badge:"بطاقة",like:"موافقة",
+ chart:"إحصائيات",tools:"إجراءات",office:"المكتب",checkc:"تم",star:"مميز",plus:"إضافة",search:"بحث",refresh:"تحديث",lock:"قفل",cal:"تاريخ"};
+const IC_RE=new RegExp("^[\\s\\u00a0]*(\\+(?=[\\s\\u00a0]|$)|"+Object.keys(IC_MAP).map(c=>c.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")\\uFE0F?[\\s\\u00a0]*");
+function icoEl(n){const sv=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  sv.setAttribute("class","ic");sv.setAttribute("viewBox","0 0 24 24");sv.setAttribute("aria-hidden","true");
+  sv.innerHTML=IC_D[n]||"";return sv}
+function iconizeBtns(root){
+  let el;try{el=root&&root.querySelectorAll?root:document}catch(e){el=document}
+  const L=el.querySelectorAll(".btn:not([data-ic]),#bnav button:not([data-ic]),nav.tabs button:not([data-ic]),h1:not([data-ic]),h2:not([data-ic]),h3:not([data-ic]),h4:not([data-ic]),span.grow:not([data-ic])");
+  for(const b of L){
+    b.setAttribute("data-ic","1");
+    if(b.querySelector("svg"))continue;
+    const tn=[...b.childNodes].find(n=>n.nodeType===3&&IC_RE.test(n.nodeValue));
+    if(!tn)continue;
+    const m=tn.nodeValue.match(IC_RE),name=IC_MAP[m[1]];
+    if(!name||!IC_D[name])continue;
+    tn.nodeValue=tn.nodeValue.slice(m[0].length);
+    b.insertBefore(icoEl(name),tn);
+    if(!b.textContent.trim()&&!b.getAttribute("aria-label"))b.setAttribute("aria-label",b.title||IC_LBL[name]||"زر");
+  }
+}
+(function icoWatch(){
+  let q=0;const run=()=>{q=0;try{iconizeBtns(document)}catch(e){}};
+  const kick=()=>{if(q)return;q=requestAnimationFrame(run)};
+  try{new MutationObserver(kick).observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
+  if(document.readyState==="loading")addEventListener("DOMContentLoaded",kick);else kick();
+})();
 
 show(tab);
 boot();
