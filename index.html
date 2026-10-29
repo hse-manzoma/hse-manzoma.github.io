@@ -1496,7 +1496,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.3.0";
+const APP_VER="5.3.1";
 const APP_BUILD="2026-10-29";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2586,7 +2586,15 @@ async function printVoucher(key){
   const e=emp(L[0].empId)||{};const d=L[0].date;
   const vals={name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(d),d1:toArDigits(dmy(d)),d2:toArDigits(dmy(d)),d3:toArDigits(dmy(d))};
   L.slice(0,4).forEach((m,i)=>{const it=item(m.itemId)||{};vals["item"+i]=it.name||"";vals["icode"+i]=it.code||"";vals["qty"+i]=String(num(m.qty))});
-  printDoc({title:"إذن صرف · "+(e.name||""),T:"IV",vals,miss:L.length>4?["النموذج بياخد 4 أصناف بس، الباقي محتاج إذن تاني"]:[],filename:`اذن صرف ${e.name||""} ${d}.pdf`,rec:voucherHead(key)});
+  /* توقيع الإذن: السجل بتاعه هو أول حركة صرف، والتوقيعات بتتحفظ عليها */
+  const head=voucherHead(key);
+  const sg=signsOf(head);
+  /* ترتيب الخانات: أول توقيع يمين (اعداد الإدارة الطالبة)، التاني في النص، التالت شمال (مهندس التكاليف) */
+  vals.sigName1=sg[0]?.name||"";vals.sigName2=sg[1]?.name||"";vals.sigName3=sg[2]?.name||"";
+  printDoc({title:"إذن صرف · "+(e.name||""),T:"IV",vals,
+    miss:L.length>4?["النموذج بياخد 4 أصناف بس، الباقي محتاج إذن تاني"]:[],
+    filename:`اذن صرف ${e.name||""} ${d}.pdf`,rec:head,
+    signCol:"ppe_moves",reopen:`printVoucher('${String(key).replace(/'/g,"\\'")}')`});
 }
 async function printLeave(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
@@ -3029,7 +3037,7 @@ async function stampSavedSigs(T,rec,pages,vals){
     const want=normName((vals||{})[b.field]||"");if(!want)continue;
     const i=L.findIndex((z,k)=>!used.has(k)&&normName(z.name)===want);
     if(i<0)continue;used.add(i);
-    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[i].uid===ME.id?mine:"",L[i]);
+    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[i].uid===ME.id?mine:"",L[i],{fit:b.fit});
   }
   /* الباقي: أي توقيع ما لقاش خانة باسمه ياخد أول خانة فاضية */
   const free=(F.sigBoxes||[]).filter(b=>{const w=normName((vals||{})[b.field]||"");
@@ -3038,7 +3046,7 @@ async function stampSavedSigs(T,rec,pages,vals){
   for(let k=0;k<L.length;k++){
     if(used.has(k))continue;
     const b=free[fi++];if(!b)break;
-    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[k].uid===ME.id?mine:"",L[k]);
+    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[k].uid===ME.id?mine:"",L[k],{fit:b.fit});
   }
   return pages;
 }
@@ -3921,8 +3929,9 @@ async function normalizeSigForPrint(src){if(!src)return null;if(sigPrintCache.ha
     if(x1<=x0||y1<=y0)return null;g.putImageData(id,0,0);const pad=Math.max(3,Math.round(Math.min(x1-x0,y1-y0)*.05)),sx=Math.max(0,x0-pad),sy=Math.max(0,y0-pad),sw=Math.min(c.width-sx,x1-x0+pad*2),sh=Math.min(c.height-sy,y1-y0+pad*2),out=document.createElement("canvas");
     out.width=sw;out.height=sh;out.getContext("2d").drawImage(c,sx,sy,sw,sh,0,0,sw,sh);return out})();
   sigPrintCache.set(src,task);try{return await task}catch(e){sigPrintCache.delete(src);return loadImg(src)}}
-async function stampOn(cv,r,src,s){if(!cv||!r)return;const source=src||s?.signature||s?.img;if(!source)return;const g=cv.getContext("2d");const W=cv.width,H=cv.height;const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
-  try{const im=await normalizeSigForPrint(source);if(!im)return;const maxW=bw*.86,maxH=bh*.68,k=Math.min(maxW/im.width,maxH/im.height),w=im.width*k,h=im.height*k;
+async function stampOn(cv,r,src,s,o){if(!cv||!r)return;const source=src||s?.signature||s?.img;if(!source)return;const g=cv.getContext("2d");const W=cv.width,H=cv.height;const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
+  /* fit: نسبة ارتفاع الخانة اللي التوقيع ياخدها — للصفوف القصيرة زي إذن الصرف */
+  try{const im=await normalizeSigForPrint(source);if(!im)return;const maxW=bw*.86,maxH=bh*(o&&o.fit?o.fit:.68),k=Math.min(maxW/im.width,maxH/im.height),w=im.width*k,h=im.height*k;
     g.save();g.beginPath();g.rect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.clip();g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);g.restore()}catch(e){}}
 const NAME_KEY=/^(sig\d|tName|lecName|lecturer|trainer|mgr|officer|writer|gh|inspector|reporter|clinic|lead|corrBy|orig|sup|checker)(_\d)?$/;
 /* approvalDrawn: هل مسار الاعتماد رسم التوقيع فعلاً؟
