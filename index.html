@@ -1187,6 +1187,85 @@ function dupWarnMsg(fid,list){
   return `⚠ فيه ${list.length===1?"سجل زيه":list.length+" سجلات زيه"} النهاردة بنفس النموذج ولنفس الشخص (${esc(names)}). راجعه الأول عشان ما يتكررش — ولو متأكد إن ده سجل مختلف، دوس حفظ تاني.`;
 }
 const profEmp=uid=>(S.profiles||[]).find(x=>x.id===uid)?.emp_id||"";
+/* ================= توقيعات الحضور الحيّة =================
+   نموذج فيه عمود توقيع (زي محاضرة التوعية TBT): بتفتح القائمة على موبايل أو تابلت،
+   كل عامل يمضي بصباعه، والتوقيع بيتحفظ في صفّه وبيطلع في التقرير وفي الطباعة. */
+function attendCol(spec){return (spec?.rows?.cols||[]).find(c=>c.type==="sig")}
+function attendRows(rec,spec){
+  const R=spec?.rows;if(!R)return [];
+  return (rec.rows||[]).slice(0,R.n).map((row,i)=>({i,row:row||{},name:(row&&row.name)||""})).filter(x=>x.name.trim());
+}
+function attendStats(rec,spec){
+  const L=attendRows(rec,spec);
+  return {total:L.length,signed:L.filter(x=>x.row.sigImg).length};
+}
+async function attendSign(recId){
+  const rec=S.records.find(r=>r.id===recId);if(!rec){toast("السجل مش موجود");return}
+  const spec=(await loadForms2())[rec.form];const col=attendCol(spec);
+  if(!col){toast("النموذج ده مفيهوش عمود توقيع");return}
+  const L=attendRows(rec,spec);
+  if(!L.length){toast("ضيف أسماء الحضور الأول من «تعديل»");return}
+  const st=attendStats(rec,spec);
+  const rows=L.map(x=>`<div class="li">
+      <div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc(x.row.pos||empJob(x.row.name)||"")}${x.row.sigAt?" · وقّع "+new Date(x.row.sigAt).toLocaleString("ar-EG",{dateStyle:"short",timeStyle:"short"}):""}</div></div>
+      ${x.row.sigImg?`<img src="${x.row.sigImg}" alt="توقيع" style="height:34px;max-width:120px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px">`:""}
+      <button type="button" class="btn sm ${x.row.sigImg?"ghost":"primary"}" data-sg="${x.i}">${x.row.sigImg?"إعادة التوقيع":"✍ وقّع"}</button>
+      ${x.row.sigImg?`<button type="button" class="btn ghost sm" data-clr="${x.i}" title="شيل التوقيع">✕</button>`:""}
+    </div>`).join("");
+  const root=openSheet(`توقيعات الحضور · ${spec.title||rec.form}`,
+    `<div class="banner">وقّع <b>${st.signed}</b> من <b>${st.total}</b>. افتح الصفحة دي على موبايل أو تابلت وسيبها تلف على العمّال — كل واحد يمضي بصباعه.</div>
+     <div class="list">${rows}</div>`,
+    async()=>null,"تمام");
+  root.querySelectorAll("[data-sg]").forEach(b=>b.onclick=()=>attendPad(recId,+b.dataset.sg));
+  root.querySelectorAll("[data-clr]").forEach(b=>b.onclick=async()=>{
+    const i=+b.dataset.clr;const cur=S.records.find(r=>r.id===recId);if(!cur)return;
+    const rws=[...(cur.rows||[])];if(!rws[i])return;
+    rws[i]={...rws[i]};delete rws[i].sigImg;delete rws[i].sigAt;delete rws[i].sigBy;
+    if(await write(()=>upsert("records",recId,{rows:rws}),"اتشال التوقيع"))setTimeout(()=>attendSign(recId),250);
+  });
+}
+function empJob(nm){const e=S.employees.find(x=>normName(x.name)===normName(nm||""));return e?.job||""}
+function attendPad(recId,i){
+  let atExport=()=>"";
+  const rec=S.records.find(r=>r.id===recId);if(!rec)return;
+  const row=(rec.rows||[])[i]||{};const nm=row.name||"";
+  const mine=normName(nm)===normName(myEmpName());
+  const root=openSheet(`توقيع · ${nm}`,
+    `<p class="muted" style="margin-top:0;font-size:13.5px">ارسم توقيعك بصباعك جوّه المربع.</p>
+     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="atC" width="900" height="300" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
+     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="atClr">🗑 مسح</button>${mine?`<button type="button" class="btn sm" id="atMine">استخدم توقيعي المحفوظ</button>`:""}</div>`,
+    async()=>{
+      const img=atExport();if(!img)return "ارسم التوقيع الأول";
+      const cur=S.records.find(r=>r.id===recId);if(!cur)return "السجل مش موجود";
+      const rws=[...(cur.rows||[])];rws[i]={...(rws[i]||{}),sigImg:img,sigAt:Date.now(),sigBy:ME.id||""};
+      const ok=await write(()=>upsert("records",recId,{rows:rws}),"اتوقّع ✔");
+      if(ok)setTimeout(()=>attendSign(recId),250);
+      return ok?null:"الحفظ فشل";
+    },"حفظ التوقيع");
+  const c=root.querySelector("#atC"),g=c.getContext("2d");let drawing=false,dirty=false,last=null;
+  const pt=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
+  g.lineCap="round";g.lineJoin="round";g.strokeStyle="#16306b";g.lineWidth=7;
+  c.onpointerdown=e=>{drawing=true;dirty=true;last=pt(e);c.setPointerCapture(e.pointerId)};
+  c.onpointermove=e=>{if(!drawing)return;const q=pt(e);g.beginPath();g.moveTo(...last);g.lineTo(...q);g.stroke();last=q};
+  c.onpointerup=c.onpointercancel=()=>{drawing=false};
+  root.querySelector("#atClr").onclick=()=>{g.clearRect(0,0,c.width,c.height);dirty=false};
+  const mb=root.querySelector("#atMine");
+  if(mb)mb.onclick=async()=>{const sv=await mySig();if(!sv){toast("مفيش توقيع محفوظ لحسابك");return}
+    const im=new Image();im.onload=()=>{g.clearRect(0,0,c.width,c.height);
+      const k=Math.min(c.width*0.9/im.width,c.height*0.9/im.height);
+      g.drawImage(im,(c.width-im.width*k)/2,(c.height-im.height*k)/2,im.width*k,im.height*k);dirty=true};im.src=sv};
+  atExport=function(){
+    if(!dirty)return "";
+    const d=g.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=0,y1=0;
+    for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){if(d[(y*c.width+x)*4+3]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+    if(x1<=x0||y1<=y0)return "";
+    const pad=8;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(c.width,x1+pad);y1=Math.min(c.height,y1+pad);
+    const o=document.createElement("canvas");const sc=Math.min(1,360/(x1-x0));
+    o.width=Math.round((x1-x0)*sc);o.height=Math.round((y1-y0)*sc);
+    o.getContext("2d").drawImage(c,x0,y0,x1-x0,y1-y0,0,0,o.width,o.height);
+    return o.toDataURL("image/png");
+  };
+}
 function taskForm(id){const x=id?S.tasks.find(t=>t.id===id):{};
   openSheet(id?"تعديل مهمة":"مهمة جديدة",`<div class="form">${f("المطلوب","title",{value:x.title||"",req:true,full:true})}<div class="field"><label for="f_as">لمين</label><input id="f_as" name="as" list="empListAll" autocomplete="off" value="${esc(x.assignee?empName(x.assignee):"")}"></div>${f("آخر ميعاد","due",{type:"date",value:x.due||""})}${f("ملاحظات","note",{value:x.note||"",full:true})}</div>${empDatalist2()}`,async fd=>{
     if(!fd.title.trim())return "اكتب المطلوب";const e=resolveEmp(fd.as);const data={title:fd.title.trim(),assignee:e?.id||"",due:fd.due||"",note:(fd.note||"").trim(),status:"open"};
@@ -2419,17 +2498,39 @@ async function renderGenericBase(fid,rec){
         let lines=[];for(const para of t.split(/\n/))lines.push(...wrapLines(x,para,bw-12));
         while(lines.length>opt.lines&&fs>9){fs-=1;x.font=font(fs);lines=[];for(const para of t.split(/\n/))lines.push(...wrapLines(x,para,bw-12))}
         x.textAlign=rtl?"right":"left";lines.slice(0,Math.max(opt.lines,Math.floor(bh/(fs*1.3)))).forEach((l,i)=>x.fillText(l,rtl?bx+bw-6:bx+6,by+lh*(i+0.5)));return}
-      let fs=Math.min(11*pxPt,bh*0.7);x.font=font(fs);while(x.measureText(t).width>bw-8&&fs>8){fs-=1;x.font=font(fs)}
-      x.textAlign="center";x.fillText(t,bx+bw/2,by+bh/2+1)};
+      /* الخط يكبر لحد ما يملا الخانة، ولو الاسم طويل بنضغطه عرضياً بدل ما نصغّره لحد ما يبقى مش مقروء */
+      const floor=Math.max(9,bh*0.52);
+      let fs=Math.min(13*pxPt,bh*0.78);x.font=font(fs);
+      const avail=bw-6;
+      while(x.measureText(t).width>avail&&fs>floor){fs-=0.5;x.font=font(fs)}
+      x.textAlign="center";
+      const wNow=x.measureText(t).width;
+      if(wNow>avail){const k=avail/wNow;x.save();x.translate(bx+bw/2,by+bh/2+1);x.scale(k,1);x.fillText(t,0,0);x.restore()}
+      else x.fillText(t,bx+bw/2,by+bh/2+1)};
     const tick=r=>{const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;x.strokeStyle="#111";x.lineWidth=Math.max(2,bw*0.14);x.beginPath();x.moveTo(bx+bw*0.15,by+bh*0.55);x.lineTo(bx+bw*0.42,by+bh*0.85);x.lineTo(bx+bw*0.95,by+bh*0.05);x.stroke()};
     for(const f of spec.fields.filter(f=>f.page===k)){
       if(f.type==="check"){const v=rec.f?.[f.k];const sel=Array.isArray(v)?v:(v?[v]:[]);for(const o of sel)if(f.opts[o])tick(f.opts[o]);continue}
       text(fmtFieldVal(f,recVal(spec,rec,f.k)),f.rect,{fill:f.fill,lines:f.type==="textarea"?(f.lines||3):1});
     }
     const R=spec.rows;
+    /* توقيعات الحضور بتتحمّل قبل الرسم عشان نقدر نرسمها جوه الحلقة */
+    const rowSigs={};
+    if(R&&R.cols.some(c=>c.type==="sig")){
+      const L=(rec.rows||[]).slice(0,R.n);
+      for(let i=0;i<L.length;i++){const sv=L[i]&&(L[i].sigImg||L[i].sig_img);
+        if(!sv)continue;try{rowSigs[i]=await normalizeSigForPrint(sv)}catch(e){}}
+    }
     if(R){(rec.rows||[]).slice(0,R.n).forEach((row,i)=>{const cells=R.cells[i];if(!row||(cells.__page??R.page)!==k)return;
       let any=false;
       for(const col of R.cols){let v=row[col.k];
+        if(col.type==="sig"){const im=rowSigs[i],r=cells[col.k];
+          if(im&&r){const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
+            /* التوقيع بيتقص على حدود الخانة عشان ما يزحفش على الصف اللي تحته */
+            const kf=Math.min(bw*0.9/im.width,bh*1.08/im.height),w=im.width*kf,h=im.height*kf;
+            x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();
+            x.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);x.restore();any=true}
+          else if(v){any=true;text(v,r,{})}
+          continue}
         if(col.type==="check"){const sel=Array.isArray(v)?v:(v?[v]:[]);for(const o of sel)if(cells[col.k][o])tick(cells[col.k][o]);if(sel.length)any=true;continue}
         if((v==null||v==="")&&col.auto){const [src,attr]=col.auto.split(".");const e=empById(row[src+"_id"]);v=e?e[attr]:""}
         if(v){any=true;text(col.type==="date"&&/^\d{4}-\d\d-\d\d$/.test(v)?fmtDate(v):v,cells[col.k],{fill:col.fill,lines:col.type==="textarea"?(col.lines||3):1})}}
@@ -2681,7 +2782,10 @@ async function printRecord(id){
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
   const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&canWrite?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
-  const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext2,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
+  const atc=attendCol(spec);
+  const atst=atc?attendStats(r,spec):null;
+  const ext3=ext2+(atc&&canWrite?`<button class="btn" data-extra onclick="pvClose();attendSign('${r.id}')">✍ توقيعات الحضور${atst&&atst.total?` (${atst.signed}/${atst.total})`:""}</button>`:"");
+  const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext3,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
 
