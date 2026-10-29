@@ -501,7 +501,7 @@ document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.cl
 function showBase(t){
   tab=VIEWS[t]?t:"dash";
   if(booted&&db&&loaded.settings){const al=allowedTabs();if(!al)tab="join";else if(!al.includes(tab))tab=al[0]}
-  if(booted&&db){const lv=tab==="join"?"edit":tabLevel(tab);canWrite=BASE.write&&lv!=="view";canDelete=(isOwner||BASE.del)?(lv==="full"||myAccess()?.role==="admin"):(BASE.write&&lv==="full")}
+  if(booted&&db){const lv=tab==="join"?"edit":tabLevel(tab);canWrite=BASE.write&&lv!=="view";canDelete=myAccess()?.role==="admin"?true:((isOwner||BASE.del)?lv==="full":(BASE.write&&lv==="full"))}
   try{localStorage.setItem("hse.tab",tab)}catch(e){}
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
   const m=document.getElementById("main");
@@ -1076,7 +1076,7 @@ function remindersBase(){
 function remindersHTML(){const {R,T}=reminders();const me=myEmpId();const admin=myAccess()?.role==="admin";
   const mine=T.filter(x=>x.assignee===me),others=T.filter(x=>x.assignee!==me);
   const tl=x=>{const tgt=taskTargetName(x),pr=taskProgress(x),run=pr.total>0&&x.assignee===me;
-    return `<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":x.kind==="ptw"?"📋 ":x.kind==="multi"?"🗂 ":""}${esc(x.title)}</div><div class="s">${pr.total>1?`<b>${pr.done}/${pr.total} بنود</b> · `:(tgt?esc(tgt)+" · ":"")}${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.place?esc(x.place)+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}${x.needSign!==false&&x.kind==="form"?' · <span class="muted">يلزم توقيعك</span>':""}</div></div>${run?`<button class="btn sm primary" onclick="taskRun('${x.id}')">ابدأ ←</button>`:""}${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button>`:""}</div>`};
+    return `<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":x.kind==="ptw"?"📋 ":x.kind==="multi"?"🗂 ":""}${esc(x.title)}</div><div class="s">${pr.total>1?`<b>${pr.done}/${pr.total} بنود</b> · `:(tgt?esc(tgt)+" · ":"")}${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.place?esc(x.place)+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}${x.needSign!==false&&x.kind==="form"?' · <span class="muted">يلزم توقيعك</span>':""}</div></div>${run?`<button class="btn sm primary" onclick="taskRun('${x.id}')">ابدأ ←</button>`:""}${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="taskDel('${x.id}')">مسح</button>`:""}`:""}</div>`};
   return `<div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><h3 class="grow" style="margin:0">🔔 المطلوب ${admin?"":"منك "}النهارده</h3>${canAssignTasks()?`<button class="btn sm primary" onclick="taskAssign()">📤 ابعت مهمة</button>`:""}</div>
     ${R.length||mine.length?`<div class="list" style="margin-top:8px">${R.map(r=>`<button class="li" style="width:100%;text-align:right;font:inherit;color:inherit;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer" onclick="${r.go}"><span class="dot ${r.lv==="bad"?"off":""}" style="background:${r.lv==="bad"?"var(--bad)":"var(--warn)"}"></span><div class="grow t">${esc(r.t)}</div><span class="muted">←</span></button>`).join("")}${mine.map(tl).join("")}</div>`:`<p class="muted" style="margin:8px 0 0">مفيش حاجة متأخرة. 👍</p>`}
     ${others.length?`<h3 style="margin:14px 0 4px;font-size:14px">مهام وزعتها على الفريق (${others.length})</h3><div class="list">${others.map(tl).join("")}</div>`:""}</div>`}
@@ -1164,7 +1164,16 @@ async function taskAssign(id){
   <div class="list" id="tkList"></div>
   <div class="card" style="margin-top:10px"><div class="form">
     ${f("نوع البند","nkind",{opts:Object.entries(TASK_K),value:"eq"})}
-    <div id="nEq">${f("المعدة / الطفاية","neqId",{opts:eqo})}</div>
+    <div id="nEq" class="field full"><span class="lbl">المعدات / الطفايات — اختار اللي انت عايزه أو الكل</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+        <select id="neqKind" style="flex:0 0 auto">${["",...Object.keys(EQ_K)].map(k=>`<option value="${k}">${k?esc(EQ_K[k].ar):"كل الأنواع"}</option>`).join("")}</select>
+        <input id="neqSearch" placeholder="دوّر بالرقم أو المكان" style="flex:1;min-width:130px">
+        <button type="button" class="btn ghost sm" id="neqAll">اختار الكل</button>
+        <button type="button" class="btn ghost sm" id="neqNone">امسح الاختيار</button>
+        <span class="muted" id="neqN" style="font-size:12.5px"></span>
+      </div>
+      <div id="neqBox" style="max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 6px"></div>
+    </div>
     <div id="nForm">${f("النموذج","nform",{opts:[["","— اختار —"],...fopts]})}</div>
     <div id="nPtw">${f("نوع التصريح","nptw",{opts:[["","— اختار —"],...ptwo]})}</div>
     <div id="nFree">${f("وصف البند","ntitle",{value:""})}</div>
@@ -1195,11 +1204,50 @@ async function taskAssign(id){
       :`<div class="li"><div class="muted">لسه مفيش بنود — ضيف من تحت.</div></div>`;
     root.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{items.splice(+b.dataset.del,1);draw()});
   };
+  /* اختيار متعدد للمعدات: الاختيار محفوظ في eqPick حتى لو غيّرت الفلتر */
+  const eqPick=new Set();
+  const eqList=()=>S.equipment.filter(q=>q.active!==false);
+  const eqLabel=q=>`${EQ_K[q.kind]?.one||q.kind} · ${q.serial||q.code||q.name||""}${q.place?" · "+q.place:""}`;
+  const eqDraw=()=>{
+    const kf=root.querySelector("#neqKind").value;
+    const sq=normName(root.querySelector("#neqSearch").value||"");
+    const L=eqList().filter(q=>(!kf||q.kind===kf)&&(!sq||normName(eqLabel(q)).includes(sq)))
+      .sort((a,b)=>String(a.serial||a.code||"").localeCompare(String(b.serial||b.code||"")));
+    root.querySelector("#neqBox").innerHTML=L.length?L.map(q=>
+      `<label style="display:flex;gap:8px;align-items:center;padding:5px 2px;cursor:pointer;border-bottom:1px solid var(--line)">
+        <input type="checkbox" data-eq="${esc(q.id)}" ${eqPick.has(q.id)?"checked":""} style="width:17px;height:17px;flex:none">
+        <span style="min-width:0">${esc(eqLabel(q))}</span></label>`).join("")
+      :`<div class="muted" style="padding:8px 2px;font-size:13px">مفيش حاجة بالمواصفات دي.</div>`;
+    root.querySelector("#neqBox").querySelectorAll("[data-eq]").forEach(cb=>cb.onchange=()=>{
+      cb.checked?eqPick.add(cb.dataset.eq):eqPick.delete(cb.dataset.eq);eqCount()});
+    eqCount(L);
+  };
+  const eqCount=L=>{
+    const shown=L?L.length:root.querySelector("#neqBox").querySelectorAll("[data-eq]").length;
+    root.querySelector("#neqN").textContent=`مختار ${eqPick.size} من ${eqList().length}${shown!==eqList().length?` (ظاهر ${shown})`:""}`;
+  };
+  root.querySelector("#neqKind").onchange=eqDraw;
+  root.querySelector("#neqSearch").oninput=eqDraw;
+  root.querySelector("#neqAll").onclick=()=>{
+    root.querySelector("#neqBox").querySelectorAll("[data-eq]").forEach(cb=>{cb.checked=true;eqPick.add(cb.dataset.eq)});eqCount()};
+  root.querySelector("#neqNone").onclick=()=>{eqPick.clear();eqDraw()};
+  eqDraw();
   root.querySelector('[name="nkind"]').onchange=sync;sync();draw();
   root.querySelector("#tkAdd").onclick=()=>{
     const k=root.querySelector('[name="nkind"]').value;
     const it={kind:k,eqId:"",form:"",ptwType:"",title:"",done:false,recId:""};
-    if(k==="eq"){it.eqId=root.querySelector('[name="neqId"]').value;if(!it.eqId)return toast("اختار المعدة")}
+    if(k==="eq"){
+      const picked=[...eqPick].filter(id=>eqList().some(q=>q.id===id));
+      if(!picked.length)return toast("اختار معدة واحدة على الأقل");
+      let added=0,dup=0;
+      for(const id of picked){
+        if(items.some(i=>i.kind==="eq"&&i.eqId===id)){dup++;continue}
+        items.push({kind:"eq",eqId:id,form:"",ptwType:"",title:"",done:false,recId:""});added++;
+      }
+      eqPick.clear();eqDraw();draw();
+      toast(added?`اتضاف ${added} بند${dup?` · ${dup} كانوا مضافين قبل كده`:""}`:"كلهم مضافين قبل كده");
+      return;
+    }
     if(k==="form"){it.form=root.querySelector('[name="nform"]').value;if(!it.form)return toast("اختار النموذج")}
     if(k==="ptw"){it.ptwType=root.querySelector('[name="nptw"]').value;if(!it.ptwType)return toast("اختار نوع التصريح")}
     if(k==="free"){it.title=root.querySelector('[name="ntitle"]').value.trim();if(!it.title)return toast("اكتب وصف البند")}
@@ -1448,7 +1496,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.2.3";
+const APP_VER="5.3.0";
 const APP_BUILD="2026-10-29";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -1663,7 +1711,7 @@ VIEWS.actions={
       <div class="s">${[a.detail,a.place&&("📍 "+a.place),a.form&&(a.form+" · "+fmtDate(a.date))].filter(Boolean).map(esc).join(" · ")}</div>
       <div class="s" style="margin-top:3px">${actOwner(a)?`👤 ${esc(actOwner(a))}`:'<span style="color:var(--warn)">مفيش مسؤول</span>'} · ${a.status==="closed"?`<span style="color:var(--ok)">✔ اتقفل ${fmtDate(a.closedAt)}${a.closeNote?" — "+esc(a.closeNote):""}</span>`:`الميعاد: <b style="${a.late?"color:var(--bad)":""}">${fmtDate(a.due)}${a.late?" (متأخر)":""}</b>`}</div>
       ${(a.att||[]).length?`<div style="margin-top:6px">${thumbs(a.att,56)}</div>`:""}</div>
-      <div class="row-actions" style="flex-wrap:wrap;justify-content:flex-end">${a.status!=="closed"?`<button class="btn sm primary" onclick="actionClose('${a.id}')">إغلاق</button><button class="btn ghost sm" onclick="actionForm('${a.id}')">مسؤول وميعاد</button>`:`<button class="btn ghost sm" onclick="actionReopen('${a.id}')">إعادة فتح</button>`}${a.recId?`<button class="btn ghost sm" onclick="printRecord('${a.recId}')">النموذج</button>`:""}${a.eqId?`<button class="btn ghost sm" onclick="ui.eqKind=(S.equipment.find(x=>x.id==='${a.eqId}')||{}).kind||'ext';show('equip')}">المعدة</button>`:""}</div></div>`).join("")}</div>${pg.btn||""}</div>`:`<div class="card">${emptyState(ui.actF==="closed"?"مفيش حاجة مقفولة لسه":"مفيش بنود مفتوحة 👍","")}</div>`;
+      <div class="row-actions" style="flex-wrap:wrap;justify-content:flex-end">${a.status!=="closed"?`<button class="btn sm primary" onclick="actionClose('${a.id}')">إغلاق</button><button class="btn ghost sm" onclick="actionForm('${a.id}')">مسؤول وميعاد</button>`:`<button class="btn ghost sm" onclick="actionReopen('${a.id}')">إعادة فتح</button>`}${a.recId?`<button class="btn ghost sm" onclick="printRecord('${a.recId}')">النموذج</button>`:""}${a.eqId?`<button class="btn ghost sm" onclick="ui.eqKind=(S.equipment.find(x=>x.id==='${a.eqId}')||{}).kind||'ext';show('equip')}">المعدة</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="actionDel('${a.id}')">مسح</button>`:""}</div></div>`).join("")}</div>${pg.btn||""}</div>`:`<div class="card">${emptyState(ui.actF==="closed"?"مفيش حاجة مقفولة لسه":"مفيش بنود مفتوحة 👍","")}</div>`;
   }
 };
 function actById(id){return deriveActions().find(a=>a.id===id)}
@@ -1712,7 +1760,7 @@ VIEWS.equip={
     <div class="filters" style="flex-wrap:wrap"><button class="btn primary" onclick="eqForm('${k}')">+ ${K.one}</button>${K.monthly&&L.length?`<button class="btn" onclick="eqBulkOk('${k}')">تسجيل فحص الشهر: الكل صالح</button>`:""}<div class="grow"></div>${L.length?prints:""}</div>
     ${L.length?`<div class="tbl"><table><thead><tr><th>${k==="machine"?"الكود":k==="tower"?"الكود / المسلسل":"المسلسل"}</th><th>${k==="ext"?"النوع / السعة":k==="machine"?"الماكينة":k==="tower"?"الرافعة / الموديل":"الاسم / النوع"}</th><th>المكان</th><th>${k==="tower"?"آخر فحص مسجل":"آخر فحص"}</th><th>الحالة</th><th>${k==="tower"?"موعد الفحص الشامل":"الفحص الجاي"}</th><th></th></tr></thead><tbody>
     ${L.map(q=>{const li=lastInsp(q),ok=eqOk(q),n=eqNext(q);const ident=k==="tower"?[q.code,q.serial&&q.serial!==q.code?q.serial:""].filter(Boolean).join(" / "):q.serial||q.code||"";return `<tr><td><span class="num">${esc(ident)}</span></td><td>${esc(eqLabel(q))}${q.contractor?`<div class="muted" style="font-size:12px">${esc(q.contractor)}</div>`:""}</td><td>${esc(q.place||"")}</td><td class="n">${k==="tower"&&q.certDate?fmtDate(q.certDate):li?fmtDate(li.date):"—"}</td><td>${ok===null?'<span class="pill p-closed">لسه</span>':ok?'<span class="pill p-appr">صالح</span>':'<span class="pill p-canc">غير صالح</span>'}</td><td class="n" style="${n&&n<=today()||!n?"color:var(--bad);font-weight:600":""}">${n?fmtDate(n):"محتاج فحص"}</td>
-      <td><div class="row-actions"><button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}<button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
+      <td><div class="row-actions"><button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}<button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')">مسح</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
     ${k==="tower"?`<p class="muted" style="font-size:13px;margin-top:14px">سجّل موعد الفحص الشامل من الشهادة السارية، واستخدم قائمة الفحص المعتمدة من المصنع. أرفق شهادة المعايرة، تقييم المخاطر، وخطوات التركيب من زر «المرفقات» لكل ونش.</p>`:`<p class="muted" style="font-size:13px;margin-top:14px">نماذج الطوارئ التانية (الفرق المساعدة، أرقام الطوارئ، خطة التجارب، تقرير التجربة، سجل الحوادث) موجودة في «النماذج والسجلات ← الطوارئ والمعدات».</p>`}`;
     $("eqBody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{ui.eqKind=b.dataset.eq;refresh()});
   }
@@ -1801,7 +1849,7 @@ function contractorsHTML(){
     const noID=W.filter(w=>!hasID(w)).length;
     return `<div class="filters"><button class="btn" onclick="ui.ctrSel='';refresh()">→ كل المقاولين</button></div>
     <div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">${esc(c.name)}</h3><div class="muted" style="font-size:13px">${[c.scope,c.rep&&("المسؤول: "+c.rep),c.phone].filter(Boolean).map(esc).join(" · ")}</div></div>
-      <button class="btn sm" onclick="recordForm('F-HSE-07-04',null,{f:{company:contractor('${c.id}').name,function:contractor('${c.id}').scope||'',rep:contractor('${c.id}').rep||''}})">سياسة السلامة للمقاول (07-04)</button><button class="btn sm" onclick="contractorForm('${c.id}')">تعديل</button>${attBtn("contractors",c.id,c)||""}</div>
+      <button class="btn sm" onclick="recordForm('F-HSE-07-04',null,{f:{company:contractor('${c.id}').name,function:contractor('${c.id}').scope||'',rep:contractor('${c.id}').rep||''}})">سياسة السلامة للمقاول (07-04)</button><button class="btn sm" onclick="contractorForm('${c.id}')">تعديل</button>${attBtn("contractors",c.id,c)||""}${canDelete?`<button class="btn ghost sm danger" onclick="ctrDel('${c.id}')">مسح</button>`:""}</div>
       <div class="grid g4" style="margin-top:12px"><div class="tile"><span class="lbl">العمال</span><b class="val">${W.length}</b></div><div class="tile ${noID?"alert":""}"><span class="lbl">من غير بطاقة</span><b class="val">${noID}</b></div><div class="tile"><span class="lbl">مخالفات</span><b class="val">${V.length+attOf(c,"violation").length}</b></div><div class="tile"><span class="lbl">محاضرات توعية</span><b class="val">${Lc.length+attOf(c,"lecture").length}</b></div></div>
       ${attOf(c,"docs").length?`<div style="margin-top:10px"><div class="muted" style="font-size:12.5px;margin-bottom:4px">مستندات المقاول</div>${thumbs(attOf(c,"docs"))}</div>`:""}</div>
     <div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 class="grow" style="margin:0">رجالة المقاول</h3><button class="btn primary sm" onclick="empForm(null,{group:'ctr',contractorId:'${c.id}'})">+ عامل</button><button class="btn sm" onclick="importForm('employees','${c.id}')">لصق من Excel</button></div>
@@ -2885,6 +2933,14 @@ async function printRecord_orig(id){
     return null},"تنزيل PDF للطباعة");
   try{pages=[...await renderGeneric(r.form,r),...await photoPages(r,spec.title)];const b=$("pvw");if(b){b.innerHTML="";pages.forEach(c=>b.appendChild(c))}}catch(e){console.error(e);const b=$("pvw");if(b)b.innerHTML='<div class="msg">معرفتش أحمّل النموذج.</div>'}
 }
+function actionDel(id){const a=(S.actions||[]).find(x=>x.id===id)||{};
+  confirmSheet("مسح الإجراء التصحيحي",(a.title?"«"+a.title+"» ":"")+"هيتمسح نهائياً.",()=>write(()=>remove("actions",id),"اتمسح"))}
+function eqDel(id){const q=(S.equipment||[]).find(x=>x.id===id)||{};
+  confirmSheet("مسح "+(q.code||q.name||"المعدة"),"هتتمسح هي وكل الفحوصات المسجلة جواها نهائياً.",()=>write(()=>remove("equipment",id),"اتمسحت"))}
+function ctrDel(id){const c=(S.contractors||[]).find(x=>x.id===id)||{};
+  confirmSheet("مسح المقاول "+(c.name||""),"المقاول هيتمسح من المنظومة. عماله وسجلاتهم هيفضلوا زي ما هم.",()=>write(()=>{ui.ctrSel="";return remove("contractors",id)},"اتمسح"))}
+function taskDel(id){const t=(S.tasks||[]).find(x=>x.id===id)||{};
+  confirmSheet("مسح المهمة",(t.title?"«"+t.title+"» ":"")+"هتتمسح نهائياً، ومش هتتحسب على اللي اتكلّف بيها.",()=>write(()=>remove("tasks",id),"اتمسحت"))}
 function recordDel(id){confirmSheet("مسح السجل","السجل هيتمسح نهائياً.",()=>write(()=>remove("records",id),"اتمسح"))}
 
 /* ===================== v2 extensions ===================== */
@@ -4239,9 +4295,16 @@ function empDel(id){const e=emp(id);if(!e)return;
   if(tabLevel("manpower")==="view"){chgReq('employee','del',id);return}
   confirmSheet("حذف "+e.name,"هيتشال من القوى العاملة والقوايم، وسجلاته القديمة هتفضل محفوظة. تقدر ترجّعه من «المحذوفين».",async()=>{
     if(await write(()=>upsert("employees",id,{active:false,removedAt:Date.now(),removedBy:ME?.name||""}),"اتحذف ✔")){if(ui.personSel===id){ui.personSel="";}refresh()}},"احذف")}
+/* الأدمن بس: شيل الموظف من قاعدة البيانات خالص (المسح العادي بيخليه «محذوف» ويرجع) */
+function empPurge(id){
+  if(myAccess()?.role!=="admin"){toast("الحذف النهائي لمدير المنظومة بس");return}
+  const e=emp(id)||{};
+  confirmSheet("حذف "+(e.name||"الموظف")+" نهائياً",
+    "هيتشال من قاعدة البيانات خالص ومش هينفع يرجع. سجلاته القديمة هتفضل بالاسم المكتوب فيها.",
+    ()=>write(()=>remove("employees",id),"اتمسح نهائياً"),"احذف نهائي")}
 async function empRestore(id){if(await write(()=>upsert("employees",id,{active:true,removedAt:null}),"رجع ✔"))refresh()}
 function removedSheet(){const L=S.employees.filter(e=>e.active===false).sort((a,b)=>(b.removedAt||0)-(a.removedAt||0));
-  openSheet(`المحذوفين (${L.length})`,L.length?`<div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${e.removedAt?" · اتحذف "+new Date(e.removedAt).toLocaleDateString("ar-EG"):""}</div></div><button class="btn sm" type="button" onclick="$('overlayRoot').innerHTML='';empRestore('${e.id}')">↩ رجّعه</button></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>',()=>{},"قفل")}
+  openSheet(`المحذوفين (${L.length})`,L.length?`<div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${e.removedAt?" · اتحذف "+new Date(e.removedAt).toLocaleDateString("ar-EG"):""}</div></div><button class="btn sm" type="button" onclick="$('overlayRoot').innerHTML='';empRestore('${e.id}')">↩ رجّعه</button>${myAccess()?.role==="admin"?`<button class="btn sm danger" type="button" onclick="$('overlayRoot').innerHTML='';empPurge('${e.id}')">مسح نهائي</button>`:""}</div>`).join("")}</div>`:'<p class="muted">مفيش.</p>',()=>{},"قفل")}
 {const _pr=personRow;personRow=function(e){const h=_pr(e);const v=tabLevel("manpower")==="view";
   return h.replace(/<\/div><\/div>$/,`<button class="btn ghost sm" style="color:var(--bad)" title="${v?"اطلب حذف":"حذف"}" onclick="empDel('${e.id}')">🗑${v?" اطلب حذف":" حذف"}</button></div></div>`)}}
 {const _pf2=personFileHTML;personFileHTML=function(e){const h=_pf2(e);if(tabLevel("manpower")==="view")return h;
