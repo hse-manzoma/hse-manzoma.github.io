@@ -102,6 +102,10 @@ const GKEY="hse.auth.lastgood";
 let refreshing=null;
 function refreshOnce(who){
   if(refreshing)  {authLog("تجديد تاني اتمنع (شغال واحد بالفعل)",{who});return refreshing}
+  if(isLeader!==true&&leaderBeat()!==true){                  /* تاب تابع: مايجدّدش، يستنى القائد */
+    authLog("مش دورنا نجدّد — تاب تاني مسؤول",{who});
+    return Promise.resolve({data:{session:null},error:null});
+  }
   authLog("بنجدّد التوكن",{who});
   refreshing=sb.auth.refreshSession().finally(()=>{setTimeout(()=>{refreshing=null},1200)});
   return refreshing;
@@ -119,11 +123,42 @@ async function reviveFromGood(){
   reviving=true;
   try{
     const {data,error}=await sb.auth.setSession({access_token:g.a,refresh_token:g.r});
-    if(error||!data||!data.session){authLog("الإنقاذ بالنسخة المحفوظة فشل",{err:error?String(error.message||error):"مفيش جلسة"});return false}
+    if(error||!data||!data.session){authLog("الإنقاذ بالنسخة المحفوظة فشل",{err:error?String(error.message||error):"مفيش جلسة"});
+      return /rate limit|too many/i.test(String(error&&(error.message||error)||""))?"limited":false}
     authLog("اتنقذت الجلسة من النسخة المحفوظة");keepGood(data.session);acceptSession(data.session);return true;
   }catch(e){authLog("الإنقاذ رمى خطأ",{err:String(e&&e.message||e)});return false}
   finally{setTimeout(()=>{reviving=false},1500)}
 }
+/* ---------- تاب واحد بس هو اللي يجدّد التوكن ----------
+   لما تفتح المنظومة في أكتر من تاب، كل تاب بيجدّد نفس الـ refresh token،
+   و Supabase بيحظر الطلبات (Request rate limit) وبيلغي الجلسة. فبننتخب «قائد»:
+   هو اللي بيجدّد، والباقي بيوقفوا التجديد خالص وبياخدوا الجلسة الجديدة من التخزين المشترك. */
+const LKEY="hse.auth.leader";
+let isLeader=null;   /* null = لسه ما اتقررش، عشان أول نبضة تطبّق الحالة */
+function leaderNow(){try{return JSON.parse(localStorage.getItem(LKEY)||"null")}catch(e){return null}}
+function claimLeader(){
+  try{
+    const L=leaderNow(),now=Date.now();
+    if(L&&L.id!==TID&&now-(L.ts||0)<15000)return false;      /* فيه قائد حي */
+    localStorage.setItem(LKEY,JSON.stringify({id:TID,ts:now}));
+    const back=leaderNow();                                   /* تأكيد إننا كسبنا */
+    return !!back&&back.id===TID;
+  }catch(e){return true}
+}
+function leaderBeat(){
+  const was=isLeader;
+  isLeader=claimLeader();
+  if(isLeader){try{localStorage.setItem(LKEY,JSON.stringify({id:TID,ts:Date.now()}))}catch(e){}}
+  if(was!==isLeader){
+    authLog(isLeader?"التاب ده بقى المسؤول عن تجديد الدخول":"تاب تاني بقى المسؤول عن التجديد — وقفنا التجديد هنا");
+    if(!isLeader){try{sb.auth.stopAutoRefresh()}catch(e){}clearTimeout(myTimer)}
+    else takeOverRefresh("بقينا المسؤول عن التجديد");  /* ما نسيبش الجلسة من غير تجديد */
+  }
+  return isLeader;
+}
+window.SBA.isLeader=()=>isLeader===true;
+setInterval(leaderBeat,6000);
+
 /* كام تاب مفتوح للمنظومة دلوقتي — أكتر من واحد بيزوّد احتمال السباق */
 const TKEY="hse.tabs",TID=Math.random().toString(36).slice(2);
 function tabPing(){
@@ -154,6 +189,7 @@ async function measureSkew(){
     if(!srv||isNaN(srv))return null;
     skewMs=Math.round((t0+(t1-t0)/2)-srv);skewKnown=true;
     window.SBA.clockSkewSec=Math.round(skewMs/1000);
+    authLog("فرق ساعة الجهاز عن السيرفر: "+window.SBA.clockSkewSec+" ثانية");
     if(Math.abs(skewMs)>120000){
       const mins=Math.round(Math.abs(skewMs)/60000);
       authLog("ساعة الجهاز فارقة عن السيرفر",{err:(skewMs>0?"مقدّمة ":"متأخرة ")+mins+" دقيقة"});
@@ -192,10 +228,11 @@ const RBURST=[];
 function noteRefresh(){
   const now=Date.now();RBURST.push(now);
   while(RBURST.length&&now-RBURST[0]>20000)RBURST.shift();
-  if(RBURST.length>=5&&!tookOver){
-    authLog("عاصفة تجديد: "+RBURST.length+" تجديد في أقل من 20 ثانية — وقفنا التجديد التلقائي");
-    takeOverRefresh("عاصفة تجديد");
-    measureSkew();
+  if(RBURST.length>=5&&!window.SBA.__burstLogged){
+    window.SBA.__burstLogged=true;setTimeout(()=>{window.SBA.__burstLogged=false},30000);
+    authLog("عاصفة تجديد: "+RBURST.length+" تجديد في أقل من 20 ثانية"+(tookOver?" (التجديد عندنا أصلاً — يبقى جاي من تاب تاني)":" — وقفنا التجديد التلقائي"));
+    if(!tookOver)takeOverRefresh("عاصفة تجديد");
+    if(!skewKnown)measureSkew();
   }
 }
 
@@ -308,7 +345,6 @@ async function afterLogin(session){
   await cleanupOtherPushRows();
   document.getElementById("gate")?.remove();readyResolve();
   badge();if(NET())syncSoon(2500);
-  if(!skewKnown)setTimeout(()=>{measureSkew().catch(()=>{})},1500);
 }
 /* فتح المنظومة وانت مفيش نت خالص: بندخل بآخر صلاحيات محفوظة على الجهاز
    بدل ما شاشة الدخول تقفل في وشك وانت مش قادر توصل للسيرفر أصلاً */
@@ -343,14 +379,30 @@ sb.auth.onAuthStateChange((ev,session)=>{
     /* مش كل SIGNED_OUT معناه إن المستخدم عايز يخرج — ساعات التوكن بيفشل في التجديد.
        بنجرّب نجدّد مرة واحدة قبل ما نرميه على شاشة الدخول. */
     if(window.SBA.__bye){authLog("خروج مؤكد — تنضيف وإعادة تحميل");try{localStorage.removeItem(PKEY)}catch(e){}cleanupLocalPush().finally(()=>location.reload());return}
+    if(window.SBA.__recovering){authLog("معالجة خروج شغالة بالفعل — ما كررناهاش");return}
+    window.SBA.__recovering=true;
     (async()=>{
-      let rescued=false;
+      let rescued=false,limited=false;
+      const isLimit=e=>/rate limit|too many/i.test(String(e&&(e.message||e)||""));
       try{const rf=await refreshOnce("signed_out");
         if(rf&&rf.data&&rf.data.session){authLog("اتنقذت الجلسة بتجديد التوكن");rescued=true;keepGood(rf.data.session);acceptSession(rf.data.session)}
-        else authLog("التجديد ما رجّعش جلسة",{err:rf&&rf.error?String(rf.error.message||rf.error):null});
-      }catch(e){authLog("التجديد رمى خطأ",{err:String(e&&e.message||e)})}
+        else {authLog("التجديد ما رجّعش جلسة",{err:rf&&rf.error?String(rf.error.message||rf.error):null});
+          if(rf&&rf.error&&isLimit(rf.error))limited=true}
+      }catch(e){authLog("التجديد رمى خطأ",{err:String(e&&e.message||e)});if(isLimit(e))limited=true}
       /* السباق بيخلي التجديد يفشل والجلسة تتمسح — نرجّعها من نسختنا قبل أي خروج */
-      if(!rescued&&await reviveFromGood())rescued=true;
+      if(!rescued&&isLeader!==true){      /* تاب تابع: استنى القائد يجدّد وبعدين خد الجلسة منه */
+        authLog("مستنيين التاب المسؤول يجدّد");
+        await new Promise(r=>setTimeout(r,2500));
+      }
+      if(!rescued){const rv=await reviveFromGood();if(rv===true)rescued=true;else if(rv==="limited")limited=true}
+      /* Supabase حاظر الطلبات من كتر التجديد — الجلسة مش بالضرورة ماتت.
+         ما نرميهوش بره: نشتغل قراءة بس ونجرّب تاني بعد شوية. */
+      if(!rescued&&limited){
+        window.SBA.__recovering=false;
+        authLog("Supabase حاظر الطلبات مؤقتاً — مش هنطلّعك بره");
+        if(await degradeToCached("السيرفر حاظر الطلبات مؤقتاً من كتر محاولات التجديد"))
+          {setTimeout(()=>{reviveFromGood().catch(()=>{})},65000);return}
+      }
       if(!rescued){
         /* مرة واحدة بس نجرّب إعادة التحميل. لو اتكررت في أقل من دقيقة ونص،
            يبقى فيه لفة — نوقفها ونشتغل بالنسخة المحفوظة بدل ما نفضل نرمي المستخدم بره. */
@@ -364,9 +416,12 @@ sb.auth.onAuthStateChange((ev,session)=>{
         markReload();
         cleanupLocalPush().finally(()=>location.reload());
       }
+      window.SBA.__recovering=false;
     })();
   }
 });
+leaderBeat();
+measureSkew().catch(()=>{});
 sb.auth.getSession().then(async({data:{session},error})=>{if(error)throw error;if(session)acceptSession(session);else if(!await offlineResume())showGate()})
   .catch(async e=>{console.error("Could not restore auth session",e);
     if(await offlineResume())return;
