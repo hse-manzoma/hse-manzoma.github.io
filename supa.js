@@ -94,6 +94,50 @@ function authLog(msg,extra){
 }
 window.SBA.authLog=()=>{try{return JSON.parse(localStorage.getItem(ALOG)||"[]")}catch(e){return []}};
 window.SBA.authLogClear=()=>{try{localStorage.removeItem(ALOG)}catch(e){}};
+/* ---------- حماية من سباق تجديد التوكن ----------
+   لو حاجتين جدّدوا نفس الـ refresh token في نفس اللحظة، Supabase بيلغي الجلسة
+   وبيرجّع "Auth session missing!" — وده اللي كان بيطلّع المستخدم فجأة.
+   فبنخلي التجديد واحد بس في أي لحظة، وبنحتفظ بنسخة من آخر جلسة سليمة للإنقاذ. */
+const GKEY="hse.auth.lastgood";
+let refreshing=null;
+function refreshOnce(who){
+  if(refreshing)  {authLog("تجديد تاني اتمنع (شغال واحد بالفعل)",{who});return refreshing}
+  authLog("بنجدّد التوكن",{who});
+  refreshing=sb.auth.refreshSession().finally(()=>{setTimeout(()=>{refreshing=null},1200)});
+  return refreshing;
+}
+function keepGood(session){
+  try{if(session&&session.refresh_token)localStorage.setItem(GKEY,JSON.stringify(
+    {a:session.access_token,r:session.refresh_token,uid:session.user&&session.user.id,at:Date.now()}))}catch(e){}
+}
+/* إنقاذ: لو السباق لغى جلستنا، نرجّع آخر جلسة سليمة محفوظة عندنا */
+let reviving=false;
+async function reviveFromGood(){
+  if(reviving)return false;
+  let g=null;try{g=JSON.parse(localStorage.getItem(GKEY)||"null")}catch(e){}
+  if(!g||!g.r||Date.now()-(g.at||0)>1000*60*60*24*20)return false;
+  reviving=true;
+  try{
+    const {data,error}=await sb.auth.setSession({access_token:g.a,refresh_token:g.r});
+    if(error||!data||!data.session){authLog("الإنقاذ بالنسخة المحفوظة فشل",{err:error?String(error.message||error):"مفيش جلسة"});return false}
+    authLog("اتنقذت الجلسة من النسخة المحفوظة");keepGood(data.session);acceptSession(data.session);return true;
+  }catch(e){authLog("الإنقاذ رمى خطأ",{err:String(e&&e.message||e)});return false}
+  finally{setTimeout(()=>{reviving=false},1500)}
+}
+/* كام تاب مفتوح للمنظومة دلوقتي — أكتر من واحد بيزوّد احتمال السباق */
+const TKEY="hse.tabs",TID=Math.random().toString(36).slice(2);
+function tabPing(){
+  try{
+    const o=JSON.parse(localStorage.getItem(TKEY)||"{}"),now=Date.now();
+    for(const k in o)if(now-o[k]>30000)delete o[k];
+    o[TID]=now;localStorage.setItem(TKEY,JSON.stringify(o));
+    return Object.keys(o).length;
+  }catch(e){return 1}
+}
+window.SBA.tabCount=tabPing;
+setInterval(tabPing,8000);
+if(tabPing()>1)authLog("تنبيه: المنظومة مفتوحة في أكتر من تاب",{tabs:tabPing()});
+
 /* ---------- بدل ما نرمي المستخدم بره: نشتغل بالنسخة المحفوظة قراءة بس ---------- */
 const RKEY="hse.auth.lastReload";
 const recentlyReloaded=()=>{try{return Date.now()-(+localStorage.getItem(RKEY)||0)<90000}catch(e){return false}};
@@ -127,11 +171,14 @@ async function degradeToCached(reason){
 /* ---------- auth gate ---------- */
 let readyResolve;const ready=new Promise(r=>readyResolve=r);
 async function fn(action,payload){
-  let {data:{session}}=await sb.auth.getSession();
+  /* مش getSession: هي بتجدّد التوكن لوحدها لو خلص، وده بيعمل تجديد زيادة.
+     بناخد الجلسة اللي ماسكينها، ولو مفيش بس ساعتها نسأل. */
+  let session=window.SBA.session||null;
+  if(!session){const g=await sb.auth.getSession();session=g&&g.data?g.data.session:null}
   const call=tok=>fetch(`${SB_URL}/functions/v1/admin-users`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY,Authorization:"Bearer "+(tok||SB_KEY)},body:JSON.stringify({action,...payload})});
   let r=await call(session?.access_token);
   let j={};try{j=await r.json()}catch(e){}
-  if((r.status===401||r.status===403||j.error==="unauthorized")&&session){try{const rf=await sb.auth.refreshSession();if(rf&&rf.data&&rf.data.session)session=rf.data.session}catch(e){}r=await call(session?.access_token);j={};try{j=await r.json()}catch(e){}}
+  if((r.status===401||r.status===403||j.error==="unauthorized")&&session){try{const rf=await refreshOnce("fn:"+action);if(rf&&rf.data&&rf.data.session)session=rf.data.session}catch(e){}r=await call(session?.access_token);j={};try{j=await r.json()}catch(e){}}
   if(!r.ok||j.error)throw Object.assign(new Error(j.error||("http_"+r.status)),{code:j.error||"http_"+r.status});
   return j;
 }
@@ -152,7 +199,7 @@ function gateHTML(first){return `<div id="gate" style="position:fixed;inset:0;z-
     <div id="gateMsg" style="color:#c92a2a;font-size:13px;min-height:18px;margin-bottom:8px">${(()=>{try{const m=sessionStorage.getItem("hse.session.enforce.error")||"";sessionStorage.removeItem("hse.session.enforce.error");return m}catch(e){return ""}})()}</div>
     <button style="width:100%;padding:12px;border:0;border-radius:10px;background:#d9480f;color:#fff;font-size:15px;font-weight:700;cursor:pointer">${first?"إنشاء الحساب والدخول":"دخول"}</button>
     ${(()=>{const L=window.SBA.authLog();if(!L.length)return "";
-      const rows=L.slice(-12).reverse().map(x=>`<div style="padding:3px 0;border-bottom:1px solid #eee"><span style="color:#888">${esc2(x.t.slice(11,19))}</span> — ${esc2(x.m)}${x.err?` <span style="color:#c92a2a">(${esc2(x.err)})</span>`:""}</div>`).join("");
+      const rows=L.slice(-25).reverse().map(x=>`<div style="padding:3px 0;border-bottom:1px solid #eee"><span style="color:#888">${esc2(x.t.slice(11,19))}</span> — ${esc2(x.m)}${x.err?` <span style="color:#c92a2a">(${esc2(x.err)})</span>`:""}</div>`).join("");
       return `<details style="margin-top:14px"><summary style="cursor:pointer;font-size:12.5px;color:#6b7a73">سجل الجلسة (${L.length}) — افتحه لو بيطلّعك فجأة</summary>
         <div style="max-height:190px;overflow:auto;font-size:11.5px;line-height:1.7;margin-top:6px;direction:ltr;text-align:left">${rows}</div>
         <button type="button" onclick="SBA.authLogClear();this.closest('details').remove()" style="margin-top:6px;padding:6px 10px;border:1px solid #cfd8d3;border-radius:8px;background:transparent;font-size:12px;cursor:pointer">امسح السجل</button></details>`})()}
@@ -215,6 +262,7 @@ async function offlineResume(){
 let started=false,activeUid="",loginFlow=Promise.resolve();
 function acceptSession(session){
   if(!session){offlineResume().then(done=>{if(!done)showGate()});return}
+  window.SBA.session=session;keepGood(session);
   if(started&&activeUid===session.user?.id)return;
   started=true;activeUid=session.user?.id||"";
   // Supabase auth callbacks run under its auth lock. Defer all follow-up Supabase calls.
@@ -234,10 +282,12 @@ sb.auth.onAuthStateChange((ev,session)=>{
     if(window.SBA.__bye){authLog("خروج مؤكد — تنضيف وإعادة تحميل");try{localStorage.removeItem(PKEY)}catch(e){}cleanupLocalPush().finally(()=>location.reload());return}
     (async()=>{
       let rescued=false;
-      try{const rf=await sb.auth.refreshSession();
-        if(rf&&rf.data&&rf.data.session){authLog("اتنقذت الجلسة بتجديد التوكن");rescued=true;acceptSession(rf.data.session)}
+      try{const rf=await refreshOnce("signed_out");
+        if(rf&&rf.data&&rf.data.session){authLog("اتنقذت الجلسة بتجديد التوكن");rescued=true;keepGood(rf.data.session);acceptSession(rf.data.session)}
         else authLog("التجديد ما رجّعش جلسة",{err:rf&&rf.error?String(rf.error.message||rf.error):null});
       }catch(e){authLog("التجديد رمى خطأ",{err:String(e&&e.message||e)})}
+      /* السباق بيخلي التجديد يفشل والجلسة تتمسح — نرجّعها من نسختنا قبل أي خروج */
+      if(!rescued&&await reviveFromGood())rescued=true;
       if(!rescued){
         /* مرة واحدة بس نجرّب إعادة التحميل. لو اتكررت في أقل من دقيقة ونص،
            يبقى فيه لفة — نوقفها ونشتغل بالنسخة المحفوظة بدل ما نفضل نرمي المستخدم بره. */
