@@ -452,8 +452,9 @@ async function boot(){
   db.collection("legacy").onSnapshot(s=>{const acc={};for(const d of s.docs){const x=d.data();(acc[x.kind]??=[]).push(...(x.rows||[]))}LEG=acc;legacyLoaded=true;for(const k of Object.keys(COLS))merge(k);refresh()},()=>{});
   db.collection("__profiles").onSnapshot(s=>{S.profiles=s.docs.map(d=>({...d.data(),id:d.id}));const me=S.profiles.find(p=>p.id===ME.id||p.user_id===ME.id);if(me){window.SBA.profile=me;if(me.disabled){location.reload()}}applyRole();if(tab==="settings")refresh()},()=>{});
   db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==="settings")refresh()},()=>{});
-  db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();document.getElementById("projectName").textContent="HSE · "+(S.settings.project||"المشروع");refresh()},()=>{});
+  db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();{const el=document.getElementById("projectName");el.textContent="HSE · "+(S.settings.project||"المشروع")+" · v"+APP_VER;el.title="نسخة المنظومة "+appVerLine()}refresh()},()=>{});
   show(tab);
+  setTimeout(()=>checkAppUpdate(false),5000);   /* يبص مرة لو فيه نسخة أحدث */
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
 function renderBanner(){}
@@ -1336,6 +1337,64 @@ function signPermEditor(){
       return ok?null:"الحفظ فشل";
     },"حفظ الصلاحيات");
 }
+/* ================= نسخة المنظومة =================
+   الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
+   لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
+const APP_VER="5.1.0";
+const APP_BUILD="2026-10-29";
+function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
+let VER_LATEST=null;
+async function checkAppUpdate(loud){
+  try{
+    const r=await fetch("index.html?_v="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("http_"+r.status);
+    const t=await r.text();
+    const m=t.match(/const\s+APP_VER\s*=\s*"([\d.]+)"/);
+    const b=t.match(/const\s+APP_BUILD\s*=\s*"([\d-]+)"/);
+    VER_LATEST=m?{ver:m[1],build:b?b[1]:""}:null;
+    const newer=!!VER_LATEST&&verGt(VER_LATEST.ver,APP_VER);
+    if(newer)showUpdateBar();
+    else if(loud)toast("انت على آخر نسخة ✔");
+    verCardRender();
+    return newer;
+  }catch(e){if(loud)toast("معرفتش أتأكد من التحديث — مفيش نت؟");return false}
+}
+function verGt(a,b){const x=String(a).split(".").map(Number),y=String(b).split(".").map(Number);
+  for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0}return false}
+function showUpdateBar(){
+  if(document.getElementById("verBar"))return;
+  const el=document.createElement("div");el.id="verBar";
+  el.style.cssText="position:fixed;inset-inline:0;bottom:0;z-index:9997;direction:rtl;background:#1864ab;color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font:600 13.5px/1.5 'IBM Plex Sans Arabic',system-ui,sans-serif;box-shadow:0 -4px 14px rgba(0,0,0,.18)";
+  el.innerHTML=`<span>فيه نسخة أحدث من المنظومة (v${esc(VER_LATEST?VER_LATEST.ver:"")}) — انت على v${APP_VER}</span>
+    <button class="btn sm" style="background:#fff;color:#1864ab;border-color:#fff" onclick="appUpdateNow()">حدّث دلوقتي</button>
+    <button class="btn sm ghost" style="color:#fff;border-color:#ffffff66" onclick="document.getElementById('verBar').remove()">بعدين</button>`;
+  document.body.appendChild(el);
+}
+/* بيمسح نسخة الكود المخزّنة بس — ما بيمسّش بياناتك ولا بيطلّعك من الحساب */
+async function appUpdateNow(){
+  const btn=document.querySelector("#verBar button");if(btn){btn.disabled=true;btn.textContent="بيحدّث…"}
+  try{
+    const n=await (window.SBA?.sync?.pending?.()||Promise.resolve(0));
+    if(n>0){
+      if(!confirm(`فيه ${n} تغيير لسه ما اترفعش للسيرفر. تحب نزامن الأول قبل التحديث؟`)){}
+      try{await window.SBA?.sync?.now?.()}catch(e){}
+    }
+    const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));
+    const rs=await navigator.serviceWorker?.getRegistrations?.()||[];
+    await Promise.all(rs.map(r=>r.unregister()));
+  }catch(e){console.error("التحديث فشل",e)}
+  location.reload();
+}
+function verCardRender(){
+  const box=document.getElementById("verCard");if(!box)return;
+  const newer=!!VER_LATEST&&verGt(VER_LATEST.ver,APP_VER);
+  box.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow">
+    <h3 style="margin:0 0 4px">نسخة المنظومة</h3>
+    <div class="muted" style="font-size:13px">اللي شغّال عندك: <b dir="ltr">v${APP_VER}</b> · تاريخ البناء ${esc(APP_BUILD)}${
+      VER_LATEST?(newer?` · <span style="color:var(--bad)">فيه أحدث على السيرفر: v${esc(VER_LATEST.ver)}</span>`:` · <span style="color:var(--ok)">دي آخر نسخة ✔</span>`):""}</div></div>
+    <button class="btn" onclick="checkAppUpdate(true)">تأكد من التحديث</button>
+    <button class="btn primary" onclick="appUpdateNow()">تحديث وتنضيف الكاش</button></div>`;
+}
 function taskForm(id){const x=id?S.tasks.find(t=>t.id===id):{};
   openSheet(id?"تعديل مهمة":"مهمة جديدة",`<div class="form">${f("المطلوب","title",{value:x.title||"",req:true,full:true})}<div class="field"><label for="f_as">لمين</label><input id="f_as" name="as" list="empListAll" autocomplete="off" value="${esc(x.assignee?empName(x.assignee):"")}"></div>${f("آخر ميعاد","due",{type:"date",value:x.due||""})}${f("ملاحظات","note",{value:x.note||"",full:true})}</div>${empDatalist2()}`,async fd=>{
     if(!fd.title.trim())return "اكتب المطلوب";const e=resolveEmp(fd.as);const data={title:fd.title.trim(),assignee:e?.id||"",due:fd.due||"",note:(fd.note||"").trim(),status:"open"};
@@ -2095,7 +2154,9 @@ VIEWS.settings = {
       xm.after(tk);
       const sp=document.createElement("div");sp.className="card";sp.style.marginTop="14px";
       sp.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">صلاحيات التوقيع والاعتماد</h3><div class="muted" style="font-size:13px">${Object.entries(SIGN_GROUPS).map(([g,ar])=>`${ar}: ${(SIGN_OPTS.find(o=>o[0]===signPol(g).sign)||["","?"])[1]}`).join(" · ")}</div></div><button class="btn primary" onclick="signPermEditor()">ضبط الصلاحيات</button></div>`;
-      tk.after(sp)}
+      tk.after(sp);
+      const vc=document.createElement("div");vc.className="card";vc.id="verCard";vc.style.marginTop="14px";
+      sp.after(vc);verCardRender();checkAppUpdate(false)}
     if(isOwner){const im=document.createElement("div");im.className="card";im.style.marginTop="14px";im.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">استيراد بيانات المنظومة القديمة</h3><div class="muted" style="font-size:13px">ملف النقل (migration.json) من نسخة Claude.</div></div><label class="btn" style="cursor:pointer">اختار الملف<input type="file" id="migFile" accept="application/json,.json" style="display:none"></label></div><div id="migMsg" class="muted" style="font-size:13px;margin-top:6px"></div>`;$("setBody").appendChild(im);$("migFile").onchange=e=>runMigration(e.target.files[0])}
     if(isOwner||BASE.del){settleInvites();const box=document.createElement("div");box.style.marginBottom="18px";$("setBody").prepend(box);usersCardHTML().then(h=>{box.innerHTML=h+rolesCardHTML()+'<h3 style="margin:22px 0 8px">إعدادات المشروع</h3>'})}
     $("setForm").onsubmit=async e=>{
