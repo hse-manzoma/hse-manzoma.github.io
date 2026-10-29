@@ -94,6 +94,35 @@ function authLog(msg,extra){
 }
 window.SBA.authLog=()=>{try{return JSON.parse(localStorage.getItem(ALOG)||"[]")}catch(e){return []}};
 window.SBA.authLogClear=()=>{try{localStorage.removeItem(ALOG)}catch(e){}};
+/* ---------- بدل ما نرمي المستخدم بره: نشتغل بالنسخة المحفوظة قراءة بس ---------- */
+const RKEY="hse.auth.lastReload";
+const recentlyReloaded=()=>{try{return Date.now()-(+localStorage.getItem(RKEY)||0)<90000}catch(e){return false}};
+const markReload=()=>{try{localStorage.setItem(RKEY,String(Date.now()))}catch(e){}};
+function sessionBanner(reason){
+  if(document.getElementById("sessBar"))return;
+  const el=document.createElement("div");el.id="sessBar";
+  el.style.cssText="position:fixed;inset-inline:0;top:0;z-index:10000;direction:rtl;background:#c92a2a;color:#fff;padding:9px 14px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font:600 13px/1.5 'IBM Plex Sans Arabic',system-ui,sans-serif";
+  el.innerHTML=`<span>⚠ ${esc2(reason)} — المنظومة شغالة بالبيانات المحفوظة على جهازك، <b>قراءة بس</b>.</span>
+    <button onclick="SBA.freshLogin()" style="padding:5px 12px;border:0;border-radius:8px;background:#fff;color:#c92a2a;font-weight:700;cursor:pointer">سجّل دخول من جديد</button>`;
+  document.body.appendChild(el);
+}
+window.SBA.freshLogin=async()=>{
+  authLog("المستخدم طلب دخول جديد");
+  try{localStorage.removeItem(PKEY);localStorage.removeItem(RKEY)}catch(e){}
+  window.SBA.__bye=true;try{await sb.auth.signOut({scope:"local"})}catch(e){}
+  location.reload();
+};
+async function degradeToCached(reason){
+  let c=null;try{c=JSON.parse(localStorage.getItem(PKEY)||"null")}catch(e){}
+  if(!c||!c.p||c.p.disabled)return false;
+  window.SBA.user=window.SBA.user||{id:c.uid};
+  window.SBA.profile=c.p;window.SBA.offlineProfile=true;window.SBA.readOnly=true;
+  document.getElementById("gate")?.remove();
+  readyResolve();badge();
+  authLog("اشتغلنا بالنسخة المحفوظة (قراءة بس): "+reason);
+  sessionBanner(reason);
+  return true;
+}
 
 /* ---------- auth gate ---------- */
 let readyResolve;const ready=new Promise(r=>readyResolve=r);
@@ -191,7 +220,10 @@ function acceptSession(session){
   // Supabase auth callbacks run under its auth lock. Defer all follow-up Supabase calls.
   loginFlow=loginFlow.catch(()=>{}).then(()=>new Promise(resolve=>setTimeout(resolve,0)))
     .then(()=>afterLogin(session))
-    .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";await showGate("تم تسجيل الدخول لكن تعذرت قراءة ملف الصلاحيات من Supabase. الجلسة محفوظة؛ راجع سجل profiles وسياسات RLS ثم أعد المحاولة.",session)});
+    .catch(async e=>{console.error("Session initialization failed",e);started=false;activeUid="";
+      authLog("فشل تجهيز الجلسة",{err:String(e&&e.message||e)});
+      if(await degradeToCached("تعذرت قراءة ملف الصلاحيات من السيرفر"))return;
+      await showGate("تم تسجيل الدخول لكن تعذرت قراءة ملف الصلاحيات من Supabase. الجلسة محفوظة؛ راجع سجل profiles وسياسات RLS ثم أعد المحاولة.",session)});
 }
 sb.auth.onAuthStateChange((ev,session)=>{
   authLog("حدث: "+ev,{session:!!session,uid:session?.user?.id||null});
@@ -207,9 +239,16 @@ sb.auth.onAuthStateChange((ev,session)=>{
         else authLog("التجديد ما رجّعش جلسة",{err:rf&&rf.error?String(rf.error.message||rf.error):null});
       }catch(e){authLog("التجديد رمى خطأ",{err:String(e&&e.message||e)})}
       if(!rescued){
+        /* مرة واحدة بس نجرّب إعادة التحميل. لو اتكررت في أقل من دقيقة ونص،
+           يبقى فيه لفة — نوقفها ونشتغل بالنسخة المحفوظة بدل ما نفضل نرمي المستخدم بره. */
+        if(recentlyReloaded()){
+          authLog("لفة خروج متكررة — وقفناها");
+          if(await degradeToCached("الجلسة انتهت وما قدرناش نجدّدها"))return;
+        }
         authLog("الجلسة انتهت — رجوع لشاشة الدخول");
         try{sessionStorage.setItem("hse.session.enforce.error","الجلسة انتهت وما قدرناش نجدّدها. سجّل دخول تاني — وفي شاشة الدخول تحت هتلاقي «سجل الجلسة».")}catch(e){}
         try{localStorage.removeItem(PKEY)}catch(e){}
+        markReload();
         cleanupLocalPush().finally(()=>location.reload());
       }
     })();
@@ -284,6 +323,7 @@ async function pushDel(col,id){
   const {error}=await sb.from("docs").delete().eq("col",col).eq("id",id);if(error)throw norm(error);
 }
 async function setDoc(col,id,data){
+  if(window.SBA.readOnly)throw Object.assign(new Error("الجلسة انتهت — سجّل دخول من جديد عشان تقدر تحفظ"),{code:"read_only"});
   const prev=await cacheGet(col,id);
   await cachePut(col,id,data);local(col,id,data);          /* يتسجل محلياً فوراً */
   try{
@@ -298,6 +338,7 @@ async function setDoc(col,id,data){
   }
 }
 async function delDoc(col,id){
+  if(window.SBA.readOnly)throw Object.assign(new Error("الجلسة انتهت — سجّل دخول من جديد عشان تقدر تمسح"),{code:"read_only"});
   const prev=await cacheGet(col,id);
   await cacheDel(col,id);local(col,id,null);
   try{

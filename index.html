@@ -3017,12 +3017,48 @@ function sigRect(spec,nf){if(!nf||!Array.isArray(nf.rect)||nf.rect.length<4)retu
   return [x,d.rect[1]+gap-h*0.15,w,h*1.3]}
 async function renderGeneric(fid,rec){
   const pages=await renderGenericBase(fid,rec);
-  if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages);
-  const spec=(await loadForms2())[fid];const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
-  for(const nk of SIG_FIELDS[fid]){const nf=spec.fields.find(f=>f.k===nk);if(!nf)continue;if(normName(recVal(spec,rec,nk))!==normName(rec.approved.name||""))continue;
-    const cv=pages[nf.page||0];if(!cv)continue;const g=cv.getContext("2d");const sr=sigRect(spec,nf);if(!sr)continue;const [rx,ry,rw,rh]=sr;const W=cv.width,H=cv.height;const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
-    if(src){try{const im=await loadImg(src);g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);const s=Math.min(bw*0.8/im.width,bh*1.15/im.height);const w=im.width*s,h=im.height*s;g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h)}catch(e){}}}
-  return renderGenericSigned(fid,rec,pages)}
+  if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages,false);
+  const spec=(await loadForms2())[fid];
+  const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
+  const want=normName(rec.approved.name||"");
+  const drawSig=async(nf,withName)=>{
+    if(!src)return false;
+    const cv=pages[nf.page||0];if(!cv)return false;
+    const sr=sigRect(spec,nf);if(!sr)return false;
+    const g=cv.getContext("2d"),[rx,ry,rw,rh]=sr,W=cv.width,H=cv.height;
+    const bx=rx*W,by=ry*H,bw=rw*W,bh=rh*H;
+    try{
+      const im=await loadImg(src);
+      g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);
+      const k=Math.min(bw*0.8/im.width,bh*1.15/im.height),w=im.width*k,h=im.height*k;
+      g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);
+      /* لو خانة الاسم كانت فاضية نكتب اسم المعتمد فوقها عشان الورقة تبقى مفهومة */
+      if(withName&&rec.approved.name&&Array.isArray(nf.rect)&&nf.rect.length>=4){
+        const [nx,ny,nw,nh]=nf.rect,ax=nx*W,ay=ny*H,aw=nw*W,ah=nh*H;
+        g.fillStyle="#fff";g.fillRect(ax+1,ay+1,aw-2,ah-2);
+        g.fillStyle="#111";g.textBaseline="middle";g.textAlign="center";g.direction="rtl";
+        let fs=Math.min(13*(150/72),ah*0.78);
+        g.font=`700 ${fs}px "IBM Plex Sans Arabic",Arial,sans-serif`;
+        const t=String(rec.approved.name);
+        while(g.measureText(t).width>aw-6&&fs>Math.max(9,ah*0.5)){fs-=0.5;g.font=`700 ${fs}px "IBM Plex Sans Arabic",Arial,sans-serif`}
+        g.fillText(t,ax+aw/2,ay+ah/2+1);
+      }
+      return true;
+    }catch(e){return false}
+  };
+  const fields=SIG_FIELDS[fid].map(k=>spec.fields.find(f=>f.k===k)).filter(Boolean);
+  let drew=false;
+  for(const nf of fields){
+    if(normName(recVal(spec,rec,nf.k))!==want)continue;
+    if(await drawSig(nf,false))drew=true;
+  }
+  /* السجل معتمد فعلاً بس خانة الاسم فاضية (أو مكتوب فيها اسم تاني):
+     الاعتماد حقيقي، فلازم التوقيع يبان بدل ما الورقة تطلع فاضية. */
+  if(!drew){
+    const slot=fields.find(nf=>!String(recVal(spec,rec,nf.k)||"").trim())||fields[0];
+    if(slot&&await drawSig(slot,true))drew=true;
+  }
+  return renderGenericSigned(fid,rec,pages,drew)}
 async function approveRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;const f={...(r.f||{})};
   for(const k of SIG_FIELDS[r.form]||[])if(SIG_AUTOFILL(r.form,k)&&!f[k]){f[k]=myEmpName();const e=S.employees.find(x=>normName(x.name)===normName(f[k]));if(e)f[k+"_id"]=e.id}
   const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}
@@ -3798,7 +3834,10 @@ async function stampOn(cv,r,src,s){if(!cv||!r)return;const source=src||s?.signat
   try{const im=await normalizeSigForPrint(source);if(!im)return;const maxW=bw*.86,maxH=bh*.68,k=Math.min(maxW/im.width,maxH/im.height),w=im.width*k,h=im.height*k;
     g.save();g.beginPath();g.rect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.clip();g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);g.restore()}catch(e){}}
 const NAME_KEY=/^(sig\d|tName|lecName|lecturer|trainer|mgr|officer|writer|gh|inspector|reporter|clinic|lead|corrBy|orig|sup|checker)(_\d)?$/;
-async function renderGenericSigned(fid,rec,pages){const L=signsOf(rec).filter(s=>!(rec.approved&&isLeaderName(s.name)));if(!L.length)return pages;
+/* approvalDrawn: هل مسار الاعتماد رسم التوقيع فعلاً؟
+   قبل كده كان بيشيل توقيع صاحب الاعتماد لمجرد إن السجل «معتمد» — حتى لو مارسمش حاجة،
+   فالسجل المعتمد كان بيطلع من غير أي توقيع، ولما تلغي الاعتماد التوقيع يرجع. */
+async function renderGenericSigned(fid,rec,pages,approvalDrawn){const L=signsOf(rec).filter(s=>!(approvalDrawn&&isLeaderName(s.name)));if(!L.length)return pages;
   const spec=(await loadForms2())[fid];const mine=await mySig();
   for(const s of L){const done=new Set();for(const f of spec.fields){if(f.type==="check"||!(f.type==="emp"||NAME_KEY.test(f.k)))continue;const v=recVal(spec,rec,f.k);if(!v||normName(v)!==normName(s.name))continue;
     const r=signRect(spec.fields,f,x=>x.rect,isDateField);if(!r)continue;const key=(f.page||0)+":"+r.map(n=>n.toFixed(3)).join(",");if(done.has(key))continue;done.add(key);
