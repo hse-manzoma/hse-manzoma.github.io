@@ -1496,7 +1496,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.3.1";
+const APP_VER="5.3.2";
 const APP_BUILD="2026-10-29";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3129,8 +3129,12 @@ async function renderGeneric(fid,rec){
     try{
       const im=await loadImg(src);
       g.fillStyle="#fff";g.fillRect(bx+bw*0.04,by+bh*0.2,bw*0.92,bh*0.6);
-      const k=Math.min(bw*0.8/im.width,bh*1.15/im.height),w=im.width*k,h=im.height*k;
+      /* التوقيع لازم يفضل جوه الخانة: قبل كده كان بياخد 115% من ارتفاعها من غير قص،
+         فكان بيطلع بره ويركب على صف التاريخ بعد الاعتماد. */
+      const k=Math.min(bw*0.86/im.width,bh*0.92/im.height),w=im.width*k,h=im.height*k;
+      g.save();g.beginPath();g.rect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.clip();
       g.drawImage(im,bx+(bw-w)/2,by+(bh-h)/2,w,h);
+      g.restore();
       /* لو خانة الاسم كانت فاضية نكتب اسم المعتمد فوقها عشان الورقة تبقى مفهومة */
       if(withName&&rec.approved.name&&Array.isArray(nf.rect)&&nf.rect.length>=4){
         const [nx,ny,nw,nh]=nf.rect,ax=nx*W,ay=ny*H,aw=nw*W,ah=nh*H;
