@@ -1335,7 +1335,7 @@ function recIdentity(spec,rec){
   return keys.sort().join("|");
 }
 async function recDupes(fid,rec,selfId){
-  const spec=(await loadForms2())[fid];if(!spec)return [];
+  const spec=(await spec2(fid));if(!spec)return [];
   const d=rec?.f?.date||rec?.date||today();
   const key=recIdentity(spec,rec);
   return S.records.filter(r=>r.id!==selfId&&r.form===fid&&(r.date||r.f?.date)===d
@@ -1361,7 +1361,7 @@ function attendStats(rec,spec){
 }
 async function attendSign(recId){
   const rec=S.records.find(r=>r.id===recId);if(!rec){toast("السجل مش موجود");return}
-  const spec=(await loadForms2())[rec.form];const col=attendCol(spec);
+  const spec=(await spec2(rec.form));const col=attendCol(spec);
   if(!col){toast("النموذج ده مفيهوش عمود توقيع");return}
   if(!canSignGroup("attend")){toast("مالكش صلاحية توقيعات الحضور");return}
   const L=attendRows(rec,spec);
@@ -1514,7 +1514,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.4.1";
+const APP_VER="5.5.0";
 const APP_BUILD="2026-10-29";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2371,6 +2371,29 @@ async function runImport(){
 const FORM_TYPES=["COLD","HOT","HEIGHT","LIFT","CONF","EXC"];
 let FORMS=null;const imgCache={};
 async function loadForms(){if(!FORMS)FORMS=await fetch("forms.json").then(r=>{if(!r.ok)throw new Error("forms");return r.json()});return FORMS}
+/* ===== ضبط مواضع النصوص والتوقيعات =====
+   forms.json ملف ثابت مرفوع مع الموقع، فالمنظومة ماتقدرش تكتب فيه.
+   فأي تظبيط بيتحفظ في الإعدادات وبيتطبّق على الرسم — يعني يبان لكل المستخدمين. */
+const tweakAll=()=>(S.settings&&S.settings.formTweaks)||{};
+function tweakFor(T){return tweakAll()[T]||{}}
+function tweakedForm(F,T){
+  const t=tweakFor(T);
+  if(!t.boxes&&!t.sigs)return F;
+  const cp={...F};
+  if(t.boxes&&F.boxes)cp.boxes=F.boxes.map(b=>{const o=b.field&&t.boxes[b.field];return o?{...b,...o}:b});
+  if(t.sigs&&F.sigBoxes)cp.sigBoxes=F.sigBoxes.map(b=>{const o=b.field&&t.sigs[b.field];return o?{...b,...o}:b});
+  return cp;
+}
+const TW_KEYS=["x","y","w","h","sz","fit"];
+function tweakPick(b){const o={};for(const k of TW_KEYS)if(b[k]!==undefined)o[k]=+(+b[k]).toFixed(4);return o}
+async function tweakStore(T,kind,field,vals){
+  const all=JSON.parse(JSON.stringify(tweakAll()));
+  const f=all[T]||(all[T]={});const g=f[kind]||(f[kind]={});
+  if(vals)g[field]={...(g[field]||{}),...vals};else delete g[field];
+  if(!Object.keys(g).length)delete f[kind];
+  if(!Object.keys(f).length)delete all[T];
+  return await write(()=>db.doc("settings/main").set({...S.settings,formTweaks:all,updatedAt:Date.now()}),"اتحفظ المكان");
+}
 function loadImg(src){return imgCache[src]??=new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>{delete imgCache[src];rej(new Error(src))};i.src=src})}
 const PTW_DAYS={COLD:1,HOT:1,CONF:1,HEIGHT:7,LIFT:7,ELEC:1,EXC:1};
 function addDays(s,n){const [y,m,d]=s.split("-").map(Number);const x=new Date(y,m-1,d+n);return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate())}
@@ -2401,7 +2424,7 @@ function drawBoxText(x,W,H,rect,txt,{szPt=11,pxPerPt=1,algn="ctr",lines=1,fill=f
   const padX=Math.min(8,Math.max(2,bw*.035)),padY=Math.min(3,bh*.08);
   const maxW=Math.max(1,bw-padX*2),innerH=Math.max(1,bh-padY*2);
   x.direction=/[؀-ۿ]/.test(txt)?"rtl":"ltr";
-  const cap=lines>1?bh/lines*0.78:bh*0.72;
+  const cap=lines>1?bh/lines*0.78:bh*0.80;   /* كان 0.72 — الكتابة كانت صغيرة على الورق */
   const baseFs=Math.max(1,Math.min(szPt*pxPerPt,cap)),minFs=Math.min(FORM_MIN_PT*pxPerPt,baseFs);
   const mk=()=>txt.split(/\r?\n/).flatMap(l=>l?wrapLines(x,l,maxW):[""]);
   let fs=baseFs,L=[],maxL=1;
@@ -2411,13 +2434,26 @@ function drawBoxText(x,W,H,rect,txt,{szPt=11,pxPerPt=1,algn="ctr",lines=1,fill=f
   x.font=formFont(fs);maxL=Math.max(1,Math.floor(innerH/(fs*FORM_LH)));L=mk();
   const fit=l=>{if(x.measureText(l).width<=maxW)return l;const a=[...l];
     while(a.length&&x.measureText(a.join("")+"…").width>maxW)a.pop();return a.length?a.join("")+"…":"…"};
-  if(L.length>maxL){L=L.slice(0,maxL);L[maxL-1]=fit(L[maxL-1])}else L=L.map(fit);
+  /* خانة السطر الواحد: الكلام الطويل بيتضغط عرضياً بدل ما يتقص
+     («HSE Assistant» كانت بتتقسم سطرين وتتقص لـ«HSE») */
+  let sx=1;
+  if(lines<=1){
+    const one=txt.replace(/\s*\r?\n\s*/g," ").trim();
+    const wOne=x.measureText(one).width;
+    if(wOne<=maxW)L=[one];
+    else{const need=maxW/wOne; if(need>=0.58){L=[one];sx=need} else L=[fit(one)]}
+  }else{
+    if(L.length>maxL){L=L.slice(0,maxL);L[maxL-1]=fit(L[maxL-1])}else L=L.map(fit);
+  }
   const align=algn==="r"?"right":algn==="l"?"left":"center";
   const tx=align==="right"?bx+bw-padX:align==="left"?bx+padX:bx+bw/2;
   x.fillStyle="#111";x.textBaseline="middle";x.textAlign=align;
   const lh=fs*FORM_LH,top=by+bh/2-(L.length-1)*lh/2;
   x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();
-  L.forEach((l,i)=>x.fillText(l,tx,top+i*lh));x.restore();
+  if(sx<1){x.translate(tx,0);x.scale(sx,1);x.translate(-tx,0)}
+  x.strokeStyle="#111";x.lineWidth=Math.max(.45,fs*0.045)/(sx<1?sx:1);x.lineJoin="round";x.miterLimit=2;
+  L.forEach((l,i)=>{const yy=top+i*lh;x.fillText(l,tx,yy);x.strokeText(l,tx,yy)});
+  x.restore();
 }
 /* القيم اللي كانت متحطة كصور جوه النماذج — بقت نصوص بتقرا من الإعدادات.
    لازم الرسم وتوزيع التوقيعات يشوفوا نفس القيم، عشان مطابقة الأسماء تظبط. */
@@ -2426,7 +2462,7 @@ function formVals(vals){
           deptName:S.settings.deptName||"HSE",...(vals||{})};
 }
 async function renderForm(T,vals,opt={}){
-  const F=(await loadForms())[T];if(!F)throw new Error("no form "+T);
+  const F=tweakedForm((await loadForms())[T],T);if(!F)throw new Error("no form "+T);
   vals=formVals(vals);
   try{await document.fonts.load('600 24px "IBM Plex Sans Arabic"')}catch(e){}
   const sig=await loadSig();const out=[];let sigMissing=false;
@@ -2450,7 +2486,7 @@ async function renderForm(T,vals,opt={}){
       if(b.hideIfLeader&&opt.leader)continue;
       const txt=b.static??vals[b.field];if(txt==null||txt==="")continue;
       drawBoxText(x,W,H,[b.x,b.y,b.w,b.h],txt,{szPt:b.sz||11,pxPerPt,algn:b.algn||"ctr",
-        lines:b.lines||1,fill:WHITEOUT.includes(b.field)||!!b.fill});
+        lines:b.lines||1,fill:b.fill===false?false:(WHITEOUT.includes(b.field)||!!b.fill)});
     }    out.push(c);
   }
   out.sigMissing=sigMissing;return out;
@@ -2786,6 +2822,17 @@ async function printPermit_orig(id){
 /* ---------- generic official forms (records) ---------- */
 let FORMS2=null;
 async function loadForms2(){if(!FORMS2)FORMS2=await fetch("forms2.json").then(r=>{if(!r.ok)throw new Error("forms2");return r.json()});return FORMS2}
+/* نفس طبقة التظبيط بس للسجلات: بتعدّل مكان الخانة وارتفاعها (والخط بيتبع الارتفاع) */
+function tweakedSpec(spec,fid){
+  const t=tweakFor(fid).f2;
+  if(!t||!spec||!spec.fields)return spec;
+  return {...spec,fields:spec.fields.map(f=>{
+    const o=t[f.k];
+    if(!o||!Array.isArray(f.rect)||f.rect.length<4)return f;
+    return {...f,rect:[o.x??f.rect[0],o.y??f.rect[1],o.w??f.rect[2],o.h??f.rect[3]]};
+  })};
+}
+async function spec2(fid){return tweakedSpec((await loadForms2())[fid],fid)}
 const FORM_GROUPS={daily:"الشغل اليومي",inspect:"قوائم التفتيش",emerg:"الطوارئ والمعدات",other:"تصاريح وسجلات تانية"};
 ui.formSel=ui.formSel||"";ui.formQ="";
 function recsOf(fid){return S.records.filter(r=>r.form===fid).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.serial)-num(a.serial))}
@@ -2806,7 +2853,7 @@ function recVal(spec,rec,k,depth=0){
 }
 function fmtFieldVal(f,v){if(!v)return "";if(f.type==="date"&&/^\d{4}-\d\d-\d\d$/.test(v))return fmtDate(v);return v}
 async function renderGenericBase(fid,rec){
-  const spec=(await loadForms2())[fid];try{await document.fonts.load('600 24px "IBM Plex Sans Arabic"')}catch(e){}
+  const spec=(await spec2(fid));try{await document.fonts.load('600 24px "IBM Plex Sans Arabic"')}catch(e){}
   const out=[];
   for(let k=0;k<spec.pages.length;k++){
     const bg=await loadImg(spec.pages[k]);const W=bg.naturalWidth,H=bg.naturalHeight;
@@ -2891,7 +2938,7 @@ function fillFormRecords(el,fid,spec){
 }
 async function recordFormBase(fid,id,preset){
   let dupAck=false;                     /* أول حفظ بيحذّر من التكرار، والتاني بيكمّل */
-  const spec=(await loadForms2())[fid];const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
+  const spec=(await spec2(fid));const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
   const fv=k=>rec.f?.[k]??"";
   const fieldHTML=f=>{
     if(f.hidden)return "";
@@ -3001,7 +3048,7 @@ function empDatalist2(){return `<datalist id="empListAll">${activeEmps().map(e=>
 async function printRecord_orig(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
-  const spec=(await loadForms2())[r.form];let pages=null;
+  const spec=(await spec2(r.form));let pages=null;
   openSheet(`طباعة ${spec.title}`,`<div id="pvw" class="pvw"><div class="empty">بيجهّز النموذج…</div></div>`,async()=>{
     if(!pages)return "النموذج لسه بيجهز";const dl=await window.claude?.use?.("downloads");if(!dl)return "التنزيل مش متاح هنا. حدّث الصفحة";
     let blob;try{blob=await permitPdfBlob(pages)}catch(e){return "معرفتش أعمل ملف PDF"}
@@ -3127,12 +3174,163 @@ function docSignBtns(col,id,reopen){
     ? `<button class="btn" data-extra onclick="pvClose();unsignDoc('${col}','${id}',()=>{${reopen||""}})" title="شيل توقيعك من النموذج ده">✕ إلغاء توقيعي</button>`
     : `<button class="btn sign" data-extra onclick="pvClose();signDoc('${col}','${id}'${re})">✍ وقّع واعتمد</button>`;
 }
+/* ===== محرر المواضع: الأدمن يسحب ويكبّر النصوص والتوقيعات على النموذج نفسه ===== */
+let TWEAK_DOC=null;          /* {T,reopen} — النموذج المفتوح دلوقتي */
+function tweakBtn(T,reopen){
+  if(!T||myAccess()?.role!=="admin")return "";
+  return `<button class="btn" data-extra onclick="tweakOpen('${T}',${JSON.stringify(reopen||"").replace(/"/g,"&quot;")})" title="اسحب النصوص والتوقيعات لمكانها الصح">ضبط المواضع</button>`;
+}
+async function tweakOpen(T,reopen){
+  if(myAccess()?.role!=="admin"){toast("ضبط المواضع لمدير المنظومة بس");return}
+  TWEAK_DOC={T,reopen:reopen||""};
+  const body=document.getElementById("pvBody");
+  const cvs=[...(body?body.querySelectorAll("canvas"):[])];
+  if(!cvs.length){toast("استنى النموذج يخلص تحضير");return}
+  let F=null,isRec=false;
+  if((await loadForms())[T])F=tweakedForm((await loadForms())[T],T);
+  else{
+    const sp=await spec2(T);
+    if(sp&&sp.fields){
+      isRec=true;
+      F={boxes:sp.fields.filter(f=>!f.hidden&&Array.isArray(f.rect)&&f.rect.length>=4)
+          .map(f=>({field:f.k,page:f.page||0,x:f.rect[0],y:f.rect[1],w:f.rect[2],h:f.rect[3]})),
+         sigBoxes:[]};
+    }
+  }
+  if(!F){toast("النموذج ده مش متظبط بالطريقة دي");return}
+  TWEAK_DOC.kind=isRec?"f2":null;
+  document.getElementById("twBar")?.remove();
+  const bar=document.createElement("div");bar.id="twBar";
+  bar.style.cssText="position:fixed;inset-inline:0;bottom:0;z-index:10050;background:var(--surface);border-top:2px solid var(--accent);padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;direction:rtl;font:600 13px 'IBM Plex Sans Arabic',system-ui;box-shadow:0 -6px 20px rgba(0,0,0,.18)";
+  bar.innerHTML=`<b id="twWho" class="grow" style="min-width:140px">دوس على أي نص أو توقيع في النموذج</b>
+    <button type="button" class="btn ghost sm" id="twBig">خط أكبر</button>
+    <button type="button" class="btn ghost sm" id="twSmall">خط أصغر</button>
+    <button type="button" class="btn ghost sm" id="twReset">رجّع الأصل</button>
+    <button type="button" class="btn primary sm" id="twSave">حفظ المكان</button>
+    <button type="button" class="btn sm" id="twX">خروج</button>`;
+  document.body.appendChild(bar);
+  const layers=[];
+  cvs.forEach((cv,k)=>{
+    const host=cv.parentElement;
+    if(getComputedStyle(host).position==="static")host.style.position="relative";
+    const L=document.createElement("div");L.className="twLayer";
+    /* الطبقة لازم تطابق الكانفاس بالظبط — مش الحاوية اللي حواليه (كانت أعرض منه) */
+    const place=()=>{L.style.cssText="position:absolute;direction:ltr;pointer-events:none;"+
+      `left:${cv.offsetLeft}px;top:${cv.offsetTop}px;width:${cv.offsetWidth}px;height:${cv.offsetHeight}px`};
+    place();host.appendChild(L);layers.push({L,cv,k,place});
+    const add=(b,kind)=>{
+      if((b.page||0)!==k||!b.field)return;
+      const d=document.createElement("div");
+      d.className="twBox";d.dataset.field=b.field;d.dataset.kind=kind;
+      d.style.cssText=`position:absolute;left:${b.x*100}%;top:${b.y*100}%;width:${b.w*100}%;height:${b.h*100}%;`+
+        `border:1.5px solid ${kind==="sigs"?"#1f7a4d":"#d9480f"};background:${kind==="sigs"?"rgba(31,122,77,.10)":"rgba(217,72,15,.10)"};`+
+        `cursor:move;pointer-events:auto;border-radius:3px;box-sizing:border-box`;
+      d.innerHTML=`<span style="position:absolute;inset-inline-start:1px;top:-15px;font:700 10px system-ui;color:${kind==="sigs"?"#1f7a4d":"#d9480f"};white-space:nowrap;background:#fff;padding:0 2px;border-radius:2px">${esc(b.field)}</span>`+
+        `<i data-rz style="position:absolute;left:-5px;bottom:-5px;width:12px;height:12px;background:#fff;border:2px solid #333;border-radius:2px;cursor:nwse-resize"></i>`;
+      L.appendChild(d);
+    };
+    (F.boxes||[]).forEach(b=>add(b,"boxes"));
+    (F.sigBoxes||[]).forEach(b=>add(b,"sigs"));
+  });
+  let sel=null,drag=null;
+  const pend={};                      /* التعديلات اللي لسه ما اتحفظتش */
+  const srcOf=(kind,field)=>((kind==="sigs"?F.sigBoxes:F.boxes)||[]).find(b=>b.field===field)||{};
+  const pick=d=>{
+    document.querySelectorAll(".twBox").forEach(x=>{x.style.outline="";x.style.zIndex=""});
+    sel=d;if(!d){document.getElementById("twWho").textContent="دوس على أي نص أو توقيع في النموذج";return}
+    d.style.outline="3px solid #111";d.style.zIndex="5";
+    const b=srcOf(d.dataset.kind,d.dataset.field),cur=pend[d.dataset.kind+"|"+d.dataset.field]||{};
+    const sz=cur.sz??b.sz;
+    document.getElementById("twWho").textContent=`المختار: ${d.dataset.field}${sz?" · حجم الخط "+(+sz).toFixed(1):""}`;
+  };
+  document.querySelectorAll(".twBox").forEach(d=>{
+    d.onpointerdown=e=>{
+      e.preventDefault();e.stopPropagation();pick(d);
+      const host=d.parentElement.getBoundingClientRect();
+      const rz=e.target.hasAttribute&&e.target.hasAttribute("data-rz");
+      drag={d,rz,host,sx:e.clientX,sy:e.clientY,
+        x0:parseFloat(d.style.left)/100,y0:parseFloat(d.style.top)/100,
+        w0:parseFloat(d.style.width)/100,h0:parseFloat(d.style.height)/100};
+      try{d.setPointerCapture(e.pointerId)}catch(x){}
+    };
+    d.onpointermove=e=>{
+      if(!drag||drag.d!==d)return;
+      const dx=(e.clientX-drag.sx)/drag.host.width,dy=(e.clientY-drag.sy)/drag.host.height;
+      if(drag.rz){
+        const w=Math.max(0.01,drag.w0-dx),h=Math.max(0.006,drag.h0+dy);
+        d.style.left=((drag.x0+dx)*100)+"%";d.style.width=(w*100)+"%";d.style.height=(h*100)+"%";
+      }else{
+        d.style.left=((drag.x0+dx)*100)+"%";d.style.top=((drag.y0+dy)*100)+"%";
+      }
+      mark(d);
+    };
+    d.onpointerup=d.onpointercancel=()=>{drag=null};
+  });
+  function mark(d){
+    const k=d.dataset.kind+"|"+d.dataset.field;
+    pend[k]={...(pend[k]||{}),
+      x:+(parseFloat(d.style.left)/100).toFixed(4),y:+(parseFloat(d.style.top)/100).toFixed(4),
+      w:+(parseFloat(d.style.width)/100).toFixed(4),h:+(parseFloat(d.style.height)/100).toFixed(4)};
+  }
+  const bump=step=>{
+    if(!sel){toast("اختار نص الأول");return}
+    const k=sel.dataset.kind+"|"+sel.dataset.field;
+    const b=srcOf(sel.dataset.kind,sel.dataset.field);
+    const cur=(pend[k]&&pend[k].sz)??b.sz??9;
+    const nv=Math.min(40,Math.max(6,+(cur+step).toFixed(1)));
+    pend[k]={...(pend[k]||{}),sz:nv};
+    document.getElementById("twWho").textContent=`المختار: ${sel.dataset.field} · حجم الخط ${nv.toFixed(1)}`;
+  };
+  document.getElementById("twBig").onclick=()=>bump(+0.5);
+  document.getElementById("twSmall").onclick=()=>bump(-0.5);
+  document.getElementById("twReset").onclick=async()=>{
+    if(!sel){toast("اختار نص الأول");return}
+    const kind=sel.dataset.kind,field=sel.dataset.field;
+    confirmSheet("رجوع للأصل",`«${field}» هيرجع لمكانه الأصلي.`,async()=>{
+      delete pend[kind+"|"+field];
+      if(await tweakStore(TWEAK_DOC.T,TWEAK_DOC.kind||kind,field,null))tweakReopen();
+    },"رجّعه");
+  };
+  document.getElementById("twSave").onclick=async()=>{
+    const ks=Object.keys(pend);
+    if(!ks.length){toast("ما اتغيرش حاجة");return}
+    let ok=true;
+    for(const k of ks){const [kind,field]=k.split("|");
+      if(!await tweakStore(TWEAK_DOC.T,TWEAK_DOC.kind||kind,field,pend[k])){ok=false;break}}
+    if(ok){toast(`اتحفظ ${ks.length} موضع ✔`);tweakReopen()}
+  };
+  document.getElementById("twX").onclick=tweakClose;
+  const onKey=e=>{
+    if(!sel)return;
+    const st=e.shiftKey?0.004:0.001;
+    const m={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];
+    if(!m)return;e.preventDefault();
+    sel.style.left=((parseFloat(sel.style.left)/100+m[0])*100)+"%";
+    sel.style.top=((parseFloat(sel.style.top)/100+m[1])*100)+"%";
+    mark(sel);
+  };
+  document.addEventListener("keydown",onKey);
+  window.__twKey=onKey;
+  const onRz=()=>layers.forEach(x=>x.place());
+  addEventListener("resize",onRz);window.__twRz=onRz;
+  document.getElementById("pvBody")?.addEventListener("pointerdown",ev=>{if(!ev.target.closest(".twBox"))pick(null)});
+}
+function tweakClose(){
+  document.getElementById("twBar")?.remove();
+  document.querySelectorAll(".twLayer").forEach(x=>x.remove());
+  if(window.__twKey){document.removeEventListener("keydown",window.__twKey);window.__twKey=null}
+  if(window.__twRz){removeEventListener("resize",window.__twRz);window.__twRz=null}
+}
+function tweakReopen(){
+  const d=TWEAK_DOC;tweakClose();
+  if(d&&d.reopen){pvClose();setTimeout(()=>{try{eval(d.reopen)}catch(e){console.error(e)}},150)}
+}
 async function printDoc({title,T,vals,opt={},miss=[],fixBtn="",filename,rec,sign,signCol="",reopen=""}){
   const sid=rec&&rec.id?rec.id:"";
   const canSign=!!(signCol&&sid)&&canSignGroup("leave",{names:[vals&&vals.name,vals&&vals.leaderName].filter(Boolean),ownerId:(rec&&rec.empId)||""});
   const iSigned=canSign&&signsOf(rec).some(z=>z.uid===ME.id);
   const V=openViewer(title,{filename,note:miss.length?`ناقص: ${esc(miss.join("، "))}. ${fixBtn}`:"",
-    extra:canSign?docSignBtns(signCol,sid,reopen):""});
+    extra:(canSign?docSignBtns(signCol,sid,reopen):"")+tweakBtn(T,reopen)});
   try{let pages=await renderForm(T,vals,opt);const sm=pages.sigMissing;
     if(canSign)pages=await stampSavedSigs(T,rec,pages,vals);
     if(sign)pages=await sign(pages);
@@ -3157,14 +3355,15 @@ async function printPermit(id){
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
-  const spec=(await loadForms2())[r.form];const personalSig=await mySig();await sigData();
+  const spec=(await spec2(r.form));const personalSig=await mySig();await sigData();
   const canAp=!!personalSig&&!!SIG_FIELDS[r.form]&&canApproveGroup("records");
   const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${canAp?(r.approved?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`):""}`;
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));const meSigned=!!r.signs?.[ME.id];
   const ext2=extra+(!(canAp&&isLeaderName(myEmpName()))&&canSignGroup("records",{names:nameVals})?(meSigned?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`):"");
   const atc=attendCol(spec);
   const atst=atc?attendStats(r,spec):null;
-  const ext3=ext2+(atc&&canSignGroup("attend")?`<button class="btn" data-extra onclick="pvClose();attendSign('${r.id}')">✍ توقيعات الحضور${atst&&atst.total?` (${atst.signed}/${atst.total})`:""}</button>`:"");
+  const extTw=tweakBtn(r.form,`printRecord('${r.id}')`);
+  const ext3=extTw+ext2+(atc&&canSignGroup("attend")?`<button class="btn" data-extra onclick="pvClose();attendSign('${r.id}')">✍ توقيعات الحضور${atst&&atst.total?` (${atst.signed}/${atst.total})`:""}</button>`:"");
   const V=openViewer(spec.title,{filename:`${r.form} ${r.date||""}.pdf`,extra:ext3,note:r.approved?`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`:""});
   if(r.approved)V.note(`✔ معتمد من ${esc(r.approved.name||LEADER())} — ${fmtDate(new Date(r.approved.at).toISOString().slice(0,10))}`,true);
   try{V.setPages([...await renderGeneric(r.form,r),...await photoPages(r,spec.title)])}catch(e){console.error(e);V.fail()}}
@@ -3185,7 +3384,7 @@ function sigRect(spec,nf){if(!nf||!Array.isArray(nf.rect)||nf.rect.length<4)retu
 async function renderGeneric(fid,rec){
   const pages=await renderGenericBase(fid,rec);
   if(!rec?.approved||!SIG_FIELDS[fid])return renderGenericSigned(fid,rec,pages,false);
-  const spec=(await loadForms2())[fid];
+  const spec=(await spec2(fid));
   const src=rec.approved.signature||(rec.approved.by===ME.id?await mySig():"");
   const want=normName(rec.approved.name||"");
   const drawSig=async(nf,withName)=>{
@@ -3253,7 +3452,7 @@ function collectRecord(spec,fid,fd,form,rec,photos){
 function addPreviewBtn(onPreview){const sub=document.querySelector("#shForm [type=submit]");if(!sub)return;const b=document.createElement("button");b.type="button";b.className="btn";b.textContent="👁 معاينة";b.onclick=onPreview;sub.insertAdjacentElement("afterend",b)}
 async function recordForm(fid,id,preset){
   await recordFormBase(fid,id,preset);
-  const spec=(await loadForms2())[fid];const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
+  const spec=(await spec2(fid));const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
   addPreviewBtn(async()=>{const form=$("shForm");const fd=Object.fromEntries(new FormData(form).entries());
     const photos=[...document.querySelectorAll("#rfPhotos img")].map(im=>({a:(im.dataset.blob||im.getAttribute("src")||"").replace(/^.*_blob\//,""),kind:"photo"})).filter(a=>a.a&&!a.a.startsWith("data:"));
     const data=collectRecord(spec,fid,fd,form,rec,photos);data.serial=rec.serial||nextRecSerial(fid);data.approved=rec.approved||null;
@@ -4010,7 +4209,7 @@ const NAME_KEY=/^(sig\d|tName|lecName|lecturer|trainer|mgr|officer|writer|gh|ins
    قبل كده كان بيشيل توقيع صاحب الاعتماد لمجرد إن السجل «معتمد» — حتى لو مارسمش حاجة،
    فالسجل المعتمد كان بيطلع من غير أي توقيع، ولما تلغي الاعتماد التوقيع يرجع. */
 async function renderGenericSigned(fid,rec,pages,approvalDrawn){const L=signsOf(rec).filter(s=>!(approvalDrawn&&isLeaderName(s.name)));if(!L.length)return pages;
-  const spec=(await loadForms2())[fid];const mine=await mySig();
+  const spec=(await spec2(fid));const mine=await mySig();
   for(const s of L){const done=new Set();for(const f of spec.fields){if(f.type==="check"||!(f.type==="emp"||NAME_KEY.test(f.k)))continue;const v=recVal(spec,rec,f.k);if(!v||normName(v)!==normName(s.name))continue;
     const r=signRect(spec.fields,f,x=>x.rect,isDateField);if(!r)continue;const key=(f.page||0)+":"+r.map(n=>n.toFixed(3)).join(",");if(done.has(key))continue;done.add(key);
     await stampOn(pages[f.page||0],r,s.uid===ME.id?mine:"",s)}}
@@ -4030,7 +4229,7 @@ async function signDoc(col,id,{reopen}={}){const src=await mySig();if(!src){toas
      لما تبقى فاضية) التوقيع مكانش بيظهر خالص — فبنملا أول خانة توقيع فاضية باسمك. */
   if(col==="records"&&x.form){
     try{
-      const spec=(await loadForms2())[x.form];const keys=SIG_FIELDS[x.form]||[];
+      const spec=(await spec2(x.form));const keys=SIG_FIELDS[x.form]||[];
       const me=normName(myEmpName());
       const anchored=!!spec&&spec.fields.some(f=>f.type!=="check"&&(f.type==="emp"||NAME_KEY.test(f.k))&&normName(recVal(spec,x,f.k))===me);
       if(!anchored&&keys.length&&me){
