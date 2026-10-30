@@ -925,18 +925,21 @@ function dutyForm(presetKind){
       ${hseTeam().map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="emps" value="${e.id}"> <span class="grow">${esc(e.name)}</span><span class="muted" style="font-size:12px">${esc(e.job||"")}</span></label>`).join("")}</div></div>
     <div class="form full" id="dutyMission" hidden>${f("جهة المأمورية","destination",{full:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today()})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.deptName||S.settings.project||""})}${f("رقم الإدارة / القسم","deptCode",{})}${f("المعتمد (مدير الإدارة / المدير المختص)","approver",{full:true,opts:[["","— من غير اعتماد إلكتروني (يتمضى بالقلم) —"],...missionApproverOpts()]})}<p class="muted full" style="font-size:12.5px;margin:0">${missionApproverIds().length?"دول أصحاب صلاحية اعتماد المأموريات.":"لسه ما حددتش أصحاب صلاحية الاعتماد — اتفضل الإعدادات ← صلاحية اعتماد المأموريات."}</p></div>
     <div class="full" id="dutyReason">${f("السبب / العمل المكلفين به","reason",{value:"متابعة أعمال الموقع",full:true})}</div>
-    <div class="full form" id="dutyHours" hidden>${f("من الساعة","from",{value:"2 م"})}${f("لحد الساعة","toH",{value:"4 م"})}</div></div>`,
+    <div class="full form" id="dutyHours" hidden>${f("من الساعة","from",{value:"2 م"})}${f("لحد الساعة","toH",{value:"4 م"})}</div>
+    <div class="full form" id="dutyOut" hidden>${f("وقت الخروج","outTime",{value:"",attrs:'placeholder="مثال: 5 م"'})}<p class="muted" style="font-size:12.5px;margin:0;align-self:center">بيتكتب في خانة «وقت الخروج» قدام كل اسم في النموذج.</p></div></div>`,
   async(fd,form)=>{
     const kind=fd.kind;let ids=(kind==="duty"||kind==="missiong")?[...form.querySelectorAll("input[name=emps]:checked")].map(i=>i.value):[fd.empId].filter(Boolean);
     if(!ids.length)return (kind==="duty"||kind==="missiong")?"اختار موظف واحد على الأقل":"اختار الموظف";
     let newId=null;
-    const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now(),createdBy:ME.id||""};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim();data.approverId=fd.approver||"";data.approverName=fd.approver?empName(fd.approver):""}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
+    const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now(),createdBy:ME.id||""};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();
+      if(kind==="duty")data.outTime=(fd.outTime||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim();data.approverId=fd.approver||"";data.approverName=fd.approver?empName(fd.approver):""}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
     if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="missiong")setTimeout(()=>printMissionGroup(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(kind==="mission"&&newId)setTimeout(()=>printMission(newId),400);else if(newId)setTimeout(()=>printOneDuty(newId),400)}
     return ok?null:"الحفظ فشل";
   },"سجّل");
   const sync=()=>{const k=$("f_kind").value,isM=(k==="mission"||k==="missiong"),many=(k==="duty"||k==="missiong");
     $("dutyHours").hidden=k!=="perm";$("dutyReason").hidden=k==="perm";$("dutyMission").hidden=!isM;
     $("dutyMany").hidden=!many;$("dutyOne").hidden=many;
+    const dout=$("dutyOut");if(dout)dout.hidden=k!=="duty";
     const lbl=$("dutyManyLbl");if(lbl)lbl.textContent=k==="missiong"?"الموظفين (لحد 18 في النموذج)":"الموظفين (لحد 10 في النموذج)";
     const rl=document.querySelector('label[for="f_reason"]')||$("dutyReason").querySelector("label");
     if(rl)rl.textContent=isM?"الغرض من المأمورية":(k==="one"?"السبب / العمل المكلف به":"السبب / العمل المكلفين به")};
@@ -1383,47 +1386,62 @@ async function attendSign(recId){
   });
 }
 function empJob(nm){const e=S.employees.find(x=>normName(x.name)===normName(nm||""));return e?.job||""}
-function attendPad(recId,i){
-  let atExport=()=>"";
-  const rec=S.records.find(r=>r.id===recId);if(!rec)return;
-  const row=(rec.rows||[])[i]||{};const nm=row.name||"";
-  const mine=normName(nm)===normName(myEmpName());
-  const root=openSheet(`توقيع · ${nm}`,
-    `<p class="muted" style="margin-top:0;font-size:13.5px">ارسم توقيعك بصباعك جوّه المربع.</p>
-     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="atC" width="900" height="300" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
-     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="atClr">🗑 مسح</button>${mine?`<button type="button" class="btn sm" id="atMine">استخدم توقيعي المحفوظ</button>`:""}</div>`,
-    async()=>{
-      const img=atExport();if(!img)return "ارسم التوقيع الأول";
-      const cur=S.records.find(r=>r.id===recId);if(!cur)return "السجل مش موجود";
-      const rws=[...(cur.rows||[])];rws[i]={...(rws[i]||{}),sigImg:img,sigAt:Date.now(),sigBy:ME.id||""};
-      const ok=await write(()=>upsert("records",recId,{rows:rws}),"اتوقّع ✔");
-      if(ok)setTimeout(()=>attendSign(recId),250);
-      return ok?null:"الحفظ فشل";
-    },"حفظ التوقيع");
-  const c=root.querySelector("#atC"),g=c.getContext("2d");let drawing=false,dirty=false,last=null;
+/* آلية الرسم لوحدها — بتتركب على أي كانفاس، جوه شيت أو جوه فورمة من غير ما تقفلها */
+function sigPadBind(c){
+  const g=c.getContext("2d");let drawing=false,dirty=false,last=null;
   const pt=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
   g.lineCap="round";g.lineJoin="round";g.strokeStyle="#16306b";g.lineWidth=7;
-  c.onpointerdown=e=>{drawing=true;dirty=true;last=pt(e);c.setPointerCapture(e.pointerId)};
+  c.onpointerdown=e=>{drawing=true;dirty=true;last=pt(e);try{c.setPointerCapture(e.pointerId)}catch(x){}};
   c.onpointermove=e=>{if(!drawing)return;const q=pt(e);g.beginPath();g.moveTo(...last);g.lineTo(...q);g.stroke();last=q};
   c.onpointerup=c.onpointercancel=()=>{drawing=false};
-  root.querySelector("#atClr").onclick=()=>{g.clearRect(0,0,c.width,c.height);dirty=false};
-  const mb=root.querySelector("#atMine");
-  if(mb)mb.onclick=async()=>{const sv=await mySig();if(!sv){toast("مفيش توقيع محفوظ لحسابك");return}
-    const im=new Image();im.onload=()=>{g.clearRect(0,0,c.width,c.height);
-      const k=Math.min(c.width*0.9/im.width,c.height*0.9/im.height);
-      g.drawImage(im,(c.width-im.width*k)/2,(c.height-im.height*k)/2,im.width*k,im.height*k);dirty=true};im.src=sv};
-  atExport=function(){
-    if(!dirty)return "";
-    const d=g.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=0,y1=0;
-    for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){if(d[(y*c.width+x)*4+3]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
-    if(x1<=x0||y1<=y0)return "";
-    const pad=8;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(c.width,x1+pad);y1=Math.min(c.height,y1+pad);
-    const o=document.createElement("canvas");const sc=Math.min(1,360/(x1-x0));
-    o.width=Math.round((x1-x0)*sc);o.height=Math.round((y1-y0)*sc);
-    o.getContext("2d").drawImage(c,x0,y0,x1-x0,y1-y0,0,0,o.width,o.height);
-    return o.toDataURL("image/png");
+  return {
+    clear(){g.clearRect(0,0,c.width,c.height);dirty=false},
+    dirty(){return dirty},
+    async useSaved(){const sv=await mySig();if(!sv)return false;
+      await new Promise(res=>{const im=new Image();im.onload=()=>{g.clearRect(0,0,c.width,c.height);
+        const k=Math.min(c.width*0.9/im.width,c.height*0.9/im.height);
+        g.drawImage(im,(c.width-im.width*k)/2,(c.height-im.height*k)/2,im.width*k,im.height*k);dirty=true;res()};im.onerror=()=>res();im.src=sv});
+      return true},
+    png(){
+      if(!dirty)return "";
+      const d=g.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=0,y1=0;
+      for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){if(d[(y*c.width+x)*4+3]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+      if(x1<=x0||y1<=y0)return "";
+      const pad=8;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(c.width,x1+pad);y1=Math.min(c.height,y1+pad);
+      const o=document.createElement("canvas");o.width=x1-x0;o.height=y1-y0;
+      o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);
+      return o.toDataURL("image/png");
+    }
   };
 }
+/* نفس اللوحة بس في شيت لوحدها — للتوقيع على سجل محفوظ */
+function sigPadSheet(title,{mine=false,saveLabel="حفظ التوقيع"}={},onSave){
+  let atExport=()=>"";
+  const root=openSheet(title,
+    `<p class="muted" style="margin-top:0;font-size:13.5px">ارسم توقيعك بصباعك جوّه المربع.</p>
+     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="atC" width="900" height="300" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
+     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="atClr">مسح</button>${mine?`<button type="button" class="btn sm" id="atMine">استخدم توقيعي المحفوظ</button>`:""}</div>`,
+    async()=>{const img=atExport();if(!img)return "ارسم التوقيع الأول";return await onSave(img)},
+    saveLabel);
+  const pad=sigPadBind(root.querySelector("#atC"));
+  root.querySelector("#atClr").onclick=()=>pad.clear();
+  const mb=root.querySelector("#atMine");
+  if(mb)mb.onclick=async()=>{if(!await pad.useSaved())toast("مفيش توقيع محفوظ لحسابك")};
+  atExport=()=>pad.png();
+  return root;
+}
+function attendPad(recId,i){
+  const rec=S.records.find(r=>r.id===recId);if(!rec)return;
+  const row=(rec.rows||[])[i]||{};const nm=row.name||"";
+  return sigPadSheet(`توقيع · ${nm}`,{mine:normName(nm)===normName(myEmpName())},async img=>{
+    const cur=S.records.find(r=>r.id===recId);if(!cur)return "السجل مش موجود";
+    const rws=[...(cur.rows||[])];rws[i]={...(rws[i]||{}),sigImg:img,sigAt:Date.now(),sigBy:ME.id||""};
+    const ok=await write(()=>upsert("records",recId,{rows:rws}),"اتوقّع ✔");
+    if(ok)setTimeout(()=>attendSign(recId),250);
+    return ok?null:"الحفظ فشل";
+  });
+}
+
 /* ================= صلاحيات التوقيع والاعتماد =================
    مكان واحد بيحكم مين يوقّع ومين يعتمد في كل نوع نماذج، ويتظبط من الإعدادات.
    الافتراضيات محافظة على اللي كان شغال، ما عدا الاعتماد اللي بقى لازمله صلاحية. */
@@ -1496,7 +1514,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.3.2";
+const APP_VER="5.4.1";
 const APP_BUILD="2026-10-29";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2733,7 +2751,7 @@ async function printTeamDuty(date){
   /* أول صف في اليوم هو حامل الاعتماد للتكليف المجمع كله (زي المأمورية المجمع) */
   const h=L[0];
   const vals={today:ymdSlash(today()),dayName:dayName(date),date:dmyShort(date),reason:h.reason||""};
-  L.forEach((l,i)=>{const e=emp(l.empId)||{};vals["code"+i]=e.code||"";vals["name"+i]=e.name||"";vals["job"+i]=e.job||""});
+  L.forEach((l,i)=>{const e=emp(l.empId)||{};vals["code"+i]=e.code||"";vals["name"+i]=e.name||"";vals["job"+i]=e.job||"";vals["out"+i]=l.outTime||""});
   const more=ALL.length>10;
   const miss=more?["النموذج بياخد 10 بس، الباقي محتاج نموذج تاني"]:[];
   const groupSigns={id:h.id,signs:Object.assign({},...L.map(x=>x.signs||{}))};
@@ -2887,18 +2905,39 @@ async function recordFormBase(fid,id,preset){
     return `<div class="field"><label for="${id}">${lab}</label><input id="${id}" type="${type}" name="${f.k}" value="${esc(val)}" placeholder="${esc(f.default||(f.auto?"تلقائي":""))}"></div>`;
   };
   const R=spec.rows;
-  const rowsHTML=R?`<div class="full"><div style="display:flex;align-items:center;gap:10px;margin:8px 0"><h3 style="margin:0" class="grow">${esc(R.label||"الجدول")}${R.items?"":` (لحد ${R.n})`}</h3>${R.items?`<button type="button" class="btn sm" onclick="this.closest('form').querySelectorAll('input[type=radio][value=ok]').forEach(i=>i.checked=true)">الكل مطابق</button>`:""}</div><div style="overflow-x:auto"><table><thead><tr><th>${R.items?"البند":"#"}</th>${R.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead><tbody>
+  /* توقيعات صفوف الحضور: محفوظة هنا عشان التعديل ما يمسحش اللي وقّعوا قبل كده */
+  const rowSig={},rowSigAt={},rowSigBy={};
+  if(R&&R.cols.some(c=>c.type==="sig"))
+    (rec.rows||[]).slice(0,R.n).forEach((rw,i)=>{if(rw&&rw.sigImg){rowSig[i]=rw.sigImg;rowSigAt[i]=rw.sigAt;rowSigBy[i]=rw.sigBy}});
+  const sigPadHTML=(R&&R.cols.some(c=>c.type==="sig"))?`
+    <div class="full" id="rsigWrap" hidden style="margin-top:10px;min-width:0">
+      <div class="card" style="border-color:var(--accent)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <b class="grow" id="rsigWho" style="min-width:0">توقيع الحاضر</b>
+          <button type="button" class="btn ghost sm" id="rsigMine">توقيعي المحفوظ</button>
+          <button type="button" class="btn ghost sm" id="rsigClr">مسح</button>
+        </div>
+        <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden">
+          <canvas id="rsigC" width="900" height="260" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn primary sm" id="rsigOk">تمام</button><button type="button" class="btn sm" id="rsigX">إلغاء</button></div>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0">امضِ بصباعك جوّه المربع، وبعدين دوس «تمام». الفورمة ما بتتقفلش.</p>
+      </div>
+    </div>`:"";
+  const rowsHTML=R?`<div class="full" style="min-width:0"><div style="display:flex;align-items:center;gap:10px;margin:8px 0"><h3 style="margin:0" class="grow">${esc(R.label||"الجدول")}${R.items?"":` (لحد ${R.n})`}</h3>${R.items?`<button type="button" class="btn sm" onclick="this.closest('form').querySelectorAll('input[type=radio][value=ok]').forEach(i=>i.checked=true)">الكل مطابق</button>`:""}</div><div style="overflow-x:auto;min-width:0"><table><thead><tr><th>${R.items?"البند":"#"}</th>${R.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead><tbody>
     ${Array.from({length:R.n},(_,i)=>{const row=(rec.rows||[])[i]||{};return `<tr><td ${R.items?'style="min-width:220px;font-size:13px"':'class="n"'}>${R.items?esc(R.items[i]||""):i+1}</td>${R.cols.map(c=>{const nm=`r${i}_${c.k}`;
       if(c.type==="check"){const sel=Array.isArray(row[c.k])?row[c.k]:[row[c.k]];const ol=c.optLabels||{};return `<td style="${c.multi?"min-width:220px":"white-space:nowrap"}">${(c.opts||[]).map(o=>`<label style="font-size:12px;margin-inline-end:8px;white-space:nowrap;display:inline-block"><input type="${c.multi?"checkbox":"radio"}" name="${nm}" value="${esc(o)}" ${sel.includes(o)?"checked":""}> ${esc(ol[o]||o)}</label>`).join("")}</td>`}
       if(c.type==="textarea")return `<td><textarea name="${nm}" rows="2" style="min-width:180px">${esc(row[c.k]||"")}</textarea></td>`;
       if(c.auto)return `<td><input name="${nm}" value="${esc(row[c.k]||"")}" placeholder="تلقائي" style="min-width:110px"></td>`;
       if(c.type==="select")return `<td><select name="${nm}" style="min-width:56px">${(c.choices||[]).map(o=>`<option value="${esc(o)}" ${String(row[c.k]||"")===o?"selected":""}>${esc(o||"—")}</option>`).join("")}</select></td>`;
       if(c.type==="date")return `<td><input type="date" name="${nm}" value="${esc(row[c.k]||"")}" style="min-width:130px"></td>`;
+      /* عمود التوقيع: الحاضر بيمضي بصباعه هنا، مش بيكتب اسمه */
+      if(c.type==="sig")return `<td style="min-width:132px"><button type="button" class="btn ghost sm" data-rsig="${i}" style="width:100%;min-height:34px;padding:3px 6px">${row.sigImg?`<img src="${esc(row.sigImg)}" alt="توقيع" style="height:26px;max-width:112px;object-fit:contain">`:"وقّع هنا"}</button></td>`;
       return `<td><input name="${nm}" ${c.type==="emp"?'list="empListAll" autocomplete="off"':""} ${c.type==="time"?'type="time"':""} value="${esc(row[c.k]||"")}" style="min-width:${c.type==="emp"?180:100}px"></td>`}).join("")}</tr>`}).join("")}
     </tbody></table></div></div>`:"";
   let photos=(rec.att||[]).filter(a=>a.kind==="photo");const removed=[];
   const photoHTML=`<div class="full" style="margin-top:6px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0" class="grow">📷 ${esc(PHOTO_LABEL(fid))}</h3>${assetsNS?`<label class="btn sm primary" style="cursor:pointer">+ صورة<input type="file" id="rfPhoto" accept="image/*" multiple style="display:none"></label>`:""}</div><div id="rfPhotos" style="display:flex;flex-wrap:wrap;gap:8px"></div><div id="rfPhotoMsg" class="muted" style="font-size:12.5px;margin-top:6px">${assetsNS?"الصور هتطلع في صفحة مرفقة بعد النموذج في الطباعة.":"رفع الصور متاح لصاحب المنظومة واللي معاه صلاحية تعديل."}</div></div>`;
-  openSheet((id?"تعديل ":"")+spec.title,`<div class="form">${spec.fields.map(fieldHTML).join("")}${rowsHTML}${photoHTML}</div>${empDatalist2()}`,async(fd,form)=>{
+  openSheet((id?"تعديل ":"")+spec.title,`<div class="form">${spec.fields.map(fieldHTML).join("")}${rowsHTML}${sigPadHTML}${photoHTML}</div>${empDatalist2()}`,async(fd,form)=>{
     const data={form:fid,f:{},rows:[],updatedAt:Date.now()};
     data.att=[...(rec.att||[]).filter(a=>a.kind!=="photo"),...photos];
     for(const f of spec.fields){if(f.hidden)continue;
@@ -2906,6 +2945,7 @@ async function recordFormBase(fid,id,preset){
       else{const v=(fd[f.k]||"").trim();data.f[f.k]=v;if(f.type==="emp"){const e=resolveEmp(v);if(e){data.f[f.k+"_id"]=e.id;data.f[f.k]=e.name}}}}
     if(R){for(let i=0;i<R.n;i++){const row={};let any=false;for(const c of R.cols){const nm=`r${i}_${c.k}`;
       if(c.type==="check"){if(c.multi){row[c.k]=[...form.querySelectorAll(`[name="${nm}"]:checked`)].map(i=>i.value);if(row[c.k].length)any=true}else{const ch=form.querySelector(`[name="${nm}"]:checked`);row[c.k]=ch?ch.value:"";if(row[c.k])any=true}}
+      else if(c.type==="sig"){const im=rowSig[i];if(im){row.sigImg=im;row.sigAt=rowSigAt[i]||Date.now();row.sigBy=rowSigBy[i]||ME.id||"";any=true}}
       else{const v=(fd[nm]||"").trim();row[c.k]=v;if(v)any=true;if(c.type==="emp"&&v){const e=resolveEmp(v);if(e){row[c.k+"_id"]=e.id;row[c.k]=e.name}}}}
       data.rows.push(any?row:null)}
       while(data.rows.length&&!data.rows[data.rows.length-1])data.rows.pop()}
@@ -2924,6 +2964,34 @@ async function recordFormBase(fid,id,preset){
   },"حفظ وطباعة");
   const drawP=()=>{const b=$("rfPhotos");if(!b)return;b.innerHTML=photos.length?photos.map(a=>`<div style="position:relative;width:96px;height:96px;border-radius:8px;overflow:hidden;border:1px solid var(--line,#ddd)"><img src="/_blob/${a.a}" alt="" style="width:100%;height:100%;object-fit:cover"><button type="button" data-rm="${a.a}" aria-label="شيل الصورة" style="position:absolute;top:3px;left:3px;border:0;border-radius:50%;width:24px;height:24px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer">✕</button></div>`).join(""):`<span class="muted" style="font-size:13px">مفيش صور</span>`};
   drawP();
+  /* «وقّع هنا» بيفتح لوحة جوه الفورمة — مش شيت تاني يمسح اللي اتكتب */
+  if(R&&R.cols.some(c=>c.type==="sig")){
+    const wrap=$("rsigWrap"),pad=sigPadBind($("rsigC"));
+    const nameKey=(R.cols.find(c=>c.type==="emp")||{}).k||"name";
+    let cur=-1,curBtn=null;
+    const hide=()=>{wrap.hidden=true;cur=-1;curBtn=null;pad.clear()};
+    $("rsigClr").onclick=()=>pad.clear();
+    $("rsigX").onclick=hide;
+    $("rsigMine").onclick=async()=>{if(!await pad.useSaved())toast("مفيش توقيع محفوظ لحسابك")};
+    $("rsigOk").onclick=()=>{
+      const img=pad.png();
+      if(!img){toast("ارسم التوقيع الأول");return}
+      if(cur<0)return;
+      rowSig[cur]=img;rowSigAt[cur]=Date.now();rowSigBy[cur]=ME.id||"";
+      if(curBtn)curBtn.innerHTML=`<img src="${img}" alt="توقيع" style="height:26px;max-width:112px;object-fit:contain">`;
+      hide();toast("اتسجل التوقيع ✔");
+    };
+    document.querySelectorAll("[data-rsig]").forEach(btn=>{btn.onclick=()=>{
+      const i=+btn.dataset.rsig;
+      const nameInp=document.querySelector(`[name="r${i}_${nameKey}"]`);
+      const who=(nameInp&&nameInp.value||"").split(" · ")[0].trim();
+      cur=i;curBtn=btn;pad.clear();
+      $("rsigWho").textContent=who?("توقيع · "+who):("توقيع الصف رقم "+(i+1));
+      $("rsigMine").hidden=!(who&&normName(who)===normName(myEmpName()));
+      wrap.hidden=false;
+      wrap.scrollIntoView({block:"center",behavior:"smooth"});
+    }});
+  }
   $("rfPhotos")?.addEventListener("click",e=>{const x=e.target.closest("[data-rm]");if(!x)return;removed.push(x.dataset.rm);photos=photos.filter(a=>a.a!==x.dataset.rm);drawP()});
   $("rfPhoto")?.addEventListener("change",async e=>{const files=[...e.target.files];if(!files.length)return;const m=$("rfPhotoMsg");m.textContent=`بيرفع ${files.length} صورة…`;let bad=0;
     for(const f of files){try{const b=await shrinkImage(f);const r=await assetsNS.upload(b,b.type?undefined:{type:"image/jpeg"});photos.push({a:r.id,kind:"photo",type:r.contentType,at:Date.now()});drawP()}catch(err){bad++}}
