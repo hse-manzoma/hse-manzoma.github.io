@@ -1195,7 +1195,7 @@ async function taskAssign(id){
     const ok=await write(()=>id?upsert("tasks",id,data)
       :db.collection("tasks").add({...data,createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()}),
       id?"اتعدلت":"اتبعتت المهمة");
-    if(ok){const recipients=(S.profiles||[]).filter(p=>p.emp_id===who.id&&!p.disabled).map(p=>p.id);const body=[items.map(taskItemName).join("، "),data.due?`آخر ميعاد ${fmtDate(data.due)}`:"",data.place||""].filter(Boolean).join(" · ");notifyUsers(recipients,id?`📋 تحديث مهمة: ${data.title}`:`📋 مهمة جديدة: ${data.title}`,body,"?go=dash")}
+    if(ok){const recipients=(S.profiles||[]).filter(p=>p.emp_id===who.id&&!p.disabled).map(p=>p.id);const body=[items.map(taskItemName).join("، "),data.due?`آخر ميعاد ${fmtDate(data.due)}`:"",data.place||""].filter(Boolean).join(" · ");if(recipients.length)notifyUsers(recipients,id?`📋 تحديث مهمة: ${data.title}`:`📋 مهمة جديدة: ${data.title}`,body,"?go=dash");else toast("المهمة اتحفظت، لكن حساب الموظف غير مربوط به في الإعدادات، لذلك لم يصله إشعار")}
     return ok?null:"الحفظ فشل";
   },id?"حفظ":"ابعت المهمة");
   const sync=()=>{const k=root.querySelector('[name="nkind"]').value;
@@ -1517,7 +1517,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.5";
+const APP_VER="5.5.6";
 const APP_BUILD="2026-11-02";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
