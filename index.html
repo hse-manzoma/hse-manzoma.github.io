@@ -1516,7 +1516,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.3";
+const APP_VER="5.5.4";
 const APP_BUILD="2026-11-02";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4630,7 +4630,7 @@ async function dutyReqDecide(id,yes){const r=S.leavereq.find(x=>x.id===id&&x.req
   if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض الطلب");if(ok)notifyUsers([r.by],`❌ طلب ${DUTY_K[r.kind]} اترفض`,"","?go=me");return}
   let newId=null;const ok=await write(async()=>{const data={kind:r.kind,empId:r.empId,date:r.date,createdAt:Date.now(),createdBy:r.by||"",approvedReq:id};if(r.kind==="perm"){data.from=r.from;data.to=r.to}else if(r.kind==="mission"){data.destination=r.destination;data.returnDate=r.returnDate;data.returnTime=r.returnTime;data.department=r.department;data.reason=r.reason;data.approverId="";data.approverName=""}else data.reason=r.reason||"";const ref=await db.collection("leaves").add(data);newId=ref.id;await upsert("leavereq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتوافق واتسجل الطلب ✔");
   if(ok){notifyUsers([r.by],`✅ طلب ${DUTY_K[r.kind]} اتوافق عليه`,fmtDate(r.date),"?go=me");if(newId)setTimeout(()=>r.kind==="perm"?printPerm(newId):r.kind==="mission"?printMission(newId):printOneDuty(newId),400)}}
-async function lvDecide(id,yes){const r=S.leavereq.find(x=>x.id===id);if(!r)return;const e=emp(r.empId);
+async function lvDecide(id,yes){const r=S.leavereq.find(x=>x.id===id);if(!r)return;if(r.requestKind)return dutyReqDecide(id,yes);const e=emp(r.empId);
   if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([r.by],"❌ طلب الإجازة اترفض","","?go=me");return}
   const fld=r.leaveType==="casual"?"casual":r.leaveType==="annual"?"annual":null;let newId=null;
   const ok=await write(async()=>{const ref=await db.collection("leaves").add({kind:"leave",empId:r.empId,leaveType:r.leaveType,date:r.from,to:r.to,days:r.days,alt:r.alt||"",reqDate:new Date(r.at).toISOString().slice(0,10),balanceAfter:fld&&e?num(e[fld])-r.days:null,note:r.note||"",createdAt:Date.now()});newId=ref.id;if(fld&&e)await upsert("employees",r.empId,{[fld]:num(e[fld])-r.days});await upsert("leavereq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتسجلت الإجازة ✔");
