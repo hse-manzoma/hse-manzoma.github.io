@@ -1517,7 +1517,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.7";
+const APP_VER="5.5.8";
 const APP_BUILD="2026-11-02";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2194,13 +2194,13 @@ function buildExcelImportPlan(){
   const pc=src.permits?.rows||[],pf=new Set(),existingP=new Set(S.permits.map(p=>`${p.type}-${p.serial||String(p.number||"").split("-").pop()}`));
   for(const r of pc){const status=xlNorm(xlCol(src.permits,r,["الحالة","status"]));if(status.includes("open")||status.includes("مفتوح")){counts.openPermits++;continue}if(!(status.includes("closed")||status.includes("مغلق")))continue;const type=xlPtwType(xlCol(src.permits,r,["نوع التصريح","النوع","type"])),serial=xlCode(xlCol(src.permits,r,["رقم المسلسل","الرقم المسلسل","رقم التصريح","serial","number"])),date=xlDate(xlCol(src.permits,r,["تاريخ الإصدار","تاريخ التصريح","التاريخ","date"]));if(!type||!serial||!date){counts.invalidPermits++;continue}const id=`${type}-${serial}`;if(pf.has(id)||existingP.has(id)){counts.dupPermits++;continue}pf.add(id);closed.push({id,type,serial,date,safetyName:xlCol(src.permits,r,["مسؤول السلامة","المسؤول","safety"]),source:xlCol(src.permits,r,["المصدر","source"])})}
   const transCount=(src.transactions?.rows||[]).length;const hist=buildHistoryPlan(src);excelImportPlan={employees,stock,closed,counts,transCount,hist};
-  const box=$("excelImportPreview");if(!box)return;box.innerHTML=`<div class="card" style="padding:12px"><b>معاينة الملف: ${esc(src.name)}</b><div class="grid g3" style="margin-top:8px"><div>الموظفون: <b>${employees.filter(x=>!x.existing).length}</b> جديد · ${employees.filter(x=>x.existing).length} تحديث · ${counts.missingEmp+counts.dupEmp+counts.ambEmp} مستبعدون</div><div>أصناف المخزن: <b>${stock.filter(x=>!x.existing).length}</b> جديد · ${stock.filter(x=>x.existing).length} تحديث · ${counts.missingStock+counts.dupStock+counts.ambStock} مستبعدة</div><div>تصاريح مغلقة: <b>${closed.length}</b> قابلة للأرشفة · ${counts.dupPermits} مكرر</div><div>سجلات تاريخية (إجازات · ديوتي · أذونات · تكليفات): <b>${hist.leaves.length}</b></div><div>ملخصات KPI شهرية: <b>${hist.kpi.length}</b></div><div class="muted">مستبعد من السجلات: ${hist.skip.noEmp} مالوش موظف · ${hist.skip.noDate} من غير تاريخ</div></div><div class="form" style="margin-top:10px"><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportBalances"> حدّث الرصيد المتاح للأصناف من الملف. ستُضبط قيمة الرصيد الافتتاحي مع إبقاء حركات المنظومة الحالية.</label><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportClosed"> استورد ${closed.length} تصريحًا مغلقًا كسجل تاريخي مختصر</label></div><p class="muted" style="font-size:12.5px;margin:8px 0">${counts.openPermits} تصريح مفتوح مستبعد من النقل الآلي لتجنب تنبيهات الإغلاق الجماعية. ${transCount} صف حركة مخزن لم يُستورد: عمود التاريخ بلا عنوان ورقم الإذن غير موجود، فلا يمكن منع التكرار بأمان. البيانات لا تُحفظ إلا بعد الضغط على زر التطبيق.</p><button class="btn primary" id="excelApply" type="button">تطبيق الصفوف الآمنة المحددة</button></div>`;$("excelApply").onclick=applyExcelImport;
+  const box=$("excelImportPreview");if(!box)return;box.innerHTML=`<div class="card" style="padding:12px"><b>معاينة الملف: ${esc(src.name)}</b><div class="grid g3" style="margin-top:8px"><div>الموظفون: <b>${employees.filter(x=>!x.existing).length}</b> جديد · ${employees.filter(x=>x.existing).length} تحديث · ${counts.missingEmp+counts.dupEmp+counts.ambEmp} مستبعدون</div><div>أصناف المخزن: <b>${stock.filter(x=>!x.existing).length}</b> جديد · ${stock.filter(x=>x.existing).length} تحديث · ${counts.missingStock+counts.dupStock+counts.ambStock} مستبعدة</div><div>تصاريح مغلقة: <b>${closed.length}</b> قابلة للأرشفة · ${counts.dupPermits} مكرر</div><div>سجلات تاريخية (إجازات · ديوتي · أذونات · تكليفات): <b>${hist.leaves.length}</b></div><div>ملخصات KPI اليدوية المستبعدة من المؤشرات: <b>${hist.kpi.length}</b></div><div class="muted">مستبعد من السجلات: ${hist.skip.noEmp} مالوش موظف · ${hist.skip.noDate} من غير تاريخ</div></div><div class="form" style="margin-top:10px"><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportBalances"> حدّث الرصيد المتاح للأصناف من الملف. ستُضبط قيمة الرصيد الافتتاحي مع إبقاء حركات المنظومة الحالية.</label><label class="muted" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="excelImportClosed"> استورد ${closed.length} تصريحًا مغلقًا كسجل تاريخي مختصر</label></div><p class="muted" style="font-size:12.5px;margin:8px 0">${counts.openPermits} تصريح مفتوح مستبعد من النقل الآلي لتجنب تنبيهات الإغلاق الجماعية. ${transCount} صف حركة مخزن لم يُستورد: عمود التاريخ بلا عنوان ورقم الإذن غير موجود، فلا يمكن منع التكرار بأمان. البيانات لا تُحفظ إلا بعد الضغط على زر التطبيق.</p><button class="btn primary" id="excelApply" type="button">تطبيق الصفوف الآمنة المحددة</button></div>`;$("excelApply").onclick=applyExcelImport;
 }
 function applyExcelImport(){
   if(!isOwner||!db||!excelImportPlan){toast("اختار ملف Excel أولًا بصلاحية صاحب المنظومة");return}const plan=excelImportPlan,doBal=$("excelImportBalances")?.checked,doClosed=$("excelImportClosed")?.checked,jobs=[];
   for(const x of plan.employees){const data={...x.data,updatedAt:Date.now()};if(!x.existing){data.active=true;data.createdAt=Date.now()}jobs.push({col:"employees",id:x.id,data})}
   const mt=moveTotals();for(const x of plan.stock){const cur=S.items.find(i=>i.id===x.id);const data={code:x.code,name:x.name,updatedAt:Date.now()};if(!cur){data.unit="قطعة";data.min=0;data.createdAt=Date.now()}if(doBal){const net=cur?(mt[x.id]?.inn||0)-(mt[x.id]?.out||0):0;data.opening=x.available-net}jobs.push({col:"ppe_items",id:x.id,data})}
-  if(plan.hist){for(const j of plan.hist.leaves)jobs.push(j);for(const j of plan.hist.kpi)jobs.push(j)}
+  if(plan.hist)for(const j of plan.hist.leaves)jobs.push(j);
   if(doClosed)for(const x of plan.closed)jobs.push({col:"permits",id:x.id,data:{type:x.type,serial:Number(x.serial)||x.serial,number:x.id,date:x.date,status:"closed",risk:"med",safetyName:x.safetyName||"",desc:"سجل تاريخي مختصر مستورد من ملف Excel؛ تفاصيل الموقع ووصف العمل غير متوفرة في المصدر.",legacySource:x.source||"Excel",legacyImport:true,createdAt:Date.now(),updatedAt:Date.now()}});
   if(!jobs.length){toast("مافيش صفوف محددة للاستيراد");return}confirmSheet("تأكيد استيراد Excel",`هيتحفظ ${plan.employees.length} موظف و${plan.stock.length} صنف${doClosed?` و${plan.closed.length} تصريح مغلق أرشيفي`:""} في قاعدة المنظومة الخاصة. راجع المعاينة قبل المتابعة.`,async()=>{
     let i=0,done=0,fail=0;importing=true;const box=$("excelImportPreview");const work=async()=>{while(i<jobs.length){const j=jobs[i++];let ok=false;for(let t=0;t<3&&!ok;t++){try{await upsert(j.col,j.id,j.data);ok=true}catch(e){if(t<2)await new Promise(r=>setTimeout(r,250*(t+1)))}}if(ok)done++;else fail++;if(box&&done%10===0)box.querySelector("b")&&(box.querySelector("b").textContent=`اتحفظ ${done} من ${jobs.length}…`)}};await Promise.all(Array.from({length:6},work));importing=false;refresh();if(fail)toast(`اتحفظ ${done} صف، وتعذر حفظ ${fail}. أعد اختيار الملف للمتابعة`);else toast(`تم استيراد ${done} سجل`)
@@ -2209,71 +2209,48 @@ function applyExcelImport(){
 
 /* ---------- KPI ---------- */
 function kpiTargets(){const t=S.settings.targets||{};const o={};for(const k of KPIS)o[k.k]=num(t[k.k])||k.def;return o}
-function kpiAuto(empId,month){
-  const o={inspection:0,unsafeCond:0,unsafeActs:0,corrective:0,tbt:0};const e=emp(empId);const nm=e?normName(e.name):"#";
+function kpiSources(empId,month){
+  const o={inspection:[],unsafeCond:[],unsafeActs:[],corrective:[],tbt:[]};const e=emp(empId);const nm=e?normName(e.name):"#";
   const by=(r,...ks)=>ks.some(k=>r.f?.[k+"_id"]===empId||(r.f?.[k]&&normName(r.f[k])===nm));
   for(const r of S.records){if(!(r.date||"").startsWith(month))continue;
-    if(CHECKLIST_FORMS.includes(r.form)&&by(r,"officer"))o.inspection++;
-    if(r.form==="F-HSE-07-03"&&by(r,"reporter"))for(const x of r.rows||[]){if(x?.kind==="USC")o.unsafeCond++;else if(x?.kind==="USA")o.unsafeActs++}
-    if(r.form==="F-HSE-07-01"&&by(r,"writer","officer"))o.unsafeActs++;
-    if((r.form==="F-HSE-24-02"&&by(r,"trainer"))||(r.form==="F-HSE-24-01"&&by(r,"lecturer")))o.tbt++;}
-  for(const q of S.equipment)for(const h of q.insp||[])if((h.date||"").startsWith(month)&&(h.by_id===empId||normName(h.by||"")===nm))o.inspection++;
-  for(const a of S.actions)if(a.status==="closed"&&(a.closedAt||"").startsWith(month)&&a.closedBy===empId)o.corrective++;
-  return o;
+    if(CHECKLIST_FORMS.includes(r.form)&&by(r,"officer"))o.inspection.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.place||r.f?.location||"قائمة تفتيش"}`,who:r.f?.officer||e?.name||""});
+    if(r.form==="F-HSE-07-03"&&by(r,"reporter"))for(const [i,x] of (r.rows||[]).entries()){if(x?.kind==="USC")o.unsafeCond.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"ظرف غير آمن"}`,who:r.f?.reporter||e?.name||"",part:i+1});else if(x?.kind==="USA")o.unsafeActs.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"تصرف غير آمن"}`,who:r.f?.reporter||e?.name||"",part:i+1})}
+    if(r.form==="F-HSE-07-01"&&by(r,"writer","officer"))o.unsafeActs.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-01 · ${r.f?.desc||r.f?.action||"مخالفة"}`,who:r.f?.writer||r.f?.officer||e?.name||""});
+    if((r.form==="F-HSE-24-02"&&by(r,"trainer"))||(r.form==="F-HSE-24-01"&&by(r,"lecturer")))o.tbt.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.title||r.f?.topic||"محاضرة توعية"}`,who:r.f?.trainer||r.f?.lecturer||e?.name||""});}
+  for(const q of S.equipment)for(const h of q.insp||[])if((h.date||"").startsWith(month)&&(h.by_id===empId||normName(h.by||"")===nm))o.inspection.push({type:"equipment",id:q.id,date:h.date,label:`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""} · ${eqLabel(q)} · ${q.place||""}`,who:h.by||e?.name||"",status:Object.values(h.res||{}).every(v=>v!=="nok")?"صالح":"غير صالح"});
+  for(const a of S.actions)if(a.status==="closed"&&(a.closedAt||"").startsWith(month)&&a.closedBy===empId)o.corrective.push({type:"action",id:a.id,date:a.closedAt,label:a.title||a.closeNote||"إجراء تصحيحي مغلق",who:a.closedByName||e?.name||""});
+  for(const k of Object.keys(o))o[k].sort((a,b)=>(b.date||"").localeCompare(a.date||""));return o;
 }
+function kpiAuto(empId,month){const R=kpiSources(empId,month),o={};for(const k of KPIS)o[k.k]=R[k.k]?.length||0;return o}
 function kpiSummary(month){
   const T=kpiTargets();
   return hseTeam().map(e=>{
-    const E=S.kpi.filter(x=>x.empId===e.id&&(x.date||"").startsWith(month));const AU=kpiAuto(e.id,month);
-    const sums={};for(const k of KPIS)sums[k.k]=E.reduce((a,x)=>a+num(x[k.k]),0)+(AU[k.k]||0);const autoN=Object.values(AU).reduce((a,b)=>a+b,0);
+    const AU=kpiAuto(e.id,month);
+    const sums={};for(const k of KPIS)sums[k.k]=AU[k.k]||0;const autoN=Object.values(AU).reduce((a,b)=>a+b,0);
     const ach=KPIS.map(k=>Math.min(150,T[k.k]?sums[k.k]/T[k.k]*100:0));
     const score=Math.round(ach.reduce((a,b)=>a+b,0)/KPIS.length);
-    return {id:e.id,name:e.name,sums,entries:E.length+autoN,auto:AU,score};
+    return {id:e.id,name:e.name,sums,entries:autoN,auto:AU,score};
   }).filter(r=>r.entries>0).sort((a,b)=>b.score-a.score);
 }
+function kpiSourceSheet(empId,metric,month){
+  const sources=kpiSources(empId,month)[metric]||[],e=emp(empId)||{};
+  const body=sources.length?`<div class="list">${sources.map(s=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(s.label)}</div><div class="s">${fmtDate(s.date)} · ${esc(s.who||e.name||"")}${s.status?` · ${esc(s.status)}`:""} · مرجع ${esc(s.id)}${s.part?` · البند ${s.part}`:""}</div></div>${s.type==="form"?`<button class="btn ghost sm" onclick="printRecord('${s.id}')">فتح النموذج</button>`:s.type==="equipment"?`<button class="btn ghost sm" onclick="ui.eqKind=(S.equipment.find(q=>q.id==='${s.id}')||{}).kind||'ext';ui.eqQ='${esc(s.label.split("·")[0].trim())}';show('equip')">فتح المعدة</button>`:`<button class="btn ghost sm" onclick="ui.actF='closed';show('actions')">فتح الإجراء</button>`}</div>`).join("")}</div>`:'<p class="muted">لا توجد سجلات مطابقة لهذا المؤشر في الشهر المحدد.</p>';
+  openSheet(`${KPIS.find(k=>k.k===metric)?.ar||"مصادر المؤشر"} · ${e.name||""} · ${monthName(month)}`,body,async()=>null,"إغلاق");
+}
 VIEWS.kpi = {
-  shell:()=>`<div class="head"><h2 class="grow">KPIs فريق السلامة</h2><button class="btn primary" id="newKpi">+ إدخال يومي</button></div>
-    <div class="filters"><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
-    <div class="card" style="margin-bottom:14px"><h3>الإنجاز مقابل الهدف الشهري</h3><p class="muted" style="margin-top:0;font-size:12.5px">الأرقام دي = الإدخال اليدوي + اللي اتحسب تلقائي من شغل المنظومة: قوائم التفتيش وفحص المعدات (الفحص الدوري)، تقارير الملاحظات 07-03 والمخالفات 07-01 (الظروف والأفعال غير الآمنة)، الإجراءات اللي قفلها (التصحيحية)، ومحاضرات 24-01 و24-02 (التوعية).</p><div id="kpiSum"></div></div>
-    <h3>المدخلات</h3><div id="kpiList"></div>`,
-  bind(){
-    $("newKpi").onclick=()=>kpiForm();
-    $("kpiMonth").onchange=e=>{ui.kpiMonth=e.target.value||thisMonth();this.fill()};
-  },
+  shell:()=>`<div class="head"><h2 class="grow">KPIs فريق السلامة</h2><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
+    <div class="card" style="margin-bottom:14px"><h3>مؤشرات مستخرجة من سجلات المنظومة</h3><p class="muted" style="margin-top:0;font-size:13px">كل رقم محسوب من نموذج أو سجل فعلي محفوظ. اضغط على الرقم لعرض مراجع السجلات التي كوّنته؛ لا توجد أرقام KPI يدوية.</p><div id="kpiSum"></div></div>`,
+  bind(){$("kpiMonth").onchange=e=>{ui.kpiMonth=e.target.value||thisMonth();this.fill()}},
   fill(){
-    if(waiting("kpi")){$("kpiList").innerHTML=waiting("kpi");return}
-    const T=kpiTargets();const R=kpiSummary(ui.kpiMonth);
+    const wait=waiting("records")||waiting("equipment")||waiting("actions");if(wait){$("kpiSum").innerHTML=wait;return}
+    const T=kpiTargets(),R=kpiSummary(ui.kpiMonth);
     $("kpiSum").innerHTML=R.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th>${KPIS.map(k=>`<th class="n">${k.ar}<br><span style="font-weight:400">هدف ${T[k.k]}</span></th>`).join("")}<th class="n">النتيجة</th></tr></thead><tbody>
-      ${R.map(r=>`<tr><td>${esc(r.name)}</td>${KPIS.map(k=>{const v=r.sums[k.k];const ok=v>=T[k.k];return `<td class="n" style="${ok?"color:var(--ok);font-weight:600":""}">${v}</td>`}).join("")}<td class="n"><b>${r.score}%</b></td></tr>`).join("")}</tbody></table></div>`
-      :emptyState("مفيش مدخلات في "+monthName(ui.kpiMonth),hseTeam().length?"سجّل أول إدخال يومي لموظف السلامة.":"لازم تضيف موظفين في مجموعة «فريق السلامة» الأول.");
-    const L=S.kpi.filter(x=>(x.date||"").startsWith(ui.kpiMonth)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-    $("kpiList").innerHTML=L.length?`<div class="tbl"><table><thead><tr><th>التاريخ</th><th>الاسم</th><th>المدخل</th>${KPIS.map(k=>`<th class="n">${k.ar}</th>`).join("")}<th class="n">السلوك</th><th>ملاحظات</th><th></th></tr></thead><tbody>
-      ${L.map(x=>`<tr><td class="n">${fmtDate(x.date)}</td><td>${esc(empName(x.empId))}</td><td>${esc(x.enteredByName||empName(x.enteredByEmpId)||"—")}</td>${KPIS.map(k=>`<td class="n">${num(x[k.k])}</td>`).join("")}<td class="n">${num(x.behavior)}</td><td class="muted">${esc(x.note||"")}</td>
-      <td><div class="row-actions">${myRole()==="admin"||x.empId===myEmpId()?`<button class="btn ghost sm" onclick="kpiForm('${x.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="kpiDel('${x.id}')">مسح</button>`:""}`:""}</div></td></tr>`).join("")}</tbody></table></div>`:"";
+      ${R.map(r=>`<tr><td>${esc(r.name)}</td>${KPIS.map(k=>{const v=r.sums[k.k],ok=v>=T[k.k];return `<td class="n"><button class="btn ghost sm" style="${ok?"color:var(--ok);font-weight:700":""}" onclick="kpiSourceSheet('${r.id}','${k.k}','${ui.kpiMonth}')" title="عرض السجلات المرجعية">${v}</button></td>`}).join("")}<td class="n"><b>${r.score}%</b></td></tr>`).join("")}</tbody></table></div>`
+      :emptyState("لا توجد سجلات أو نماذج لهذا الشهر",hseTeam().length?"تظهر المؤشرات تلقائيًا بعد حفظ النماذج أو سجلات الفحص والإجراءات.":"لازم تضيف موظفين في مجموعة «فريق السلامة» الأول.");
   }
 };
-function kpiForm(id){
-  if(!hseTeam().length){toast("ضيف فريق السلامة الأول");return}
-  const admin=myRole()==="admin",self=myEmpId();if(!admin&&!self){toast("حسابك مش مربوط بموظف — كلّم الأدمن");return}
-  const x=id?S.kpi.find(k=>k.id===id):{date:today(),empId:self};if(id&&!x){toast("الإدخال مش موجود");return}if(!admin&&x.empId!==self){toast("تقدر تسجل أو تعدل KPI الخاص بيك فقط");return}
-  const enteredByOpts=(S.profiles||[]).filter(p=>!p.disabled).slice().sort((a,b)=>profName(a).localeCompare(profName(b),"ar")).map(p=>[p.id,profName(p)||p.username||p.id]);
-  const recorder=admin?f("المدخل","enteredByUid",{value:x.enteredByUid||ME.id,opts:enteredByOpts,req:true}):`<div class="field"><label>المدخل</label><div class="muted">${esc(myEmpName()||ME.name||"حسابي")}</div></div>`;
-  const subject=admin?f("موظف السلامة","empId",{value:x.empId||"",opts:empOpts(hseTeam()),req:true}):`<div class="field"><label>موظف السلامة</label><div class="muted">${esc(empName(self))}</div></div>`;
-  openSheet(id?"تعديل إدخال KPI":"إدخال KPI يومي",`<div class="form">
-    ${recorder}${subject}${f("التاريخ","date",{type:"date",value:x.date||today(),req:true})}
-    ${KPIS.map(k=>f(k.ar,k.k,{type:"number",value:x[k.k]??0,attrs:'min="0"'})).join("")}${f("السلوك الشخصي (%)","behavior",{type:"number",value:x.behavior??0,attrs:'min="0" step="any"'})}
-    ${f("ملاحظات","note",{value:x.note||"",full:true})}</div>`,
-  async fd=>{
-    const empId=admin?fd.empId:self,enteredByUid=admin?fd.enteredByUid:ME.id,enteredByProfile=profOf(enteredByUid);
-    if(!empId)return "اختار موظف السلامة";if(!enteredByUid)return "اختار المدخل";
-    const data={empId,enteredByEmpId:enteredByProfile,enteredByName:profName(profOf(enteredByUid))||((enteredByUid===ME.id)?(myEmpName()||ME.name||""):""),enteredByUid,date:fd.date,note:(fd.note||"").trim(),behavior:num(fd.behavior)};for(const k of KPIS)data[k.k]=num(fd[k.k]);
-    const docId=id||`${fd.date}_${empId}`;
-    if(!id&&S.kpi.some(k=>k.id===docId))return "فيه إدخال للموظف ده في نفس اليوم. افتحه من الجدول وعدّله.";
-    const ok=await write(()=>db.doc("kpi_entries/"+docId).set({...data,updatedAt:Date.now()}),"اتحفظ");
-    return ok?null:"الحفظ فشل";
-  });
-}
-function kpiDel(id){const x=S.kpi.find(k=>k.id===id);if(!x)return;if(myRole()!=="admin"&&x.empId!==myEmpId()){toast("تقدر تمسح KPI الخاص بيك فقط");return}confirmSheet("مسح الإدخال","الإدخال هيتمسح نهائياً.",()=>write(()=>remove("kpi_entries",id),"اتمسح"))}
+function kpiForm(){toast("مؤشرات KPI تُحسب تلقائيًا من السجلات والنماذج المحفوظة")}
+function kpiDel(){toast("لا تُضاف أو تُمسح أرقام KPI يدويًا؛ المؤشرات مصدرها السجلات")}
 
 /* ---------- Monthly report ---------- */
 function monthReport(m){
