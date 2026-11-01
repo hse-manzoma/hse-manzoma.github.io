@@ -1516,7 +1516,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.2";
+const APP_VER="5.5.3";
 const APP_BUILD="2026-11-02";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4548,7 +4548,7 @@ function roleDuties(uid){const p=profOf(uid);const r=p?.role;const ws=weekStart(
   return L}
 {const _rm=reminders;reminders=function(){const o=_rm();const R=o.R;const mine=roleDuties(ME.id).filter(x=>!x.ok&&x.k!=="task"&&x.k!=="ptw");
   for(const x of mine)R.push({lv:x.k==="rev"?"bad":"warn",t:x.t,go:x.go});
-  if(myRole()==="admin"){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"});const dr=S.dutyreq.filter(c=>c.status==="new").length;if(dr)R.unshift({lv:"warn",t:`${dr} طلب إذن / مأمورية / تكليف مستني موافقتك`,go:"show('follow')"})}
+  if(myRole()==="admin"){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>!c.requestKind&&c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"});const dr=S.leavereq.filter(c=>c.requestKind&&c.status==="new").length;if(dr)R.unshift({lv:"warn",t:`${dr} طلب إذن / مأمورية / تكليف مستني موافقتك`,go:"show('follow')"})}
   return o}}
 /* notifications: inbox table + push */
 let NOTIFS=[];
@@ -4575,7 +4575,7 @@ setInterval(checkPtwEndAlerts,30000);setTimeout(checkPtwEndAlerts,10000);
 {const _ar=applyRole;applyRole=function(){_ar();if(db&&ME.id){startRealtime();if(!$("bellBtn")){const mb=$("meBtn");if(mb){mb.insertAdjacentHTML("beforebegin",`<button class="btn ghost sm" id="bellBtn" onclick="bellPanel()" style="font-size:13px" aria-label="الإشعارات">🔔</button><button class="btn ghost sm" id="chatBtn" onclick="show('chat')" style="font-size:13px" aria-label="الشات">💬</button>`);bellBadge();chatBadge()}}}}}
 
 /* ---------- my file, change requests, leave requests, team follow-up ---------- */
-COLS.changereq="changereq";COLS.leavereq="leavereq";COLS.dutyreq="dutyreq";S.changereq=[];S.leavereq=[];S.dutyreq=[];
+COLS.changereq="changereq";COLS.leavereq="leavereq";S.changereq=[];S.leavereq=[];
 const CR_ACT={add:"إضافة",edit:"تعديل",del:"حذف"},CR_KIND={employee:"عامل / موظف",contractor:"مقاول"};
 const EMP_F=[["name","الاسم"],["code","الكود"],["job","الوظيفة"],["group","المجموعة"],["contractorId","المقاول"],["nid","الرقم القومي"],["phone","الموبايل"],["active","الحالة"]];
 const CTR_F=[["name","اسم المقاول"],["scope","نطاق الأعمال"],["rep","المسؤول"],["phone","الموبايل"],["active","الحالة"]];
@@ -4622,13 +4622,13 @@ function dutyReqForm(kind){const e=emp(myEmpId());if(!e){toast("حسابك مش 
   const extra=kind==="perm"?`${f("من الساعة","from",{value:"2 م",req:true})}${f("لحد الساعة","toH",{value:"4 م",req:true})}`:kind==="mission"?`${f("جهة المأمورية","destination",{full:true,req:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today(),req:true})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.deptName||S.settings.project||""})}${f("الغرض من المأمورية","reason",{full:true,req:true})}`:`${f("سبب / العمل المكلف به","reason",{full:true,req:true})}`;
   openSheet(`طلب ${title}`,`<div class="form">${f("التاريخ","date",{type:"date",value:today(),req:true})}${extra}${f("ملاحظات","note",{full:true})}<div class="field full muted">سيظهر الطلب للمدير للمراجعة، ولن يُسجل في ملفك إلا بعد الموافقة.</div></div>`,async fd=>{
     if(kind==="mission"&&fd.returnDate<fd.date)return "تاريخ العودة قبل تاريخ المأمورية";
-    const data={kind,empId:e.id,empName:e.name,date:fd.date,status:"new",by:ME.id,at:Date.now(),note:(fd.note||"").trim()};
+    const data={requestKind:kind,kind,empId:e.id,empName:e.name,date:fd.date,status:"new",by:ME.id,at:Date.now(),note:(fd.note||"").trim()};
     if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else if(kind==="mission"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.reason=(fd.reason||"").trim()}else data.reason=(fd.reason||"").trim();
-    const ok=await write(()=>db.collection("dutyreq").add(data),"اتبعت الطلب للمراجعة ✔");
+    const ok=await write(()=>db.collection("leavereq").add(data),"اتبعت الطلب للمراجعة ✔");
     if(ok)notifyUsers((S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id),`📩 طلب ${title}`,`${e.name}: ${fmtDate(fd.date)}`,"?go=follow");return ok?null:"الحفظ فشل"},"إرسال الطلب")}
-async function dutyReqDecide(id,yes){const r=S.dutyreq.find(x=>x.id===id);if(!r)return;
-  if(!yes){const ok=await write(()=>upsert("dutyreq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض الطلب");if(ok)notifyUsers([r.by],`❌ طلب ${DUTY_K[r.kind]} اترفض`,"","?go=me");return}
-  let newId=null;const ok=await write(async()=>{const data={kind:r.kind,empId:r.empId,date:r.date,createdAt:Date.now(),createdBy:r.by||"",approvedReq:id};if(r.kind==="perm"){data.from=r.from;data.to=r.to}else if(r.kind==="mission"){data.destination=r.destination;data.returnDate=r.returnDate;data.returnTime=r.returnTime;data.department=r.department;data.reason=r.reason;data.approverId="";data.approverName=""}else data.reason=r.reason||"";const ref=await db.collection("leaves").add(data);newId=ref.id;await upsert("dutyreq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتوافق واتسجل الطلب ✔");
+async function dutyReqDecide(id,yes){const r=S.leavereq.find(x=>x.id===id&&x.requestKind);if(!r)return;
+  if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض الطلب");if(ok)notifyUsers([r.by],`❌ طلب ${DUTY_K[r.kind]} اترفض`,"","?go=me");return}
+  let newId=null;const ok=await write(async()=>{const data={kind:r.kind,empId:r.empId,date:r.date,createdAt:Date.now(),createdBy:r.by||"",approvedReq:id};if(r.kind==="perm"){data.from=r.from;data.to=r.to}else if(r.kind==="mission"){data.destination=r.destination;data.returnDate=r.returnDate;data.returnTime=r.returnTime;data.department=r.department;data.reason=r.reason;data.approverId="";data.approverName=""}else data.reason=r.reason||"";const ref=await db.collection("leaves").add(data);newId=ref.id;await upsert("leavereq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتوافق واتسجل الطلب ✔");
   if(ok){notifyUsers([r.by],`✅ طلب ${DUTY_K[r.kind]} اتوافق عليه`,fmtDate(r.date),"?go=me");if(newId)setTimeout(()=>r.kind==="perm"?printPerm(newId):r.kind==="mission"?printMission(newId):printOneDuty(newId),400)}}
 async function lvDecide(id,yes){const r=S.leavereq.find(x=>x.id===id);if(!r)return;const e=emp(r.empId);
   if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([r.by],"❌ طلب الإجازة اترفض","","?go=me");return}
@@ -4642,7 +4642,7 @@ VIEWS.me={shell:()=>`<div class="head" style="flex-wrap:wrap"><h2 class="grow">�
     const R=userRecs(uid,"2000-01-01","2999-12-31").sort((a,b)=>(b.date||"").localeCompare(a.date||""));
     const A=deriveActions().filter(a=>e&&(a.ownerId===e.id||a.closedBy===e.id));
     const LV=e?S.leaves.filter(l=>l.empId===e.id).sort((a,b)=>(b.date||"").localeCompare(a.date||"")):[];
-    const LR=S.leavereq.filter(x=>x.by===uid).sort((a,b)=>b.at-a.at),DR=S.dutyreq.filter(x=>x.by===uid).sort((a,b)=>b.at-a.at),CR=S.changereq.filter(x=>x.by===uid).sort((a,b)=>b.at-a.at);
+    const LR=S.leavereq.filter(x=>x.by===uid&&!x.requestKind).sort((a,b)=>b.at-a.at),DR=S.leavereq.filter(x=>x.by===uid&&x.requestKind).sort((a,b)=>b.at-a.at),CR=S.changereq.filter(x=>x.by===uid).sort((a,b)=>b.at-a.at);
     const months=[0,1,2,3,4,5].map(i=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);return d.getFullYear()+"-"+pad(d.getMonth()+1)});
     const K=e&&e.group==="hse"?months.map(m=>({m,r:kpiSummary(m).find(x=>x.id===e.id)})):[];
     const duties=roleDuties(uid);const F2=await loadForms2().catch(()=>({}));
@@ -5178,7 +5178,7 @@ function dupSheet(){
 const TEAM_ROLES=["hsesup","hse","officer","monitor","sup","eng","store"];
 function lastActivity(uid){let t=0;for(const r of S.records)if(r.createdBy===uid)t=Math.max(t,num(r.createdAt)||Date.parse(r.date||0)||0);for(const p of S.permits)for(const f of p.flow||[])if(f.by===uid)t=Math.max(t,num(f.at));return t}
 VIEWS.follow={shell:()=>`<div class="head"><h2 class="grow">متابعة الفريق</h2><button class="btn" onclick="nudgeAll()">🔔 نبّه كل واحد بالناقص عنده</button></div><div id="flBody"></div>`,
-  fill(){const ws=weekStart(),t0=today();const CR=S.changereq.filter(c=>c.status==="new"),LR=S.leavereq.filter(c=>c.status==="new"),DR=S.dutyreq.filter(c=>c.status==="new");
+  fill(){const ws=weekStart(),t0=today();const CR=S.changereq.filter(c=>c.status==="new"),LR=S.leavereq.filter(c=>!c.requestKind&&c.status==="new"),DR=S.leavereq.filter(c=>c.requestKind&&c.status==="new");
     const team=(S.profiles||[]).filter(p=>!p.disabled&&TEAM_ROLES.includes(p.role)).sort((a,b)=>TEAM_ROLES.indexOf(a.role)-TEAM_ROLES.indexOf(b.role)||profName(a).localeCompare(profName(b),"ar"));
     const card=p=>{const D=roleDuties(p.id);const miss=D.filter(x=>!x.ok);const W=userRecs(p.id,ws,t0);const la=lastActivity(p.id);
       const apprW=S.permits.reduce((a,x)=>a+(x.flow||[]).filter(f=>f.by===p.id&&f.at>=Date.parse(ws)&&["supok","hseok","approved"].includes(f.st)).length,0);
