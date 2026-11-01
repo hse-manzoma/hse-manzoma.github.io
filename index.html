@@ -528,6 +528,8 @@ function openSheet(title,body,onSave,saveLabel="حفظ"){
   let saving=false;
   $("shForm").addEventListener("submit",async e=>{
     e.preventDefault();
+    /* بعض المتصفحات ترسل الفورمة عند الضغط على Enter؛ نماذج المعالج المرحلي لا تحفظ قبل المراجعة النهائية. */
+    if(e.target.dataset.requireFinalStep==="true"&&e.target.dataset.finalStep!=="true")return;
     if(saving)return;
     saving=true;
     const btn=e.target.querySelector('button[type="submit"]');
@@ -2945,14 +2947,16 @@ async function recordFormBase(fid,id,preset){
     const lab=esc(f.label||f.k),id="rf_"+f.k;
     if(f.type==="check"){const sel=Array.isArray(fv(f.k))?fv(f.k):[fv(f.k)];const labels=f.optLabels||{};
       return `<div class="field full"><label>${lab}</label><div style="display:flex;flex-wrap:wrap;gap:6px 14px">${Object.keys(f.opts).map(o=>`<label style="display:flex;gap:6px;align-items:center;font-size:13.5px"><input type="${f.multi?"checkbox":"radio"}" name="${f.k}" value="${esc(o)}" ${sel.includes(o)?"checked":""}> ${esc(labels[o]||o)}</label>`).join("")}</div></div>`}
-    if(f.type==="textarea")return `<div class="field full"><label for="${id}">${lab}</label><textarea id="${id}" name="${f.k}" rows="${Math.min(6,f.lines||3)}">${esc(fv(f.k))}</textarea></div>`;
-    if(f.type==="emp")return `<div class="field"><label for="${id}">${lab}</label><input id="${id}" name="${f.k}" list="empListAll" autocomplete="off" value="${esc(fv(f.k))}" placeholder="اكتب الاسم أو الكود"></div>`;
+    const req=(f.required||f.req)?"required":"";
+    if(f.type==="textarea")return `<div class="field full"><label for="${id}">${lab}</label><textarea id="${id}" name="${f.k}" rows="${Math.min(6,f.lines||3)}" ${req}>${esc(fv(f.k))}</textarea></div>`;
+    if(f.type==="emp")return `<div class="field"><label for="${id}">${lab}</label><input id="${id}" name="${f.k}" list="empListAll" autocomplete="off" value="${esc(fv(f.k))}" placeholder="اكتب الاسم أو الكود" ${req}></div>`;
     const type=f.type==="date"?"date":f.type==="time"?"time":"text";
     const val=fv(f.k)||(f.type==="date"&&f.k==="date"?today():"");
-    return `<div class="field"><label for="${id}">${lab}</label><input id="${id}" type="${type}" name="${f.k}" value="${esc(val)}" placeholder="${esc(f.default||(f.auto?"تلقائي":""))}"></div>`;
+    return `<div class="field"><label for="${id}">${lab}</label><input id="${id}" type="${type}" name="${f.k}" value="${esc(val)}" placeholder="${esc(f.default||(f.auto?"تلقائي":""))}" ${req}></div>`;
   };
   const R=spec.rows;
-  /* توقيعات صفوف الحضور: محفوظة هنا عشان التعديل ما يمسحش اللي وقّعوا قبل كده */
+  /* واجهة تعبئة متعددة المراحل: تقسيم الحقول حسب صفحات النموذج الرسمي،
+     ثم تقسيم الصفحة الطويلة إلى مجموعات صغيرة، مع إبقاء الجداول والمرفقات في مراحل مستقلة. */
   const rowSig={},rowSigAt={},rowSigBy={};
   if(R&&R.cols.some(c=>c.type==="sig"))
     (rec.rows||[]).slice(0,R.n).forEach((rw,i)=>{if(rw&&rw.sigImg){rowSig[i]=rw.sigImg;rowSigAt[i]=rw.sigAt;rowSigBy[i]=rw.sigBy}});
@@ -2984,7 +2988,35 @@ async function recordFormBase(fid,id,preset){
     </tbody></table></div></div>`:"";
   let photos=(rec.att||[]).filter(a=>a.kind==="photo");const removed=[];
   const photoHTML=`<div class="full" style="margin-top:6px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0" class="grow">📷 ${esc(PHOTO_LABEL(fid))}</h3>${assetsNS?`<label class="btn sm primary" style="cursor:pointer">+ صورة<input type="file" id="rfPhoto" accept="image/*" multiple style="display:none"></label>`:""}</div><div id="rfPhotos" style="display:flex;flex-wrap:wrap;gap:8px"></div><div id="rfPhotoMsg" class="muted" style="font-size:12.5px;margin-top:6px">${assetsNS?"الصور هتطلع في صفحة مرفقة بعد النموذج في الطباعة.":"رفع الصور متاح لصاحب المنظومة واللي معاه صلاحية تعديل."}</div></div>`;
-  openSheet((id?"تعديل ":"")+spec.title,`<div class="form">${spec.fields.map(fieldHTML).join("")}${rowsHTML}${sigPadHTML}${photoHTML}</div>${empDatalist2()}`,async(fd,form)=>{
+  const visibleFields=spec.fields.filter(f=>!f.hidden);
+  const fieldGroups=[];
+  const byPage=new Map();
+  for(const f of visibleFields){const pg=Number.isFinite(+f.page)?+f.page:0;(byPage.get(pg)||byPage.set(pg,[]).get(pg)).push(f)}
+  for(const [pg,items] of [...byPage.entries()].sort((a,b)=>a[0]-b[0])){
+    for(let i=0;i<items.length;i+=10){const chunk=items.slice(i,i+10);
+      const pageCount=[...byPage.values()].length;
+      const title=pageCount>1?`بيانات النموذج — الصفحة ${pg+1}${items.length>10?` · الجزء ${Math.floor(i/10)+1}`:""}`:(items.length>10?`البيانات — الجزء ${Math.floor(i/10)+1}`:"البيانات الأساسية");
+      fieldGroups.push({title,html:chunk.map(fieldHTML).join("")});
+    }
+  }
+  const wizardStages=[...fieldGroups];
+  if(R)wizardStages.push({title:R.label||"تفاصيل السجل",html:`${rowsHTML}${sigPadHTML}`});
+  wizardStages.push({title:PHOTO_LABEL(fid)||"المرفقات",html:photoHTML});
+  wizardStages.push({title:"المراجعة النهائية",review:true,html:`<div class="card" style="padding:14px"><b>راجع بيانات النموذج قبل الحفظ</b><p class="muted" style="margin:6px 0 0">يمكنك الرجوع لأي مرحلة لتعديل البيانات. لن يتم إنشاء السجل أو بدء الطباعة قبل الضغط على زر الحفظ النهائي.</p><div id="rfReviewSummary" style="margin-top:12px"></div></div>`});
+  const wizardHTML=`<div class="rf-wizard" id="rfWizard" data-step="0" style="display:grid;gap:14px">
+    <div class="card" style="padding:12px;position:sticky;top:0;z-index:2;background:var(--card, #fff)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><b id="rfStepTitle">${esc(wizardStages[0]?.title||"البيانات")}</b><span class="num" id="rfStepCount">1 / ${wizardStages.length}</span></div>
+      <div style="height:7px;background:var(--line);border-radius:20px;overflow:hidden;margin-top:10px"><div id="rfStepProgress" style="height:100%;width:${100/wizardStages.length}%;background:var(--accent);border-radius:20px;transition:width .2s"></div></div>
+      <div class="muted" style="font-size:12px;margin-top:7px">تظل مدخلاتك محفوظة أثناء التنقل داخل النموذج · لا تُحفظ في السجل إلا عند الإرسال النهائي</div>
+    </div>
+    ${wizardStages.map((st,i)=>`<section data-rf-step="${i}" ${i?"hidden":""} style="min-width:0"><div class="card" style="padding:14px"><h3 style="margin:0 0 12px">${esc(st.title)}</h3>${st.review?st.html:`<div class="form">${st.html}</div>`}</div></section>`).join("")}
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;position:sticky;bottom:0;background:var(--card,#fff);padding:10px 0;z-index:2">
+      <button type="button" class="btn" id="rfPrev" disabled>السابق</button>
+      <span class="muted" style="font-size:12px">${wizardStages.length} مراحل</span>
+      <button type="button" class="btn primary" id="rfNext">التالي ←</button>
+    </div>
+  </div>${empDatalist2()}`;
+  openSheet((id?"تعديل ":"")+spec.title,wizardHTML,async(fd,form)=>{
     const data={form:fid,f:{},rows:[],updatedAt:Date.now()};
     data.att=[...(rec.att||[]).filter(a=>a.kind!=="photo"),...photos];
     for(const f of spec.fields){if(f.hidden)continue;
@@ -3009,6 +3041,39 @@ async function recordFormBase(fid,id,preset){
     if(ok&&rid)setTimeout(()=>printRecord(rid),400);
     return ok?null:"الحفظ فشل";
   },"حفظ وطباعة");
+  /* تنقّل المراحل مع إبقاء جميع الحقول في DOM حتى تدخل ضمن FormData عند الحفظ النهائي. */
+  const wiz=$("rfWizard"),steps=[...wiz.querySelectorAll("[data-rf-step]")],prev=$("rfPrev"),next=$("rfNext"),submit=$("shForm")?.querySelector('button[type="submit"]'),recordFormEl=$("shForm");
+  if(recordFormEl)recordFormEl.dataset.requireFinalStep="true";
+  let activeStep=0;
+  const makeReview=()=>{
+    const box=$("rfReviewSummary");if(!box)return;
+    const vals=[];
+    for(const f of visibleFields){const el=document.querySelector(`#shForm [name="${CSS.escape(f.k)}"]`);if(!el)continue;
+      let v="";if(el.type==="radio"||el.type==="checkbox"){v=[...document.querySelectorAll(`#shForm [name="${CSS.escape(f.k)}"]:checked`)].map(x=>x.value).join("، ")}else v=el.value||"";
+      if(v)vals.push(`<div style="display:flex;gap:10px;justify-content:space-between;border-bottom:1px solid var(--line);padding:7px 0"><span class="muted">${esc(f.label||f.k)}</span><b style="text-align:left;max-width:60%;overflow-wrap:anywhere">${esc(v)}</b></div>`);
+    }
+    box.innerHTML=(vals.slice(0,18).join("")||'<p class="muted">لم يتم إدخال بيانات أساسية بعد.</p>')+(vals.length>18?`<p class="muted">ويوجد ${vals.length-18} حقول أخرى ضمن النموذج.</p>`:"")+(R?`<p class="muted">جدول السجل: حتى ${R.n} صفًا متاحًا. راجع الجدول في المرحلة السابقة.</p>`:"");
+  };
+  const showStep=n=>{
+    activeStep=Math.max(0,Math.min(steps.length-1,n));
+    steps.forEach((el,i)=>el.hidden=i!==activeStep);
+    const st=wizardStages[activeStep];$("rfStepTitle").textContent=st?.title||"البيانات";
+    $("rfStepCount").textContent=`${activeStep+1} / ${steps.length}`;
+    $("rfStepProgress").style.width=`${((activeStep+1)/steps.length)*100}%`;
+    prev.disabled=activeStep===0;next.hidden=activeStep===steps.length-1;
+    if(recordFormEl)recordFormEl.dataset.finalStep=activeStep===steps.length-1?"true":"false";
+    if(submit)submit.hidden=activeStep!==steps.length-1;
+    if(st?.review)makeReview();
+    wiz.scrollIntoView({block:"start",behavior:"smooth"});
+  };
+  prev.onclick=()=>showStep(activeStep-1);
+  next.onclick=()=>{
+    const current=steps[activeStep];
+    const bad=[...current.querySelectorAll("input[required],select[required],textarea[required]")].find(el=>!el.checkValidity());
+    if(bad){bad.reportValidity();bad.focus();return}
+    showStep(activeStep+1);
+  };
+  showStep(0);
   const drawP=()=>{const b=$("rfPhotos");if(!b)return;b.innerHTML=photos.length?photos.map(a=>`<div style="position:relative;width:96px;height:96px;border-radius:8px;overflow:hidden;border:1px solid var(--line,#ddd)"><img src="/_blob/${a.a}" alt="" style="width:100%;height:100%;object-fit:cover"><button type="button" data-rm="${a.a}" aria-label="شيل الصورة" style="position:absolute;top:3px;left:3px;border:0;border-radius:50%;width:24px;height:24px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer">✕</button></div>`).join(""):`<span class="muted" style="font-size:13px">مفيش صور</span>`};
   drawP();
   /* «وقّع هنا» بيفتح لوحة جوه الفورمة — مش شيت تاني يمسح اللي اتكتب */
