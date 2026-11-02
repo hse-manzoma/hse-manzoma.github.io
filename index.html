@@ -1517,7 +1517,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.11";
+const APP_VER="5.5.12";
 const APP_BUILD="2026-11-02";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2490,19 +2490,48 @@ const PTW_PRINT_LAYOUT={
   HEIGHT:{blankAfter:.32,closeAfter:.78,timeOffset:.022,roleMap:{site:"req",sup:"sup",hse:"hse"}},
   LIFT:{blankAfter:.25,closeAfter:.84,timeOffset:.022,roleMap:{site:"site",sup:"sup",hse:"hse"}},
   CONF:{blankAfter:0,closeAfter:.89,combinedDateTime:true,signatureInRole:true,roleMap:{site:"req",sup:"sup",hse:"hse"}},
-  EXC:{blankAfter:0,closeAfter:.82,timeOffset:.022,roleMap:{site:"sup",sup:"sup",hse:"hse"}}
+  EXC:{blankAfter:0,closeAfter:.82,timeOffset:.022,roleMap:{site:"site",sup:"sup",hse:"hse"}}
 };
+/* خانات توقيع التصاريح مأخوذة من جداول التوقيع المطبوعة في كل نموذج.
+   role keys: site=جهة التنفيذ/الموقع، sup=مشرف التنفيذ، hse=السلامة، req=طالب التصريح. */
+const PTW_SIG_CELLS={
+  COLD:{issue:{req:[.34,.214,.22,.025],site:[.175,.214,.22,.025],sup:[.429,.214,.22,.025],hse:[.674,.214,.22,.025]},extension:{req:[.34,.493,.18,.021],site:[.175,.493,.18,.021],sup:[.36,.493,.18,.021],hse:[.55,.493,.18,.021]},close:{req:[.17,.944,.24,.025],site:[.17,.944,.24,.025],sup:[.422,.944,.24,.025],hse:[.671,.944,.24,.025]}},
+  HOT:{issue:{site:[.485,.524,.12,.045],hse:[.485,.571,.12,.055],sup:[.485,.625,.12,.045]},extension:{site:[.76,.524,.15,.045],hse:[.76,.571,.15,.055],sup:[.76,.625,.15,.045]},close:{site:[.14,.85,.24,.055],hse:[.39,.85,.30,.055],sup:[.70,.85,.27,.055]}},
+  HEIGHT:{issue:{site:[.64,.302,.23,.032],sup:[.393,.302,.24,.032],hse:[.145,.302,.24,.032]},close:{site:[.64,.902,.23,.035],sup:[.393,.902,.24,.035],hse:[.145,.902,.24,.035]}},
+  LIFT:{issue:{sup:[.127,.218,.211,.025],site:[.339,.218,.16,.025],req:[.50,.218,.22,.025],hse:[.722,.218,.19,.025]},extension:{sup:[.127,.526,.211,.025],site:[.339,.526,.16,.025],req:[.50,.526,.22,.025],hse:[.722,.526,.19,.025]},close:{sup:[.127,.949,.211,.025],site:[.339,.949,.16,.025],req:[.50,.949,.22,.025],hse:[.722,.949,.19,.025]}},
+  CONF:{issue:{site:[.50,.755,.155,.031],hse:[.50,.785,.155,.031],sup:[.50,.815,.155,.031]},extension:{site:[.822,.713,.12,.032],hse:[.822,.746,.12,.032],sup:[.822,.779,.12,.032]},close:{site:[.18,.912,.25,.035],hse:[.44,.912,.27,.035],sup:[.72,.912,.26,.035]}},
+  EXC:{issue:{site:[.46,.523,.13,.038],hse:[.46,.566,.13,.050],sup:[.46,.617,.13,.045]},extension:{site:[.76,.523,.11,.038],hse:[.76,.566,.11,.050],sup:[.76,.617,.11,.045]},close:{site:[.67,.925,.15,.035],hse:[.51,.925,.15,.035],sup:[.35,.925,.15,.035],req:[.18,.925,.15,.035]}}
+};
+function ptwSigCell(type,stage,role){const r=PTW_SIG_CELLS[type]?.[stage]?.[role];return r?[...r]:null}
 function ptwSkipRepeatedApproval(T,b,pageCount){const q=PTW_PRINT_LAYOUT[T];return !!q&&b.page===pageCount-1&&["req","site","hse","sup","pdate"].includes(b.field)&&b.y>=q.blankAfter}
 function permitTextBox(cv,b,value,{fontSize=22,bold=true}={}){if(!cv||!b||value==null||value==="")return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H,pad=Math.max(2,bw*.035);g.save();g.fillStyle="#fff";g.fillRect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.beginPath();g.rect(bx,by,bw,bh);g.clip();g.direction=/[\u0600-\u06ff]/.test(String(value))?"rtl":"ltr";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#111";let fs=Math.min(fontSize,bh*.68);while(fs>8){g.font=`${bold?600:500} ${fs}px "IBM Plex Sans Arabic",Arial,sans-serif`;if(g.measureText(String(value)).width<=bw-pad*2)break;fs-=1}g.fillText(String(value),bx+bw/2,by+bh/2,bw-pad*2);g.restore()}
-async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!=="closed"||!["site","sup","hse"].includes(p.closeRole))return;const layout=PTW_PRINT_LAYOUT[p.type],F=(await loadForms())[p.type],page=F.pages.length-1,cv=pages[page],W=cv.width,H=cv.height;const role=p.closeRole;
-  if(layout.hot){const cols={site:{x:.1357,w:.2679},hse:{x:.4036,w:.3319},sup:{x:.7355,w:.2446}},col=cols[role]||cols.hse,sigY=.8044,sigH=.0404,dateY=.8448,dateH=.055;const nbox={page,x:col.x,y:sigY,w:col.w,h:.014},sbox=[col.x,sigY+.014,col.w,sigH-.014],dbox={page,x:col.x,y:dateY,w:col.w,h:dateH};permitTextBox(cv,nbox,p.closeName||"",{fontSize:18});permitTextBox(cv,dbox,`${fmtDate(p.closedAt)} · ${p.closedTime||"—"}`,{fontSize:17});if(p.closeSignature)await stampOn(cv,sbox,p.closeSignature,{});return}
-  const roleBoxes=F.boxes.filter(b=>b.page===page&&["req","site","hse","sup"].includes(b.field)&&b.y>=layout.closeAfter).sort((a,b)=>a.y-b.y),dateBoxes=F.boxes.filter(b=>b.page===page&&b.field==="pdate"&&b.y>=layout.closeAfter+.035).sort((a,b)=>a.y-b.y),field=roleBoxes.find(b=>b.field===layout.roleMap?.[role]);if(!field)return;
-  const dateBox=dateBoxes.filter(d=>d.y>field.y&&Math.min(field.x+field.w,d.x+d.w)-Math.max(field.x,d.x)>field.w*.5).sort((a,b)=>a.y-b.y)[0];
-  if(!layout.signatureInRole&&p.closeName)permitTextBox(cv,field,p.closeName,{fontSize:22});
-  if(dateBox){if(layout.combinedDateTime)permitTextBox(cv,dateBox,`${fmtDate(p.closedAt)} · ${p.closedTime||"—"}`,{fontSize:17});else{permitTextBox(cv,dateBox,fmtDate(p.closedAt),{fontSize:19});const timeBox={...dateBox,y:dateBox.y-layout.timeOffset,h:Math.min(dateBox.h,layout.timeOffset*.9)};permitTextBox(cv,timeBox,p.closedTime||"",{fontSize:19})}}
-  if(p.closeSignature){const rect=layout.signatureInRole?[field.x,field.y,field.w,field.h]:permitSignRect(F.boxes,field,b=>[b.x,b.y,b.w,b.h],b=>/date/i.test(b.field||""));if(rect)await stampOn(cv,rect,p.closeSignature,{})}
+async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!=="closed"||!["site","sup","hse"].includes(p.closeRole))return;const F=(await loadForms())[p.type],page=F.pages.length-1,cv=pages[page],cell=ptwSigCell(p.type,"close",p.closeRole);if(!cv||!cell)return;
+  if(p.closeSignature)await stampOn(cv,cell,p.closeSignature,{fit:.82});
+  /* الاسم والتاريخ/الوقت في صفوف نموذج الإغلاق، دون تغيير اسم مصدر التصريح. */
+  const put=(r,v,size=14)=>{if(r)permitTextBox(cv,{page,x:r[0],y:r[1],w:r[2],h:r[3]},v,{fontSize:size})},byRole=m=>m[p.closeRole];
+  if(p.type==="HEIGHT"){
+    put(byRole({site:[.64,.813,.23,.026],sup:[.393,.813,.24,.026],hse:[.145,.813,.24,.026]}),p.closeName||"",14);
+    put(byRole({site:[.64,.844,.23,.02],sup:[.393,.844,.24,.02],hse:[.145,.844,.24,.02]}),p.closedTime||"",12);
+    put(byRole({site:[.64,.873,.23,.022],sup:[.393,.873,.24,.022],hse:[.145,.873,.24,.022]}),fmtDate(p.closedAt),12);
+  }else if(p.type==="LIFT"){
+    put(byRole({sup:[.127,.862,.211,.027],site:[.339,.862,.16,.027],req:[.50,.862,.22,.027],hse:[.722,.862,.19,.027]}),p.closeName||"",13);
+    put(byRole({sup:[.127,.891,.211,.02],site:[.339,.891,.16,.02],req:[.50,.891,.22,.02],hse:[.722,.891,.19,.02]}),p.closedTime||"",12);
+    put(byRole({sup:[.127,.919,.211,.02],site:[.339,.919,.16,.02],req:[.50,.919,.22,.02],hse:[.722,.919,.19,.02]}),fmtDate(p.closedAt),12);
+  }else if(p.type==="EXC"){
+    put(byRole({site:[.67,.84,.15,.022],hse:[.51,.84,.15,.022],sup:[.35,.84,.15,.022]}),p.closeName||"",13);
+    put(byRole({site:[.67,.865,.15,.018],hse:[.51,.865,.15,.018],sup:[.35,.865,.15,.018]}),p.closedTime||"",11);
+    put(byRole({site:[.67,.889,.15,.018],hse:[.51,.889,.15,.018],sup:[.35,.889,.15,.018]}),fmtDate(p.closedAt),11);
+  }else if(p.type==="CONF"){
+    put(byRole({site:[.18,.949,.25,.026],hse:[.44,.949,.27,.026],sup:[.72,.949,.26,.026]}),`${fmtDate(p.closedAt)} ${p.closedTime||""}`,13);
+  }else if(p.type==="HOT"){
+    put(byRole({site:[.14,.92,.24,.026],hse:[.39,.92,.30,.026],sup:[.70,.92,.27,.026]}),`${fmtDate(p.closedAt)} ${p.closedTime||""}`,13);
+  }else if(p.type==="COLD"){
+    put(byRole({site:[.17,.869,.24,.026],sup:[.422,.869,.24,.026],hse:[.671,.869,.23,.026]}),p.closeName||"",13);
+    put(byRole({site:[.17,.925,.24,.02],sup:[.422,.925,.24,.02],hse:[.671,.925,.23,.02]}),`${fmtDate(p.closedAt)} ${p.closedTime||""}`,12);
+  }
+  if(p.type==="COLD"&&p.closedAt)await drawColdCloseInfo(pages,p);
 }
-async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});await applyPermitCloseoutOfficial(p,pages);if(p.type==="COLD"){drawColdSiteChecks(pages,p);if(p.extended)await drawColdExtension(pages,p);if(p.status==="closed"&&p.closedAt)await drawColdCloseInfo(pages,p)}else if(p.status==="closed"&&p.closedAt&&p.closeSignature){pages.push(await renderPermitCloseoutPage(p))}return pages}
+async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});if(p.type==="COLD")drawColdSiteChecks(pages,p);if(p.extended||p.extSignature||p.extensions?.length)await drawPermitExtension(pages,p);return pages}
 const PTW_CLOSE_CHECKS=[
   {k:"work",t:"أُوقف العمل وأُنجزت الأعمال المشمولة بالتصريح."},
   {k:"people",t:"تم حصر العاملين والتأكد من خروجهم من منطقة العمل."},
@@ -2518,8 +2547,8 @@ async function ptwExtend(id){const p=S.permits.find(x=>x.id===id);if(!p||!(p.sta
   openSheet(`تمديد التصريح ${p.number||""}`,`<div class="banner" style="margin-bottom:12px"><b>${esc(p.number||"")}</b> · ${esc(p.location||"")}<br>الموعد الحالي للانتهاء: ${fmtDate(curEnd)}${p.to?` · ${esc(p.to)}`:""}</div><div class="form">${f("تاريخ النهاية الجديد","newEnd",{type:"date",value:addDays(curEnd||today(),1),req:true})}${f("لحد الساعة","newTo",{type:"time",value:p.to||""})}${f("سبب التمديد","reason",{type:"textarea",full:true,req:true,attrs:'placeholder="مثلاً: استمرار الأعمال ولم تكتمل في المدة المحددة"'})}</div><p class="muted" style="font-size:12.5px;margin-bottom:0">هيتسجّل التمديد بتوقيعك، والمدة الجديدة هتظهر في Section 2 بالنموذج، والتصريح يفضل مفتوح للموعد الجديد.</p>`,
    async(fd)=>{if(!(fd.reason||"").trim())return "اكتب سبب التمديد";if(!fd.newEnd)return "اختار تاريخ النهاية الجديد";
      const me=myEmpName()||ME.name||"";const now=cairoClock();
-     const ext={at:Date.now(),date:now.day,by:ME.id,name:me,role:ptwCloseRole(),oldEnd:curEnd,oldTo:p.to||"",newEnd:fd.newEnd,newTo:(fd.newTo||"").trim(),reason:fd.reason.trim(),signature};
-     const patch={extended:true,endDate:fd.newEnd,to:(fd.newTo||p.to||""),extReason:ext.reason,extBy:ME.id,extName:me,extRole:ext.role,extAt:ext.at,extDate:now.day,extStart:curEnd,extStartTo:p.to||"",extSignature:signature,extensions:[...(p.extensions||[]),ext],flow:[...(p.flow||[]),{st:"extended",by:ME.id,name:me,at:Date.now(),note:ext.reason}]};
+     const ext={at:Date.now(),date:now.day,time:now.time,by:ME.id,name:me,role:ptwCloseRole(),oldEnd:curEnd,oldTo:p.to||"",newEnd:fd.newEnd,newTo:(fd.newTo||"").trim(),reason:fd.reason.trim(),signature};
+     const patch={extended:true,endDate:fd.newEnd,to:(fd.newTo||p.to||""),extReason:ext.reason,extBy:ME.id,extName:me,extRole:ext.role,extAt:ext.at,extDate:now.day,extTime:now.time,extStart:curEnd,extStartTo:p.to||"",extSignature:signature,extensions:[...(p.extensions||[]),ext],flow:[...(p.flow||[]),{st:"extended",by:ME.id,name:me,at:Date.now(),note:ext.reason}]};
      const ok=await write(()=>upsert("permits",id,patch),"اتمدّد التصريح ✔");if(!ok)return "الحفظ فشل";Object.assign(p,patch);
      await notifyUsers(ptwStakeholders(p),"تم تمديد تصريح العمل",`${p.number||""} · المدة لحد ${fmtDate(fd.newEnd)} · ${me}`,`?go=ptw&id=${encodeURIComponent(id)}`);setTimeout(()=>printPermit(id),350);return null},"تأكيد التمديد والتوقيع")}
 async function drawColdCloseInfo(pages,p){const c=pages[2];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
@@ -2568,7 +2597,26 @@ async function drawColdExtension(pages,p){const c=pages[2];if(!c)return;const g=
  const end=fmtDate(p.endDate)+(p.to?" · "+p.to:"");
  draw(start,W*0.905,H*0.466,10);draw(end,W*0.905,H*0.505,10);
  g.save();g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.font="500 9px 'IBM Plex Sans Arabic',Arial,sans-serif";g.fillStyle="#17231e";
- let rs="سبب: "+(p.extReason||"");const maxW=W*0.12;while(g.measureText(rs).width>maxW&&rs.length>6)rs=rs.slice(0,-2);g.fillText(rs,W*0.905,H*0.519);g.restore()}
+ let rs="سبب: "+(p.extReason||"");const maxW=W*0.12;while(g.measureText(rs).width>maxW&&rs.length>6)rs=rs.slice(0,-2);g.fillText(rs,W*0.905,H*0.519);g.restore();const sig=ptwSigCell("COLD","extension",p.extRole);if(sig&&p.extSignature)await stampOn(c,sig,p.extSignature,{fit:.75});if(sig)permitTextBox(c,{page:2,x:sig[0],y:sig[1]-.018,w:sig[2],h:.016},p.extName||"",{fontSize:11})}
+async function drawPermitExtension(pages,p){const T=p.type,exts=Array.isArray(p.extensions)&&p.extensions.length?p.extensions:[];const ext=exts[exts.length-1]||((p.extended||p.extSignature)?{date:p.extDate,at:p.extAt,time:p.extTime,name:p.extName,role:p.extRole,signature:p.extSignature,oldEnd:p.extStart,newEnd:p.endDate,newTo:p.to,reason:p.extReason}:null);if(!ext)return;const F=(await loadForms())[T],pg=F.pages.length-1,cv=pages[pg],W=cv?.width,H=cv?.height;if(!cv)return;
+  if(T==="COLD"){await drawColdExtension(pages,{...p,...ext,endDate:ext.newEnd||p.endDate,to:ext.newTo||p.to,extStart:ext.oldEnd||p.extStart,extStartTo:ext.oldTo||p.extStartTo,extReason:ext.reason||p.extReason,extName:ext.name||p.extName,extRole:ext.role||p.extRole,extSignature:ext.signature||p.extSignature});return}
+  const cell=ptwSigCell(T,"extension",ext.role);if(cell&&ext.signature)await stampOn(cv,cell,ext.signature,{fit:.82});
+  const d=ext.date||p.extDate||fmtDate(ext.at||Date.now()), tm=ext.time||p.extTime||(()=>{try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(ext.at||Date.now()))}catch(e){return ""}})();
+  const text=(r,v,size=14)=>{if(r)permitTextBox(cv,{page:pg,x:r[0],y:r[1],w:r[2],h:r[3]},v,{fontSize:size})};
+  if(T==="HOT"||T==="CONF"||T==="EXC"){
+    const idx={site:0,hse:1,sup:2,req:0}[ext.role]??0;
+    const rows=T==="HOT"?[[.51,.045],[.56,.055],[.615,.045]]:T==="CONF"?[[.713,.032],[.746,.032],[.779,.032]]:[[.505,.037],[.545,.05],[.595,.045]];
+    const [y,h]=rows[idx],dc=T==="HOT"?[.61,.08]:T==="CONF"?[.65,.09]:[.60,.10],tc=T==="HOT"?[.69,.07]:T==="CONF"?[.745,.075]:[.70,.07];
+    text([dc[0],y,dc[1],h],fmtDate(d),13);text([tc[0],y,tc[1],h],tm,13);
+  }else if(T==="LIFT"){
+    text([.84,.434,.12,.022],`${fmtDate(ext.oldEnd||p.startDate)} ${ext.oldTo||p.from||""}`,11);text([.84,.483,.12,.022],`${fmtDate(ext.newEnd||p.endDate)} ${ext.newTo||p.to||""}`,11);text([.84,.505,.12,.018],ext.reason||p.extReason||"",10);
+    if(cell)text([cell[0],cell[1]-.018,cell[2],.016],ext.name||p.extName||"",11);
+  }else if(T==="HEIGHT"){
+    const d=new Date((ext.newEnd||p.endDate)+"T00:00:00"),dow=d.getDay(),cols={0:.79,1:.68,2:.57,3:.46,4:.35,5:.24,6:.88},x=cols[dow]??.79;
+    text([x,.415,.105,.04],fmtDate(ext.newEnd||p.endDate),10);text([x,.46,.105,.04],ext.newTo||p.to||"",11);
+    const roleRow=ext.role==="hse"?[x,.545,.105,.04]:[x,.505,.105,.04];if(ext.signature)await stampOn(cv,roleRow,ext.signature,{fit:.72});
+  }
+}
 async function renderPermitCloseoutPage(p){
   const F=(await loadForms())[p.type],bg=await loadImg(F.pages[F.pages.length-1]),W=bg.naturalWidth,H=bg.naturalHeight,c=document.createElement("canvas");c.width=W;c.height=H;
   const g=c.getContext("2d"),m=W*.065,white="#fff",ink="#17231e",muted="#607068",accent="#d9480f",line="#cbd5d0",soft="#f1f4f2";
@@ -4301,12 +4349,13 @@ async function renderGenericSigned(fid,rec,pages,approvalDrawn){const L=signsOf(
     const r=signRect(spec.fields,f,x=>x.rect,isDateField);if(!r)continue;const key=(f.page||0)+":"+r.map(n=>n.toFixed(3)).join(",");if(done.has(key))continue;done.add(key);
     await stampOn(pages[f.page||0],r,s.uid===ME.id?mine:"",s)}}
   return pages}
-async function renderPermitPages(p){const pages=await renderPermitPagesBase(p);const byUid=new Map(signsOf(p).map(s=>[s.uid,{...s}]));
+async function renderPermitPages(p){const pages=await renderPermitPagesBase(p),T=p.type,F=(await loadForms())[T],vals=ptwValues(p),byUid=new Map(signsOf(p).map(s=>[s.uid,{...s}]));
   if(p.supSignature&&p.supUidDone&&p.supName)byUid.set(p.supUidDone,{...(byUid.get(p.supUidDone)||{}),uid:p.supUidDone,name:p.supName,at:p.supAt,signature:p.supSignature});
   if(p.hseSignature&&p.hseUidDone&&p.hseName)byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature});
-  const L=[...byUid.values()];if(!L.length)return pages;
-  const F=(await loadForms())[p.type];const vals=ptwValues(p);const mine=await mySig();const R=b=>[b.x,b.y,b.w,b.h];const isD=b=>/date/i.test(b.field||"");
-  for(const s of L)for(const b of F.boxes){if(!["req","site","hse","sup"].includes(b.field)||ptwSkipRepeatedApproval(p.type,b,F.pages.length))continue;if(normName(vals[b.field])!==normName(s.name))continue;const r=permitSignRect(F.boxes,b,R,isD);if(r)await stampOn(pages[b.page||0],r,s.uid===ME.id?mine:"",s)}
+  /* التوقيعات الأساسية تذهب إلى صف الإصدار المحدد لكل قالب، لا إلى موضع مستنتج من خانة التاريخ. */
+  for(const role of ["req","site","sup","hse"]){const value=vals[PTW_PRINT_LAYOUT[T]?.roleMap?.[role]||role];if(!value)continue;const s=[...byUid.values()].find(x=>normName(x.name)===normName(value));let sig=s?.signature||"";if(role==="sup"&&p.supSignature&&normName(p.supName)===normName(value))sig=p.supSignature;if(role==="hse"&&p.hseSignature&&normName(p.hseName)===normName(value))sig=p.hseSignature;const cell=ptwSigCell(T,"issue",role);if(cell&&sig)await stampOn(pages[F.pages.length-1],cell,sig,{fit:.82})}
+  /* اعتماد الإغلاق يظل في مصفوفة الإغلاق المطبوعة، بجوار اسم الدور نفسه. */
+  if(p.status==="closed"&&p.closedAt)await applyPermitCloseoutOfficial(p,pages);
   return pages}
 function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(v=>normName(v)===n)}
 async function signDoc(col,id,{reopen,extraPatch={}}={}){
