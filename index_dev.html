@@ -1399,7 +1399,27 @@ const attOf=(x,kind)=>(x?.att||[]).filter(a=>a.kind===kind);
 const ctrWorkers=cid=>S.employees.filter(e=>e.contractorId===cid&&e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
 document.addEventListener("click",e=>{const v=e.target.closest("[data-view]");if(!v)return;const o=document.createElement("div");o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:12px";o.innerHTML=`<img src="${v.dataset.view}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;o.onclick=()=>o.remove();document.body.appendChild(o)});
 function thumbs(list,size=72){return list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(a=>(a.type||"").includes("pdf")?`<a href="/_blob/${a.a}" target="_blank" rel="noopener" style="width:${size}px;height:${size}px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;text-decoration:none">PDF</a>`:`<img src="/_blob/${a.a}" data-view="/_blob/${a.a}" alt="" loading="lazy" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in">`).join("")}</div>`:""}
-function recLine(r,extra=""){return `<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}${extra}</div><div class="s">${esc(r.f?.desc||r.f?.subject||r.f?.topics||"")}</div></div>${hasSigned(r)?'<span class="pill p-appr">موقّع</span>':""}<button type="button" class="btn ghost sm" onclick="$('overlayRoot').innerHTML='';printRecord('${r.id}')">👁 عرض</button></div>`}
+/* per-form rich summary: returns array of {label,value} pairs for the list row */
+function recMeta(fid,r){
+  const f=r.f||{};
+  const hasSig=k=>!!(f[k]&&String(f[k]).startsWith("data:image"));
+  if(fid==="F-HSE-03-01"){// حوادث
+    return[
+      f.injury&&{label:"الإصابة",value:f.injury},
+      f.victim&&{label:"المصاب",value:f.victim},
+      f.writer&&{label:"الكاتب",value:f.writer},
+      {label:"التوقيعات",value:(hasSig("writerSig")&&hasSig("approvedSig"))?"✔ الكاتب والمعتمد":hasSig("writerSig")?"✔ كاتب التقرير":hasSig("approvedSig")?"✔ المعتمد فقط":"لم يوقَّع بعد",cls:hasSig("writerSig")||hasSig("approvedSig")?"":"muted"},
+    ].filter(Boolean)}
+  if(fid==="F-HSE-07-01"||fid==="F-HSE-04-01"){// تفتيش أو تحقيق
+    return[f.place&&{label:"الموقع",value:f.place},f.inspector&&{label:"المفتش",value:f.inspector},f.resp&&{label:"المسؤول",value:f.resp}].filter(Boolean)}
+  if(fid==="F-HSE-24-01"||fid==="F-HSE-24-02"){// محاضرة
+    return[f.topic&&{label:"الموضوع",value:f.topic},f.trainer&&{label:"المدرب",value:f.trainer},f.count&&{label:"العدد",value:f.count+" متدرب"}].filter(Boolean)}
+  return[]; // default: use sum() below
+}
+function recLine(r,extra=""){
+  const chips=hasSigned(r)?'<span class="pill p-appr">موقّع</span>':"";
+  return `<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}${extra}</div><div class="s">${esc(r.f?.desc||r.f?.subject||r.f?.topics||"")}</div></div>${chips}<button type="button" class="btn ghost sm" onclick="$('overlayRoot').innerHTML='';printRecord('${r.id}')">👁 عرض</button></div>`
+}
 function personRow(e){const nv=personViol(e.id).length+attOf(e,"violation").length,nl=personLect(e.id).length+attOf(e,"lecture").length;
   return `<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,e.phone].filter(Boolean).map(esc).join(" · ")}</div></div>
   ${hasID(e)?'<span class="pill p-appr">🪪 البطاقة</span>':'<span class="pill p-closed">مفيش بطاقة</span>'}${attOf(e,"badge").length?'<span class="pill p-appr">🏷️ كارنيه</span>':""}${nl?`<span class="pill p-open">${nl} توعية</span>`:""}${nv?`<span class="pill p-canc">${nv} مخالفة</span>`:""}
@@ -2148,9 +2168,34 @@ VIEWS.forms={
 function fillFormRecords(el,fid,spec){
   const L=recsOf(fid).filter(mineRec);
   const sum=r=>{const keys=spec.fields.filter(f=>!f.hidden&&f.type!=="check"&&f.k!=="date"&&!f.default&&!f.auto).slice(0,2).map(f=>recVal(spec,r,f.k)).filter(Boolean);const rows=(r.rows||[]).filter(x=>x&&Object.values(x).some(v=>v&&v.length));return [keys.join(" · "),rows.length?`${rows.length} ${spec.rows?.label||"صف"}`:""].filter(Boolean).join(" — ")};
+  const rowHTML=r=>{
+    const meta=recMeta(fid,r);
+    const approved=r.approved;
+    const approvedChip=approved?`<span class="pill p-appr" title="اعتمد: ${esc(approved.name||"")}">✔ معتمد</span>`:"";
+    const signedChip=!approved&&hasSigned(r)?'<span class="pill p-appr">موقّع</span>':"";
+    let detail;
+    if(meta.length){
+      detail=meta.map(m=>'<span class="'+(m.cls||'')+'" style="font-size:12.5px">'+(m.label?'<span class="muted">'+esc(m.label)+': </span>':'')+esc(m.value)+'</span>').join('<span class="muted" style="margin:0 4px">·</span>');
+    } else {
+      detail=esc(sum(r));
+    }
+    return `<div class="li">
+      <span class="num">${r.serial||""}</span>
+      <div class="grow">
+        <div class="t">${fmtDate(r.date)}</div>
+        <div class="s" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 0">${detail}</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px">
+        ${approvedChip}${signedChip}
+        <button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>
+        ${attBtn("records",r.id,r)}
+        <button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>
+        ${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}
+      </div>
+    </div>`};
   el.innerHTML=`<div class="filters"><button class="btn" onclick="ui.formSel='';refresh()">→ كل النماذج</button><div class="grow"></div><button class="btn primary" onclick="recordForm('${fid}')">+ ${esc(spec.title)} جديد</button></div>
   <div class="card"><h3><span class="num">${fid}</span> · ${esc(spec.title)}</h3>
-  ${L.length?`<div class="list">${L.map(r=>`<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s">${esc(sum(r))}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
+  ${L.length?`<div class="list">${L.map(rowHTML).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
 }
 let _sigEmpty=true;
 function initSigPad(){const cv=document.getElementById("sigCanvas");if(!cv)return;const x=cv.getContext("2d");x.lineWidth=6;x.lineCap="round";x.lineJoin="round";x.strokeStyle="#16306b";_sigEmpty=true;let dr=false,lx=0,ly=0;const pos=e=>{const r=cv.getBoundingClientRect();return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]};cv.onpointerdown=e=>{e.preventDefault();dr=true;[lx,ly]=pos(e);try{cv.setPointerCapture(e.pointerId)}catch(_){}};cv.onpointermove=e=>{if(!dr)return;e.preventDefault();const p=pos(e);x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1];_sigEmpty=false};cv.onpointerup=cv.onpointercancel=()=>{dr=false};}

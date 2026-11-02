@@ -1,0 +1,110 @@
+{
+  "docs": [
+    {
+      "col": "equipment",
+      "id": "tower-crane-001",
+      "data": {
+        "kind": "tower",
+        "code": "TC-001",
+        "serial": "071.000.067",
+        "name": "ونش برجي",
+        "maker": "Comedil",
+        "model": "",
+        "capacity": "12 طن",
+        "mast": "44 م",
+        "jib": "65 م",
+        "upperCw": "",
+        "lowerCw": "",
+        "inUseDate": "",
+        "certDate": "2024-11-13",
+        "certDue": "2025-11-12",
+        "contractor": "",
+        "place": "",
+        "notes": "الموديل غير واضح في المستند المرفق؛ يلزم تحديث الشهادة قبل التشغيل.",
+        "active": true,
+        "insp": [],
+        "createdAt": 1792362838974
+      }
+    },
+    {
+      "col": "equipment",
+      "id": "tower-crane-002",
+      "data": {
+        "kind": "tower",
+        "code": "TC-002",
+        "serial": "S607",
+        "name": "ونش برجي",
+        "maker": "Simma",
+        "model": "S28.52.RJ2",
+        "capacity": "10 طن",
+        "mast": "41 م",
+        "jib": "52 م",
+        "upperCw": "",
+        "lowerCw": "",
+        "inUseDate": "",
+        "certDate": "2024-11-13",
+        "certDue": "2025-11-12",
+        "contractor": "",
+        "place": "",
+        "notes": "يلزم تحديث الشهادة قبل التشغيل.",
+        "active": true,
+        "insp": [],
+        "createdAt": 1792362838974
+      }
+    },
+    {
+      "col": "equipment",
+      "id": "tower-crane-003",
+      "data": {
+        "kind": "tower",
+        "code": "TC-003",
+        "serial": "2498007",
+        "name": "ونش برجي",
+        "maker": "Comedil",
+        "model": "CT651",
+        "capacity": "10 طن",
+        "mast": "35 م",
+        "jib": "65 م",
+        "upperCw": "20 طن",
+        "lowerCw": "80 طن",
+        "inUseDate": "",
+        "inUseYear": "1998",
+        "certDate": "2024-11-13",
+        "certDue": "2025-11-12",
+        "contractor": "",
+        "place": "",
+        "notes": "سنة بدء الاستخدام المدونة بالشهادة 1998؛ يلزم تحديث الشهادة قبل التشغيل.",
+        "active": true,
+        "insp": [],
+        "createdAt": 1792362838974
+      }
+    },
+    {
+      "col": "equipment",
+      "id": "tower-crane-004",
+      "data": {
+        "kind": "tower",
+        "code": "TC-004",
+        "serial": "760225",
+        "name": "ونش برجي",
+        "maker": "Simma",
+        "model": "GT187 C2.5",
+        "capacity": "10 طن",
+        "mast": "31 م",
+        "jib": "60 م",
+        "upperCw": "20 طن",
+        "lowerCw": "80 طن",
+        "inUseDate": "",
+        "inUseYear": "1990",
+        "certDate": "2024-11-13",
+        "certDue": "2025-11-12",
+        "contractor": "",
+        "place": "",
+        "notes": "سنة بدء الاستخدام المدونة بالشهادة 1990؛ يلزم تحديث الشهادة قبل التشغيل.",
+        "active": true,
+        "insp": [],
+        "createdAt": 1792362838974
+      }
+    }
+  ]
+}
