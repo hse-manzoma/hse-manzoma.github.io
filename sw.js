@@ -1,7 +1,7 @@
 /* network-first service worker + daily push reminders */
-const C="hse-v6";
+const C="hse-v7";
 /* الملفات اللي لازم تكون متخزنة عشان المنظومة تفتح وانت مفيش نت */
-const SHELL=["./","index.html","supa.js","forms.json","manifest.json","icon-192.png","icon-512.png","icon.svg","rep-logo.png"];
+const SHELL=["./","index.html","supa.js","forms.json","forms-index.json","manifest.json","icon-192.png","icon-512.png","icon.svg","rep-logo.png"];
 const CDN=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js",
            "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil((async()=>{
@@ -16,6 +16,13 @@ self.addEventListener("fetch",e=>{const r=e.request;const u=new URL(r.url);if(r.
   if(u.origin!==location.origin){
     if(!/cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|unpkg\.com|fonts\.(googleapis|gstatic)\.com/.test(u.host))return;
     e.respondWith(caches.match(r).then(m=>m||fetch(r).then(res=>{const cp=res.clone();caches.open(C).then(c=>c.put(r,cp)).catch(()=>{});return res})));
+    return;
+  }
+  /* النماذج الرسمية وخلفياتها: اعرض النسخة المخزنة فوراً وحدّثها بالخلفية */
+  if(/\/(?:forms-index\.json|form-specs\/[^/]+\.json|f-[^/]+\.(?:jpg|png))$/i.test(u.pathname)){
+    const update=caches.open(C).then(c=>fetch(r).then(async res=>{if(res.ok)await c.put(r,res.clone());return res}).catch(()=>null));
+    e.waitUntil(update.then(()=>{}));
+    e.respondWith(caches.match(r).then(hit=>hit||update).then(res=>res||Response.error()));
     return;
   }
   e.respondWith(fetch(r).then(res=>{if(res.ok){const cp=res.clone();caches.open(C).then(c=>c.put(r,cp)).catch(()=>{})}return res}).catch(()=>caches.match(r).then(m=>m||caches.match("index.html").then(x=>x||caches.match("./")))))});

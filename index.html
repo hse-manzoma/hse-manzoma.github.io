@@ -105,7 +105,11 @@ td.n,th.n{font-variant-numeric:tabular-nums;text-align:left;direction:ltr}
 .type i{width:10px;height:10px;border-radius:2px;display:inline-block}
 .empty{padding:34px 16px;text-align:center;color:var(--muted)}
 .empty b{display:block;color:var(--ink);font-family:var(--f-display);font-weight:600;font-size:16px;margin-bottom:4px}
-.row-actions{display:flex;gap:2px;justify-content:flex-end;flex-wrap:nowrap}
+.row-actions{display:flex;gap:3px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.record-detail{display:flex;flex-wrap:wrap;align-items:center;gap:3px 0}
+.forms-loading{min-height:76px;display:flex;align-items:center;color:var(--muted);background:linear-gradient(100deg,var(--surface) 25%,var(--sunk) 45%,var(--surface) 65%);background-size:220% 100%;animation:formShimmer 1.4s ease-in-out infinite}
+@keyframes formShimmer{to{background-position-x:-220%}}
+@media (prefers-reduced-motion:reduce){.forms-loading{animation:none;background:var(--surface)}}
 .stock-low{color:var(--bad);font-weight:600}
 .bar-meter{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden;min-width:70px}
 .bar-meter span{display:block;height:100%;background:var(--accent)}
@@ -1540,8 +1544,8 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.22";
-const APP_BUILD="2026-11-02";
+const APP_VER="5.5.23";
+const APP_BUILD="2026-11-03";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
 async function checkAppUpdate(loud){
@@ -1717,7 +1721,7 @@ addEventListener("hse:synced",()=>{xlMirrorWrite(false)});
 /* ---------- corrective actions follow-up ---------- */
 const CHECKLIST_FORMS=["F-HSE-05-01","F-HSE-08-02","F-HSE-30-02","F-HSE-07-02","F-HSE-18-01"];
 function deriveActions(){
-  const out=[];const F2=FORMS2||{};const addD=(d,n)=>{try{const x=new Date((d||today())+"T00:00:00");x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)}catch(e){return today()}};
+  const out=[];const F2=FORM_SPECS;const addD=(d,n)=>{try{const x=new Date((d||today())+"T00:00:00");x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)}catch(e){return today()}};
   for(const r of S.records){const sp=F2[r.form]||{};
     if(CHECKLIST_FORMS.includes(r.form))(r.rows||[]).forEach((row,i)=>{if(row?.res==="nok")out.push({id:`${r.id}_${i}`,recId:r.id,form:r.form,date:r.date,kind:"تفتيش",title:(sp.rows?.items?.[i]||`بند ${i+1}`).replace(/^[^.]*\.\s*/,""),detail:[row.measure,row.ncr&&("NCR "+row.ncr)].filter(Boolean).join(" · "),place:r.f?.site||"",due:addD(r.date,3)})});
     if(r.form==="F-HSE-07-03")(r.rows||[]).forEach((row,i)=>{if(row?.desc)out.push({id:`${r.id}_${i}`,recId:r.id,form:r.form,date:r.date,kind:"ملاحظة",title:row.desc,detail:row.action||"",place:row.place||"",due:addD(r.date,String(row.risk||"").startsWith("1")?1:7)})});
@@ -1735,7 +1739,7 @@ function actOwner(a){return a.ownerId?empName(a.ownerId):a.ownerName||""}
 VIEWS.actions={
   shell:()=>`<div class="head"><h2 class="grow">المتابعة والإجراءات التصحيحية</h2></div><div id="actBody"></div>`,
   async fill(){
-    try{await loadForms2()}catch(e){}
+    if(CHECKLIST_FORMS.some(fid=>!FORM_SPECS[fid]))Promise.all(CHECKLIST_FORMS.map(loadFormSpec)).then(()=>{if(tab==="actions")this.list()}).catch(()=>{});
     if(document.activeElement?.id==="actQ"){this.list();return}
     const A=deriveActions();const open=A.filter(a=>a.status!=="closed"),late=open.filter(a=>a.late),mine=open.filter(a=>myEmpId()&&a.ownerId===myEmpId());
     $("actBody").innerHTML=`<div class="grid g4" style="margin-bottom:14px"><div class="card tile"><span class="lbl">مفتوح</span><b class="val">${open.length}</b></div><div class="card tile ${late.length?"alert":""}"><span class="lbl">متأخر عن ميعاده</span><b class="val">${late.length}</b></div><div class="card tile"><span class="lbl">مش متعيّن له مسؤول</span><b class="val">${open.filter(a=>!a.ownerId&&!a.ownerName).length}</b></div><div class="card tile"><span class="lbl">اتقفل الشهر ده</span><b class="val">${A.filter(a=>a.status==="closed"&&(a.closedAt||"").slice(0,7)===today().slice(0,7)).length}</b></div></div>
@@ -2916,7 +2920,18 @@ async function printPermit_orig(id){
 
 /* ---------- generic official forms (records) ---------- */
 let FORMS2=null;
-async function loadForms2(){if(!FORMS2)FORMS2=await fetch("forms2.json").then(r=>{if(!r.ok)throw new Error("forms2");return r.json()});return FORMS2}
+let FORMS2_PENDING=null;
+async function loadForms2(){
+  if(FORMS2)return FORMS2;
+  if(!FORMS2_PENDING)FORMS2_PENDING=fetch("forms-index.json").then(r=>{if(!r.ok)throw new Error("forms-index");return r.json()}).then(d=>(FORMS2=d,d)).catch(e=>{FORMS2_PENDING=null;throw e});
+  return FORMS2_PENDING;
+}
+const FORM_SPECS=Object.create(null),FORM_SPEC_PENDING=Object.create(null);
+async function loadFormSpec(fid){
+  if(FORM_SPECS[fid])return FORM_SPECS[fid];
+  if(!FORM_SPEC_PENDING[fid])FORM_SPEC_PENDING[fid]=fetch(`form-specs/${encodeURIComponent(fid)}.json`).then(r=>{if(!r.ok)throw new Error("form-spec:"+fid);return r.json()}).then(d=>(FORM_SPECS[fid]=d,d)).catch(e=>{delete FORM_SPEC_PENDING[fid];throw e});
+  return FORM_SPEC_PENDING[fid];
+}
 /* نفس طبقة التظبيط بس للسجلات: بتعدّل مكان الخانة وارتفاعها (والخط بيتبع الارتفاع) */
 function tweakedSpec(spec,fid){
   const t=tweakFor(fid).f2;
@@ -2927,7 +2942,7 @@ function tweakedSpec(spec,fid){
     return {...f,rect:[o.x??f.rect[0],o.y??f.rect[1],o.w??f.rect[2],o.h??f.rect[3]]};
   })};
 }
-async function spec2(fid){return tweakedSpec((await loadForms2())[fid],fid)}
+async function spec2(fid){return tweakedSpec(await loadFormSpec(fid),fid)}
 const FORM_GROUPS={daily:"الشغل اليومي",inspect:"قوائم التفتيش",emerg:"الطوارئ والمعدات",other:"تصاريح وسجلات تانية"};
 ui.formSel=ui.formSel||"";ui.formQ="";
 function recsOf(fid){return S.records.filter(r=>r.form===fid).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.serial)-num(a.serial))}
@@ -2945,6 +2960,25 @@ function recVal(spec,rec,k,depth=0){
     if(!attr)return recVal(spec,rec,src,depth+1);
   }
   return f.default||"";
+}
+function recordCountsByForm(){const counts=Object.create(null);for(const r of S.records)if(r.form)counts[r.form]=(counts[r.form]||0)+1;return counts}
+function recMeta(fid,r,spec){
+  const f=r.f||{};
+  if(fid==="F-HSE-03-01"){
+    const signature=k=>typeof f[k]==="string"&&/^data:image\//i.test(f[k]);
+    const profile=profOf(r.createdBy),author=emp(profile?.emp_id||"")?.name||"";
+    const who=f.writer||author||"";
+    const signed=[signature("writerSig")&&"كاتب التقرير",signature("approvedSig")&&"المعتمد"].filter(Boolean);
+    return [
+      f.injury&&{label:"نوع الإصابة",value:f.injury},
+      recVal(spec,r,"victim")&&{label:"المصاب",value:recVal(spec,r,"victim")},
+      who&&{label:"كاتب التقرير",value:who},
+      {label:"توقيعات النموذج",value:signed.length?"✔ "+signed.join(" · ✔ "):"لم يكتمل التوقيع",cls:signed.length?"":"muted"}
+    ].filter(Boolean);
+  }
+  if(fid==="F-HSE-07-01"||fid==="F-HSE-04-01")return [f.place&&{label:"الموقع",value:f.place},f.inspector&&{label:"المفتش",value:f.inspector},f.resp&&{label:"المسؤول",value:f.resp}].filter(Boolean);
+  if(fid==="F-HSE-24-01"||fid==="F-HSE-24-02")return [f.topic&&{label:"الموضوع",value:f.topic},f.trainer&&{label:"المحاضر",value:f.trainer},f.count&&{label:"عدد الحضور",value:f.count}].filter(Boolean);
+  return [];
 }
 function fmtFieldVal(f,v){if(!v)return "";if(f.type==="date"&&/^\d{4}-\d\d-\d\d$/.test(v))return fmtDate(v);return v}
 const isLiveSigCol=c=>c&&(c.type==="sig"||c.type==="liveSig");
@@ -3008,8 +3042,8 @@ async function renderGenericBase(fid,rec){
 VIEWS.forms={
   shell:()=>`<div class="head"><h2 class="grow">النماذج والسجلات والمأموريات</h2></div><div id="formsBody"></div>`,
   async fill(){
-    const el=$("formsBody");let F2;try{F2=await loadForms2()}catch(e){el.innerHTML='<div class="msg">معرفتش أحمّل النماذج.</div>';return}
-    if(ui.formSel&&F2[ui.formSel])return fillFormRecords(el,ui.formSel,F2[ui.formSel]);
+    const el=$("formsBody");if(!FORMS2)el.innerHTML='<div class="card forms-loading" role="status">⏳ جاري تجهيز قائمة النماذج…</div>';let F2;try{F2=await loadForms2()}catch(e){el.innerHTML='<div class="msg">معرفتش أحمّل النماذج. راجع الاتصال وحاول تاني.</div>';return}
+    if(ui.formSel&&F2[ui.formSel]){el.innerHTML='<div class="card forms-loading" role="status">⏳ جاري تجهيز النموذج المختار…</div>';let spec;try{spec=await spec2(ui.formSel)}catch(e){el.innerHTML='<div class="msg">معرفتش أحمّل النموذج. راجع الاتصال وحاول تاني.</div>';return}return fillFormRecords(el,ui.formSel,spec)}
     const byG={};for(const [fid,s] of Object.entries(F2))(byG[s.group]??=[]).push([fid,s]);
 
     /* تسجيل مأمورية أو تكليف — بيفتح نفس شاشة التسجيل بنوعها مظبوط،
@@ -3022,15 +3056,23 @@ VIEWS.forms={
     missionHTML += mkBtn("duty","🗓","تيم ديوتي للفريق — F-ADM-01-02");
     missionHTML += `</div>`;
 
-    el.innerHTML = missionHTML + Object.entries(FORM_GROUPS).filter(([g])=>byG[g]).map(([g,gl])=>`<h3 style="margin-top:6px">${gl}</h3><div class="grid g4" style="margin-bottom:18px">${byG[g].sort().map(([fid,s])=>{const n=recsOf(fid).length;return `<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.formSel='${fid}';refresh()"><span class="lbl num" style="direction:ltr;text-align:right">${fid}</span><span style="font-weight:600;font-size:15px">${esc(s.title)}</span><span class="note">${n?n+" سجل":"لسه مفيش سجلات"}</span></button>`}).join("")}</div>`).join("");
+    const counts=recordCountsByForm();
+    el.innerHTML = missionHTML + Object.entries(FORM_GROUPS).filter(([g])=>byG[g]).map(([g,gl])=>`<h3 style="margin-top:6px">${gl}</h3><div class="grid g4" style="margin-bottom:18px">${byG[g].sort().map(([fid,s])=>{const n=counts[fid]||0;return `<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.formSel='${fid}';refresh()"><span class="lbl num" style="direction:ltr;text-align:right">${fid}</span><span style="font-weight:600;font-size:15px">${esc(s.title)}</span><span class="note">${n?n+" سجل":"لسه مفيش سجلات"}</span></button>`}).join("")}</div>`).join("");
   }
 };
 function fillFormRecords(el,fid,spec){
   const L=recsOf(fid).filter(mineRec);
   const sum=r=>{const keys=spec.fields.filter(f=>!f.hidden&&f.type!=="check"&&f.k!=="date"&&!f.default&&!f.auto).slice(0,2).map(f=>recVal(spec,r,f.k)).filter(Boolean);const rows=(r.rows||[]).filter(x=>x&&Object.values(x).some(v=>v&&v.length));return [keys.join(" · "),rows.length?`${rows.length} ${spec.rows?.label||"صف"}`:""].filter(Boolean).join(" — ")};
+  const rowHTML=r=>{
+    const meta=recMeta(fid,r,spec),approval=r.review||r.approved;
+    const approvedChip=approval?`<span class="pill p-appr" title="اعتماد ${esc(approval.name||approval.byName||"")}">✔ معتمد${approval.name?` · ${esc(approval.name)}`:""}</span>`:"";
+    const signedChip=fid!=="F-HSE-03-01"&&!approval&&hasSigned(r)?'<span class="pill p-appr">مرفق موقّع</span>':"";
+    const detail=meta.length?meta.map(m=>`<span class="${m.cls||""}"><span class="muted">${esc(m.label)}: </span>${esc(m.value)}</span>`).join('<span class="muted" style="margin:0 5px">·</span>'):esc(sum(r));
+    return `<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s record-detail">${detail}</div></div><div class="row-actions">${approvedChip}${signedChip}<button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`;
+  };
   el.innerHTML=`<div class="filters"><button class="btn" onclick="ui.formSel='';refresh()">→ كل النماذج</button><div class="grow"></div><button class="btn primary" onclick="recordForm('${fid}')">+ ${esc(spec.title)} جديد</button></div>
   <div class="card"><h3><span class="num">${fid}</span> · ${esc(spec.title)}</h3>
-  ${L.length?`<div class="list">${L.map(r=>`<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s">${esc(sum(r))}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
+  ${L.length?`<div class="list">${L.map(rowHTML).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
 }
 async function recordFormBase(fid,id,preset){
   let dupAck=false;                     /* أول حفظ بيحذّر من التكرار، والتاني بيكمّل */
@@ -4696,9 +4738,9 @@ function allowedTabs(){const b=allowedTabsBase();if(!b)return b;const out=[...b]
 function tabLevel(tb){if(tb==="me"||tb==="chat")return "edit";if(tb==="follow")return myRole()==="admin"||myRole()==="hsesup"?"full":"view";const a=myAccess();if(a&&a.role!=="admin"&&(tb==="manpower"||tb==="contractors")&&!a.tabs[tb])return "view";return tabLevelBase(tb)}
 /* engineers & execution supervisors see only violations + unsafe acts/conditions among forms */
 const RESTRICT_FORMS={eng:["F-HSE-07-01","F-HSE-07-03"],sup:["F-HSE-07-01","F-HSE-07-03"]};
-{const _ff=VIEWS.forms.fill;VIEWS.forms.fill=async function(){const allow=RESTRICT_FORMS[myRole()];if(!allow)return _ff.call(this);
+{const _ff=VIEWS.forms.fill;VIEWS.forms.fill=async function(){const allow=RESTRICT_FORMS[myRole()];if(!allow)return _ff.call(this);const el=$("formsBody");if(!FORMS2)el.innerHTML='<div class="card forms-loading" role="status">⏳ جاري تجهيز قائمة النماذج…</div>';
   if(ui.formSel&&!allow.includes(ui.formSel))ui.formSel="";if(ui.formSel)return _ff.call(this);
-  const F2=await loadForms2();$("formsBody").innerHTML=`<p class="muted" style="margin-top:0">النماذج اللي تقدر تطلع عليها:</p><div class="grid g4">${allow.filter(f=>F2[f]).map(fid=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.formSel='${fid}';refresh()"><span class="lbl num" style="direction:ltr;text-align:right">${fid}</span><span style="font-weight:600;font-size:15px">${esc(F2[fid].title)}</span><span class="note">${recsOf(fid).length} سجل</span></button>`).join("")}</div>`}}
+  let F2;try{F2=await loadForms2()}catch(e){el.innerHTML='<div class="msg">معرفتش أحمّل النماذج. راجع الاتصال وحاول تاني.</div>';return}const counts=recordCountsByForm();el.innerHTML=`<p class="muted" style="margin-top:0">النماذج اللي تقدر تطلع عليها:</p><div class="grid g4">${allow.filter(f=>F2[f]).map(fid=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.formSel='${fid}';refresh()"><span class="lbl num" style="direction:ltr;text-align:right">${fid}</span><span style="font-weight:600;font-size:15px">${esc(F2[fid].title)}</span><span class="note">${counts[fid]||0} سجل</span></button>`).join("")}</div>`}}
 /* review of records written by officers / monitors */
 const isViolationRec=r=>r?.form==="F-HSE-07-01";
 const needsReview=r=>{const p=profOf(r.createdBy);return !!p&&!r.review&&(isViolationRec(r)?p.role!=="admin":AUTHORS_NEED_REVIEW.includes(p.role))};
