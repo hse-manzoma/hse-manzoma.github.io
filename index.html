@@ -1517,7 +1517,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.8";
+const APP_VER="5.5.9";
 const APP_BUILD="2026-11-02";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2932,7 +2932,15 @@ function fillFormRecords(el,fid,spec){
 async function recordFormBase(fid,id,preset){
   let dupAck=false;                     /* أول حفظ بيحذّر من التكرار، والتاني بيكمّل */
   const spec=(await spec2(fid));const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
-  const fv=k=>rec.f?.[k]??"";
+  const actorFields=new Set(["lecturer","trainer","inspector","officer","reporter","writer","lead","orig"]);
+  const currentActor=myEmpName();
+  const fv=k=>{
+    const saved=rec.f?.[k];if(saved!=null&&saved!=="")return saved;
+    const field=spec.fields.find(x=>x.k===k);
+    if(!id&&field?.auto==="me")return currentActor;
+    if(actorFields.has(k)&&currentActor)return currentActor;
+    return "";
+  };
   const fieldHTML=f=>{
     if(f.hidden)return "";
     const lab=esc(f.label||f.k),id="rf_"+f.k;
@@ -3028,6 +3036,10 @@ async function recordFormBase(fid,id,preset){
     if(TASK_RUN)data.taskId=(typeof TASK_RUN==="string"?TASK_RUN:TASK_RUN.id)||"";
     const ok=await write(async()=>{if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";const ref=await db.collection("records").add(data);rid=ref.id}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}
+    if(ok&&fid==="F-HSE-07-01"&&myRole()!=="admin"){
+      const admins=(S.profiles||[]).filter(p=>p.role==="admin"&&!p.disabled).map(p=>p.id);
+      if(admins.length)notifyUsers(admins,"🚨 مخالفة جديدة للمراجعة",`${currentActor||myEmpName()} أرسل إخطار مخالفة للمراجعة والتوقيع`,`?go=rec&id=${encodeURIComponent(rid||"")}`);
+    }
     if(ok&&rid&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t,{recId:rid})}catch(e){console.error(e)}}
     if(ok&&rid)setTimeout(()=>printRecord(rid),400);
     return ok?null:"الحفظ فشل";
@@ -4505,18 +4517,19 @@ const RESTRICT_FORMS={eng:["F-HSE-07-01","F-HSE-07-03"],sup:["F-HSE-07-01","F-HS
   if(ui.formSel&&!allow.includes(ui.formSel))ui.formSel="";if(ui.formSel)return _ff.call(this);
   const F2=await loadForms2();$("formsBody").innerHTML=`<p class="muted" style="margin-top:0">النماذج اللي تقدر تطلع عليها:</p><div class="grid g4">${allow.filter(f=>F2[f]).map(fid=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.formSel='${fid}';refresh()"><span class="lbl num" style="direction:ltr;text-align:right">${fid}</span><span style="font-weight:600;font-size:15px">${esc(F2[fid].title)}</span><span class="note">${recsOf(fid).length} سجل</span></button>`).join("")}</div>`}}
 /* review of records written by officers / monitors */
-const needsReview=r=>{const p=profOf(r.createdBy);return !!p&&AUTHORS_NEED_REVIEW.includes(p.role)&&!r.review};
-const canReview=()=>REVIEWERS.includes(myRole());
-function pendingReviews(){return canReview()?S.records.filter(needsReview):[]}
-async function reviewRecord(id,ok){const r=S.records.find(x=>x.id===id);if(!r)return;const me=myEmpName();
+const isViolationRec=r=>r?.form==="F-HSE-07-01";
+const needsReview=r=>{const p=profOf(r.createdBy);return !!p&&!r.review&&(isViolationRec(r)?p.role!=="admin":AUTHORS_NEED_REVIEW.includes(p.role))};
+const canReview=r=>isViolationRec(r)?myRole()==="admin":REVIEWERS.includes(myRole());
+function pendingReviews(){return S.records.filter(r=>needsReview(r)&&canReview(r))}
+async function reviewRecord(id,ok){const r=S.records.find(x=>x.id===id);if(!r)return;if(!needsReview(r)||!canReview(r)){toast("ما عندكش صلاحية مراجعة السجل ده");return}const me=myEmpName();
   if(!ok){openSheet("رجّع النموذج للتعديل",`<div class="form">${f("الملاحظة","note",{type:"textarea",full:true,req:true})}</div>`,async fd=>{if(!fd.note.trim())return "اكتب الملاحظة";
       const done=await write(()=>upsert("records",id,{reviewNote:fd.note.trim(),reviewNoteAt:Date.now(),reviewNoteBy:me}),"اترجع للتعديل");if(done)notifyUsers([r.createdBy],"↩️ نموذج محتاج تعديل",`${me}: ${fd.note.trim()}`,`?go=rec&id=${id}`);return done?null:"فشل"},"إرسال");return}
-  const src=await mySig();const patch={review:{by:ME.id,name:me,at:Date.now()},reviewNote:""};if(src)patch.signs={...(r.signs||{}),[ME.id]:{uid:ME.id,name:me,at:Date.now()}};
+  const src=await mySig();if(isViolationRec(r)&&!src){toast("احفظ توقيعك من ملفك الشخصي قبل اعتماد المخالفة");return}const patch={review:{by:ME.id,name:me,at:Date.now()},reviewNote:""};if(src)patch.signs={...(r.signs||{}),[ME.id]:{uid:ME.id,name:me,at:Date.now()}};
   if(await write(()=>upsert("records",id,patch),"اتعتمد ✔")){notifyUsers([r.createdBy],"✅ نموذجك اتعتمد",`${me} اعتمد ${r.form}`,`?go=rec&id=${id}`);setTimeout(()=>printRecord(id),300)}}
 {const _pr=printRecord;printRecord=async function(id){await _pr(id);const r=S.records.find(x=>x.id===id);if(!r||!$("pvAct"))return;
-  if(needsReview(r)&&canReview()){$("pvAct").insertAdjacentHTML("afterbegin",`<button class="btn ok" data-extra onclick="reviewRecord('${id}',true)">✔ مراجعة واعتماد</button><button class="btn" data-extra onclick="reviewRecord('${id}',false)">↩️ رجّعه للتعديل</button>`)}
+  if(needsReview(r)&&canReview(r)){$("pvAct").insertAdjacentHTML("afterbegin",`${isViolationRec(r)?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${id}')">✏️ تعديل المخالفة</button>`:""}<button class="btn ok" data-extra onclick="reviewRecord('${id}',true)">✔ مراجعة واعتماد</button><button class="btn" data-extra onclick="reviewRecord('${id}',false)">↩️ رجّعه للتعديل</button>`)}
   if(r.review)$("pvNote").insertAdjacentHTML("afterbegin",`<div class="pvnote ok">✔ اتراجع واتعتمد من ${esc(r.review.name)} — ${fmtDate(new Date(r.review.at).toISOString().slice(0,10))}</div>`);
-  else if(needsReview(r))$("pvNote").insertAdjacentHTML("afterbegin",`<div class="pvnote">⏳ مستني مراجعة واعتماد مشرف / أخصائي السلامة${r.reviewNote?` · ملاحظة: ${esc(r.reviewNote)}`:""}</div>`)}}
+  else if(needsReview(r))$("pvNote").insertAdjacentHTML("afterbegin",`<div class="pvnote">⏳ ${isViolationRec(r)?"مستني مراجعة واعتماد الأدمن":"مستني مراجعة واعتماد مشرف / أخصائي السلامة"}${r.reviewNote?` · ملاحظة: ${esc(r.reviewNote)}`:""}</div>`)}}
 /* week helpers (week starts Saturday) */
 function weekStart(d=today()){const x=new Date(d+"T00:00:00");const k=(x.getDay()+1)%7;x.setDate(x.getDate()-k);return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate())}
 function userRecs(uid,from,to){const p=profOf(uid);const nm=p?normName(profName(p)):"#";return S.records.filter(r=>(r.date||"")>=from&&(r.date||"")<=to&&(r.createdBy===uid||Object.entries(r.f||{}).some(([k,v])=>/^(officer|trainer|lecturer|reporter|writer|inspector)$/.test(k)&&normName(v)===nm)))}
