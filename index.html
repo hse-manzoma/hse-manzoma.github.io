@@ -1,4 +1,4 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#D9480F"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="منظومة السلامة"><meta name="apple-mobile-web-app-status-bar-style" content="default"><title>منظومة السلامة HSE</title>
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0D1713"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="منظومة السلامة"><meta name="apple-mobile-web-app-status-bar-style" content="default"><title>منظومة السلامة HSE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
@@ -49,19 +49,49 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
 .bar{display:flex;align-items:center;gap:14px;padding-block:12px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
-.mark{width:34px;height:34px;border-radius:8px;background:var(--accent);display:grid;place-items:center;flex:none}
-.mark svg{width:20px;height:20px}
+.mark{width:42px;height:42px;border-radius:12px;background:transparent;display:grid;place-items:center;flex:none;overflow:hidden}
+.mark img{width:100%;height:100%;display:block}
+.brand-copy{min-width:0}
+.brand-byline{display:inline-block;color:var(--info);font-size:11px;line-height:1.2;text-decoration:none}
+.brand-byline:hover{text-decoration:underline}
+.brand-footer{display:flex;align-items:center;gap:12px;padding-top:12px;padding-bottom:max(16px,env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);margin-top:22px;color:var(--muted)}
+.brand-footer-mark{width:38px;height:38px;flex:none}
+.brand-footer-copy{display:flex;flex-direction:column;line-height:1.35}
+.brand-footer-copy strong{color:var(--ink);font-size:13px}
+.brand-footer-copy strong span{color:var(--info);font-size:11.5px;margin-inline-start:4px}
+.brand-footer-copy small{font-size:11.5px}
+.brand-contact{margin-inline-start:auto;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:7px 12px;color:var(--ink);text-decoration:none;font-size:12px;background:var(--surface)}
+.brand-contact:hover{border-color:var(--info);color:var(--info)}
+.brand-contact-icon{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#20B46A;color:#fff}.brand-contact-icon svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:560px){.brand-footer{gap:8px;flex-wrap:wrap}.brand-footer-mark{width:32px;height:32px}.brand-contact{margin-inline-start:0;width:100%;justify-content:center}}
 .brand h1{font-family:var(--f-display);font-size:18px;font-weight:700;margin:0;letter-spacing:0;text-wrap:balance}
 .brand small{display:block;color:var(--muted);font-size:12.5px;line-height:1.2}
 .sync{margin-inline-start:auto;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .dot.on{background:var(--ok)} .dot.off{background:var(--bad)}
-nav.tabs{display:flex;gap:2px 4px;flex-wrap:wrap;row-gap:0}
+nav.tabs{display:flex;align-items:center;gap:5px;flex-wrap:wrap;row-gap:4px}
 nav.tabs::-webkit-scrollbar{display:none}
-nav.tabs button{font:600 14px var(--f-body);color:var(--muted);background:none;border:0;padding:10px 14px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav.tabs button,nav.tabs summary{font:600 13.5px var(--f-body);color:var(--muted);background:none;border:0;padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"],nav.tabs .nav-group[open]>summary{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs .nav-group{position:relative}
+nav.tabs .nav-group>summary{list-style:none;display:flex;align-items:center;gap:7px}
+nav.tabs .nav-group>summary::-webkit-details-marker{display:none}
+nav.tabs .nav-group>summary:hover{background:var(--sunk);border-radius:8px}
+nav.tabs .nav-group>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+nav.tabs .nav-group>summary::after{content:"⌄";font-size:12px;opacity:.7}
+nav.tabs .nav-current{color:var(--accent);font-size:11.5px;font-weight:500}
+nav.tabs .nav-menu{position:absolute;z-index:40;inset-inline-start:0;top:calc(100% + 2px);min-width:225px;max-height:min(65vh,460px);overflow:auto;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--d-card)}
+nav.tabs .nav-menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:right;border:0;border-radius:8px;padding:10px 12px}
+nav.tabs .nav-item-icon{display:inline-grid;place-items:center;width:19px;height:19px;flex:none;color:var(--info)}
+nav.tabs .nav-item-icon svg{width:19px;height:19px}
+nav.tabs .nav-menu button[aria-selected="true"]{background:var(--accent-soft);color:var(--ink)}
+nav.tabs .nav-group[hidden]{display:none}
+nav.tabs .nav-home{border-radius:9px 9px 0 0}
 nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
 nav.tabs button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 main{padding-block:20px 60px}
+.quick-icon{display:inline-grid;place-items:center;width:21px;height:21px;margin-inline-end:7px;vertical-align:-5px;color:var(--info)}
+.quick-icon svg{width:21px;height:21px;display:block}
 h2{font-family:var(--f-display);font-size:20px;font-weight:600;margin:0;text-wrap:balance}
 h3{font-family:var(--f-display);font-size:15.5px;font-weight:600;margin:0 0 10px}
 .head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
@@ -357,33 +387,37 @@ nav.tabs button>svg.ic{width:16px;height:16px;vertical-align:-.2em}
     <div class="wrap">
       <div class="bar">
         <div class="brand">
-          <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5 4 5.6v5.9c0 5 3.4 8.9 8 10 4.6-1.1 8-5 8-10V5.6L12 2.5Z" fill="var(--accent-ink)" opacity=".95"/><path d="M8.3 12.2l2.5 2.5 4.9-5" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div><h1>منظومة السلامة</h1><small id="projectName">HSE · جاري التحميل</small></div>
+          <div class="mark" aria-hidden="true"><img src="brand-sanad-mark.svg" alt=""></div>
+          <div class="brand-copy"><h1>منظومة السلامة</h1><small id="projectName">HSE · جاري التحميل</small><a class="brand-byline" href="https://wa.me/201287835280" target="_blank" rel="noopener">تصميم وتطوير سَنَد الرقمية</a></div>
         </div>
         <div style="display:flex;align-items:center;gap:8px"><div class="sync" id="sync"><span class="dot"></span><span>بيتصل…</span></div><button class="btn ghost sm" id="meBtn" onclick="meMenu()" style="font-size:12.5px">👤</button></div>
       </div>
-      <nav class="tabs" role="tablist" id="tabs">
-        <button role="tab" data-tab="dash">الرئيسية</button>
-        <button role="tab" data-tab="follow">متابعة الفريق</button>
-        <button role="tab" data-tab="actions">المتابعة</button>
-        <button role="tab" data-tab="ptw">تصاريح العمل</button>
-        <button role="tab" data-tab="ppe">مخزن المهمات</button>
-        <button role="tab" data-tab="matreq">طلبات المهمات</button>
-        <button role="tab" data-tab="manpower">القوى العاملة</button>
-        <button role="tab" data-tab="contractors">المقاولين</button>
-        <button role="tab" data-tab="equip">المعدات والطوارئ</button>
-        <button role="tab" data-tab="team">التيم والحضور</button>
-        <button role="tab" data-tab="kpi">KPIs</button>
-        <button role="tab" data-tab="report">التقرير الشهري</button>
-        <button role="tab" data-tab="office">مكتب السلامة</button>
-        <button role="tab" data-tab="forms">النماذج والسجلات</button>
-        <button role="tab" data-tab="chat">💬 الشات</button>
-        <button role="tab" data-tab="me">ملفي</button>
-        <button role="tab" data-tab="settings">الإعدادات</button>
+      <nav class="tabs" role="navigation" aria-label="أقسام المنظومة" id="tabs">
+        <button type="button" class="nav-home" data-tab="dash" aria-selected="false">الرئيسية</button>
+        <details class="nav-group" data-navgroup="operations"><summary>التصاريح والسجلات <span class="nav-current"></span></summary><div class="nav-menu">
+          <button type="button" data-tab="ptw">تصاريح العمل</button><button type="button" data-tab="actions">المتابعة</button><button type="button" data-tab="forms">النماذج والسجلات</button>
+        </div></details>
+        <details class="nav-group" data-navgroup="team"><summary>الفريق والموقع <span class="nav-current"></span></summary><div class="nav-menu">
+          <button type="button" data-tab="follow">متابعة الفريق</button><button type="button" data-tab="team">التيم والحضور</button><button type="button" data-tab="manpower">القوى العاملة</button><button type="button" data-tab="contractors">المقاولين</button><button type="button" data-tab="equip">المعدات والطوارئ</button>
+        </div></details>
+        <details class="nav-group" data-navgroup="supplies"><summary>المخازن والطلبات <span class="nav-current"></span></summary><div class="nav-menu">
+          <button type="button" data-tab="ppe">مخزن المهمات</button><button type="button" data-tab="matreq">طلبات المهمات</button>
+        </div></details>
+        <details class="nav-group" data-navgroup="reports"><summary>التقارير ومكتب السلامة <span class="nav-current"></span></summary><div class="nav-menu">
+          <button type="button" data-tab="kpi">مؤشرات الأداء</button><button type="button" data-tab="report">التقرير الشهري</button><button type="button" data-tab="office">مكتب السلامة</button>
+        </div></details>
+        <details class="nav-group" data-navgroup="account"><summary>التواصل والحساب <span class="nav-current"></span></summary><div class="nav-menu">
+          <button type="button" data-tab="chat">الشات</button><button type="button" data-tab="me">ملفي</button><button type="button" data-tab="settings">الإعدادات</button>
+        </div></details>
       </nav>
     </div>
   </header>
   <main class="wrap" id="main"></main>
+  <footer class="wrap brand-footer" aria-label="مصمم المنظومة">
+    <img class="brand-footer-mark" src="brand-sanad-mark.svg" alt="">
+    <div class="brand-footer-copy"><strong>سَنَد الرقمية <span dir="ltr">SANAD Digital</span></strong><small>تصميم وتطوير منصات وتطبيقات ويب</small></div>
+    <a class="brand-contact" href="https://wa.me/201287835280" target="_blank" rel="noopener" aria-label="تواصل مع سَنَد الرقمية عبر واتساب على الرقم 01287835280"><span class="brand-contact-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20l1.4-4A8 8 0 1 1 8 18.4L4 20z"/><path d="M9 8.5c.5 2.8 2.2 4.6 5 5.2l1.2-1.2 2 .9-.5 2c-4 .6-8.4-3.7-8-7.3l1.8-.6 1 1.8z"/></svg></span><span>تواصل عبر واتساب</span><b dir="ltr">01287835280</b></a>
+  </footer>
 </div>
 <div id="overlayRoot"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -527,7 +561,7 @@ function showBase(t){
   if(booted&&db&&loaded.settings){const al=allowedTabs();if(!al)tab="join";else if(!al.includes(tab))tab=al[0]}
   if(booted&&db){const lv=tab==="join"?"edit":tabLevel(tab);canWrite=BASE.write&&lv!=="view";canDelete=myAccess()?.role==="admin"?true:((isOwner||BASE.del)?lv==="full":(BASE.write&&lv==="full"))}
   try{localStorage.setItem("hse.tab",tab)}catch(e){}
-  document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
+  document.querySelectorAll("#tabs button[data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));syncGroupedNav();
   const m=document.getElementById("main");
   m.innerHTML=(booted&&!db?`<div class="banner">الصفحة مش متصلة بقاعدة البيانات دلوقتي. اتأكد من النت وحدّث الصفحة.</div>`:(!BASE.write?`<div class="banner">عندك صلاحية مشاهدة بس.</div>`:(!canWrite&&tab!=="dash"&&tab!=="join"?`<div class="banner">القسم ده متاح لك للمشاهدة بس.</div>`:"")))+VIEWS[tab].shell();
   VIEWS[tab].bind?.(m);
@@ -1043,7 +1077,8 @@ function userForm(uid){
 function form_role_toggle_base(){const s=document.querySelector('#shForm [name="role"]');if(s)s.onchange=()=>{$("cust").hidden=s.value!=="custom"}}
 async function userToggle(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const {error}=await SB.from("profiles").update({disabled:!p.disabled}).eq("user_id",uid);toast(error?"فشل":"تم")}
 function userDelete(uid){const p=(S.profiles||[]).find(x=>x.id===uid);confirmSheet("حذف المستخدم",`حساب «${p?.username||""}» هيتمسح ومش هيقدر يدخل تاني.`,async()=>{try{await SBA.fn("delete",{user_id:uid});toast("اتحذف")}catch(e){toast(SBA.ar(e))}},"احذف")}
-function applyRoleBase(){const al=allowedTabs();document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{b.hidden=!al||!al.includes(b.dataset.tab)});if(booted&&loaded.settings&&(!al||!al.includes(tab)))show(tab)}
+function syncGroupedNav(){document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{if(b.dataset.decorated)return;const label=TAB_NAMES[b.dataset.tab]||b.textContent.trim();b.innerHTML='<span class="nav-item-icon">'+ic(b.dataset.tab)+'</span><span>'+esc(label)+'</span>';b.dataset.decorated="1"});document.querySelectorAll("#tabs .nav-group").forEach(g=>{const items=[...g.querySelectorAll("button[data-tab]")],active=items.find(b=>b.dataset.tab===tab&&!b.hidden),visible=items.some(b=>!b.hidden);g.hidden=!visible;g.open=false;const label=g.querySelector(".nav-current");if(label)label.textContent=active?(TAB_NAMES[tab]||active.textContent.trim()):""})}
+function applyRoleBase(){const al=allowedTabs();document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{b.hidden=!al||!al.includes(b.dataset.tab)});syncGroupedNav();if(booted&&loaded.settings&&(!al||!al.includes(tab)))show(tab)}
 const ownScope=()=>myAccess()?.scope==="own";
 const mineRec=r=>!ownScope()||r.createdBy===ME.id||Object.entries(r.f||{}).some(([k,v])=>k.endsWith("_id")&&v&&v===myEmpId());
 VIEWS.join={
@@ -1548,7 +1583,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.30";
+const APP_VER="5.5.32";
 const APP_BUILD="2026-11-03";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4668,20 +4703,18 @@ function reminders(){const o=remindersBase();const R=o.R;const al=allowedTabs()|
 
 /* ---------- mobile shell: bottom nav, FAB, tables → cards, install as app ---------- */
 const NAV_IC={dash:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',ptw:'<path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',actions:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
-  forms:'<path d="M9 4h6v3H9z"/><path d="M15 5h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3M9 12h6M9 16h6"/>',ppe:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',matreq:'<path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>',
+  forms:'<path d="M9 4h6v3H9z"/><path d="M15 5h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3M9 12h6M9 16h6"/>',ppe:'<path d="m5 4 7 3 7-3 2 5-4 2v9H7v-9L3 9z"/><path d="m8 5 4 2 4-2M7 11h10M12 8v12"/>',matreq:'<path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>',
   report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',office:'<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',kpi:'<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',team:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
-  manpower:'<circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>',contractors:'<path d="M2 20h20M4 20V9l5-3v14M9 20V4l11 5v11"/>',equip:'<path d="M12 2c3 3 5 6 5 9a5 5 0 0 1-10 0c0-3 2-6 5-9z"/><path d="M12 18v4"/>',settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  manpower:'<circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>',contractors:'<path d="M2 20h20M4 20V9l5-3v14M9 20V4l11 5v11"/>',equip:'<path d="M9 6h7v14H8V7"/><path d="M10 6V4h5v2M16 8l3-2 2 2-3 2"/><path d="M10 10h4M10 14h4M11 20v2M15 20v2"/>',settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   more:'<path d="M4 6h16M4 12h16M4 18h16"/>',chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',me:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',follow:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/>'};
 const NAV_SHORT={dash:"الرئيسية",ptw:"التصاريح",actions:"المتابعة",forms:"النماذج",ppe:"المخزن",matreq:"الطلبات",report:"التقرير",office:"المكتب",kpi:"KPIs",team:"التيم",manpower:"العمالة",contractors:"المقاولين",equip:"المعدات",settings:"الإعدادات",chat:"الشات",me:"ملفي",follow:"الفريق"};
 const ic=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_IC[k]||NAV_IC.more}</svg>`;
 function navBadges(){const P=pendingForMe();const b={ptw:P.sup.length+P.final.length,matreq:mrCanApprove()?S.matreq.filter(r=>r.status==="new").length:0,chat:window._chatUnread||0};return b}
 function mobileNav(){let nav=$("bnav");if(!nav){nav=document.createElement("nav");nav.id="bnav";nav.setAttribute("aria-label","الأقسام");document.body.appendChild(nav);
     nav.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.more!==undefined)moreSheet();else show(b.dataset.tab)})}
-  const al=allowedTabs()||["dash"];const pri=["dash","ptw","chat","follow","actions","matreq","forms","ppe","report","office","me"].filter(t=>al.includes(t)).slice(0,4);const B=navBadges();
+  const al=allowedTabs()||["dash"];const pri=["dash","ptw","actions","equip","follow","forms","team","ppe","matreq","report","kpi","office","manpower","contractors","chat","me","settings"].filter(t=>al.includes(t)).slice(0,4);const B=navBadges();
   nav.innerHTML=pri.map(t=>`<button data-tab="${t}" aria-current="${t===tab}"><span class="ic">${ic(t)}</span><span>${NAV_SHORT[t]||TAB_NAMES[t]}</span>${B[t]?`<span class="badge">${B[t]}</span>`:""}</button>`).join("")+`<button data-more aria-current="${!pri.includes(tab)}"><span class="ic">${ic("more")}</span><span>المزيد</span></button>`}
-function moreSheet(){const al=allowedTabs()||["dash"];
-  openSheet("كل الأقسام",`<div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">${al.map(t=>`<button type="button" class="card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;font:600 13px var(--f-body);color:${t===tab?"var(--accent)":"inherit"};cursor:pointer" onclick="$('overlayRoot').innerHTML='';show('${t}')"><span style="width:26px;height:26px;display:block">${ic(t)}</span>${TAB_NAMES[t]}</button>`).join("")}</div>
-    <div class="list" style="margin-top:16px"><button type="button" class="li" style="background:none;border:0;font:inherit;color:inherit;cursor:pointer;width:100%;text-align:right" onclick="$('overlayRoot').innerHTML='';meMenu()">👤 حسابي وكلمة السر</button>${installRow()}</div>`,async()=>null,"قفل")}
+function moreSheet(){const al=allowedTabs()||["dash"],groups=[{title:"التصاريح والسجلات",tabs:["ptw","actions","forms"]},{title:"الفريق والموقع",tabs:["follow","team","manpower","contractors","equip"]},{title:"المخازن والطلبات",tabs:["ppe","matreq"]},{title:"التقارير ومكتب السلامة",tabs:["kpi","report","office"]},{title:"التواصل والحساب",tabs:["chat","me","settings"]}],grouped=new Set(["dash"]);groups.forEach(g=>g.tabs.forEach(t=>grouped.add(t)));const navBtn=t=>'<button type="button" class="card" style="display:flex;align-items:center;gap:8px;padding:11px 12px;font:600 13px var(--f-body);color:'+(t===tab?"var(--accent)":"inherit")+';cursor:pointer;text-align:right" onclick="document.getElementById(&quot;overlayRoot&quot;).innerHTML=&quot;&quot;;show(&quot;'+t+'&quot;)"><span style="width:22px;height:22px;display:block;flex:none">'+ic(t)+'</span><span>'+(TAB_NAMES[t]||t)+'</span></button>';const section=(title,L)=>'<section><h3 style="margin:12px 0 7px">'+title+'</h3><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px">'+L.map(navBtn).join("")+'</div></section>';const blocks=[];if(al.includes("dash"))blocks.push(section("الرئيسية",["dash"]));groups.forEach(g=>{const L=g.tabs.filter(t=>al.includes(t));if(L.length)blocks.push(section(g.title,L))});const extra=al.filter(t=>!grouped.has(t));if(extra.length)blocks.push(section("أقسام أخرى",extra));openSheet("الأقسام",blocks.join("")+'<div class="list" style="margin-top:16px"><button type="button" class="li" style="background:none;border:0;font:inherit;color:inherit;cursor:pointer;width:100%;text-align:right" onclick="document.getElementById(&quot;overlayRoot&quot;).innerHTML=&quot;&quot;;meMenu()">👤 حسابي وكلمة السر</button>'+installRow()+'</div>',async()=>null,"قفل")}
 function installRow(){if(matchMedia("(display-mode: standalone)").matches)return "";if(window._installEvt)return `<button type="button" class="li" style="background:none;border:0;font:inherit;color:inherit;cursor:pointer;width:100%;text-align:right" onclick="installApp()">📲 ثبّت المنظومة كتطبيق على الموبايل</button>`;
   if(/iphone|ipad|ipod/i.test(navigator.userAgent))return `<div class="li"><div class="grow"><div class="t">📲 تثبيتها كتطبيق على الآيفون</div><div class="s">من Safari اضغط زرار المشاركة ⬆️ وبعدين «Add to Home Screen».</div></div></div>`;
   return `<div class="li"><div class="grow"><div class="t">📲 تثبيتها كتطبيق</div><div class="s">من قايمة المتصفح ⋮ اختار «Install app» أو «Add to Home screen».</div></div></div>`}
@@ -4784,7 +4817,9 @@ function homeSearchItems(q){const out=[],needle=normName(q),add=(kind,id,title,s
   return out.slice(0,30)}
 function homeSearchRun(){const inp=$("homeSearchInput"),box=$("homeSearchResults");if(!inp||!box)return;const q=inp.value.trim();if(q.length<2){box.innerHTML=q?`<div class="muted">اكتب حرفين على الأقل للبحث.</div>`:"";return}const rows=homeSearchItems(q);box.innerHTML=rows.length?`<div class="list">${rows.map(r=>`<div class="li" style="gap:10px"><div class="grow" style="min-width:0"><div class="t">${homeEscSearch(r.title)}</div><div class="s">${homeEscSearch(r.sub)}</div></div><button type="button" class="btn sm" data-home-kind="${homeEscSearch(r.kind)}" data-home-id="${homeEscSearch(r.id)}" data-home-q="${homeEscSearch(q)}" onclick="homeSearchOpen(this.dataset.homeKind,this.dataset.homeId,this.dataset.homeQ)">فتح</button></div>`).join("")}</div>`:`<div class="empty">مفيش نتائج مطابقة في بياناتك المتاحة.</div>`}
 function homeSearchOpen(kind,id,q=""){const al=allowedTabs()||[];if(!homeAccess(kind)){toast("القسم ده مش متاح لحسابك");return}if(kind==="records"){printRecord(id);return}if(kind==="permits"){const p=S.permits.find(x=>x.id===id);ui.ptwQ=p?.number||q;show("ptw");return}if(kind==="equipment"){const e=S.equipment.find(x=>x.id===id);ui.eqQ=e?.code||e?.name||q;show("equip");return}if(kind==="employees"){const e=emp(id);ui.empQ=e?.name||q;ui.teamSub="emps";show(al.includes("team")?"team":"manpower");return}if(kind==="contractors"){ui.ctrSel=id;show("contractors");return}if(kind==="actions"){ui.actQ=q;ui.actF="all";show("actions");return}if(kind==="tasks"){show(al.includes("follow")?"follow":"dash");return}if(kind==="office"){show("office");return}if(kind==="ppe"){ui.ppeQ=S.items.find(x=>x.id===id)?.name||q;ui.ppeSub="items";show("ppe");return}if(kind==="moves"){const m=S.moves.find(x=>x.id===id);ui.ppeSub="moves";if(m?.date)ui.ppeMonth=m.date.slice(0,7);show("ppe");return}if(kind==="matreq"){show("matreq");return}if(kind==="leaves"){ui.teamSub="duties";show("team");return}if(kind==="attendance"){ui.teamSub="att";ui.attDate=id;show("team");return}if(kind==="reports"){ui.repMonth=S.reports.find(x=>x.id===id)?.month||ui.repMonth;show("report");return}if(kind==="requests"){show("follow");return}if(kind==="forms"){ui.formSel=id;show("forms")}}
-function homeQuickList(){const a=allowedTabs()||[],has=t=>a.includes(t),edit=t=>has(t)&&tabLevel(t)!=="view",B=[];const add=(key,label,icon,ok,fn,primary=false)=>{if(ok){let html='<div style="display:flex;gap:6px;align-items:stretch;min-width:0"><button type="button" class="btn '+(primary?'primary':'')+'" style="min-height:48px;text-align:right;white-space:normal;flex:1;min-width:0" onclick="'+fn+'"><span style="font-size:18px;margin-inline-end:6px">'+icon+'</span>'+label+'</button>';if(canAssignTasks())html+='<button type="button" class="btn ghost sm" style="min-height:48px;white-space:nowrap" title="تكليف عضو من الفريق بهذا الإجراء" onclick="assignHomeAction(&quot;'+key+'&quot;)">👤 اختار منفذ</button>';B.push(html+'</div>')}}; 
+const HSE_ACTION_ICONS={permit:'<path d="M6 3h8l4 4v5"/><path d="M14 3v5h5M8 12h5M8 16h4"/><path d="m15 18 2.2 2.2L22 15"/>',lecture:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M4 5.5v14M8 7h8M8 11h8M8 15h5"/>',equipment:'<path d="M9 6h7v14H8V7"/><path d="M10 6V4h5v2M16 8l3-2 2 2-3 2"/><path d="M10 10h4M10 14h4M11 20v2M15 20v2"/><circle cx="13" cy="8.5" r="1"/>',register:'<path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v19H7.5A2.5 2.5 0 0 1 5 18.5z"/><path d="M5 5v14M9 7h7M9 11h7M9 15h5"/>',incident:'<path d="M12 2.5 20 6v5.5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6z"/><path d="M12 7v7M8.5 10.5h7"/>',violation:'<path d="M12 3 22 20H2z"/><path d="M12 9v5M12 17.5h.01"/>',contractorViolation:'<path d="M3 20h18M5 20v-5a7 7 0 0 1 14 0v5"/><path d="M8 10a4 4 0 0 1 8 0M7 14h10M12 3V2"/>',unsafe:'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/><path d="M20 4v3M18.5 5.5h3"/>',checklist:'<path d="M9 4h6v3H9z"/><path d="M15 5h3a2 2 0 0 1 2 2v13H4V7a2 2 0 0 1 2-2h3"/><path d="m7 12 1.5 1.5L11 11M13 12h4M7 17l1.5 1.5L11 16M13 17h4"/>',firstaid:'<path d="M4 8h16a2 2 0 0 1 2 2v9H2v-9a2 2 0 0 1 2-2z"/><path d="M9 8V5h6v3M12 11v5M9.5 13.5h5"/>',ppe:'<path d="m5 4 7 3 7-3 2 5-4 2v9H7v-9L3 9z"/><path d="m8 5 4 2 4-2M7 11h10M12 8v12"/>'};
+function hseActionIcon(key){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(HSE_ACTION_ICONS[key]||HSE_ACTION_ICONS.checklist)+'</svg>'}
+function homeQuickList(){const a=allowedTabs()||[],has=t=>a.includes(t),edit=t=>has(t)&&tabLevel(t)!=="view",B=[];const add=(key,label,icon,ok,fn,primary=false)=>{if(ok){let html='<div style="display:flex;gap:6px;align-items:stretch;min-width:0"><button type="button" class="btn '+(primary?'primary':'')+'" style="min-height:48px;text-align:right;white-space:normal;flex:1;min-width:0" onclick="'+fn+'"><span class="quick-icon">'+hseActionIcon(key)+'</span>'+label+'</button>';if(canAssignTasks())html+='<button type="button" class="btn ghost sm" style="min-height:48px;white-space:nowrap" title="تكليف عضو من الفريق بهذا الإجراء" onclick="assignHomeAction(&quot;'+key+'&quot;)">👤 اختار منفذ</button>';B.push(html+'</div>')}}; 
   add("permit","طلب تصريح","🪪",edit("ptw"),"ptwRequestForm()",true);add("lecture","محاضرة","🎓",edit("forms"),"recordForm('F-HSE-24-02')");add("equipment","فحص معدات","🧯",has("equip"),"show('equip')");add("register","سجل الحوادث والتجارب","📒",edit("forms"),"recordForm('F-HSE-10-08')");add("incident","حادث أو حادث وشيك","🚑",edit("forms"),"recordForm('F-HSE-03-01')");add("violation","مخالفة تعليمات سلامة","⚠️",edit("forms"),"recordForm('F-HSE-07-01')");add("contractorViolation","مخالفة مقاول باطن","👷",edit("forms"),"homeContractorViolation()");add("unsafe","رصد وضع أو تصرف غير آمن","👀",edit("forms"),"recordForm('F-HSE-07-03')");add("checklist","قائمة تفتيش","✅",edit("forms"),"homeChecklist()");add("firstaid","تسجيل إسعافات أولية","🩹",edit("forms"),"recordForm('F-HSE-02-01')");add("ppe","صرف مهمات وقاية","🦺",edit("ppe"),"issueForm()");return B.join("")||'<div class="muted">لا توجد إجراءات سريعة متاحة حسب صلاحيات الحساب.</div>'}
 async function assignHomeAction(key){
   if(!canAssignTasks()){toast("مالكش صلاحية توزيع مهام");return}

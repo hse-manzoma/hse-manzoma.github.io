@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="شعار سَنَد الرقمية">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#173B55"/><stop offset="1" stop-color="#0C766F"/></linearGradient><linearGradient id="shield" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#D7F8EC"/></linearGradient></defs>
+<rect width="96" height="96" rx="24" fill="url(#bg)"/>
+<path d="M48 13 74 23v21c0 18-10.4 31-26 39C32.4 75 22 62 22 44V23z" fill="url(#shield)"/>
+<path d="m34 47 9 9 20-21" fill="none" stroke="#119D7A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="70" cy="25" r="6" fill="#F58A3D"/><path d="M65 25h-5" stroke="#F58A3D" stroke-width="3" stroke-linecap="round"/>
+</svg>
