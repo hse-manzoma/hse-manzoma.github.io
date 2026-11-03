@@ -816,6 +816,7 @@ function issueForm(){
     for(const [iid,q] of Object.entries(need)){const b=balance(iid);if(q>b)return `الرصيد مش كفاية: ${item(iid).name} (المتاح ${b})`}
     const voucher="IR-"+nextVoucher();
     const ok=await write(async()=>{for(const l of lines){await db.collection("ppe_moves").add({type:"issue",voucher,itemId:l.itemId,qty:l.qty,empId:e.id,date:fd.date,note:fd.note.trim(),createdAt:Date.now()})}},`اتسجل إذن الصرف ${voucher}`);
+    if(ok&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t)}catch(e){console.error(e)}}
     if(ok)setTimeout(()=>printVoucher(voucher),400);
     return ok?null:"الحفظ فشل";
   },"سجّل الإذن");
@@ -1116,7 +1117,7 @@ function remindersHTML(){const {R,T}=reminders();const me=myEmpId();const admin=
    التيم ليدر أو مدير سلامة الموقع يبعت نموذج لواحد من الفريق كمهمة:
    فحص طفاية أو معدة، أو تحرير حادث/مخالفة/ملاحظة وضع أو سلوك، أو أي سجل تاني.
    اللي اتبعتله بيفتح النموذج من المهمة على طول، وبيمضيه، والمهمة بتتقفل لوحدها. */
-const TASK_K={eq:"فحص معدة / طفاية",form:"تحرير سجل أو نموذج",ptw:"استخراج تصريح عمل",free:"بند عام (بالوصف)"};
+const TASK_K={eq:"فحص معدة / طفاية",form:"تحرير سجل أو نموذج",ptw:"استخراج تصريح عمل",ppe:"صرف مهمات الوقاية",free:"بند عام (بالوصف)"};
 /* المهمة ممكن تبقى أكتر من بند: فحص + تصريح + سجل مع بعض.
    المهام القديمة (بند واحد في جذر المهمة) لسه شغالة زي ما هي. */
 function taskItems(x){
@@ -1130,6 +1131,7 @@ function taskItemName(it){
   if(it.kind==="eq"){const q=S.equipment.find(e=>e.id===it.eqId);return `فحص ${q?`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""}`.trim():"معدة اتشالت"}`}
   if(it.kind==="form")return "تحرير "+((FORMS2&&FORMS2[it.form]&&FORMS2[it.form].title)||it.form||"سجل");
   if(it.kind==="ptw")return "تصريح "+((PTW_TYPES[it.ptwType]||{}).ar||it.ptwType||"");
+  if(it.kind==="ppe")return "صرف مهمات الوقاية";
   return it.title||"بند";
 }
 const taskProgress=x=>{const L=taskItems(x);return {done:L.filter(i=>i.done).length,total:L.length}};
@@ -1320,6 +1322,8 @@ async function taskRunItem(id,idx){
       setTimeout(()=>{const sel=document.querySelector('#shForm [name="type"]');
         if(sel){sel.value=it.ptwType;sel.dispatchEvent(new Event("change",{bubbles:true}))}
         toast("اختار بيانات التصريح واحفظ، وبعدين علّم البند خلص")},350);
+    }else if(it.kind==="ppe"){
+      issueForm();
     }else{
       TASK_RUN=null;
       confirmSheet("إنهاء البند",taskItemName(it),"تمام، خلص",()=>taskItemDone(id,idx));
@@ -1544,7 +1548,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.29";
+const APP_VER="5.5.30";
 const APP_BUILD="2026-11-03";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4780,8 +4784,42 @@ function homeSearchItems(q){const out=[],needle=normName(q),add=(kind,id,title,s
   return out.slice(0,30)}
 function homeSearchRun(){const inp=$("homeSearchInput"),box=$("homeSearchResults");if(!inp||!box)return;const q=inp.value.trim();if(q.length<2){box.innerHTML=q?`<div class="muted">اكتب حرفين على الأقل للبحث.</div>`:"";return}const rows=homeSearchItems(q);box.innerHTML=rows.length?`<div class="list">${rows.map(r=>`<div class="li" style="gap:10px"><div class="grow" style="min-width:0"><div class="t">${homeEscSearch(r.title)}</div><div class="s">${homeEscSearch(r.sub)}</div></div><button type="button" class="btn sm" data-home-kind="${homeEscSearch(r.kind)}" data-home-id="${homeEscSearch(r.id)}" data-home-q="${homeEscSearch(q)}" onclick="homeSearchOpen(this.dataset.homeKind,this.dataset.homeId,this.dataset.homeQ)">فتح</button></div>`).join("")}</div>`:`<div class="empty">مفيش نتائج مطابقة في بياناتك المتاحة.</div>`}
 function homeSearchOpen(kind,id,q=""){const al=allowedTabs()||[];if(!homeAccess(kind)){toast("القسم ده مش متاح لحسابك");return}if(kind==="records"){printRecord(id);return}if(kind==="permits"){const p=S.permits.find(x=>x.id===id);ui.ptwQ=p?.number||q;show("ptw");return}if(kind==="equipment"){const e=S.equipment.find(x=>x.id===id);ui.eqQ=e?.code||e?.name||q;show("equip");return}if(kind==="employees"){const e=emp(id);ui.empQ=e?.name||q;ui.teamSub="emps";show(al.includes("team")?"team":"manpower");return}if(kind==="contractors"){ui.ctrSel=id;show("contractors");return}if(kind==="actions"){ui.actQ=q;ui.actF="all";show("actions");return}if(kind==="tasks"){show(al.includes("follow")?"follow":"dash");return}if(kind==="office"){show("office");return}if(kind==="ppe"){ui.ppeQ=S.items.find(x=>x.id===id)?.name||q;ui.ppeSub="items";show("ppe");return}if(kind==="moves"){const m=S.moves.find(x=>x.id===id);ui.ppeSub="moves";if(m?.date)ui.ppeMonth=m.date.slice(0,7);show("ppe");return}if(kind==="matreq"){show("matreq");return}if(kind==="leaves"){ui.teamSub="duties";show("team");return}if(kind==="attendance"){ui.teamSub="att";ui.attDate=id;show("team");return}if(kind==="reports"){ui.repMonth=S.reports.find(x=>x.id===id)?.month||ui.repMonth;show("report");return}if(kind==="requests"){show("follow");return}if(kind==="forms"){ui.formSel=id;show("forms")}}
-function homeQuickList(){const a=allowedTabs()||[],has=t=>a.includes(t),edit=t=>has(t)&&tabLevel(t)!=="view",B=[];const add=(label,icon,ok,fn,primary=false)=>{if(ok)B.push(`<button type="button" class="btn ${primary?"primary":""}" style="min-height:48px;text-align:right;white-space:normal" onclick="${fn}"><span style="font-size:18px;margin-inline-end:6px">${icon}</span>${label}</button>`)};
-  add("طلب تصريح","🪪",edit("ptw"),"ptwRequestForm()",true);add("محاضرة","🎓",edit("forms"),"recordForm('F-HSE-24-02')");add("فحص معدات","🧯",has("equip"),"show('equip')");add("سجل الحوادث والتجارب","📒",edit("forms"),"recordForm('F-HSE-10-08')");add("حادث أو حادث وشيك","🚑",edit("forms"),"recordForm('F-HSE-03-01')");add("مخالفة تعليمات سلامة","⚠️",edit("forms"),"recordForm('F-HSE-07-01')");add("مخالفة مقاول باطن","👷",edit("forms"),"homeContractorViolation()");add("رصد وضع أو تصرف غير آمن","👀",edit("forms"),"recordForm('F-HSE-07-03')");add("قائمة تفتيش","✅",edit("forms"),"homeChecklist()");add("تسجيل إسعافات أولية","🩹",edit("forms"),"recordForm('F-HSE-02-01')");add("صرف مهمات وقاية","🦺",edit("ppe"),"issueForm()");return B.join("")||`<div class="muted">لا توجد إجراءات سريعة متاحة حسب صلاحيات الحساب.</div>`}
+function homeQuickList(){const a=allowedTabs()||[],has=t=>a.includes(t),edit=t=>has(t)&&tabLevel(t)!=="view",B=[];const add=(key,label,icon,ok,fn,primary=false)=>{if(ok){let html='<div style="display:flex;gap:6px;align-items:stretch;min-width:0"><button type="button" class="btn '+(primary?'primary':'')+'" style="min-height:48px;text-align:right;white-space:normal;flex:1;min-width:0" onclick="'+fn+'"><span style="font-size:18px;margin-inline-end:6px">'+icon+'</span>'+label+'</button>';if(canAssignTasks())html+='<button type="button" class="btn ghost sm" style="min-height:48px;white-space:nowrap" title="تكليف عضو من الفريق بهذا الإجراء" onclick="assignHomeAction(&quot;'+key+'&quot;)">👤 اختار منفذ</button>';B.push(html+'</div>')}}; 
+  add("permit","طلب تصريح","🪪",edit("ptw"),"ptwRequestForm()",true);add("lecture","محاضرة","🎓",edit("forms"),"recordForm('F-HSE-24-02')");add("equipment","فحص معدات","🧯",has("equip"),"show('equip')");add("register","سجل الحوادث والتجارب","📒",edit("forms"),"recordForm('F-HSE-10-08')");add("incident","حادث أو حادث وشيك","🚑",edit("forms"),"recordForm('F-HSE-03-01')");add("violation","مخالفة تعليمات سلامة","⚠️",edit("forms"),"recordForm('F-HSE-07-01')");add("contractorViolation","مخالفة مقاول باطن","👷",edit("forms"),"homeContractorViolation()");add("unsafe","رصد وضع أو تصرف غير آمن","👀",edit("forms"),"recordForm('F-HSE-07-03')");add("checklist","قائمة تفتيش","✅",edit("forms"),"homeChecklist()");add("firstaid","تسجيل إسعافات أولية","🩹",edit("forms"),"recordForm('F-HSE-02-01')");add("ppe","صرف مهمات وقاية","🦺",edit("ppe"),"issueForm()");return B.join("")||'<div class="muted">لا توجد إجراءات سريعة متاحة حسب صلاحيات الحساب.</div>'}
+async function assignHomeAction(key){
+  if(!canAssignTasks()){toast("مالكش صلاحية توزيع مهام");return}
+  const defs={lecture:{title:"محاضرة",form:"F-HSE-24-02"},register:{title:"سجل الحوادث والتجارب",form:"F-HSE-10-08"},incident:{title:"حادث أو حادث وشيك",form:"F-HSE-03-01"},violation:{title:"مخالفة تعليمات سلامة",form:"F-HSE-07-01"},contractorViolation:{title:"مخالفة مقاول باطن",form:"F-HSE-07-01"},unsafe:{title:"رصد وضع أو تصرف غير آمن",form:"F-HSE-07-03"},firstaid:{title:"تسجيل إسعافات أولية",form:"F-HSE-02-01"}};
+  const pool=hseTeam().filter(e=>(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled));
+  if(!pool.length){toast("اربط حسابات أعضاء فريق السلامة من الإعدادات أولًا حتى يصلهم الإشعار");return}
+  let idx=FORMS2;if((defs[key]||key==="checklist")&&!idx)idx=await loadForms2().catch(()=>null);
+  if((defs[key]||key==="checklist")&&!idx){toast("تعذر تحميل فهرس النماذج");return}
+  const equipKinds={ext:"F-HSE-10-02",firebox:"F-HSE-10-03",emerg:"F-HSE-10-01",machine:"F-HSE-08-01"};
+  const eqOpts=taskEqOpts().filter(([id])=>id),ptwOpts=Object.entries(PTW_TYPES).filter(([k])=>FORM_TYPES.includes(k)).map(([k,v])=>[k,v.ar]);
+  let extra="";
+  if(key==="permit")extra=f("نوع التصريح المطلوب","ptwType",{opts:ptwOpts,req:true,full:true});
+  else if(key==="equipment")extra=f("المعدة المطلوب فحصها","eqId",{opts:eqOpts,req:true,full:true});
+  else if(key==="checklist")extra=f("قائمة التفتيش","form",{opts:CHECKLIST_FORMS.map(id=>[id,idx[id]?.title||id]),req:true,full:true});
+  else if(key==="ppe")extra='<div class="banner">سينفذ المكلّف إذن صرف المهمات من المخزن، ويحدد الموظف المستلم والصنف والكمية عند التسجيل.</div>';
+  else if(!defs[key]){toast("الإجراء غير معروف");return}
+  const base=defs[key]||{},labels={permit:"طلب تصريح",equipment:"فحص معدات",checklist:"قائمة تفتيش",ppe:"صرف مهمات وقاية"};
+  openSheet("اختيار منفذ · "+(base.title||labels[key]||""),'<div class="form">'+f("المنفّذ من فريق السلامة","assignee",{opts:pool.map(e=>[e.id,e.name+(e.job?" · "+e.job:"")]),req:true,full:true})+extra+f("آخر موعد","due",{type:"date"})+f("ملاحظات للمنفّذ","note",{type:"textarea",full:true,attrs:'rows="3" placeholder="تعليمات أو تفاصيل إضافية"'})+'</div><p class="muted" style="font-size:12.5px">سيصل الإشعار إلى حساب عضو الفريق المختار، ويفتح المهمة مباشرة.</p>',async fd=>{
+    const worker=emp(fd.assignee);if(!worker||!pool.some(e=>e.id===worker.id))return "اختار منفذًا مرتبطًا بحساب من فريق السلامة";
+    let items=[],title=base.title||"",place="",note=(fd.note||"").trim(),kind="form",form="";
+    if(base.form){form=base.form;title=idx[form]?.title||title;items=[{kind:"form",form,done:false,recId:""}]}
+    else if(key==="permit"){if(!fd.ptwType||!FORM_TYPES.includes(fd.ptwType))return "اختار نوع التصريح";kind="ptw";title="طلب تصريح "+(PTW_TYPES[fd.ptwType]?.ar||fd.ptwType);items=[{kind:"ptw",ptwType:fd.ptwType,done:false}]}
+    else if(key==="equipment"){
+      const q=S.equipment.find(e=>e.id===fd.eqId&&e.active!==false);if(!q)return "اختار معدة موجودة";
+      const formId=equipKinds[q.kind],hasForm=!!(formId&&idx?.[formId]);title=("فحص "+(EQ_K[q.kind]?.one||"معدة")+" "+(q.serial||q.code||q.name||"")).trim();place=q.place||"";kind=hasForm?"multi":"eq";items=[{kind:"eq",eqId:q.id,done:false},...(hasForm?[{kind:"form",form:formId,eqId:q.id,done:false}]:[])];note=["سجّل نتيجة الفحص وأرفق صورًا ووقّع إلكترونيًا داخل الفحص.",hasForm?"أكمل النموذج الرسمي "+(idx[formId].title||formId)+".":"",note].filter(Boolean).join(" ");
+    }else if(key==="checklist"){if(!CHECKLIST_FORMS.includes(fd.form)||!idx[fd.form])return "اختار قائمة تفتيش متاحة";form=fd.form;title=idx[form].title||form;items=[{kind:"form",form,done:false,recId:""}]}
+    else if(key==="ppe"){kind="ppe";title="صرف مهمات الوقاية";items=[{kind:"ppe",done:false}]}
+    if(base.form&&!note)note="أكمل النموذج واحفظ السجل من حسابك.";
+    const data={assignee:worker.id,title,items,kind:items.length>1?"multi":kind,eqId:key==="equipment"?items[0].eqId||"":"",form,place,due:fd.due||"",note,needSign:true,status:"open",createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()};let taskId="";
+    const ok=await write(async()=>{const ref=await db.collection("tasks").add(data);taskId=ref.id},"اتبعت المهمة");if(!ok)return "إرسال المهمة فشل";
+    const recipients=(S.profiles||[]).filter(p=>p.emp_id===worker.id&&!p.disabled).map(p=>p.id);
+    if(recipients.length)await notifyUsers(recipients,"📋 مهمة جديدة: "+title,(place?"المكان: "+place+" · ":"")+(data.due?"آخر موعد "+fmtDate(data.due)+" · ":"")+(note||"افتح المهمة لإكمال المطلوب."),"?go=task&id="+encodeURIComponent(taskId));else toast("اتسجلت المهمة، لكن المنفذ لا يملك حسابًا مرتبطًا لاستقبال الإشعار");
+    return null;
+  },"إرسال المهمة");
+}
 function homeContractorViolation(){const L=S.employees.filter(e=>e.active!==false&&e.contractorId);if(!L.length){toast("مفيش عمال مقاول باطن مسجلين");return}openSheet("مخالفة مقاول باطن",`<div class="form">${f("العامل","empId",{opts:L.map(e=>[e.id,`${e.name} · ${contractor(e.contractorId)?.name||"مقاول"}`]),req:true,full:true})}</div>`,async fd=>{if(!fd.empId)return "اختار العامل";setTimeout(()=>newViol(fd.empId),120);return null},"فتح نموذج المخالفة")}
 async function homeChecklist(){const idx=FORMS2||await loadForms2().catch(()=>null),L=CHECKLIST_FORMS.map(id=>[id,idx?.[id]?.title||id]);openSheet("قائمة التفتيش",`<div class="form">${f("نوع القائمة","fid",{opts:L,req:true,full:true})}</div>`,async fd=>{if(!fd.fid)return "اختار قائمة التفتيش";setTimeout(()=>recordForm(fd.fid),120);return null},"فتح القائمة")}
 function homeFillAttendance(){const box=$("homeAttendance"),summary=$("homeAttSummary");if(!box)return;const team=hseTeam(),date=ui.attDate||today(),recs=attDoc(date)?.records||{},canManage=tabLevel("team")!=="view";if(summary){const confirmed=team.filter(e=>recs[e.id]?.selfConfirmed).length;summary.textContent=`${team.length} عضو · ${confirmed} أكدوا حضورهم`}
