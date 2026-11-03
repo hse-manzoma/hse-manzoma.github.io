@@ -1544,7 +1544,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.25";
+const APP_VER="5.5.26";
 const APP_BUILD="2026-11-03";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4435,7 +4435,7 @@ function printerForm(id){const p=id?printers().find(x=>x.id===id):{type:"wifi"};
 async function printerLocate(id){const q=await myPos(true);if(!q){toast("مقدرتش أعرف مكانك — فعّل الموقع (GPS)");return}const L=printers().map(x=>x.id===id?{...x,lat:q.lat,lng:q.lng,acc:q.acc}:x);await savePrinters(L,`اتسجل مكان الطابعة ✔ (دقة ${Math.round(q.acc)} م)`)}
 function printerDel(id){const p=printers().find(x=>x.id===id);confirmSheet("حذف الطابعة",`«${p?.name||""}» هتتشال من القايمة.`,()=>savePrinters(printers().filter(x=>x.id!==id),"اتحذفت"),"احذف")}
 {const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.call(this);if(myAccess()?.role==="admin"&&$("setBody")&&!$("prnCard")){const d=document.createElement("div");d.id="prnCard";d.innerHTML=printersCardHTML();$("setBody").appendChild(d)}}}
-{const _of=VIEWS.office.fill;VIEWS.office.fill=function(){_of.call(this);if($("offBody")){const a=document.createElement("div");a.innerHTML=meetingArchiveHTML();$("offBody").appendChild(a);bindMeetingArchive();if(tabLevel("office")!=="view"){const d=document.createElement("div");d.innerHTML=printersCardHTML();$("offBody").appendChild(d)}}}}
+{const _of=VIEWS.office.fill;VIEWS.office.fill=function(){_of.call(this);if($("offBody")){const a=document.createElement("div");a.innerHTML=meetingArchiveHTML();$("offBody").prepend(a);bindMeetingArchive();if(tabLevel("office")!=="view"){const d=document.createElement("div");d.innerHTML=printersCardHTML();$("offBody").appendChild(d)}}}}
 
 /* ---------- personal signature for every user ---------- */
 let MYSIG=null;
