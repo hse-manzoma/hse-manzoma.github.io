@@ -946,25 +946,54 @@ VIEWS.team = {
       $("allP").onclick=()=>{const recs={};for(const e of attTeam()){recs[e.id]={s:attDoc(ui.attDate)?.records?.[e.id]?.s||"p"}}saveAtt(ui.attDate,recs,true)};
     } else if(ui.teamSub==="leaves"){
       const curYear=thisMonth().slice(0,4);
-      const canFilter=!ownScope()&&(isAdmin()||["eng","sup","hse"].includes(myRole()));
-      const empOpsHtml=canFilter?`<select id="leaveEmpSel" aria-label="فلتر موظف" style="min-width:120px"><option value="">كل الفريق</option>${hseTeam().map(e=>`<option value="${e.id}" ${ui.leaveEmpId===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select>`:"";
+      const selEmpName=ui.leaveEmpId?empName(ui.leaveEmpId):"";
       F.innerHTML=`<select id="leaveMonth" aria-label="الشهر أو السنة">
         <option value="${curYear}" ${ui.leaveMonth===curYear?"selected":""}>السنة كلها (${curYear})</option>
         ${Array.from({length:12},(_,i)=>{const m=`${curYear}-${String(i+1).padStart(2,"0")}`;return `<option value="${m}" ${ui.leaveMonth===m?"selected":""}>${monthName(m)}</option>`}).join("")}
-      </select>${empOpsHtml}<button class="btn primary" id="addLeave">+ إجازة</button>`;
+      </select>${!ownScope()?`<input id="leaveEmpQ" type="search" placeholder="🔍 بحث باسم الموظف" autocomplete="off" style="min-width:150px;flex:1" value="${esc(selEmpName)}"><datalist id="leaveEmpList">${hseTeam().map(e=>`<option data-id="${e.id}" value="${esc(e.name)}">`).join("")}</datalist>`:""}
+      <button class="btn primary" id="addLeave">+ إجازة</button>`;
       $("leaveMonth").onchange=e=>{ui.leaveMonth=e.target.value||thisMonth();this.fill()};
-      if(canFilter&&$("leaveEmpSel"))$("leaveEmpSel").onchange=e=>{ui.leaveEmpId=e.target.value;this.fill()};
+      if(!ownScope()&&$("leaveEmpQ")){
+        $("leaveEmpQ").setAttribute("list","leaveEmpList");
+        $("leaveEmpQ").oninput=e=>{
+          const val=e.target.value.trim();
+          if(!val){ui.leaveEmpId="";this.fill();return}
+          const found=hseTeam().find(em=>em.name===val||normName(em.name)===normName(val));
+          if(found){ui.leaveEmpId=found.id;this.fill()}
+          else if(val===""){ui.leaveEmpId="";this.fill()}
+        };
+        $("leaveEmpQ").onchange=e=>{
+          const val=e.target.value.trim();
+          if(!val){ui.leaveEmpId="";this.fill();return}
+          const found=hseTeam().find(em=>em.name===val||normName(em.name)===normName(val));
+          ui.leaveEmpId=found?found.id:"";this.fill();
+        };
+      }
       $("addLeave").onclick=()=>leaveForm();
     } else if(ui.teamSub==="duties"){
       const curYear2=thisMonth().slice(0,4);
-      const canFilter2=!ownScope()&&(isAdmin()||["eng","sup","hse"].includes(myRole()));
-      const empOpsHtml2=canFilter2?`<select id="dutyEmpSel" aria-label="فلتر موظف" style="min-width:120px"><option value="">كل الفريق</option>${hseTeam().map(e=>`<option value="${e.id}" ${ui.dutyEmpId===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select>`:"";
+      const selEmpName2=ui.dutyEmpId?empName(ui.dutyEmpId):"";
       F.innerHTML=`<select id="dutyMonth" aria-label="الشهر أو السنة">
         <option value="${curYear2}" ${ui.dutyMonth===curYear2?"selected":""}>السنة كلها (${curYear2})</option>
         ${Array.from({length:12},(_,i)=>{const m=`${curYear2}-${String(i+1).padStart(2,"0")}`;return `<option value="${m}" ${ui.dutyMonth===m?"selected":""}>${monthName(m)}</option>`}).join("")}
-      </select>${empOpsHtml2}<button class="btn primary" id="addDuty">+ تسجيل جديد</button>`;
+      </select>${!ownScope()?`<input id="dutyEmpQ" type="search" placeholder="🔍 بحث باسم الموظف" autocomplete="off" style="min-width:150px;flex:1" value="${esc(selEmpName2)}"><datalist id="dutyEmpList">${hseTeam().map(e=>`<option data-id="${e.id}" value="${esc(e.name)}">`).join("")}</datalist>`:""}
+      <button class="btn primary" id="addDuty">+ تسجيل جديد</button>`;
       $("dutyMonth").onchange=e=>{ui.dutyMonth=e.target.value||thisMonth();this.fill()};
-      if(canFilter2&&$("dutyEmpSel"))$("dutyEmpSel").onchange=e=>{ui.dutyEmpId=e.target.value;this.fill()};
+      if(!ownScope()&&$("dutyEmpQ")){
+        $("dutyEmpQ").setAttribute("list","dutyEmpList");
+        $("dutyEmpQ").oninput=e=>{
+          const val=e.target.value.trim();
+          if(!val){ui.dutyEmpId="";this.fill();return}
+          const found=hseTeam().find(em=>em.name===val||normName(em.name)===normName(val));
+          if(found){ui.dutyEmpId=found.id;this.fill()}
+        };
+        $("dutyEmpQ").onchange=e=>{
+          const val=e.target.value.trim();
+          if(!val){ui.dutyEmpId="";this.fill();return}
+          const found=hseTeam().find(em=>em.name===val||normName(em.name)===normName(val));
+          ui.dutyEmpId=found?found.id:"";this.fill();
+        };
+      }
       $("addDuty").onclick=()=>dutyForm();
     } else {
       F.innerHTML=`<input type="search" id="empQ" placeholder="ابحث بالاسم أو الكود أو الوظيفة" value="${esc(ui.empQ)}"><select id="empG"><option value="">كل المجموعات</option>${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${ui.empG===k?"selected":""}>${v}</option>`).join("")}<option value="ptw" ${ui.empG==="ptw"?"selected":""}>معتمدين التصاريح</option></select><button class="btn primary" id="addEmp">+ موظف</button><button class="btn" id="impEmp">لصق من Excel</button>`;
