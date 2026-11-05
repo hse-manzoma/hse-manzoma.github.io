@@ -624,7 +624,7 @@ function openSheet(title,body,onSave,saveLabel="حفظ"){
   const root=$("overlayRoot");
   root.innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <div class="head"><h2 class="grow">${esc(title)}</h2><button class="btn ghost" id="shClose" aria-label="إغلاق">✕</button></div>
-    <form id="shForm">${body}<div id="shMsg"></div>
+    <form id="shForm" autocomplete="off">${body}<div id="shMsg"></div>
     <div style="display:flex;gap:8px;margin-top:18px"><button class="btn primary" type="submit" ${!canWrite?"disabled":""}>${esc(saveLabel)}</button><button class="btn" type="button" id="shCancel">إلغاء</button></div></form></div></div>`;
   const close=()=>{root.innerHTML=""};
   $("shClose").onclick=close;$("shCancel").onclick=close;
@@ -661,7 +661,7 @@ function confirmSheet(title,text,onYes,yesLabel="امسح"){
 function f(label,name,{type="text",value="",full=false,opts=null,req=false,attrs=""}={}){
   let input;
   if(opts) input=`<select name="${name}" id="f_${name}" ${req?"required":""} ${attrs}>${opts.map(([v,t])=>`<option value="${esc(v)}" ${String(v)===String(value)?"selected":""}>${esc(t)}</option>`).join("")}</select>`;
-  else if(type==="textarea") input=`<textarea name="${name}" id="f_${name}" ${attrs}>${esc(value)}</textarea>`;
+  else if(type==="textarea") input=`<textarea name="${name}" id="f_${name}" autocomplete="off" ${attrs}>${esc(value)}</textarea>`;
   else input=`<input type="${type}" name="${name}" id="f_${name}" value="${esc(value)}" ${req?"required":""} ${attrs}>`;
   return `<div class="field ${full?"full":""}"><label for="f_${name}">${label}</label>${input}</div>`;
 }
@@ -2578,7 +2578,7 @@ function canSignPermitStage(p,stage){if(!p||!canWrite||myAccess()?.role==="admin
 function ptwCloseChecksForRoles(roles){return PTW_CLOSE_CHECKS.filter(x=>roles.includes(x.role))}
 function ptwCloseApprovalBody(p,roles){
   const checks=ptwCloseChecksForRoles(roles);
-  const fields=roles.map(r=>{const label=r==="site"?"مهندس التنفيذ":r==="sup"?"مشرف التنفيذ":"مسؤول السلامة";return '<section class="card" style="padding:12px;margin:8px 0"><b>'+label+' — بندك</b>'+checks.filter(x=>x.role===r).map(x=>'<label class="chk"><input type="checkbox" name="closeConfirm" value="'+x.k+'"> '+esc(x.t)+'</label>').join("")+f("ملاحظتي","closeNote_"+r,{type:"textarea",full:true})+f("توصيتي","closeRec_"+r,{type:"textarea",full:true})+'</section>'}).join("");
+  const fields=roles.map(r=>{const label=r==="site"?"مهندس التنفيذ":r==="sup"?"مشرف التنفيذ":"مسؤول السلامة";return '<section class="card" style="padding:12px;margin:8px 0"><b>'+label+' — بندك</b>'+checks.filter(x=>x.role===r).map(x=>'<label class="chk"><input type="checkbox" name="closeConfirm" value="'+x.k+'"> '+esc(x.t)+'</label>').join("")+f("ملاحظتي","closeNote_"+r,{type:"textarea",full:true,attrs:'autocomplete="off" rows="3"'})+f("توصيتي","closeRec_"+r,{type:"textarea",full:true,attrs:'autocomplete="off" rows="3"'})+'</section>'}).join("");
   return '<div class="banner"><b>'+esc(p.number||"")+'</b> · سبب طلب الإغلاق: '+esc(p.closeRequest?.reason||"")+'<br>اعرض وعبّئ البنود الخاصة بدورك فقط، ثم وافق ووقّع على الإغلاق.</div>'+fields
 }
 async function signPermitStage(id,stage){
