@@ -3205,17 +3205,20 @@ VIEWS.forms={
 };
 function fillFormRecords(el,fid,spec){
   const L=recsOf(fid).filter(mineRec);
+  const total=L.length;
   const sum=r=>{const keys=spec.fields.filter(f=>!f.hidden&&f.type!=="check"&&f.k!=="date"&&!f.default&&!f.auto).slice(0,2).map(f=>recVal(spec,r,f.k)).filter(Boolean);const rows=(r.rows||[]).filter(x=>x&&Object.values(x).some(v=>v&&v.length));return [keys.join(" · "),rows.length?`${rows.length} ${spec.rows?.label||"صف"}`:""].filter(Boolean).join(" — ")};
-  const rowHTML=r=>{
+  // الترقيم التلقائي: الأحدث = total، الأقدم = 1 (عكسي حسب الترتيب المعروض)
+  const rowHTML=(r,idx)=>{
+    const displayNum=total-idx; // الأحدث يأخذ أعلى رقم، الأقدم = 1
     const meta=recMeta(fid,r,spec),approval=r.review||r.approved;
     const approvedChip=approval?`<span class="pill p-appr" title="اعتماد ${esc(approval.name||approval.byName||"")}">✔ معتمد${approval.name?` · ${esc(approval.name)}`:""}</span>`:"";
     const signedChip=fid!=="F-HSE-03-01"&&!approval&&hasSigned(r)?'<span class="pill p-appr">مرفق موقّع</span>':"";
     const detail=meta.length?meta.map(m=>`<span class="${m.cls||""}"><span class="muted">${esc(m.label)}: </span>${esc(m.value)}</span>`).join('<span class="muted" style="margin:0 5px">·</span>'):esc(sum(r));
-    return `<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s record-detail">${detail}</div></div><div class="row-actions">${approvedChip}${signedChip}<button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`;
+    return `<div class="li"><span class="num" title="رقم التسلسل · الكود الداخلي: ${r.serial||"—"}">${displayNum}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s record-detail">${detail}</div></div><div class="row-actions">${approvedChip}${signedChip}<button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`;
   };
-  el.innerHTML=`<div class="filters"><button class="btn" onclick="ui.formSel='';refresh()">→ كل النماذج</button><div class="grow"></div><button class="btn primary" onclick="recordForm('${fid}')">+ ${esc(spec.title)} جديد</button></div>
+  el.innerHTML=`<div class="filters"><button class="btn" onclick="ui.formSel='';refresh()">→ كل النماذج</button><div class="grow"></div>${total?`<span class="muted" style="font-size:13px;align-self:center">${total} سجل</span>`:""}  <button class="btn primary" onclick="recordForm('${fid}')">+ ${esc(spec.title)} جديد</button></div>
   <div class="card"><h3><span class="num">${fid}</span> · ${esc(spec.title)}</h3>
-  ${L.length?`<div class="list">${L.map(rowHTML).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
+  ${L.length?`<div class="list">${L.map((r,i)=>rowHTML(r,i)).join("")}</div>`:emptyState("لسه مفيش سجلات","سجّل أول واحد، والنموذج الرسمي هيتفتح للطباعة بعد الحفظ.")}</div>`;
 }
 async function recordFormBase(fid,id,preset){
   let dupAck=false;                     /* أول حفظ بيحذّر من التكرار، والتاني بيكمّل */
@@ -3423,7 +3426,7 @@ function ctrDel(id){const c=(S.contractors||[]).find(x=>x.id===id)||{};
   confirmSheet("مسح المقاول "+(c.name||""),"المقاول هيتمسح من المنظومة. عماله وسجلاتهم هيفضلوا زي ما هم.",()=>write(()=>{ui.ctrSel="";return remove("contractors",id)},"اتمسح"))}
 function taskDel(id){const t=(S.tasks||[]).find(x=>x.id===id)||{};
   confirmSheet("مسح المهمة",(t.title?"«"+t.title+"» ":"")+"هتتمسح نهائياً، ومش هتتحسب على اللي اتكلّف بيها.",()=>write(()=>remove("tasks",id),"اتمسحت"))}
-function recordDel(id){confirmSheet("مسح السجل","السجل هيتمسح نهائياً.",()=>write(()=>remove("records",id),"اتمسح"))}
+function recordDel(id){confirmSheet("مسح السجل","السجل هيتمسح نهائياً.",async()=>{const ok=await write(()=>remove("records",id),"اتمسح");if(ok)refresh();return ok})}
 
 /* ===================== v2 extensions ===================== */
 COLS.reports="reports";COLS.office="office";COLS.matreq="matreq";
