@@ -1051,7 +1051,7 @@ function fillLeaves(el){
   const totalDays=L.reduce((s,l)=>s+num(l.days),0);
   el.innerHTML=`<div class="grid g2">
     <div class="card"><h3>أرصدة الإجازات المتبقية${filterEid?` <span class="muted" style="font-weight:400;font-size:13px">· ${empName(filterEid)}</span>`:""}</h3>${team.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th class="n">عارضة</th><th class="n">اعتيادي</th></tr></thead><tbody>${team.map(e=>`<tr><td>${esc(e.name)}</td><td class="n ${num(e.casual)<=0?"stock-low":""}">${num(e.casual)}</td><td class="n ${num(e.annual)<=0?"stock-low":""}">${num(e.annual)}</td></tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:12.5px">الرصيد بيتخصم لوحده لما تسجّل إجازة. تعديل الرصيد من «الموظفين».</p>`:emptyState("مفيش فريق سلامة","")}</div>
-    <div class="card"><h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>`<div class="li"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num">${num(l.days)} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
+    <div class="card"><h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>{const calcDays=l.date&&l.to?daysBetween(l.date,l.to):num(l.days);const dispDays=calcDays||num(l.days);return`<div class="li"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num ${!num(l.days)&&dispDays?"stock-low":""}" title="${!num(l.days)&&dispDays?"الأيام محسوبة من التاريخ — اضغط تعديل لحفظها":""}">${dispDays} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button><button class="btn ghost sm" onclick="leaveEdit('${l.id}')">✏️ تعديل</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`}).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
   </div>`;
 }
 function fillDuties(el){
@@ -1092,6 +1092,31 @@ function leaveForm(){
 }
 function leaveDel(id){const l=S.leaves.find(x=>x.id===id);const fld=l.kind==="leave"&&(l.leaveType==="casual"||l.leaveType==="annual")?l.leaveType:null;
   confirmSheet("مسح التسجيل",fld&&!l.legacy?`هيتمسح ويرجع ${num(l.days)} يوم لرصيد ${LEAVE_T[fld]}.`:"التسجيل هيتمسح نهائياً.",()=>write(async()=>{await remove("leaves",id);const e=emp(l.empId);if(fld&&!l.legacy&&e)await upsert("employees",l.empId,{[fld]:num(e[fld])+num(l.days)})},"اتمسح"))}
+function leaveEdit(id){
+  const l=S.leaves.find(x=>x.id===id);if(!l)return;
+  const calcD=l.date&&l.to?daysBetween(l.date,l.to):num(l.days);
+  openSheet("تعديل الإجازة",`<div class="form">
+    <div class="field full"><label>الموظف</label><div class="serial">${esc(empName(l.empId))}</div></div>
+    <div class="field"><label>النوع</label><div class="serial">${LEAVE_T[l.leaveType]||l.leaveType||"—"}</div></div>
+    ${f("من","date",{type:"date",value:l.date||today(),req:true})}${f("لحد","to",{type:"date",value:l.to||l.date||today(),req:true})}
+    ${f("عدد الأيام","days",{type:"number",value:String(calcD||1),attrs:'min="1" inputmode="numeric"',req:true})}
+    ${f("ملاحظات","note",{full:true,value:l.note||""})}
+  </div>`,
+  async fd=>{
+    if(fd.to<fd.date)return "تاريخ النهاية قبل البداية";
+    const newDays=num(fd.days)||daysBetween(fd.date,fd.to);
+    const fld=l.leaveType==="casual"?"casual":l.leaveType==="annual"?"annual":null;
+    const oldDays=num(l.days);const diff=newDays-oldDays;
+    const ok=await write(async()=>{
+      await upsert("leaves",id,{date:fd.date,to:fd.to,days:newDays,note:(fd.note||"").trim()});
+      if(fld&&diff!==0){const e=emp(l.empId);if(e)await upsert("employees",l.empId,{[fld]:num(e[fld])-diff})}
+    },`اتعدّل (${newDays} يوم)`);
+    return ok?null:"الحفظ فشل";
+  },"حفظ التعديل");
+  /* إعادة حساب الأيام تلقائياً لما يغيّر التواريخ */
+  const recalc=()=>{const d=$("f_date")?.value,t=$("f_to")?.value;if(d&&t&&t>=d){const n=daysBetween(d,t);const inp=$("f_days");if(inp)inp.value=n}};
+  setTimeout(()=>{$("f_date")?.addEventListener("change",recalc);$("f_to")?.addEventListener("change",recalc)},50);
+}
 function dutyForm(presetKind){
   if(!hseTeam().length){toast("ضيف فريق السلامة الأول");return}
   const k0=DUTY_K[presetKind]?presetKind:"duty";
