@@ -507,7 +507,7 @@ let assetsNS=null;const ME={id:"",name:""};
 let BASE={del:false,write:true};let db=null, userNS=null, canDelete=false, canWrite=true, online=false, booted=false, isOwner=false, importing=false;
 const more={};
 let tab = "dash";
-const ui = {actF:"open",actQ:"",eqKind:"ext",eqQ:"",mpG:"",mpQ:"",mpCtr:"",personSel:"",personBack:"",ctrSel:"",empG:"",leaveMonth:thisMonth(),dutyMonth:thisMonth(),ptwQ:"",ptwType:"",ptwStatus:"",ptwMonth:"",ppeSub:"items",ppeQ:"",ppeMonth:thisMonth(),teamSub:"att",attDate:today(),empQ:"",kpiSub:"entry",kpiMonth:thisMonth(),repMonth:thisMonth()};
+const ui = {actF:"open",actQ:"",eqKind:"ext",eqQ:"",mpG:"",mpQ:"",mpCtr:"",personSel:"",personBack:"",ctrSel:"",empG:"",leaveMonth:thisMonth(),leaveEmpId:"",dutyMonth:thisMonth(),dutyEmpId:"",ptwQ:"",ptwType:"",ptwStatus:"",ptwMonth:"",ppeSub:"items",ppeQ:"",ppeMonth:thisMonth(),teamSub:"att",attDate:today(),empQ:"",kpiSub:"entry",kpiMonth:thisMonth(),repMonth:thisMonth()};
 try{ const t=localStorage.getItem("hse.tab"); if(t) tab=t; }catch(e){}
 
 /* ---------- helpers ---------- */
@@ -946,19 +946,25 @@ VIEWS.team = {
       $("allP").onclick=()=>{const recs={};for(const e of attTeam()){recs[e.id]={s:attDoc(ui.attDate)?.records?.[e.id]?.s||"p"}}saveAtt(ui.attDate,recs,true)};
     } else if(ui.teamSub==="leaves"){
       const curYear=thisMonth().slice(0,4);
+      const canFilter=!ownScope()&&(isAdmin()||["eng","sup","hse"].includes(myRole()));
+      const empOpsHtml=canFilter?`<select id="leaveEmpSel" aria-label="فلتر موظف" style="min-width:120px"><option value="">كل الفريق</option>${hseTeam().map(e=>`<option value="${e.id}" ${ui.leaveEmpId===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select>`:"";
       F.innerHTML=`<select id="leaveMonth" aria-label="الشهر أو السنة">
         <option value="${curYear}" ${ui.leaveMonth===curYear?"selected":""}>السنة كلها (${curYear})</option>
         ${Array.from({length:12},(_,i)=>{const m=`${curYear}-${String(i+1).padStart(2,"0")}`;return `<option value="${m}" ${ui.leaveMonth===m?"selected":""}>${monthName(m)}</option>`}).join("")}
-      </select><button class="btn primary" id="addLeave">+ إجازة</button>`;
+      </select>${empOpsHtml}<button class="btn primary" id="addLeave">+ إجازة</button>`;
       $("leaveMonth").onchange=e=>{ui.leaveMonth=e.target.value||thisMonth();this.fill()};
+      if(canFilter&&$("leaveEmpSel"))$("leaveEmpSel").onchange=e=>{ui.leaveEmpId=e.target.value;this.fill()};
       $("addLeave").onclick=()=>leaveForm();
     } else if(ui.teamSub==="duties"){
       const curYear2=thisMonth().slice(0,4);
+      const canFilter2=!ownScope()&&(isAdmin()||["eng","sup","hse"].includes(myRole()));
+      const empOpsHtml2=canFilter2?`<select id="dutyEmpSel" aria-label="فلتر موظف" style="min-width:120px"><option value="">كل الفريق</option>${hseTeam().map(e=>`<option value="${e.id}" ${ui.dutyEmpId===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select>`:"";
       F.innerHTML=`<select id="dutyMonth" aria-label="الشهر أو السنة">
         <option value="${curYear2}" ${ui.dutyMonth===curYear2?"selected":""}>السنة كلها (${curYear2})</option>
         ${Array.from({length:12},(_,i)=>{const m=`${curYear2}-${String(i+1).padStart(2,"0")}`;return `<option value="${m}" ${ui.dutyMonth===m?"selected":""}>${monthName(m)}</option>`}).join("")}
-      </select><button class="btn primary" id="addDuty">+ تسجيل جديد</button>`;
+      </select>${empOpsHtml2}<button class="btn primary" id="addDuty">+ تسجيل جديد</button>`;
       $("dutyMonth").onchange=e=>{ui.dutyMonth=e.target.value||thisMonth();this.fill()};
+      if(canFilter2&&$("dutyEmpSel"))$("dutyEmpSel").onchange=e=>{ui.dutyEmpId=e.target.value;this.fill()};
       $("addDuty").onclick=()=>dutyForm();
     } else {
       F.innerHTML=`<input type="search" id="empQ" placeholder="ابحث بالاسم أو الكود أو الوظيفة" value="${esc(ui.empQ)}"><select id="empG"><option value="">كل المجموعات</option>${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${ui.empG===k?"selected":""}>${v}</option>`).join("")}<option value="ptw" ${ui.empG==="ptw"?"selected":""}>معتمدين التصاريح</option></select><button class="btn primary" id="addEmp">+ موظف</button><button class="btn" id="impEmp">لصق من Excel</button>`;
@@ -1003,25 +1009,32 @@ function fillAtt(el){
 function fillLeaves(el){
   if(waiting("leaves")){el.innerHTML=waiting("leaves");return}
   const own=ownScope();const myEid=myEmpId();
-  const team=own&&myEid?hseTeam().filter(e=>e.id===myEid):hseTeam();
+  // فلتر الموظف: scope=own → موظفه فقط | admin/مدير → حسب الاختيار أو الكل
+  const filterEid=own&&myEid?myEid:(ui.leaveEmpId||"");
+  const fullTeam=hseTeam();
+  const team=filterEid?fullTeam.filter(e=>e.id===filterEid):fullTeam;
   // يتعامل مع "yyyy" (4 أرقام) كـ "السنة كلها"
   const isYear=ui.leaveMonth.length===4;
-  const leaveLabel=isYear?`إجازات سنة ${ui.leaveMonth}`:`إجازات ${monthName(ui.leaveMonth)}`;
-  const matchLeave=l=>isYear?((l.date||"").startsWith(ui.leaveMonth)||(l.to||"").startsWith(ui.leaveMonth)):((l.date||"").startsWith(ui.leaveMonth)||(l.to||"").startsWith(ui.leaveMonth));
-  const L=S.leaves.filter(l=>l.kind==="leave"&&matchLeave(l)&&(!own||!myEid||l.empId===myEid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const empLabel=filterEid?` · ${empName(filterEid)}`:"";
+  const leaveLabel=isYear?`إجازات سنة ${ui.leaveMonth}${empLabel}`:`إجازات ${monthName(ui.leaveMonth)}${empLabel}`;
+  const matchLeave=l=>(l.date||"").startsWith(ui.leaveMonth)||(l.to||"").startsWith(ui.leaveMonth);
+  const L=S.leaves.filter(l=>l.kind==="leave"&&matchLeave(l)&&(!filterEid||l.empId===filterEid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const totalDays=L.reduce((s,l)=>s+num(l.days),0);
   el.innerHTML=`<div class="grid g2">
-    <div class="card"><h3>أرصدة الإجازات المتبقية</h3>${team.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th class="n">عارضة</th><th class="n">اعتيادي</th></tr></thead><tbody>${team.map(e=>`<tr><td>${esc(e.name)}</td><td class="n ${num(e.casual)<=0?"stock-low":""}">${num(e.casual)}</td><td class="n ${num(e.annual)<=0?"stock-low":""}">${num(e.annual)}</td></tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:12.5px">الرصيد بيتخصم لوحده لما تسجّل إجازة. تعديل الرصيد من «الموظفين».</p>`:emptyState("مفيش فريق سلامة","")}</div>
+    <div class="card"><h3>أرصدة الإجازات المتبقية${filterEid?` <span class="muted" style="font-weight:400;font-size:13px">· ${empName(filterEid)}</span>`:""}</h3>${team.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th class="n">عارضة</th><th class="n">اعتيادي</th></tr></thead><tbody>${team.map(e=>`<tr><td>${esc(e.name)}</td><td class="n ${num(e.casual)<=0?"stock-low":""}">${num(e.casual)}</td><td class="n ${num(e.annual)<=0?"stock-low":""}">${num(e.annual)}</td></tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:12.5px">الرصيد بيتخصم لوحده لما تسجّل إجازة. تعديل الرصيد من «الموظفين».</p>`:emptyState("مفيش فريق سلامة","")}</div>
     <div class="card"><h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>`<div class="li"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num">${num(l.days)} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
   </div>`;
 }
 function fillDuties(el){
   if(waiting("leaves")){el.innerHTML=waiting("leaves");return}
   const own=ownScope();const myEid=myEmpId();
+  // فلتر الموظف: scope=own → موظفه فقط | admin/مدير → حسب الاختيار أو الكل
+  const filterEid=own&&myEid?myEid:(ui.dutyEmpId||"");
   // يتعامل مع "yyyy" (4 أرقام) كـ "السنة كلها"
   const isYear=ui.dutyMonth.length===4;
-  const dutyLabel=isYear?`سجلات سنة ${ui.dutyMonth}`:`سجلات ${monthName(ui.dutyMonth)}`;
-  const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)&&(!own||!myEid||l.empId===myEid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const empLabel=filterEid?` · ${empName(filterEid)}`:"";
+  const dutyLabel=isYear?`سجلات سنة ${ui.dutyMonth}${empLabel}`:`سجلات ${monthName(ui.dutyMonth)}${empLabel}`;
+  const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)&&(!filterEid||l.empId===filterEid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const c={};for(const l of L)c[l.kind]=(c[l.kind]||0)+1;
   el.innerHTML=L.length?`<p class="muted" style="margin-top:0">${dutyLabel} · ${Object.entries(DUTY_K).map(([k,v])=>`${v}: ${c[k]||0}`).filter(s=>!s.endsWith(": 0")).join(" · ")||"إجمالي: "+L.length}</p><div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>التفاصيل</th><th></th></tr></thead><tbody>
     ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printOneDuty('${l.id}')">تكليف فردي</button>`:l.kind==="one"?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')">👁 نموذج التكليف الإضافي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>${isLegacyAssignment(l)?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')" title="السجل ده اتسجل قبل فصل المأمورية عن التكليف">تكليف إضافي</button>`:""}`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
