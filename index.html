@@ -1153,7 +1153,21 @@ function userDelete(uid){const p=(S.profiles||[]).find(x=>x.id===uid);confirmShe
 function syncGroupedNav(){document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{if(b.dataset.decorated)return;const label=TAB_NAMES[b.dataset.tab]||b.textContent.trim();b.innerHTML='<span class="nav-item-icon">'+ic(b.dataset.tab)+'</span><span>'+esc(label)+'</span>';b.dataset.decorated="1"});document.querySelectorAll("#tabs .nav-group").forEach(g=>{const items=[...g.querySelectorAll("button[data-tab]")],active=items.find(b=>b.dataset.tab===tab&&!b.hidden),visible=items.some(b=>!b.hidden);g.hidden=!visible;g.open=false;const label=g.querySelector(".nav-current");if(label)label.textContent=active?(TAB_NAMES[tab]||active.textContent.trim()):""})}
 function applyRoleBase(){const al=allowedTabs();document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{b.hidden=!al||!al.includes(b.dataset.tab)});syncGroupedNav();if(booted&&loaded.settings&&(!al||!al.includes(tab)))show(tab)}
 const ownScope=()=>myAccess()?.scope==="own";
-const mineRec=r=>!ownScope()||r.createdBy===ME.id||Object.entries(r.f||{}).some(([k,v])=>k.endsWith("_id")&&v&&v===myEmpId());
+const mineRec=r=>{
+  if(!ownScope())return true;
+  if(r.createdBy===ME.id)return true;
+  const myEid=myEmpId();
+  // فحص حقول _id مباشرة
+  if(myEid&&Object.entries(r.f||{}).some(([k,v])=>k.endsWith("_id")&&v&&v===myEid))return true;
+  // فحص اسم الموظف في حقول الكاتب/المفتش (لما الاسم متسجل بدون _id)
+  const myName=(()=>{const p=myProfile();if(!p)return "";const e=emp(p.emp_id||"");return e?.name||""})();
+  if(myName){const f=r.f||{};
+    if(["writer","inspector","officer","reporter","trainer","lecturer","lead"].some(k=>f[k]&&normName(String(f[k]))===normName(myName)))return true;
+    // createdBy قد يكون user_id — نتحقق من profile
+    if(r.createdBy){const prof=profOf(r.createdBy);if(prof?.emp_id&&myEid&&prof.emp_id===myEid)return true}
+  }
+  return false;
+};
 VIEWS.join={
   shell:()=>`<div class="head"><h2 class="grow">أهلاً بيك في منظومة السلامة</h2></div><div id="joinBody"></div>`,
   fill(){const m=myMember();const e=m?.empId&&emp(m.empId);const inv=m?.empId&&(S.settings.invites||{})[m.empId];
