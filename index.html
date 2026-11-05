@@ -439,7 +439,12 @@ nav.tabs button>svg.ic{width:16px;height:16px;vertical-align:-.2em}
           <div class="mark" aria-hidden="true"><img src="brand-sanad-mark.svg" alt=""></div>
           <div class="brand-copy"><h1>منظومة السلامة</h1><small id="projectName">HSE · جاري التحميل</small><a class="brand-byline" href="https://wa.me/201287835280" target="_blank" rel="noopener">تصميم وتطوير سَنَد الرقمية</a></div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px"><div class="sync" id="sync"><span class="dot"></span><span>بيتصل…</span></div><button class="btn ghost sm" id="meBtn" onclick="meMenu()" style="font-size:12.5px">👤</button></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="sync" id="sync"><span class="dot"></span><span>بيتصل…</span></div>
+          <button class="btn ghost sm" id="syncNowBtn" onclick="syncNow()" title="مزامنة فورية" style="font-size:13px;padding:3px 7px">🔄</button>
+          <button class="btn ghost sm" id="onlineBtn" onclick="showOnline()" title="من هو متصل الآن" style="font-size:13px;padding:3px 7px">👥</button>
+          <button class="btn ghost sm" id="meBtn" onclick="meMenu()" style="font-size:12.5px">👤</button>
+        </div>
       </div>
       <nav class="tabs" role="navigation" aria-label="أقسام المنظومة" id="tabs">
         <button type="button" class="nav-home" data-tab="dash" aria-selected="false">الرئيسية</button>
@@ -587,6 +592,7 @@ async function boot(){
   try{const w=await userNS?.can("data.write"); if(w===false) canWrite=false}catch(e){}
   BASE={del:canDelete,write:canWrite};
   setSync("متصل","on"); online=true;
+  setTimeout(startPresence,2000);
   for(const [k,p] of Object.entries(COLS)){
     db.collection(p).onSnapshot(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refresh()},()=>setSync("الاتصال اتقطع","off"));
   }
@@ -602,6 +608,88 @@ async function boot(){
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
 function renderBanner(){}
+
+/* ===== مزامنة فورية ===== */
+function syncNow(){
+  const btn=document.getElementById("syncNowBtn");
+  if(btn){btn.textContent="⏳";btn.disabled=true}
+  setTimeout(()=>{if(btn){btn.textContent="🔄";btn.disabled=false}},3000);
+  if(window.SBA?.sync?.now){window.SBA.sync.now().then(()=>toast("✅ تمت المزامنة")).catch(()=>toast("⚠️ المزامنة فشلت"))}
+  else{/* fallback: reload data */for(const[k,p]of Object.entries(COLS)){try{db?.collection(p).get().then(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refresh()})}catch(e){}}toast("🔄 جاري التحديث…")}
+}
+
+/* ===== من هو متصل الآن (Presence) ===== */
+let _presenceRef=null,_presenceInt=null;
+function startPresence(){
+  if(!db||!ME.id)return;
+  const me=S.profiles?.find(p=>p.id===ME.id||p.user_id===ME.id);
+  const name=me?.name||me?.display_name||ME.email||"مجهول";
+  const ref=db.doc(`__presence/${ME.id}`);
+  _presenceRef=ref;
+  const beat=()=>ref.set({name,at:Date.now(),tab:tab||"dash"},{ merge:true }).catch(()=>{});
+  beat();
+  _presenceInt=setInterval(beat,30000);
+  window.addEventListener("beforeunload",()=>ref.delete().catch(()=>{}));
+}
+function showOnline(){
+  if(!db){toast("مش متصل");return}
+  const now=Date.now();
+  db.collection("__presence").get().then(s=>{
+    const alive=s.docs.map(d=>d.data()).filter(p=>p.at&&(now-p.at)<90000);
+    const rows=alive.length?alive.map(p=>`<div class="li"><span class="dot on" style="flex-shrink:0"></span><div class="grow"><div class="t">${esc(p.name||"—")}</div><div class="s">${esc(p.tab||"")} · منذ ${Math.round((now-p.at)/60000)||"<1"} دقيقة</div></div></div>`).join(""):`<div class="muted" style="padding:16px;text-align:center">لا يوجد مستخدمون نشطون الآن</div>`;
+    openSheet("متصلون الآن 🟢",`<div class="list" style="margin-top:8px">${rows}</div>`,null,null);
+  }).catch(()=>toast("تعذّر جلب بيانات الحضور"));
+}
+
+/* ===== منبّه 7:45 للفريق ===== */
+const ALARM_KEY="hse_alarm_745";
+function alarm745(){
+  /* فايبريشن: 3 × (500ms شغّال + 200ms وقفة) */
+  if(navigator.vibrate)navigator.vibrate([600,150,600,150,600,150,600,150,600]);
+  /* صوت: نبرة حادة 880Hz × 3 */
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const beep=(t,dur)=>{const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(0.9,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.start(t);o.stop(t+dur+0.05)};
+    beep(ctx.currentTime,0.4);beep(ctx.currentTime+0.55,0.4);beep(ctx.currentTime+1.1,0.6);
+  }catch(e){}
+  /* إشعار المتصفح */
+  if(Notification.permission==="granted"){
+    new Notification("🔔 تنبيه الفريق — 7:45",{body:"حان وقت التجمع / الإبلاغ الصباحي",icon:"brand-sanad-mark.svg",requireInteraction:true});
+  }
+  toast("🔔 منبّه 7:45 — حان وقت التجمع!");
+}
+function scheduleAlarm745(){
+  clearTimeout(window._alarm745T);
+  const now=new Date();
+  const next=new Date(now);
+  next.setHours(7,45,0,0);
+  if(next<=now)next.setDate(next.getDate()+1);
+  const ms=next-now;
+  window._alarm745T=setTimeout(()=>{alarm745();scheduleAlarm745()},ms);
+}
+function toggleAlarm(enable){
+  localStorage.setItem(ALARM_KEY,enable?"1":"0");
+  if(enable){
+    if(Notification.permission==="default")Notification.requestPermission().then(p=>{if(p==="granted")scheduleAlarm745()});
+    else scheduleAlarm745();
+    toast("✅ المنبّه شغّال — 7:45 كل يوم");
+  }else{
+    clearTimeout(window._alarm745T);
+    toast("🔕 المنبّه اتوقف");
+  }
+  updateAlarmBtn();
+}
+function updateAlarmBtn(){
+  const on=localStorage.getItem(ALARM_KEY)==="1";
+  const b=document.getElementById("alarmToggleBtn");
+  if(b){b.textContent=on?"🔔 منبّه 7:45 شغّال":"🔕 منبّه 7:45 موقف";b.style.background=on?"var(--accent)":""}
+}
+/* تشغيل المنبّه تلقائياً عند فتح الصفحة لو كان مفعّلاً */
+window.addEventListener("load",()=>{
+  if(localStorage.getItem(ALARM_KEY)==="1")scheduleAlarm745();
+  startPresence();
+  setTimeout(updateAlarmBtn,1000);
+});
 
 /* ---------- tabs / routing ---------- */
 document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(b)show(b.dataset.tab)});
@@ -4944,6 +5032,7 @@ async function meMenu(){meMenuBase();const form=$("shForm");if(!form)return;cons
   const box=document.createElement("div");box.className="card";box.style.cssText="margin-top:14px;padding:12px";
   box.innerHTML=`<div class="li" style="border:0"><div class="grow"><div class="t">✍ توقيعي</div><div class="s">${sg?"متسجل — بيظهر لأطراف المستند بعد توقيعك":"لسه ما ضفتش توقيعك"}</div></div>${sg?`<img src="${sg}" alt="" style="height:34px;max-width:120px;background:#fff;border-radius:6px;padding:2px">`:""}<button type="button" class="btn sm" id="mmSig">${sg?"تغيير":"إضافة توقيع"}</button></div>
      <div class="li"><div class="grow"><div class="t">🔔 التنبيهات اليومية</div><div class="s">7:45 صباحاً · 12:55 الضهر · 3:00 العصر${st==="unsupported"?(isIOS()?" — ثبّت المنظومة على الشاشة الرئيسية الأول":" — المتصفح مش بيدعمها"):st==="denied"?" — مقفولة من إعدادات المتصفح":""}</div></div>${st==="on"?`<button type="button" class="btn ghost sm" id="mmTest">تجربة</button><button type="button" class="btn ghost sm" id="mmOff">إيقاف</button>`:st==="off"?`<button type="button" class="btn sm primary" id="mmOn">تفعيل</button>`:""}</div>
+     <div class="li"><div class="grow"><div class="t">⏰ منبّه الفريق 7:45</div><div class="s">فايبريشن + صوت قوي على جهازك كل يوم الساعة 7:45 صباحاً — حتى بدون إنترنت</div></div><button type="button" class="btn sm" id="alarmToggleBtn" onclick="toggleAlarm(localStorage.getItem('${ALARM_KEY}')!=='1')">${localStorage.getItem(ALARM_KEY)==="1"?"🔔 شغّال — إيقاف":"🔕 تفعيل المنبّه"}</button><button type="button" class="btn ghost sm" onclick="alarm745()" title="تجربة الآن">▶ تجربة</button></div>`
      <div class="li"><div class="grow"><div class="t">🚨 صوت نهاية التصريح</div><div class="s">تنبيه صوتي قصير وخفيف عند وصول إشعار التصريح.</div></div><button type="button" class="btn sm ${ptwAlarmSoundOn()?"primary":""}" id="mmAlarm">${ptwAlarmSoundOn()?"كتم الصوت":"تفعيل الصوت"}</button></div>`;
   form.insertBefore(box,form.querySelector("#shMsg"));
   $("mmSig").onclick=()=>sigEditor();if($("mmOn"))$("mmOn").onclick=async()=>{if(await enablePush())meMenu()};if($("mmOff"))$("mmOff").onclick=async()=>{await disablePush();meMenu()};if($("mmTest"))$("mmTest").onclick=testPush;if($("mmAlarm"))$("mmAlarm").onclick=togglePtwAlarmSound}
