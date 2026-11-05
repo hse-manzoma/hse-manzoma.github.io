@@ -1097,7 +1097,7 @@ function leaveEdit(id){
   const calcD=l.date&&l.to?daysBetween(l.date,l.to):num(l.days);
   openSheet("تعديل الإجازة",`<div class="form">
     <div class="field full"><label>الموظف</label><div class="serial">${esc(empName(l.empId))}</div></div>
-    <div class="field"><label>النوع</label><div class="serial">${LEAVE_T[l.leaveType]||l.leaveType||"—"}</div></div>
+    ${f("نوع الإجازة","leaveType",{opts:Object.entries(LEAVE_T),value:l.leaveType||"other"})}
     ${f("من","date",{type:"date",value:l.date||today(),req:true})}${f("لحد","to",{type:"date",value:l.to||l.date||today(),req:true})}
     ${f("عدد الأيام","days",{type:"number",value:String(calcD||1),attrs:'min="1" inputmode="numeric"',req:true})}
     ${f("ملاحظات","note",{full:true,value:l.note||""})}
@@ -1105,11 +1105,17 @@ function leaveEdit(id){
   async fd=>{
     if(fd.to<fd.date)return "تاريخ النهاية قبل البداية";
     const newDays=num(fd.days)||daysBetween(fd.date,fd.to);
-    const fld=l.leaveType==="casual"?"casual":l.leaveType==="annual"?"annual":null;
-    const oldDays=num(l.days);const diff=newDays-oldDays;
+    const oldFld=l.leaveType==="casual"?"casual":l.leaveType==="annual"?"annual":null;
+    const newFld=fd.leaveType==="casual"?"casual":fd.leaveType==="annual"?"annual":null;
+    const oldDays=num(l.days);
     const ok=await write(async()=>{
-      await upsert("leaves",id,{date:fd.date,to:fd.to,days:newDays,note:(fd.note||"").trim()});
-      if(fld&&diff!==0){const e=emp(l.empId);if(e)await upsert("employees",l.empId,{[fld]:num(e[fld])-diff})}
+      await upsert("leaves",id,{leaveType:fd.leaveType,date:fd.date,to:fd.to,days:newDays,note:(fd.note||"").trim()});
+      const e=emp(l.empId);if(!e)return;
+      /* ارجّع الأيام القديمة للنوع القديم لو كان له رصيد */
+      if(oldFld&&oldDays>0)await upsert("employees",l.empId,{[oldFld]:num(e[oldFld])+oldDays});
+      /* اخصم الأيام الجديدة من النوع الجديد لو له رصيد */
+      const eNow=S.employees.find(x=>x.id===l.empId)||e;
+      if(newFld&&newDays>0)await upsert("employees",l.empId,{[newFld]:num(eNow[newFld])-newDays});
     },`اتعدّل (${newDays} يوم)`);
     return ok?null:"الحفظ فشل";
   },"حفظ التعديل");
