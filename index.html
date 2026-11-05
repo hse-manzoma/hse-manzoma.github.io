@@ -678,7 +678,7 @@ VIEWS.dash = {
       <div class="card"><h3>تصاريح شغالة دلوقتي</h3><div id="dPermits"></div></div>
       <div class="card"><h3>أصناف تحت الحد الأدنى</h3><div id="dLow"></div></div>
       <div class="card"><h3>تصاريح الشهر حسب النوع</h3><div id="dTypes"></div></div>
-      <div class="card"><h3>KPIs الشهر لفريق السلامة</h3><div id="dKpi"></div></div>
+      <div class="card"><h3 id="dKpiTitle">KPIs الشهر لفريق السلامة</h3><div id="dKpi"></div></div>
     </div>`,
   fill(){
     $("dRem").innerHTML=remindersHTML();
@@ -701,6 +701,7 @@ VIEWS.dash = {
     const mx=Math.max(1,...counts.map(c=>c[1]));
     $("dTypes").innerHTML = counts.length? `<div class="list">${counts.map(([t,c])=>`<div class="li">${typeChip(t)}<div class="grow"><div class="bar-meter"><span style="width:${c/mx*100}%;background:var(${PTW_TYPES[t].c})"></span></div></div><span class="num">${c}</span></div>`).join("")}</div>` : emptyState("مفيش تصاريح الشهر ده","");
     const rows=kpiSummary(m);
+    if($("dKpiTitle"))$("dKpiTitle").textContent=ownScope()?"مؤشراتي (KPI) هذا الشهر":"KPIs الشهر لفريق السلامة";
     $("dKpi").innerHTML = rows.length? `<div class="list">${rows.slice(0,6).map(r=>`<div class="li"><div class="grow"><div class="t">${esc(r.name)}</div><div class="bar-meter" style="margin-top:4px"><span class="${r.score>=100?"ok":""}" style="width:${Math.min(100,r.score)}%"></span></div></div><span class="num">${r.score}%</span></div>`).join("")}</div>` : emptyState("مفيش مدخلات KPI","ضيف فريق السلامة في تبويب التيم، وبعدين سجّل المدخلات اليومية.");
   }
 };
@@ -944,11 +945,19 @@ VIEWS.team = {
       $("attDate").onchange=e=>{ui.attDate=e.target.value||today();this.fill()};
       $("allP").onclick=()=>{const recs={};for(const e of attTeam()){recs[e.id]={s:attDoc(ui.attDate)?.records?.[e.id]?.s||"p"}}saveAtt(ui.attDate,recs,true)};
     } else if(ui.teamSub==="leaves"){
-      F.innerHTML=`<input type="month" id="leaveMonth" value="${ui.leaveMonth}" aria-label="الشهر"><button class="btn primary" id="addLeave">+ إجازة</button>`;
+      const curYear=thisMonth().slice(0,4);
+      F.innerHTML=`<select id="leaveMonth" aria-label="الشهر أو السنة">
+        <option value="${curYear}" ${ui.leaveMonth===curYear?"selected":""}>السنة كلها (${curYear})</option>
+        ${Array.from({length:12},(_,i)=>{const m=`${curYear}-${String(i+1).padStart(2,"0")}`;return `<option value="${m}" ${ui.leaveMonth===m?"selected":""}>${monthName(m)}</option>`}).join("")}
+      </select><button class="btn primary" id="addLeave">+ إجازة</button>`;
       $("leaveMonth").onchange=e=>{ui.leaveMonth=e.target.value||thisMonth();this.fill()};
       $("addLeave").onclick=()=>leaveForm();
     } else if(ui.teamSub==="duties"){
-      F.innerHTML=`<input type="month" id="dutyMonth" value="${ui.dutyMonth}" aria-label="الشهر"><button class="btn primary" id="addDuty">+ تسجيل جديد</button>`;
+      const curYear2=thisMonth().slice(0,4);
+      F.innerHTML=`<select id="dutyMonth" aria-label="الشهر أو السنة">
+        <option value="${curYear2}" ${ui.dutyMonth===curYear2?"selected":""}>السنة كلها (${curYear2})</option>
+        ${Array.from({length:12},(_,i)=>{const m=`${curYear2}-${String(i+1).padStart(2,"0")}`;return `<option value="${m}" ${ui.dutyMonth===m?"selected":""}>${monthName(m)}</option>`}).join("")}
+      </select><button class="btn primary" id="addDuty">+ تسجيل جديد</button>`;
       $("dutyMonth").onchange=e=>{ui.dutyMonth=e.target.value||thisMonth();this.fill()};
       $("addDuty").onclick=()=>dutyForm();
     } else {
@@ -976,32 +985,47 @@ VIEWS.team = {
 };
 function attTeam(){return hseTeam()}
 function fillAtt(el){
-  const team=attTeam();
-  if(!team.length){el.innerHTML=`<div class="card">${emptyState("مفيش فريق سلامة","ضيف موظفين في مجموعة «فريق السلامة» الأول.",`<button class="btn primary sm" onclick="ui.teamSub='emps';show('team')">الموظفين</button>`)}</div>`;return}
+  const own=ownScope();const myEid=myEmpId();
+  const fullTeam=attTeam();
+  // scope="own": يعرض بس حضور الموظف نفسه
+  const team=own&&myEid?fullTeam.filter(e=>e.id===myEid):fullTeam;
+  if(!fullTeam.length){el.innerHTML=`<div class="card">${emptyState("مفيش فريق سلامة","ضيف موظفين في مجموعة «فريق السلامة» الأول.",`<button class="btn primary sm" onclick="ui.teamSub='emps';show('team')">الموظفين</button>`)}</div>`;return}
+  if(own&&myEid&&!team.length){el.innerHTML=`<div class="card">${emptyState("حضورك غير مسجل","حسابك مش مربوط بموظف في فريق السلامة. راجع المدير.")}</div>`;return}
   const recs=attDoc(ui.attDate)?.records||{};
-  const c={};for(const e of team){const s=recs[e.id]?.s;if(s)c[s]=(c[s]||0)+1}
-  $("attSum").textContent=Object.entries(ATT).map(([k,v])=>`${v[0]} ${c[k]||0}`).join(" · ")+` · من ${team.length}`;
-  el.innerHTML=`<div class="card"><h3>فريق السلامة <span class="muted" style="font-weight:400">(${team.length}) · ${fmtDate(ui.attDate)}</span></h3><div class="list">
+  const c={};for(const e of fullTeam){const s=recs[e.id]?.s;if(s)c[s]=(c[s]||0)+1}
+  if(!own)$("attSum").textContent=Object.entries(ATT).map(([k,v])=>`${v[0]} ${c[k]||0}`).join(" · ")+` · من ${fullTeam.length}`;
+  else $("attSum").textContent=`حضورك · ${fmtDate(ui.attDate)}`;
+  el.innerHTML=`<div class="card"><h3>${own?"حضورك":"فريق السلامة"} <span class="muted" style="font-weight:400">${own?"":`(${fullTeam.length}) · `}${fmtDate(ui.attDate)}</span></h3><div class="list">
     ${team.map(e=>{const r=recs[e.id]||{};return `<div class="li" style="flex-wrap:wrap"><div class="grow" style="min-width:150px"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?` · <span class="num">${esc(e.code)}</span>`:""}</div></div>
-      <div class="seg" role="group" aria-label="حالة ${esc(e.name)}">${Object.entries(ATT).map(([k,v])=>`<button type="button" class="${v[1]}" aria-pressed="${r.s===k}" onclick="setAtt('${e.id}','${k}')" ${!canWrite?"disabled":""}>${v[0]}</button>`).join("")}</div></div>`}).join("")}
+      <div class="seg" role="group" aria-label="حالة ${esc(e.name)}">${Object.entries(ATT).map(([k,v])=>`<button type="button" class="${v[1]}" aria-pressed="${r.s===k}" onclick="setAtt('${e.id}','${k}')" ${!canWrite||own?"disabled":""}>${v[0]}</button>`).join("")}</div></div>`}).join("")}
   </div></div>`;
 }
 function fillLeaves(el){
   if(waiting("leaves")){el.innerHTML=waiting("leaves");return}
-  const team=hseTeam();
-  const L=S.leaves.filter(l=>l.kind==="leave"&&((l.date||"").startsWith(ui.leaveMonth)||(l.to||"").startsWith(ui.leaveMonth))).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const own=ownScope();const myEid=myEmpId();
+  const team=own&&myEid?hseTeam().filter(e=>e.id===myEid):hseTeam();
+  // يتعامل مع "yyyy" (4 أرقام) كـ "السنة كلها"
+  const isYear=ui.leaveMonth.length===4;
+  const leaveLabel=isYear?`إجازات سنة ${ui.leaveMonth}`:`إجازات ${monthName(ui.leaveMonth)}`;
+  const matchLeave=l=>isYear?((l.date||"").startsWith(ui.leaveMonth)||(l.to||"").startsWith(ui.leaveMonth)):((l.date||"").startsWith(ui.leaveMonth)||(l.to||"").startsWith(ui.leaveMonth));
+  const L=S.leaves.filter(l=>l.kind==="leave"&&matchLeave(l)&&(!own||!myEid||l.empId===myEid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const totalDays=L.reduce((s,l)=>s+num(l.days),0);
   el.innerHTML=`<div class="grid g2">
     <div class="card"><h3>أرصدة الإجازات المتبقية</h3>${team.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th class="n">عارضة</th><th class="n">اعتيادي</th></tr></thead><tbody>${team.map(e=>`<tr><td>${esc(e.name)}</td><td class="n ${num(e.casual)<=0?"stock-low":""}">${num(e.casual)}</td><td class="n ${num(e.annual)<=0?"stock-low":""}">${num(e.annual)}</td></tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:12.5px">الرصيد بيتخصم لوحده لما تسجّل إجازة. تعديل الرصيد من «الموظفين».</p>`:emptyState("مفيش فريق سلامة","")}</div>
-    <div class="card"><h3>إجازات ${monthName(ui.leaveMonth)}</h3>${L.length?`<div class="list">${L.map(l=>`<div class="li"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num">${num(l.days)} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`).join("")}</div>`:emptyState("مفيش إجازات الشهر ده","")}</div>
+    <div class="card"><h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>`<div class="li"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num">${num(l.days)} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
   </div>`;
 }
 function fillDuties(el){
   if(waiting("leaves")){el.innerHTML=waiting("leaves");return}
-  const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const own=ownScope();const myEid=myEmpId();
+  // يتعامل مع "yyyy" (4 أرقام) كـ "السنة كلها"
+  const isYear=ui.dutyMonth.length===4;
+  const dutyLabel=isYear?`سجلات سنة ${ui.dutyMonth}`:`سجلات ${monthName(ui.dutyMonth)}`;
+  const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)&&(!own||!myEid||l.empId===myEid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const c={};for(const l of L)c[l.kind]=(c[l.kind]||0)+1;
-  el.innerHTML=L.length?`<p class="muted" style="margin-top:0">${Object.entries(DUTY_K).map(([k,v])=>`${v}: ${c[k]||0}`).join(" · ")}</p><div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>التفاصيل</th><th></th></tr></thead><tbody>
+  el.innerHTML=L.length?`<p class="muted" style="margin-top:0">${dutyLabel} · ${Object.entries(DUTY_K).map(([k,v])=>`${v}: ${c[k]||0}`).filter(s=>!s.endsWith(": 0")).join(" · ")||"إجمالي: "+L.length}</p><div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>التفاصيل</th><th></th></tr></thead><tbody>
     ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printOneDuty('${l.id}')">تكليف فردي</button>`:l.kind==="one"?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')">👁 نموذج التكليف الإضافي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>${isLegacyAssignment(l)?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')" title="السجل ده اتسجل قبل فصل المأمورية عن التكليف">تكليف إضافي</button>`:""}`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
-  </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات في "+monthName(ui.dutyMonth),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
+  </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات"+(isYear?` في ${ui.dutyMonth}`:" في "+monthName(ui.dutyMonth)),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
 }
 function leaveForm(){
   if(!hseTeam().length){toast("ضيف فريق السلامة الأول");return}
@@ -2367,7 +2391,10 @@ function kpiSources(empId,month){
 function kpiAuto(empId,month){const R=kpiSources(empId,month),o={};for(const k of KPIS)o[k.k]=R[k.k]?.length||0;return o}
 function kpiSummary(month){
   const T=kpiTargets();
-  return hseTeam().map(e=>{
+  // scope="own": يعرض KPI الموظف نفسه بس
+  const myEid=myEmpId();const own=ownScope();
+  const team=own&&myEid?hseTeam().filter(e=>e.id===myEid):hseTeam();
+  return team.map(e=>{
     const AU=kpiAuto(e.id,month);
     const sums={};for(const k of KPIS)sums[k.k]=AU[k.k]||0;const autoN=Object.values(AU).reduce((a,b)=>a+b,0);
     const ach=KPIS.map(k=>Math.min(150,T[k.k]?sums[k.k]/T[k.k]*100:0));
@@ -2381,8 +2408,8 @@ function kpiSourceSheet(empId,metric,month){
   openSheet(`${KPIS.find(k=>k.k===metric)?.ar||"مصادر المؤشر"} · ${e.name||""} · ${monthName(month)}`,body,async()=>null,"إغلاق");
 }
 VIEWS.kpi = {
-  shell:()=>`<div class="head"><h2 class="grow">KPIs فريق السلامة</h2><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
-    <div class="card" style="margin-bottom:14px"><h3>مؤشرات مستخرجة من سجلات المنظومة</h3><p class="muted" style="margin-top:0;font-size:13px">كل رقم محسوب من نموذج أو سجل فعلي محفوظ. اضغط على الرقم لعرض مراجع السجلات التي كوّنته؛ لا توجد أرقام KPI يدوية.</p><div id="kpiSum"></div></div>`,
+  shell:()=>{const own=ownScope();return `<div class="head"><h2 class="grow">${own?"مؤشراتي (KPI)":"KPIs فريق السلامة"}</h2><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
+    <div class="card" style="margin-bottom:14px"><h3>مؤشرات مستخرجة من سجلات المنظومة</h3><p class="muted" style="margin-top:0;font-size:13px">كل رقم محسوب من نموذج أو سجل فعلي محفوظ. اضغط على الرقم لعرض مراجع السجلات التي كوّنته؛ لا توجد أرقام KPI يدوية.</p><div id="kpiSum"></div></div>`},
   bind(){$("kpiMonth").onchange=e=>{ui.kpiMonth=e.target.value||thisMonth();this.fill()}},
   fill(){
     const wait=waiting("records")||waiting("equipment")||waiting("actions");if(wait){$("kpiSum").innerHTML=wait;return}
