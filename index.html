@@ -6094,8 +6094,8 @@ function inspForm(equipType,existingId){
     </div>
     <h3 style="margin:18px 0 10px">التوقيعات</h3>
     <div class="form">
-      <div class="field"><label for="f_inspector1">مسئول البيئة والسلامة — الاسم</label><input id="f_inspector1" name="inspector1" list="empListAll" autocomplete="off" value="${esc(existing?.inspector1||myEmpName())}"></div>
-      <div class="field"><label for="f_inspector2">مشرف البيئة والسلامة — الاسم</label><input id="f_inspector2" name="inspector2" list="empListAll" autocomplete="off" value="${esc(existing?.inspector2||"")}"></div>
+      ${f("مسئول البيئة والسلامة","inspector1Id",{value:existing?.inspector1Id||resolveEmp(existing?.inspector1)?.id||myEmpId(),opts:empOpts(hseTeam(),"— من فريق السلامة —"),req:true})}
+      ${f("مشرف البيئة والسلامة","inspector2Id",{value:existing?.inspector2Id||resolveEmp(existing?.inspector2)?.id||"",opts:empOpts(hseTeam(),"— من فريق السلامة —")})}
     </div>
     <div style="margin:10px 0 6px"><b>توقيع مسئول السلامة (مطلوب)</b></div>
     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="inspSig1Canvas" width="900" height="220" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
@@ -6124,6 +6124,7 @@ function inspForm(equipType,existingId){
     const overallStatus=failCount>0?"fail":passCount===checks.length?"pass":"partial";
 
     // Signatures
+    if(!fd.inspector1Id)return "اختار مسئول البيئة والسلامة من القائمة";
     const sig1=inspSig1Pad?.png()||"";
     if(!sig1)return "وقّع في خانة توقيع مسئول السلامة قبل الحفظ";
 
@@ -6152,8 +6153,8 @@ function inspForm(equipType,existingId){
       ownership:fd.ownership||"company",
       dept:(fd.dept||"").trim(),
       note:(fd.note||"").trim(),
-      inspector1:(fd.inspector1||"").trim(),
-      inspector2:(fd.inspector2||"").trim(),
+      inspector1Id:fd.inspector1Id||"",inspector1:fd.inspector1Id?empName(fd.inspector1Id):"",
+      inspector2Id:fd.inspector2Id||"",inspector2:fd.inspector2Id?empName(fd.inspector2Id):"",
       sig1,sig2:inspSig2Pad?.png()||"",
       photos:uploaded,
       createdBy:ME.id||"",
@@ -6324,7 +6325,7 @@ function fxNew(existingId){
     <button type="button" class="btn" id="fxAddBtn" style="width:100%;margin-bottom:6px">+ إضافة طفاية</button>
     <h3 style="margin:18px 0 10px">القائم بالفحص</h3>
     <div class="form">
-      <div class="field"><label for="f_inspector">اسم القائم بالفحص</label><input id="f_inspector" name="inspector" list="empListAll" autocomplete="off" value="${esc(existing?.inspector||myEmpName())}"></div>
+      ${f("القائم بالفحص","inspectorId",{value:existing?.inspectorId||resolveEmp(existing?.inspector)?.id||myEmpId(),opts:empOpts(hseTeam(),"— من فريق السلامة —"),req:true})}
       ${f("كود القائم بالفحص","inspectorCode",{value:existing?.inspectorCode||""})}
     </div>
     <div style="margin:10px 0 6px"><b>توقيع القائم بالفحص (مطلوب)</b></div>
@@ -6344,6 +6345,7 @@ function fxNew(existingId){
                   status:g("status")==="bad"?"bad":"ok",place,lastDate:g("last"),note:g("note")});
     });
     if(!items.length)return "سجّل طفاية واحدة على الأقل (الرقم المسلسل أو المكان)";
+    if(!fd.inspectorId)return "اختار القائم بالفحص من القائمة";
     const sig=window.fxSigPad?.png()||"";
     if(!sig)return "وقّع في خانة توقيع القائم بالفحص قبل الحفظ";
     const bad=items.filter(x=>x.status==="bad").length;
@@ -6351,8 +6353,8 @@ function fxNew(existingId){
       date:fd.date||today(),
       project:(fd.project||"").trim(),
       dept:(fd.dept||"").trim(),
-      inspector:(fd.inspector||"").trim(),
-      inspectorCode:(fd.inspectorCode||"").trim(),
+      inspectorId:fd.inspectorId||"",inspector:fd.inspectorId?empName(fd.inspectorId):"",
+      inspectorCode:(fd.inspectorCode||"").trim()||(emp(fd.inspectorId)?.code||""),
       items,total:items.length,bad,sig,
       createdBy:ME.id||"",createdAt:Date.now()
     };
@@ -6590,16 +6592,18 @@ function fxEdit(id){
 function personInspSec(e){
   const n=s=>normName(s||""),me=n(e.name);
   if(!me)return "";
-  const L=(S.inspections||[]).filter(x=>n(x.inspector1)===me||n(x.inspector2)===me)
+  /* الربط بالـ id زي التصاريح؛ الاسم fallback للسجلات القديمة */
+  const mine=(idv,nm)=>idv?idv===e.id:(!!nm&&n(nm)===me);
+  const L=(S.inspections||[]).filter(x=>mine(x.inspector1Id,x.inspector1)||mine(x.inspector2Id,x.inspector2))
     .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  const F=(S.fireext||[]).filter(x=>n(x.inspector)===me)
+  const F=(S.fireext||[]).filter(x=>mine(x.inspectorId,x.inspector))
     .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   if(!L.length&&!F.length)return "";
   const bad=L.filter(x=>x.status==="fail").length;
   const row=x=>{
     const pill=x.status==="fail"?`<span class="pill p-closed">✘ ${x.failCount||0} بند</span>`
       :x.status==="pass"?`<span class="pill p-open">✔ مطابق</span>`:`<span class="pill">⏳ جزئي</span>`;
-    const role=n(x.inspector1)===me?"مسئول السلامة":"مشرف السلامة";
+    const role=mine(x.inspector1Id,x.inspector1)?"مسئول السلامة":"مشرف السلامة";
     return `<div class="li"><div class="grow">
       <div class="t">🔧 ${esc(x.equipType||"")} ${pill}</div>
       <div class="s">${esc(x.date||"")}${x.code?" · كود "+esc(x.code):""}${x.project?" · "+esc(x.project):""} · ${role}</div>
