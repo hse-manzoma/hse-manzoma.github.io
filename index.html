@@ -1834,7 +1834,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.36";
+const APP_VER="5.5.37";
 const APP_BUILD="2026-11-03";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2571,6 +2571,7 @@ function kpiSources(empId,month){
     if(r.form==="F-HSE-07-01"&&(by(r,"writer","officer")||reviewedBy(r)))o.unsafeActs.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-01 · ${r.f?.desc||r.f?.action||"مخالفة"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.writer||r.f?.officer||e?.name||""),role:reviewedBy(r)?"المعتمد":"المحرر"});
     if((r.form==="F-HSE-24-02"&&(by(r,"trainer")||reviewedBy(r)))||(r.form==="F-HSE-24-01"&&(by(r,"lecturer")||reviewedBy(r))))o.tbt.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.title||r.f?.topic||"محاضرة توعية"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.trainer||r.f?.lecturer||e?.name||""),role:reviewedBy(r)?"المعتمد":"المحاضر"});}
   for(const q of S.equipment)for(const h of q.insp||[])if((h.date||"").startsWith(month)&&((h.by_id===empId||normName(h.by||"")===nm)||(h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId)))o.inspection.push({type:"equipment",id:q.id,date:h.date,label:`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""} · ${eqLabel(q)} · ${q.place||""}`,who:h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId?h.review.name:(h.by||e?.name||""),role:h.review?.status==="approved"&&profOf(h.review.by)?.emp_id===empId?"المعتمد":"الفاحص",status:Object.values(h.res||{}).every(v=>v!=="nok")?"صالح":"غير صالح"});
+  for(const x of S.inspections||[])if((x.date||"").startsWith(month)){const reviewer=x.review?.status==="approved"&&x.review.signature&&profOf(x.review.by)?.emp_id===empId;const inspector=x.inspector1Id===empId||(!x.inspector1Id&&x.inspector1&&normName(x.inspector1)===nm);if(inspector||reviewer)o.inspection.push({type:"form",id:x.id,date:x.date,label:`F-HSE-18-01 · ${x.equipType||"فحص معدة"} · ${x.project||x.code||""}`,who:reviewer?(x.review.name||x.inspector2||e?.name||""):(x.inspector1||e?.name||""),role:reviewer?"المعتمد":"الفاحص",status:x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":"جزئي"})}
   for(const a of S.actions)if(a.status==="closed"&&(a.closedAt||"").startsWith(month)&&a.closedBy===empId)o.corrective.push({type:"action",id:a.id,date:a.closedAt,label:a.title||a.closeNote||"إجراء تصحيحي مغلق",who:a.closedByName||e?.name||""});
   for(const k of Object.keys(o))o[k].sort((a,b)=>(b.date||"").localeCompare(a.date||""));return o;
 }
@@ -5983,12 +5984,13 @@ VIEWS.inspection={
     const nb=$("inspNewBtn");
     if(nb){nb.textContent=sub==="fire"?"+ حصر طفايات":"+ فحص جديد";nb.onclick=()=>sub==="fire"?fxNew():inspNew()}
     if(sub==="fire")return fxFill();
+    const pending=inspPendingReviews();const reviewHTML=pending.length?`<section class="card" style="margin:10px 0;border-inline-start:4px solid var(--warn)"><h3 style="margin-top:0">⏳ فحوصات محالة لك للاعتماد (${pending.length})</h3><div class="list">${pending.slice(0,8).map(x=>`<div class="li"><div class="grow"><div class="t">${esc(x.equipType||"فحص معدة")} · ${esc(x.project||x.code||"")}</div><div class="s">الفاحص: ${esc(x.inspector1||"—")} · ${fmtDate(x.date)}</div></div><button type="button" class="btn sm primary" onclick="inspApprove('${x.id}')">مراجعة واعتماد</button></div>`).join("")}</div></section>`:"";
     const list=[...(S.inspections||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
     const q=normName(ui.inspQ||"");
-    const matches=x=>!q||normName([x.equipType,x.project,x.code,x.inspector1,x.inspector2,x.status].join(" ")).includes(q);
+  const matches=x=>!q||normName([x.equipType,x.project,x.code,x.inspector1,x.reviewToName,x.inspector2,x.status].join(" ")).includes(q);
     const shown=list.filter(matches);
     const total=list.length,bad=list.filter(x=>x.status==="fail").length,today_n=list.filter(x=>x.date===today()).length;
-    $("inspBody").innerHTML=`
+    $("inspBody").innerHTML=reviewHTML+`
       <div class="grid g4" style="margin-bottom:12px">
         <div class="card tile"><span class="lbl">إجمالي الفحوصات</span><b class="val">${total}</b></div>
         <div class="card tile"><span class="lbl">فحص النهارده</span><b class="val">${today_n}</b></div>
@@ -6005,7 +6007,7 @@ VIEWS.inspection={
 function refreshInspSearch(){
   const q=normName(ui.inspQ||"");
   const list=[...(S.inspections||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  const shown=list.filter(x=>!q||normName([x.equipType,x.project,x.code,x.inspector1,x.inspector2,x.status].join(" ")).includes(q));
+  const shown=list.filter(x=>!q||normName([x.equipType,x.project,x.code,x.inspector1,x.reviewToName,x.inspector2,x.status].join(" ")).includes(q));
   const listEl=$("inspBody")?.querySelector(".list");
   const countEl=$("inspCount");
   if(listEl)listEl.innerHTML=shown.map(inspRow).join("");
@@ -6016,6 +6018,7 @@ function inspRow(x){
   const statusColor=x.status==="pass"?"var(--ok)":x.status==="fail"?"var(--bad)":"var(--warn)";
   const statusLabel=x.status==="pass"?"✔ مطابق":x.status==="fail"?"✘ غير مطابق":"⏳ جزئي";
   const failCount=Object.values(x.checks||{}).filter(v=>v==="fail").length;
+  const approval=x.review?.status==="approved"?`✔ اعتمده ${esc(x.review.name||x.inspector2||"المشرف")}`:x.reviewRequired?`⏳ بانتظار ${esc(x.reviewToName||"المعتمد المختار")}`:"";
   return `<div class="li" style="flex-wrap:wrap">
     <div class="grow">
       <div class="t" style="display:flex;align-items:center;gap:8px">
@@ -6024,12 +6027,13 @@ function inspRow(x){
         ${failCount?`<span class="pill" style="background:var(--bad-soft);color:var(--bad)">${failCount} بند مرفوض</span>`:""}</div>
       <div class="s" style="margin-top:4px">
         ${fmtDate(x.date)}${x.project?" · "+esc(x.project):""}<br>
-        ${x.code?"الكود: "+esc(x.code)+" · ":""}الفاحص: ${esc(x.inspector1||x.inspector2||"—")}</div>
+        ${x.code?"الكود: "+esc(x.code)+" · ":""}الفاحص: ${esc(x.inspector1||"—")}${approval?`<br>${approval}`:""}</div>
       ${x.note?`<div style="margin-top:5px;font-size:12.5px;color:var(--muted)">${esc(x.note)}</div>`:""}
     </div>
     <div class="row-actions">
       <button class="btn sm" onclick="inspView('${x.id}')">👁 عرض</button>
       <button class="btn sm" onclick="inspPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
+      ${x.reviewRequired&&x.reviewTo===ME.id&&x.review?.status!=="approved"&&REVIEWERS.includes(myRole())?`<button class="btn sm primary" onclick="inspApprove('${x.id}')">اعتماد بتوقيعي</button>`:""}
       ${canWrite?`<button class="btn sm" onclick="inspEdit('${x.id}')">✏️ تعديل</button>`:""}
       ${canDelete?`<button class="btn ghost sm danger" onclick="inspDel('${x.id}')">مسح</button>`:""}
     </div>
@@ -6066,10 +6070,27 @@ window.inspPick=function(t){
   setTimeout(()=>inspForm(t),50);
 };
 
+function inspReviewProfiles(){return (S.profiles||[]).filter(p=>REVIEWERS.includes(p.role)&&!p.disabled&&p.id!==ME.id).sort((a,b)=>profName(a).localeCompare(profName(b),"ar"))}
+function inspPendingReviews(){return (S.inspections||[]).filter(x=>x.reviewRequired&&x.review?.status!=="approved"&&x.reviewTo===ME.id).sort((a,b)=>(b.date||"").localeCompare(a.date||""))}
+async function inspApprove(id){
+  const x=S.inspections?.find(r=>r.id===id);if(!x||!x.reviewRequired||x.review?.status==="approved"||x.reviewTo!==ME.id||x.inspectorUid===ME.id){toast("الفحص غير محال لك أو لا يمكنك اعتماد فحصك بنفسك");return}
+  if(!REVIEWERS.includes(myRole())){toast("الاعتماد متاح للمشرف أو الأدمن المختار فقط");return}
+  const signature=await mySig();if(!signature){toast("احفظ توقيعك من ملفك الشخصي قبل اعتماد الفحص");return}
+  openSheet("اعتماد فحص المعدة",`<div class="banner"><b>${esc(x.equipType||"فحص معدة")}</b><div>${esc(x.project||"")} · ${esc(x.code||"")} · ${fmtDate(x.date)}</div><div>الفاحص: ${esc(x.inspector1||"—")}</div><div>النتيجة: ${x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":"جزئي"} · ${x.failCount||0} بنود غير جيدة</div>${x.note?`<div>ملاحظات: ${esc(x.note)}</div>`:""}</div>${x.photos?.length?`<div style="margin-top:10px">${thumbs(x.photos,72)}</div>`:""}<p class="muted">سيُحفظ اعتمادك بتوقيعك الشخصي في خانة المشرف على النموذج، ويُحتسب الفحص للفاحص والمعتمد في KPI.</p>`,async()=>{
+    const current=S.inspections?.find(r=>r.id===id);if(!current||current.review?.status==="approved"||current.reviewTo!==ME.id)return "الفحص اتغير أو محال لمستخدم آخر";if(current.inspectorUid===ME.id)return "الفاحص لا يعتمد فحصه بنفسه";
+    const approved={status:"approved",by:ME.id,name:myEmpName(),at:Date.now(),signature};const approver=profOf(ME.id);const patch={review:approved,inspector2Id:approver?.emp_id||"",inspector2:myEmpName(),sig2:signature};
+    const ok=await write(()=>upsert("inspections",id,patch),"اتعمد الفحص بتوقيعك");if(!ok)return "الحفظ فشل";if(current.createdBy)await notifyUsers([current.createdBy],"✅ فحص المعدة اتعمد",`${myEmpName()} اعتمد فحص ${current.equipType||"المعدة"} بتوقيعه.`,`?go=inspection`);return null
+  },"اعتماد بتوقيعي")
+}
 function inspForm(equipType,existingId){
   if(!canWrite){toast("مالكش صلاحية التسجيل");return}
   const checks=INSP_FORMS[equipType]||[];
   const existing=existingId?S.inspections?.find(x=>x.id===existingId):null;
+  const approvers=inspReviewProfiles();if(!approvers.length){toast("لا يوجد مشرف أو أدمن متاح للاعتماد. راجع حسابات وصلاحيات الفريق.");return}
+  if(existing?.review?.status==="approved"&&myRole()!=="admin"){toast("الفحص المعتمد لا يُعدّل؛ اطلب من الأدمن إعادته للمراجعة إذا لزم التصحيح");return}
+  if(existing?.reviewTo===ME.id&&existing?.inspectorUid!==ME.id&&myRole()!=="admin"){toast("المعتمد لا يحرر فحصًا محالًا إليه");return}
+  const selfId=myEmpId();if(myRole()!=="admin"&&!selfId){toast("اربط حسابك بموظف من فريق السلامة قبل تسجيل الفحص");return}
+  const inspectorOpts=myRole()==="admin"?empOpts(hseTeam(),"— من فريق السلامة —"):[[selfId,empName(selfId)||myEmpName()]];
 
   const checkItems=checks.map((item,i)=>{
     const v=existing?.checks?.[`c${i}`]||"";
@@ -6106,15 +6127,13 @@ function inspForm(equipType,existingId){
     </div>
     <h3 style="margin:18px 0 10px">التوقيعات</h3>
     <div class="form">
-      ${f("مسئول البيئة والسلامة","inspector1Id",{value:existing?.inspector1Id||resolveEmp(existing?.inspector1)?.id||myEmpId(),opts:empOpts(hseTeam(),"— من فريق السلامة —"),req:true})}
-      ${f("مشرف البيئة والسلامة","inspector2Id",{value:existing?.inspector2Id||resolveEmp(existing?.inspector2)?.id||"",opts:empOpts(hseTeam(),"— من فريق السلامة —")})}
+      ${f("مسئول السلامة القائم بالفحص","inspector1Id",{value:myRole()==="admin"?(existing?.inspector1Id||resolveEmp(existing?.inspector1)?.id||selfId):(existing?.inspector1Id||selfId),opts:inspectorOpts,req:true})}
+      ${f("المعتمد (مشرف أو أدمن بالاسم)","reviewTo",{value:existing?.reviewTo||"",opts:[["","— اختار الشخص الذي سيعتمد الفحص —"],...approvers.map(p=>[p.id,`${profName(p)} · ${{admin:"أدمن",hse:"مسؤول السلامة",hsesup:"مشرف السلامة"}[p.role]||"معتمد"}`])],req:true})}
     </div>
-    <div style="margin:10px 0 6px"><b>توقيع مسئول السلامة (مطلوب)</b></div>
+    <div style="margin:10px 0 6px"><b>توقيع الفاحص (مطلوب)</b></div>
     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="inspSig1Canvas" width="900" height="220" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
     <button type="button" class="btn sm" id="inspSig1Clear" style="margin-top:7px">مسح التوقيع</button>
-    <div style="margin:14px 0 6px"><b>توقيع مشرف السلامة (اختياري)</b></div>
-    <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="inspSig2Canvas" width="900" height="220" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
-    <button type="button" class="btn sm" id="inspSig2Clear" style="margin-top:7px">مسح التوقيع</button>
+    <div class="banner" style="margin-top:12px">توقيع المشرف لا يظهر هنا. بعد حفظ الفحص سيصل إشعار للمعتمد الذي اخترته، ويضيف توقيعه من حسابه عند الاعتماد.</div>
     ${assetsNS?`<div class="field full" style="margin-top:16px"><label for="inspPhoto"><b>📎 مرفقات الفحص</b> (صور المعدة، شهادة المعايرة، أي مستند — حد أقصى 8)</label><input type="file" id="inspPhoto" accept="image/*,application/pdf" multiple><div id="inspPhotoNames" class="muted" style="font-size:12.5px;margin-top:5px">اختار صورة أو التقطها بالكاميرا</div></div>`:`<div class="banner" style="margin-top:14px">رفع الصور غير متاح حاليًا.</div>`}
     ${empDatalist2()}
   `;
@@ -6137,8 +6156,10 @@ function inspForm(equipType,existingId){
 
     // Signatures
     if(!fd.inspector1Id)return "اختار مسئول البيئة والسلامة من القائمة";
+    if(myRole()!=="admin"&&fd.inspector1Id!==myEmpId())return "الفاحص يكون صاحب الحساب الحالي";
     const sig1=inspSig1Pad?.png()||"";
     if(!sig1)return "وقّع في خانة توقيع مسئول السلامة قبل الحفظ";
+    const approver=approvers.find(p=>p.id===fd.reviewTo);if(!approver)return "اختار المعتمد بالاسم قبل حفظ الفحص";
 
     // Photos
     const photoFiles=[...(form.querySelector("#inspPhoto")?.files||[])];
@@ -6166,26 +6187,26 @@ function inspForm(equipType,existingId){
       dept:(fd.dept||"").trim(),
       note:(fd.note||"").trim(),
       inspector1Id:fd.inspector1Id||"",inspector1:fd.inspector1Id?empName(fd.inspector1Id):"",
-      inspector2Id:fd.inspector2Id||"",inspector2:fd.inspector2Id?empName(fd.inspector2Id):"",
-      sig1,sig2:inspSig2Pad?.png()||"",
-      photos:uploaded,
-      createdBy:ME.id||"",
-      createdAt:Date.now()
+      inspectorUid:ME.id||"",inspector2Id:"",inspector2:"",reviewTo:approver.id,reviewToName:profName(approver),reviewRequired:true,review:null,
+      sig1,sig2:"",
+      photos:[...(existing?.photos||[]),...uploaded],
+      createdBy:existing?.createdBy||ME.id||"",
+      createdAt:existing?.createdAt||Date.now()
     };
 
+    let savedId=existingId||"";
     const ok=await write(async()=>{
       if(existingId){await upsert("inspections",existingId,data)}
-      else{await db.collection("inspections").add(data)}
+      else{const ref=await db.collection("inspections").add(data);savedId=ref.id}
     },overallStatus==="fail"?`🔴 فحص مرفوض — ${failCount} بند`:overallStatus==="pass"?"✅ فحص ناجح":"🟡 فحص جزئي");
+    if(ok&&savedId)await notifyUsers([approver.id],"🧰 فحص معدة محال لك للاعتماد",`${data.inspector1||"الفاحص"} أرسل فحص ${equipType} ${data.code||""} للمراجعة والتوقيع.`,`?go=inspection&id=${encodeURIComponent(savedId)}`);
     return ok?null:"الحفظ فشل";
   },"حفظ الفحص");
 
   // Bind signature pads
   if(root){
     window.inspSig1Pad=sigPadBind(root.querySelector("#inspSig1Canvas"));
-    window.inspSig2Pad=sigPadBind(root.querySelector("#inspSig2Canvas"));
     root.querySelector("#inspSig1Clear").onclick=()=>inspSig1Pad.clear();
-    root.querySelector("#inspSig2Clear").onclick=()=>inspSig2Pad.clear();
     const pi=root.querySelector("#inspPhoto");
     if(pi)pi.onchange=()=>{
       const L=[...pi.files];
@@ -6239,6 +6260,7 @@ function inspView(id){
         ${x.unanswered?`<span style="color:var(--muted)">— ${x.unanswered} لم يُفحص</span>`:""}
       </div>
     </div>
+    ${x.review?.status==="approved"?`<div class="banner" style="margin-bottom:12px">✔ اعتمد الفحص ${esc(x.review.name||x.inspector2||"")} بتاريخ ${fmtDate(new Date(x.review.at||Date.now()).toISOString().slice(0,10))} بتوقيعه المحفوظ.</div>`:x.reviewRequired?`<div class="banner" style="margin-bottom:12px">⏳ الفحص موقّع من الفاحص وينتظر اعتماد ${esc(x.reviewToName||"المعتمد المحدد")}. لا يوجد توقيع مشرف حتى يعتمد من حسابه.</div>`:""}
     <h3 style="margin:0 0 10px">بنود الفحص</h3>
     <div class="list">${rows}</div>
     ${x.note?`<div style="margin-top:12px;padding:12px;background:var(--sunk);border-radius:10px"><b>ملاحظات:</b> ${esc(x.note)}</div>`:""}
