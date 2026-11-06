@@ -6016,6 +6016,7 @@ function inspRow(x){
     </div>
     <div class="row-actions">
       <button class="btn sm" onclick="inspView('${x.id}')">👁 عرض</button>
+      <button class="btn sm" onclick="inspPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
       ${canDelete?`<button class="btn ghost sm danger" onclick="inspDel('${x.id}')">مسح</button>`:""}
     </div>
   </div>`;
@@ -6208,6 +6209,7 @@ function inspView(id){
   }).join("");
 
   openSheet("عرض الفحص",`
+    <button type="button" class="btn primary" style="width:100%;margin-bottom:12px" onclick="inspPrint('${id}')">🖨️ طباعة على نموذج الشركة</button>
     <div style="background:${statusColor}20;border:1.5px solid ${statusColor}40;border-radius:12px;padding:14px;margin-bottom:16px">
       <div style="font-size:18px;font-weight:700">${esc(x.equipType||"")}</div>
       <div style="color:${statusColor};font-weight:600;margin-top:4px">${statusLabel}</div>
@@ -6375,7 +6377,7 @@ function fxListRow(x){
       <div class="s">${esc(x.date||"")} · ${esc(x.project||"—")}${x.inspector?" · "+esc(x.inspector):""}</div>
     </div>
     <div class="row-actions">
-      <button class="btn ghost sm" onclick="fxView('${x.id}')">عرض</button>
+      <button class="btn ghost sm" onclick="fxView('${x.id}')">عرض</button><button class="btn ghost sm" onclick="fxPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
       ${canDelete?`<button class="btn ghost sm danger" onclick="fxDel('${x.id}')">مسح</button>`:""}
     </div>
   </div>`;
@@ -6411,6 +6413,7 @@ function fxView(id){
     <td>${esc(it.place||"—")}</td><td>${esc(it.lastDate||"—")}</td><td>${esc(it.note||"")}</td>
   </tr>`).join("");
   openSheet("حصر طفايات الحريق — "+esc(x.date||""),`
+    <button type="button" class="btn primary" style="width:100%;margin-bottom:12px" onclick="fxPrint('${id}')">🖨️ طباعة على نموذج الشركة</button>
     <div class="grid g4" style="margin-bottom:12px">
       <div class="card tile"><span class="lbl">إجمالي الطفايات</span><b class="val">${x.total||0}</b></div>
       <div class="card tile ${x.bad?"alert":""}"><span class="lbl">غير صالحة</span><b class="val">${x.bad||0}</b></div>
@@ -6441,6 +6444,127 @@ async function fxDel(id){
   if(!confirm("تمسح الحصر ده؟ مش هيتراجع."))return;
   const ok=await write(()=>db.collection("fireext").doc(id).delete(),"اتمسح");
   if(ok)toast("اتمسح ✔");
+}
+
+
+
+/* =====================================================
+   طباعة الفحص على نموذج الشركة (A4)
+   بيستخدم نفس مسار الطباعة المستخدم في النماذج والتصاريح:
+   .dpage/.frame/.rhead + openViewer().setHtml()
+   ===================================================== */
+const INSP_OWN_AR={company:"شركة",rental:"إيجار",contractor:"مقاول"};
+
+function dHead(title,sub){
+  const E=estab();
+  return `<div class="rhead"><div class="t">${esc(title)}${sub?`<br><span style="font-weight:400;font-size:9.5pt">${esc(sub)}</span>`:""}<br><span style="font-weight:400;font-size:9pt">${esc(E.name||"")} — ${esc(E.site||E.siteName||"")}</span></div><div class="lg"><img src="rep-logo.png" alt=""></div></div>`;
+}
+function dFoot(code,i,n){
+  return `<div style="display:flex;justify-content:space-between;font-size:8.5pt;margin-top:auto;padding-top:2mm;border-top:1px solid #999"><span>${esc(code)}</span><span>صفحة ${i} من ${n}</span></div>`;
+}
+function sigCell(label,name,src){
+  return `<td style="padding:2mm"><div style="font-weight:700;font-size:9pt">${esc(label)}</div>
+    <div style="height:16mm;display:flex;align-items:center;justify-content:center">${src?`<img src="${esc(src)}" alt="" style="max-height:15mm;max-width:100%">`:""}</div>
+    <div style="border-top:1px solid #333;padding-top:1mm;font-size:9pt">${esc(name||"")}</div></td>`;
+}
+
+function inspPrintHTML(x){
+  const items=INSP_FORMS[x.equipType]||[];
+  const mark=i=>{const v=x.checks?.[`c${i}`];return [v==="pass"?"✔":"",v==="fail"?"✔":""]};
+  const P1=16,PN=26;
+  const chunks=[];
+  for(let i=0;i<items.length;){
+    const take=chunks.length===0?P1:PN;
+    chunks.push(items.slice(i,i+take).map((t,j)=>[i+j,t]));
+    i+=take;
+  }
+  if(!chunks.length)chunks.push([]);
+  const headTbl=`<table><tbody>
+    <tr><th style="width:18%">اسم المشروع</th><td class="r">${esc(x.project||"")}</td>
+        <th style="width:18%">تاريخ الفحص</th><td class="r">${esc(x.date||"")}</td></tr>
+    <tr><th>نوع المعدة</th><td class="r">${esc(x.equipType||"")}</td>
+        <th>كود المعدة</th><td class="r">${esc(x.code||"")}</td></tr>
+    <tr><th>الإدارة / القسم</th><td class="r">${esc(x.dept||"")}</td>
+        <th>ملكية المعدة</th><td class="r">${esc(INSP_OWN_AR[x.ownership]||x.ownership||"")}</td></tr>
+  </tbody></table>`;
+  const n=chunks.length;
+  return chunks.map((rows,pi)=>{
+    const body=`<table><thead><tr>
+        <th class="num">م</th><th>بنود الفحص</th>
+        <th style="width:14mm">جيد</th><th style="width:16mm">غير جيد</th><th style="width:38mm">ملاحظات</th>
+      </tr></thead><tbody>${rows.map(([i,t])=>{
+        const [ok,no]=mark(i);
+        return `<tr><td class="num">${i+1}</td><td class="r">${esc(t)}</td><td style="font-size:12pt">${ok}</td><td style="font-size:12pt">${no}</td><td class="r" style="font-size:8.5pt">${esc(x.notes_items?.[`n${i}`]||"")}</td></tr>`;
+      }).join("")}</tbody></table>`;
+    const last=pi===n-1;
+    const tail=last?`
+      <table style="margin-top:2mm"><tbody><tr>
+        <th style="width:22%">نتيجة الفحص</th>
+        <td colspan="3" class="r" style="font-weight:700">${x.status==="fail"?`غير مطابق — ${x.failCount||0} بند غير مطابق`:x.status==="pass"?"مطابق":"جزئي"}</td>
+      </tr><tr><th>ملاحظات إضافية</th><td colspan="3" class="r" style="height:14mm;vertical-align:top">${esc(x.note||"")}</td></tr></tbody></table>
+      <table style="margin-top:2mm"><tbody><tr>
+        ${sigCell("مسئول البيئة والسلامة والصحة المهنية",x.inspector1,x.sig1)}
+        ${sigCell("مشرف البيئة والسلامة والصحة المهنية",x.inspector2,x.sig2)}
+      </tr></tbody></table>`:"";
+    return `<div class="dpage"><div class="frame">${dHead("الفحص اليومي للمعدات ووسائل النقل","Daily Inspection of HSE For Equipment and Transportation")}${pi===0?headTbl:""}${body}${tail}${dFoot("F-HSE-18-01",pi+1,n)}</div></div>`;
+  }).join("");
+}
+
+async function inspPrint(id){
+  const x=S.inspections?.find(r=>r.id===id);
+  if(!x){toast("الفحص مش موجود");return}
+  const V=openViewer("فحص "+(x.equipType||""),{filename:`F-HSE-18-01 ${x.equipType||""} ${x.date||""}.pdf`});
+  try{V.setHtml(inspPrintHTML(x))}catch(e){console.error(e);V.fail()}
+}
+
+/* ---------- حصر طفايات الحريق ---------- */
+function fxPrintHTML(x){
+  const rows=x.items||[];
+  const P1=14,PN=22;
+  const chunks=[];
+  for(let i=0;i<rows.length;){
+    const take=chunks.length===0?P1:PN;
+    chunks.push(rows.slice(i,i+take).map((r,j)=>[i+j,r]));
+    i+=take;
+  }
+  if(!chunks.length)chunks.push([]);
+  const n=chunks.length;
+  const headTbl=`<table><tbody><tr>
+      <th style="width:16%">اسم المشروع</th><td class="r">${esc(x.project||"")}</td>
+      <th style="width:16%">تاريخ الفحص</th><td class="r">${esc(x.date||"")}</td>
+      <th style="width:16%">الإدارة / القسم</th><td class="r">${esc(x.dept||"")}</td>
+    </tr></tbody></table>`;
+  return chunks.map((part,pi)=>{
+    const body=`<table><thead><tr>
+        <th class="num">م</th><th>الرقم المسلسل</th><th>الشركة المصنعة</th>
+        <th>بودرة</th><th>CO2</th><th>فوم</th><th>السعة</th>
+        <th>صالحة</th><th>غير صالحة</th><th>مكان التواجد</th><th>تاريخ آخر فحص</th><th>ملاحظات</th>
+      </tr></thead><tbody>${part.map(([i,r])=>`<tr>
+        <td class="num">${i+1}</td><td>${esc(r.sn||"")}</td><td>${esc(r.maker||"")}</td>
+        <td>${r.type==="powder"?"✔":""}</td><td>${r.type==="co2"?"✔":""}</td><td>${r.type==="foam"?"✔":""}</td>
+        <td>${esc(r.cap||"")}</td>
+        <td style="font-size:12pt">${r.status!=="bad"?"✔":""}</td><td style="font-size:12pt">${r.status==="bad"?"✔":""}</td>
+        <td class="r" style="font-size:8.5pt">${esc(r.place||"")}</td><td style="font-size:8.5pt">${esc(r.lastDate||"")}</td>
+        <td class="r" style="font-size:8.5pt">${esc(r.note||"")}</td></tr>`).join("")}</tbody></table>`;
+    const last=pi===n-1;
+    const tail=last?`
+      <table style="margin-top:2mm"><tbody><tr>
+        <th style="width:25%">الإجمالي</th><td>${x.total||rows.length}</td>
+        <th style="width:25%">غير صالحة</th><td style="font-weight:700">${x.bad||0}</td>
+      </tr></tbody></table>
+      <table style="margin-top:2mm"><tbody><tr>
+        ${sigCell("اسم القائم بالفحص",x.inspector,x.sig)}
+        <td style="padding:2mm;vertical-align:top"><div style="font-weight:700;font-size:9pt">كود القائم بالفحص</div><div style="margin-top:3mm">${esc(x.inspectorCode||"")}</div></td>
+      </tr></tbody></table>`:"";
+    return `<div class="dpage land"><div class="frame">${dHead("نموذج حصر وفحص طفايات الحريق")}${pi===0?headTbl:""}${body}${tail}${dFoot("F-HSE-10-09",pi+1,n)}</div></div>`;
+  }).join("");
+}
+
+async function fxPrint(id){
+  const x=S.fireext?.find(r=>r.id===id);
+  if(!x){toast("الحصر مش موجود");return}
+  const V=openViewer("حصر طفايات الحريق — "+(x.date||""),{filename:`F-HSE-10-09 ${x.date||""}.pdf`});
+  try{V.setHtml(fxPrintHTML(x))}catch(e){console.error(e);V.fail()}
 }
 
 
