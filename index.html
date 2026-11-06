@@ -1834,8 +1834,8 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.37";
-const APP_BUILD="2026-11-03";
+const APP_VER="5.5.38";
+const APP_BUILD="2026-11-06";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
 async function checkAppUpdate(loud){
@@ -6076,7 +6076,8 @@ async function inspApprove(id){
   const x=S.inspections?.find(r=>r.id===id);if(!x||!x.reviewRequired||x.review?.status==="approved"||x.reviewTo!==ME.id||x.inspectorUid===ME.id){toast("الفحص غير محال لك أو لا يمكنك اعتماد فحصك بنفسك");return}
   if(!REVIEWERS.includes(myRole())){toast("الاعتماد متاح للمشرف أو الأدمن المختار فقط");return}
   const signature=await mySig();if(!signature){toast("احفظ توقيعك من ملفك الشخصي قبل اعتماد الفحص");return}
-  openSheet("اعتماد فحص المعدة",`<div class="banner"><b>${esc(x.equipType||"فحص معدة")}</b><div>${esc(x.project||"")} · ${esc(x.code||"")} · ${fmtDate(x.date)}</div><div>الفاحص: ${esc(x.inspector1||"—")}</div><div>النتيجة: ${x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":"جزئي"} · ${x.failCount||0} بنود غير جيدة</div>${x.note?`<div>ملاحظات: ${esc(x.note)}</div>`:""}</div>${x.photos?.length?`<div style="margin-top:10px">${thumbs(x.photos,72)}</div>`:""}<p class="muted">سيُحفظ اعتمادك بتوقيعك الشخصي في خانة المشرف على النموذج، ويُحتسب الفحص للفاحص والمعتمد في KPI.</p>`,async()=>{
+  const itemPhotoList=Object.values(x.itemPhotos||{}).flat();
+  openSheet("اعتماد فحص المعدة",`<div class="banner"><b>${esc(x.equipType||"فحص معدة")}</b><div>${esc(x.project||"")} · ${esc(x.code||"")} · ${fmtDate(x.date)}</div><div>الفاحص: ${esc(x.inspector1||"—")}</div><div>النتيجة: ${x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":"جزئي"} · ${x.failCount||0} بنود غير جيدة</div>${x.note?`<div>ملاحظات: ${esc(x.note)}</div>`:""}</div>${x.photos?.length?`<div style="margin-top:10px"><b>صور المعدة</b>${thumbs(x.photos,72)}</div>`:""}${itemPhotoList.length?`<div style="margin-top:10px"><b>صور بنود الفحص</b>${thumbs(itemPhotoList,72)}</div>`:""}<p class="muted">سيُحفظ اعتمادك بتوقيعك الشخصي في خانة المشرف على النموذج، ويُحتسب الفحص للفاحص والمعتمد في KPI.</p>`,async()=>{
     const current=S.inspections?.find(r=>r.id===id);if(!current||current.review?.status==="approved"||current.reviewTo!==ME.id)return "الفحص اتغير أو محال لمستخدم آخر";if(current.inspectorUid===ME.id)return "الفاحص لا يعتمد فحصه بنفسه";
     const approved={status:"approved",by:ME.id,name:myEmpName(),at:Date.now(),signature};const approver=profOf(ME.id);const patch={review:approved,inspector2Id:approver?.emp_id||"",inspector2:myEmpName(),sig2:signature};
     const ok=await write(()=>upsert("inspections",id,patch),"اتعمد الفحص بتوقيعك");if(!ok)return "الحفظ فشل";if(current.createdBy)await notifyUsers([current.createdBy],"✅ فحص المعدة اتعمد",`${myEmpName()} اعتمد فحص ${current.equipType||"المعدة"} بتوقيعه.`,`?go=inspection`);return null
@@ -6094,6 +6095,7 @@ function inspForm(equipType,existingId){
 
   const checkItems=checks.map((item,i)=>{
     const v=existing?.checks?.[`c${i}`]||"";
+    const oldItemPhotos=existing?.itemPhotos?.[`c${i}`]||[];
     return `<div class="field full" style="padding:12px;border-radius:10px;background:var(--sunk);margin-bottom:8px">
       <div style="font-weight:600;margin-bottom:8px;line-height:1.4">${i+1}. ${esc(item)}</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">
@@ -6103,6 +6105,11 @@ function inspForm(equipType,existingId){
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border-radius:8px;border:1.5px solid ${v==="fail"?"var(--bad)":"var(--line)"};background:${v==="fail"?"var(--bad-soft)":"var(--surface)"}" id="lbl_f_${i}">
           <input type="radio" name="c${i}" value="fail" ${v==="fail"?"checked":""} onchange="inspItemChange(${i},this)"> <span style="color:var(--bad);font-weight:600">✘ غير جيد</span>
         </label>
+      </div>
+      <div id="inspItemPhotoWrap_${i}" style="display:${v||oldItemPhotos.length?"block":"none"};margin-top:8px">
+        <label for="inspItemPhoto_${i}" style="display:block;font-size:12.5px;margin-bottom:5px">📷 صورة لهذا البند (حتى 3 صور جديدة)</label>
+        ${oldItemPhotos.length?`<div style="margin-bottom:7px">${thumbs(oldItemPhotos,56)}</div>`:""}
+        ${assetsNS?`<input type="file" id="inspItemPhoto_${i}" data-check-photo="${i}" accept="image/*" capture="environment" multiple><div id="inspItemPhotoNames_${i}" class="muted" style="font-size:11.5px;margin-top:3px">اختياري — الصور القديمة محفوظة</div>`:`<div class="muted">رفع الصور غير متاح حاليًا.</div>`}
       </div>
       <input type="text" name="n${i}" placeholder="ملاحظات على هذا البند (اختياري)" value="${esc(existing?.notes_items?.[`n${i}`]||"")}" style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);font:inherit;color:var(--ink);font-size:13px">
     </div>`;
@@ -6142,6 +6149,7 @@ function inspForm(equipType,existingId){
     // Collect check results
     const checks_result={};
     const notes_items={};
+    const itemPhotos={...(existing?.itemPhotos||{})};
     let failCount=0,passCount=0;
     for(let i=0;i<checks.length;i++){
       const v=form.querySelector(`[name="c${i}"]:checked`)?.value||"";
@@ -6172,13 +6180,31 @@ function inspForm(equipType,existingId){
         const asset=await assetsNS.upload(blob,blob.type?{type:blob.type}:undefined);
         uploaded.push({a:asset.id,kind:"inspection",type:asset.contentType,name:file.name,at:Date.now()});
       }
+      for(let i=0;i<checks.length;i++){
+        const files=[...(form.querySelector(`[data-check-photo="${i}"]`)?.files||[])];
+        if(files.length>3)throw Object.assign(new Error("item_photo_limit"),{code:"item_photo_limit"});
+        if(files.some(file=>!file.type.startsWith("image/")))throw Object.assign(new Error("item_photo_type"),{code:"item_photo_type"});
+        if(files.length&&!checks_result[`c${i}`])throw Object.assign(new Error("item_photo_result"),{code:"item_photo_result"});
+        const saved=[...(itemPhotos[`c${i}`]||[])];
+        for(const file of files){
+          const blob=await shrinkImage(file);
+          const asset=await assetsNS.upload(blob,blob.type?{type:blob.type}:undefined);
+          const photo={a:asset.id,kind:"inspection-item",type:asset.contentType,name:file.name,itemIndex:i,itemText:checks[i],at:Date.now()};
+          uploaded.push(photo);saved.push(photo);
+        }
+        if(saved.length)itemPhotos[`c${i}`]=saved;
+      }
     }catch(err){
       for(const p of uploaded)try{await assetsNS?.delete(p.a)}catch(e){}
-      return "رفع صور المعدة فشل؛ لم يُحفظ الفحص";
+      if(err?.code==="item_photo_limit")return "ارفع 3 صور جديدة أو أقل لكل بند";
+      if(err?.code==="item_photo_type")return "مرفقات البند يجب أن تكون صورًا";
+      if(err?.code==="item_photo_result")return "اختار صالح أو غير صالح للبند قبل إرفاق الصورة";
+      return "رفع الصور فشل؛ لم يُحفظ الفحص";
     }
 
     const data={
       equipType,checks:checks_result,notes_items,
+      itemPhotos,
       status:overallStatus,failCount,passCount,unanswered,
       date:fd.date||today(),
       project:(fd.project||"").trim(),
@@ -6199,8 +6225,9 @@ function inspForm(equipType,existingId){
       if(existingId){await upsert("inspections",existingId,data)}
       else{const ref=await db.collection("inspections").add(data);savedId=ref.id}
     },overallStatus==="fail"?`🔴 فحص مرفوض — ${failCount} بند`:overallStatus==="pass"?"✅ فحص ناجح":"🟡 فحص جزئي");
-    if(ok&&savedId)await notifyUsers([approver.id],"🧰 فحص معدة محال لك للاعتماد",`${data.inspector1||"الفاحص"} أرسل فحص ${equipType} ${data.code||""} للمراجعة والتوقيع.`,`?go=inspection&id=${encodeURIComponent(savedId)}`);
-    return ok?null:"الحفظ فشل";
+    if(!ok){for(const p of uploaded)try{await assetsNS?.delete(p.a)}catch(e){}return "الحفظ فشل"}
+    if(savedId)await notifyUsers([approver.id],"🧰 فحص معدة محال لك للاعتماد",`${data.inspector1||"الفاحص"} أرسل فحص ${equipType} ${data.code||""} للمراجعة والتوقيع.`,`?go=inspection&id=${encodeURIComponent(savedId)}`);
+    return null;
   },"حفظ الفحص");
 
   // Bind signature pads
@@ -6213,6 +6240,10 @@ function inspForm(equipType,existingId){
       const box=root.querySelector("#inspPhotoNames");
       if(box)box.textContent=L.length?(L.length>8?"اختار 8 مرفقات أو أقل":L.map(x=>x.name).join(" · ")):"صور المعدة أو أي مستند (PDF)";
     };
+    root.querySelectorAll("[data-check-photo]").forEach(inp=>inp.onchange=()=>{
+      const i=inp.dataset.checkPhoto,box=root.querySelector(`#inspItemPhotoNames_${i}`),files=[...inp.files];
+      if(box)box.textContent=files.length>3?"اختار 3 صور أو أقل":files.length?files.map(file=>file.name).join(" · "):"اختياري — الصور القديمة محفوظة";
+    });
   }
 }
 
@@ -6222,6 +6253,7 @@ window.inspItemChange=function(i,radio){
   const lf=document.getElementById(`lbl_f_${i}`);
   if(lp){lp.style.borderColor=val==="pass"?"var(--ok)":"var(--line)";lp.style.background=val==="pass"?"var(--ok-soft)":"var(--surface)"}
   if(lf){lf.style.borderColor=val==="fail"?"var(--bad)":"var(--line)";lf.style.background=val==="fail"?"var(--bad-soft)":"var(--surface)"}
+  const wrap=document.getElementById(`inspItemPhotoWrap_${i}`);if(wrap)wrap.style.display="block";
 };
 
 function inspView(id){
@@ -6235,10 +6267,12 @@ function inspView(id){
     const nt=x.notes_items?.[`n${i}`]||"";
     const color=v==="pass"?"var(--ok)":v==="fail"?"var(--bad)":"var(--muted)";
     const label=v==="pass"?"✔ جيد":v==="fail"?"✘ غير جيد":"—";
+    const itemPhotos=x.itemPhotos?.[`c${i}`]||[];
     return `<div class="li" style="align-items:flex-start">
       <div class="grow">
         <div style="font-size:13.5px">${i+1}. ${esc(item)}</div>
         ${nt?`<div class="muted" style="font-size:12.5px;margin-top:3px">${esc(nt)}</div>`:""}
+        ${itemPhotos.length?`<div style="margin-top:7px">${thumbs(itemPhotos,64)}</div>`:""}
       </div>
       <span style="font-weight:700;white-space:nowrap;color:${color}">${label}</span>
     </div>`;
@@ -6567,15 +6601,47 @@ function inspPrintHTML(x){
   }).join("");
 }
 
+async function inspAttachmentPages(x){
+  const items=INSP_FORMS[x.equipType]||[];
+  const entries=[];
+  for(const a of (x.photos||[]))if(a?.a&&(a.type||"").startsWith("image/"))entries.push({a,caption:"صورة عامة للمعدة",result:""});
+  for(const [key,photos] of Object.entries(x.itemPhotos||{})){
+    const i=Number(String(key).replace(/^c/,""));
+    for(const a of (Array.isArray(photos)?photos:[]))if(a?.a&&(a.type||"").startsWith("image/"))entries.push({a,caption:`البند ${i+1}: ${a.itemText||items[i]||""}`,result:x.checks?.[`c${i}`]==="pass"?"صالح":x.checks?.[`c${i}`]==="fail"?"غير صالح":""});
+  }
+  const loaded=[];
+  for(const entry of entries){try{const res=await fetch("/_blob/"+entry.a.a);if(!res.ok)continue;const bitmap=await createImageBitmap(await res.blob());loaded.push({...entry,bitmap})}catch(e){console.warn("Inspection attachment could not be loaded",entry.a?.a,e)}}
+  if(!loaded.length)return [];
+  const W=1240,H=1754,out=[],per=2;
+  for(let start=0;start<loaded.length;start+=per){
+    const cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");
+    g.fillStyle="#fff";g.fillRect(0,0,W,H);g.fillStyle="#142c49";g.textAlign="center";g.direction="rtl";g.font="bold 38px Arial";
+    g.fillText("مرفقات صور فحص المعدة",W/2,76);g.font="24px Arial";
+    g.fillText(`${x.equipType||"فحص معدة"} · ${x.code||"بدون كود"} · ${fmtDate(x.date||"")}`,W/2,122);
+    g.strokeStyle="#9aa6b2";g.lineWidth=2;g.beginPath();g.moveTo(60,153);g.lineTo(W-60,153);g.stroke();
+    const chunk=loaded.slice(start,start+per),top=176,gap=22,slotH=(H-top-76-(chunk.length-1)*gap)/chunk.length;
+    chunk.forEach((entry,j)=>{
+      const y=top+j*(slotH+gap);g.fillStyle="#f5f7fa";g.fillRect(56,y,W-112,slotH);g.strokeStyle="#cbd3dc";g.strokeRect(56,y,W-112,slotH);
+      g.fillStyle=entry.result==="غير صالح"?"#a32020":"#172b45";g.textAlign="right";g.direction="rtl";g.font="bold 24px Arial";g.fillText(entry.caption,W-78,y+34);
+      if(entry.result){g.textAlign="left";g.fillStyle=entry.result==="غير صالح"?"#a32020":"#187346";g.fillText(entry.result,78,y+34)}
+      const box={x:78,y:y+55,w:W-156,h:slotH-76},im=entry.bitmap,r=Math.min(box.w/im.width,box.h/im.height),iw=im.width*r,ih=im.height*r;
+      g.drawImage(im,box.x+(box.w-iw)/2,box.y+(box.h-ih)/2,iw,ih);entry.bitmap.close?.();
+    });
+    g.fillStyle="#666";g.textAlign="center";g.font="20px Arial";g.fillText(`صور ${start+1}–${Math.min(start+per,loaded.length)} من ${loaded.length}`,W/2,H-28);out.push(cv);
+  }
+  return out;
+}
+
 async function inspPrint(id){
   const x=S.inspections?.find(r=>r.id===id);
   if(!x){toast("الفحص مش موجود");return}
   const code=(typeof INSP_SPECS!=="undefined"&&INSP_SPECS[x.equipType]||{}).code||"F-HSE-18-01";
   const V=openViewer("فحص "+(x.equipType||""),{filename:`${code} ${x.equipType||""} ${x.date||""}.pdf`});
   try{
-    const pages=await inspOriginalPages(x);   /* النموذج الأصلي للشركة */
-    if(pages&&pages.length)V.setPages(pages);
-    else V.setHtml(inspPrintHTML(x));         /* نموذج بديل للمعدات اللي مالهاش أصل */
+    let pages=await inspOriginalPages(x);   /* النموذج الأصلي للشركة */
+    if(!pages||!pages.length)pages=await htmlCanvases(inspPrintHTML(x)); /* نموذج بديل للمعدات اللي مالهاش أصل */
+    pages=[...pages,...await inspAttachmentPages(x)];
+    if(pages.length)V.setPages(pages);else V.fail("معرفتش أجهّز صفحات الفحص.");
   }catch(e){console.error(e);try{V.setHtml(inspPrintHTML(x))}catch(e2){V.fail()}}
 }
 
