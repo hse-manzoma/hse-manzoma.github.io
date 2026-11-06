@@ -1836,7 +1836,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.39";
+const APP_VER="5.5.40";
 const APP_BUILD="2026-11-06";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6137,11 +6137,11 @@ function inspForm(equipType,existingId){
         <div style="font-weight:700;font-size:15px">🔧 ${esc(equipType)}</div>
         <div style="color:var(--muted);font-size:12.5px;margin-top:3px">المرجع: F-HSE-18-01 · ${checks.length} بند للفحص</div>
       </div>
-      ${f("اسم المشروع","project",{value:existing?.project||"",req:true,full:true})}
+      ${f("اسم المشروع","project",{value:existing?.project||"صواري",req:true,full:true})}
       ${f("كود المعدة / الرقم التسلسلي","code",{value:existing?.code||""})}
       ${f("تاريخ الفحص","date",{type:"date",value:existing?.date||today(),req:true})}
       ${f("ملكية المعدة","ownership",{value:existing?.ownership||"company",opts:[["company","شركة"],["rental","إيجار"],["contractor","مقاول"]]})}
-      ${f("رقم الإدارة / القسم","dept",{value:existing?.dept||""})}
+      ${f("رقم الإدارة / القسم","dept",{value:existing?.dept||"HSE"})}
     </div>
     <h3 style="margin:16px 0 10px">بنود الفحص (${checks.length} بند)</h3>
     <div id="inspCheckItems">${checkItems}</div>
@@ -6400,9 +6400,9 @@ function fxNew(existingId){
         <div style="font-weight:700;font-size:15px">🧯 حصر وفحص طفايات الحريق</div>
         <div style="color:var(--muted);font-size:12.5px;margin-top:3px">المرجع: F-HSE-10-09 · عدد الطفايات: <b id="fxCountLive">${rows.length}</b></div>
       </div>
-      ${f("اسم المشروع","project",{value:existing?.project||"",req:true,full:true})}
+      ${f("اسم المشروع","project",{value:existing?.project||"صواري",req:true,full:true})}
       ${f("تاريخ الفحص","date",{type:"date",value:existing?.date||today(),req:true})}
-      ${f("رقم الإدارة / القسم","dept",{value:existing?.dept||""})}
+      ${f("رقم الإدارة / القسم","dept",{value:existing?.dept||"HSE"})}
     </div>
     <h3 style="margin:16px 0 10px">الطفايات</h3>
     <div id="fxRows">${rows.map((v,i)=>fxRowCard(i,v)).join("")}</div>
@@ -6906,3 +6906,5 @@ boot();
 
 </script>
 </body></html>
+
+
