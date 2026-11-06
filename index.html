@@ -2318,6 +2318,7 @@ function personFileHTML(e){
   ${sec("المهمات المستلمة من المخزن",`<button class="btn sm" onclick="issueFor('${id}')">+ إذن صرف</button>`,personHistoryHTML(e,false))}
   ${LV.length?sec("الإجازات والأذونات والتكليفات","",`<div class="list">${LV.slice(0,30).map(l=>`<div class="li"><div class="grow"><div class="t">${l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.days?" · "+num(l.days)+" يوم":""}${l.reason?" · "+esc(l.reason):""}</div></div>${hasSigned(l)?'<span class="pill p-appr">موقّع</span>':""}</div>`).join("")}</div>`):""}
   ${PT.length?sec(`تصاريح شارك فيها (${PT.length})`,"",`<div class="list">${PT.slice(0,20).map(p=>`<div class="li"><span class="num">${esc(p.number)}</span><div class="grow"><div class="t">${fmtDate(p.date)} · ${esc(PTW_TYPES[p.type]?.ar||p.type)}</div><div class="s">${esc(p.location||"")}</div></div>${statusPill(p.status)}</div>`).join("")}</div>`):""}
+  ${personInspSec(e)}
   ${sec("إخلاء الطرف",tabLevel("manpower")!=="view"?`<button class="btn sm" onclick="clearanceForm('${id}')">${hasClearance(e)?"تعديل":"+ تسجيل إخلاء طرف"}</button>${hasClearance(e)?`<button class="btn sm danger" onclick="clearanceUndo('${id}')">إلغاء</button>`:""}`:"",hasClearance(e)?`<div class="li"><div class="grow"><div class="t">${fmtDate(e.clearance.date)}${e.clearance.why?" · "+esc(CLEAR_WHY[e.clearance.why]||e.clearance.why):""}</div><div class="s">${esc(e.clearance.note||"")}</div></div><span class="pill p-susp">🚪 مغادر</span></div>${thumbs(attOf(e,"clearance"))}`:'<p class="muted" style="margin:0">مفيش إخلاء طرف مسجّل — الموظف لسه على رأس العمل.</p>')}
   ${sec("مستندات تانية","",thumbs(attOf(e,"other"))||none)}`;
 }
@@ -6017,6 +6018,7 @@ function inspRow(x){
     <div class="row-actions">
       <button class="btn sm" onclick="inspView('${x.id}')">👁 عرض</button>
       <button class="btn sm" onclick="inspPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
+      ${canWrite?`<button class="btn sm" onclick="inspEdit('${x.id}')">✏️ تعديل</button>`:""}
       ${canDelete?`<button class="btn ghost sm danger" onclick="inspDel('${x.id}')">مسح</button>`:""}
     </div>
   </div>`;
@@ -6377,7 +6379,7 @@ function fxListRow(x){
       <div class="s">${esc(x.date||"")} · ${esc(x.project||"—")}${x.inspector?" · "+esc(x.inspector):""}</div>
     </div>
     <div class="row-actions">
-      <button class="btn ghost sm" onclick="fxView('${x.id}')">عرض</button><button class="btn ghost sm" onclick="fxPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
+      <button class="btn ghost sm" onclick="fxView('${x.id}')">عرض</button><button class="btn ghost sm" onclick="fxPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>${canWrite?`<button class="btn ghost sm" onclick="fxEdit('${x.id}')">✏️</button>`:""}
       ${canDelete?`<button class="btn ghost sm danger" onclick="fxDel('${x.id}')">مسح</button>`:""}
     </div>
   </div>`;
@@ -6565,6 +6567,62 @@ async function fxPrint(id){
   if(!x){toast("الحصر مش موجود");return}
   const V=openViewer("حصر طفايات الحريق — "+(x.date||""),{filename:`F-HSE-10-09 ${x.date||""}.pdf`});
   try{V.setHtml(fxPrintHTML(x))}catch(e){console.error(e);V.fail()}
+}
+
+
+
+/* ---------- تعديل فحص مسجَّل ---------- */
+function inspEdit(id){
+  if(!canWrite){toast("مالكش صلاحية التعديل");return}
+  const x=S.inspections?.find(r=>r.id===id);
+  if(!x){toast("الفحص مش موجود");return}
+  const o=document.getElementById("overlayRoot");if(o)o.innerHTML="";
+  setTimeout(()=>inspForm(x.equipType,id),50);
+}
+function fxEdit(id){
+  if(!canWrite){toast("مالكش صلاحية التعديل");return}
+  if(!S.fireext?.some(r=>r.id===id)){toast("الحصر مش موجود");return}
+  const o=document.getElementById("overlayRoot");if(o)o.innerHTML="";
+  setTimeout(()=>fxNew(id),50);
+}
+
+/* ---------- فحوصات الموظف داخل ملفه ---------- */
+function personInspSec(e){
+  const n=s=>normName(s||""),me=n(e.name);
+  if(!me)return "";
+  const L=(S.inspections||[]).filter(x=>n(x.inspector1)===me||n(x.inspector2)===me)
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const F=(S.fireext||[]).filter(x=>n(x.inspector)===me)
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(!L.length&&!F.length)return "";
+  const bad=L.filter(x=>x.status==="fail").length;
+  const row=x=>{
+    const pill=x.status==="fail"?`<span class="pill p-closed">✘ ${x.failCount||0} بند</span>`
+      :x.status==="pass"?`<span class="pill p-open">✔ مطابق</span>`:`<span class="pill">⏳ جزئي</span>`;
+    const role=n(x.inspector1)===me?"مسئول السلامة":"مشرف السلامة";
+    return `<div class="li"><div class="grow">
+      <div class="t">🔧 ${esc(x.equipType||"")} ${pill}</div>
+      <div class="s">${esc(x.date||"")}${x.code?" · كود "+esc(x.code):""}${x.project?" · "+esc(x.project):""} · ${role}</div>
+    </div><div class="row-actions">
+      <button class="btn ghost sm" onclick="inspView('${x.id}')">عرض</button>
+      <button class="btn ghost sm" onclick="inspPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
+    </div></div>`;
+  };
+  const frow=x=>`<div class="li"><div class="grow">
+      <div class="t">🧯 ${x.total||0} طفاية ${x.bad?`<span class="pill p-closed">✘ ${x.bad} غير صالحة</span>`:`<span class="pill p-open">✔ كلها صالحة</span>`}</div>
+      <div class="s">${esc(x.date||"")}${x.project?" · "+esc(x.project):""}</div>
+    </div><div class="row-actions">
+      <button class="btn ghost sm" onclick="fxView('${x.id}')">عرض</button>
+      <button class="btn ghost sm" onclick="fxPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
+    </div></div>`;
+  return `<div class="card" style="margin-top:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <h3 class="grow" style="margin:0">🔍 فحوصات قام بها (${L.length+F.length})</h3>
+      ${bad?`<span class="pill p-closed">${bad} فحص غير مطابق</span>`:""}
+    </div>
+    ${L.length?`<div class="list">${L.slice(0,30).map(row).join("")}</div>`:""}
+    ${F.length?`<h4 style="margin:${L.length?"12px":"0"} 0 6px">حصر طفايات الحريق</h4><div class="list">${F.slice(0,15).map(frow).join("")}</div>`:""}
+  </div>`;
 }
 
 
