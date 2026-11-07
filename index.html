@@ -1837,7 +1837,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.46";
+const APP_VER="5.5.47";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2096,7 +2096,7 @@ const inspCodeKey=v=>String(v||"").trim().toLocaleLowerCase().replace(/[\s._-]+/
 function eqInspectionExistsOnDate(q,date){if(!q||!date)return false;const own=(q.insp||[]).some(h=>h.date===date);if(own)return true;const ids=[q.code,q.serial].map(inspCodeKey).filter(Boolean);return ids.length>0&&(S.inspections||[]).some(x=>x.date===date&&ids.includes(inspCodeKey(x.code)))}
 function inspectionDailyKey(data){if(!data.date)return "legacy:"+(data.id||JSON.stringify(data));const code=inspCodeKey(data.code);return [data.date,code||[normName(data.equipType||""),normName(data.project||""),data.ownership||"company"].join("|")].join("::")}
 function inspectionDailyDocId(data){let h=2166136261;for(const ch of inspectionDailyKey(data)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return "daily_"+(h>>>0).toString(36)}
-function inspectionDailyGroups(rows){const groups=new Map();for(const x of rows||[]){const key=inspectionDailyKey(x);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x)}return [...groups.values()].map(items=>items.sort((a,b)=>((b.review?.status==="approved")?2:(b.sig1?1:0))-((a.review?.status==="approved")?2:(a.sig1?1:0))||((b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)))).map(items=>({record:items[0],items}))}
+function inspectionDailyGroups(rows){const groups=new Map();for(let i=0;i<(rows||[]).length;i++){const x=rows[i],code=inspCodeKey(x.code);const dayKey=inspectionDailyKey(x),fingerprint=code?inspectionCleanupFingerprint(x):"uncoded:"+(x.id||i),key=dayKey+"::"+fingerprint;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x)}return [...groups.values()].map(items=>items.sort((a,b)=>((b.review?.status==="approved")?2:(b.sig1?1:0))-((a.review?.status==="approved")?2:(a.sig1?1:0))||((a.createdAt||0)-(b.createdAt||0)))).map(items=>({record:items[0],items}))}
 function inspectionRecordDuplicate(data,skipId=""){const code=inspCodeKey(data.code),project=normName(data.project||""),type=normName(data.equipType||""),ownership=data.ownership||"company";const same=(x)=>{if(x.id===skipId||x.date!==data.date)return false;const xc=inspCodeKey(x.code);if(code||xc)return !!code&&!!xc&&code===xc;return normName(x.equipType||"")===type&&normName(x.project||"")===project&&(x.ownership||"company")===ownership};const record=(S.inspections||[]).find(same);if(record)return record;const matchingEquipment=(S.equipment||[]).find(q=>{const ids=[q.code,q.serial].map(inspCodeKey).filter(Boolean);return code&&ids.includes(code)});return matchingEquipment&&eqInspectionExistsOnDate(matchingEquipment,data.date)?{...matchingEquipment,equipType:EQ_K[matchingEquipment.kind]?.one||matchingEquipment.kind,code:matchingEquipment.code||matchingEquipment.serial}:null}
 function inspectionAccess(){return S.settings.inspectionAccess||{}}
 function inspectionInspectorEmployees(){const cfg=inspectionAccess(),ids=Array.isArray(cfg.inspectors)?cfg.inspectors:null;return hseTeam().filter(e=>(!ids||ids.includes(e.id))&&(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled))}
@@ -5874,20 +5874,25 @@ function dupSheet(){
 
 /* ---------- مراجعة وإزالة النسخ المتطابقة تمامًا ----------
    تحتفظ بنسخة واحدة من كل سجل مطابق في بياناته، مع تفضيل النسخة المعتمدة. */
-function inspectionCleanupFingerprint(x){const a=x.review||{};return JSON.stringify(stableValue({date:x.date||"",equipType:x.equipType||"",project:x.project||"",code:inspCodeKey(x.code),ownership:x.ownership||"company",dept:x.dept||"",checks:x.checks||{},notes_items:x.notes_items||{},itemPhotos:x.itemPhotos||{},photos:x.photos||[],inspector1Id:x.inspector1Id||"",inspector1:x.inspector1||"",sig1:x.sig1||"",sig2:x.sig2||"",reviewBy:a.by||"",reviewName:a.name||"",reviewSignature:a.signature||"",note:x.note||""}))}
+function inspectionCleanupFingerprint(x){const a=x.review||{};return JSON.stringify(stableValue({date:x.date||"",equipType:x.equipType||"",project:x.project||"",code:inspCodeKey(x.code),ownership:x.ownership||"company",dept:x.dept||"",checks:x.checks||{},notes_items:x.notes_items||{},itemPhotos:x.itemPhotos||{},photos:x.photos||[],inspector1Id:x.inspector1Id||"",inspector1:x.inspector1||"",sig1:x.sig1||"",sig2:x.sig2||"",reviewTo:x.reviewTo||"",reviewRequired:!!x.reviewRequired,taskId:x.taskId||"",createdBy:x.createdBy||"",reviewBy:a.by||"",reviewName:a.name||"",reviewSignature:a.signature||"",reviewStatus:a.status||"",status:x.status||"",note:x.note||""}))}
+function equipmentInspectionFingerprint(q,h){const r=h?.review||{};return JSON.stringify(stableValue({equipmentId:q?.id||"",asset:inspCodeKey(q?.code||q?.serial),kind:q?.kind||"",date:h?.date||"",byId:h?.by_id||"",by:h?.by||"",res:h?.res||{},notes:h?.notes||"",next:h?.next||"",sigImg:h?.sigImg||h?.sig_img||"",sigBy:h?.sigBy||"",photos:h?.photos||[],reviewTo:h?.reviewTo||"",reviewRequired:!!h?.reviewRequired,reviewStatus:r.status||"",reviewBy:r.by||"",reviewName:r.name||"",reviewSignature:r.signature||""}))}
+function duplicateInspectionCount(){const map=new Map();for(const x of S.inspections||[]){if(!x.date||!inspCodeKey(x.code))continue;const k=inspectionCleanupFingerprint(x);map.set(k,(map.get(k)||0)+1)}return [...map.values()].reduce((n,c)=>n+Math.max(0,c-1),0)}
 function duplicateCleanupGroups(){const map=new Map();
   for(const r of S.records||[]){if(!r.form)continue;const k="record:"+recordFingerprint(r.form,r);if(!map.has(k))map.set(k,{kind:"records",list:[]});map.get(k).list.push(r)}
-  for(const x of S.inspections||[]){if(!x.date)continue;const k="inspection:"+inspectionCleanupFingerprint(x);if(!map.has(k))map.set(k,{kind:"inspections",list:[]});map.get(k).list.push(x)}
-  const rank=x=>(x.review?.status==="approved"?100:0)+(x.approved?60:0)+(x.reviewRequired?0:10)+(x.sig1?5:0)+((x.att||[]).length||0);
-  return [...map.values()].filter(g=>g.list.length>1).map(g=>({...g,list:g.list.slice().sort((a,b)=>rank(b)-rank(a)||(a.createdAt||0)-(b.createdAt||0))}));
+  for(const x of S.inspections||[]){if(!x.date||!inspCodeKey(x.code))continue;const k="inspection:"+inspectionCleanupFingerprint(x);if(!map.has(k))map.set(k,{kind:"inspections",list:[]});map.get(k).list.push(x)}
+  for(const q of S.equipment||[]){if(q.active===false||!inspCodeKey(q.code||q.serial))continue;for(let index=0;index<(q.insp||[]).length;index++){const h=q.insp[index];if(!h?.date)continue;const k="equipmentInspection:"+equipmentInspectionFingerprint(q,h);if(!map.has(k))map.set(k,{kind:"equipmentInspections",list:[]});map.get(k).list.push({qId:q.id,q,h,index})}}
+  for(const x of S.fireext||[]){if(!x.date)continue;const payload={date:x.date,project:x.project||"",dept:x.dept||"",inspector:x.inspector||"",inspectorCode:x.inspectorCode||"",total:x.total||0,bad:x.bad||0,items:x.items||[],photos:x.photos||[],sig:x.sig||""};const k="fireext:"+JSON.stringify(stableValue(payload));if(!map.has(k))map.set(k,{kind:"fireext",list:[]});map.get(k).list.push(x)}
+  const rank=x=>{const y=x.h||x;return (y.review?.status==="approved"?100:0)+(y.approved?60:0)+(y.reviewRequired?0:10)+(y.sig1||y.sigImg?5:0)+((y.att||y.photos||[]).length||0)};
+  return [...map.values()].filter(g=>g.list.length>1).map(g=>({...g,list:g.list.slice().sort((a,b)=>rank(b)-rank(a)||((a.createdAt||a.h?.createdAt||0)-(b.createdAt||b.h?.createdAt||0)))}));
 }
 function duplicateCleanupSheet(){if(myRole()!=="admin"){toast("تنظيف التكرارات متاح للأدمن فقط");return}
-  const groups=duplicateCleanupGroups(),extra=groups.reduce((n,g)=>n+g.list.length-1,0);window._dupCleanConfirm=false;
-  openSheet(`التكرارات المطابقة (${extra})`,groups.length?`<div class="banner">تظهر هنا السجلات المتطابقة في النموذج والتاريخ والحقول والصور والتوقيعات. ستبقى النسخة المعتمدة أو الأقدم، وتُزال النسخ المطابقة فقط. اختلاف بند أو توقيع أو مرفق يمنع إدخال السجل في التنظيف.</div><div class="list" style="max-height:55vh;overflow:auto;margin-top:10px">${groups.map(g=>`<div class="li"><div class="grow"><div class="t">${g.kind==="records"?esc(FORMS2?.[g.list[0].form]?.title||g.list[0].form):"فحص معدة"} · ${fmtDate(g.list[0].date||g.list[0].f?.date)}</div><div class="s">${g.list.length} نسخ · ستبقى نسخة واحدة (${esc(g.list[0].serial||g.list[0].code||g.list[0].id)}) · ستزال ${g.list.length-1}</div></div></div>`).join("")}</div>`:`<div class="empty"><b>لا توجد نسخ متطابقة تمامًا</b><div>لا توجد سجلات أو فحوصات متطابقة تحتاج إزالة.</div></div>`,groups.length?async()=>{
-    if(!window._dupCleanConfirm){window._dupCleanConfirm=true;return `راجع القائمة: سيتم إزالة ${extra} نسخة متطابقة مع الاحتفاظ بنسخة واحدة كاملة. اضغط زر الإزالة مرة أخرى للتأكيد.`}
-    const fresh=duplicateCleanupGroups();let removedCount=0;
-    const ok=await write(async()=>{for(const g of fresh)for(const x of g.list.slice(1)){await remove(g.kind,x.id);removedCount++}},`اتشالت ${extra} نسخة مكررة مع الاحتفاظ بالأصل`);
-    window._dupCleanConfirm=false;if(!ok)return "تعذرت إزالة النسخ المكررة";refresh();return null
+  const groups=duplicateCleanupGroups(),extra=groups.reduce((n,g)=>n+g.list.length-1,0);window._dupCleanConfirm=null;
+  const fingerprintGroups=gs=>JSON.stringify(gs.map(g=>g.kind+":"+g.list.map(x=>g.kind==="equipmentInspections"?equipmentInspectionFingerprint(x.q,x.h):g.kind==="inspections"?inspectionCleanupFingerprint(x):g.kind==="records"?recordFingerprint(x.form,x):JSON.stringify(stableValue({date:x.date,project:x.project,dept:x.dept,inspector:x.inspector,items:x.items,total:x.total,bad:x.bad,photos:x.photos,sig:x.sig}))).sort().join("|")).sort());
+  openSheet(`التكرارات المطابقة (${extra})`,groups.length?`<div class="banner">تظهر هنا السجلات المتطابقة في النموذج والتاريخ والحقول والصور والتوقيعات، بما فيها فحوصات المعدات وحصر الطفايات. ستبقى نسخة واحدة، وتُزال النسخ المطابقة فقط. الاختلاف في نتيجة أو توقيع أو مرفق يمنع الحذف الآلي.</div><div class="list" style="max-height:55vh;overflow:auto;margin-top:10px">${groups.map(g=>{const sample=g.list[0],doc=sample.h||sample,asset=sample.q;const title=g.kind==="records"?esc(FORMS2?.[sample.form]?.title||sample.form):g.kind==="fireext"?"حصر طفايات":g.kind==="equipmentInspections"?esc(EQ_K[asset?.kind]?.one||"فحص معدة"):"فحص معدة";const ident=asset?(asset.serial||asset.code||asset.id):(sample.serial||sample.code||sample.id||"—");return `<div class="li"><div class="grow"><div class="t">${title} · ${fmtDate(doc.date||doc.f?.date)}</div><div class="s">${g.list.length} نسخ · ستبقى نسخة واحدة (${esc(ident)}) · ستزال ${g.list.length-1}</div></div></div>`}).join("")}</div>`:`<div class="empty"><b>لا توجد نسخ متطابقة تمامًا</b><div>لا توجد سجلات أو فحوصات متطابقة تحتاج إزالة.</div></div>`,groups.length?async()=>{
+    const fresh=duplicateCleanupGroups();if(!window._dupCleanConfirm){window._dupCleanConfirm=fingerprintGroups(fresh);return `راجع القائمة: سيتم إزالة ${extra} نسخة متطابقة مع الاحتفاظ بنسخة واحدة كاملة. اضغط زر الإزالة مرة أخرى للتأكيد.`}
+    if(window._dupCleanConfirm!==fingerprintGroups(fresh)){window._dupCleanConfirm=null;return "تغيرت السجلات منذ فتح القائمة. اقفلها وافتح مراجعة التكرارات من جديد قبل الحذف."}
+    const ok=await write(async()=>{const nested=new Map();for(const g of fresh){if(g.kind==="equipmentInspections"){for(const x of g.list.slice(1)){(nested.get(x.qId)||nested.set(x.qId,[]).get(x.qId)).push(x.index)}continue}for(const x of g.list.slice(1))await remove(g.kind,x.id)}for(const [qid,indexes] of nested){const q=S.equipment.find(x=>x.id===qid);if(!q)continue;const keep=[...(q.insp||[])];for(const i of [...indexes].sort((a,b)=>b-a))keep.splice(i,1);await upsert("equipment",qid,{insp:keep})}},`اتشالت ${extra} نسخة مكررة مع الاحتفاظ بالأصل`);
+    window._dupCleanConfirm=null;if(!ok)return "تعذرت إزالة النسخ المكررة";refresh();return null
   }:null,"إزالة النسخ المتطابقة");
 }
 {const _dupSetFill=VIEWS.settings.fill;VIEWS.settings.fill=function(){_dupSetFill.call(this);if(myRole()!=="admin"||!$("setBody")||$("dupCleanupCard"))return;const c=document.createElement("div");c.id="dupCleanupCard";c.className="card";c.style.marginTop="14px";c.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">مراجعة التكرارات</h3><div class="muted" style="font-size:13px">${(()=>{const g=duplicateCleanupGroups(),n=g.reduce((a,x)=>a+x.list.length-1,0);return n?`تم العثور على ${n} نسخة مطابقة من السجلات والفحوصات.`:"لا توجد نسخ مطابقة حاليًا."})()} افحص القائمة قبل إزالة النسخ الزائدة.</div></div><button class="btn" onclick="duplicateCleanupSheet()">🧹 مراجعة وإزالة التكرار</button></div>`;$("setBody").appendChild(c)}}
@@ -6060,13 +6065,14 @@ VIEWS.inspection={
     const q=normName(ui.inspQ||"");
     const matches=g=>!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q);
     const shown=groups.filter(matches);
-    const total=groups.length,bad=groups.filter(g=>g.record.status==="fail").length,today_n=groups.filter(g=>g.record.date===today()).length;
+    const total=groups.length,bad=groups.filter(g=>g.record.status==="fail").length,today_n=groups.filter(g=>g.record.date===today()).length,dupN=duplicateInspectionCount();
     $("inspBody").innerHTML=reviewHTML+`
-      <div class="grid g4" style="margin-bottom:12px">
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:12px">
         <div class="card tile"><span class="lbl">إجمالي الفحوصات</span><b class="val">${total}</b></div>
         <div class="card tile"><span class="lbl">فحص النهارده</span><b class="val">${today_n}</b></div>
         <div class="card tile ${bad?"alert":""}"><span class="lbl">فحوصات مرفوضة</span><b class="val">${bad}</b></div>
-        <div class="card tile"><span class="lbl">أنواع المعدات</span><b class="val">${Object.keys(INSP_FORMS).length}</b></div>
+        <div class="card tile"><span class="lbl">نماذج فحص متاحة</span><b class="val">${Object.keys(INSP_FORMS).length}</b></div>
+        <div class="card tile ${dupN?"alert":""}"><span class="lbl">نسخ مطابقة للمراجعة</span><b class="val">${dupN}</b></div>
       </div>
       <div class="filters" style="margin-bottom:12px"><input type="search" id="inspSearchQ" placeholder="ابحث بنوع المعدة أو المشروع أو الفاحص أو الكود…" value="${esc(ui.inspQ||"")}" style="flex:1;min-width:220px"><span class="muted" id="inspCount">${shown.length} نتيجة</span></div>
       ${shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("لسه مفيش فحوصات مسجلة","اضغط «فحص جديد» واختار نوع المعدة واملأ بنود الفحص. كل فحص بيتحفظ بتوقيع الفاحص وصورة المعدة.")}</div>`}
@@ -6565,18 +6571,21 @@ function fxListRow(x){
 
 function fxFill(){
   const list=[...(S.fireext||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const assets=(S.equipment||[]).filter(q=>q.kind==="ext"&&q.active!==false);
   const q=normName(ui.fxQ||"");
   const shown=list.filter(x=>!q||normName([x.project,x.dept,x.inspector,x.date,
     ...(x.items||[]).map(i=>[i.sn,i.place,i.maker].join(" "))].join(" ")).includes(q));
   const units=list.reduce((n,x)=>n+(x.total||0),0);
   const bad=list.reduce((n,x)=>n+(x.bad||0),0);
+  const assetsDue=assets.filter(eqDue).length,assetsBad=assets.filter(x=>eqOk(x)===false).length;
   $("inspBody").innerHTML=`
     <div class="grid g4" style="margin-bottom:12px">
-      <div class="card tile"><span class="lbl">جولات الحصر</span><b class="val">${list.length}</b></div>
-      <div class="card tile"><span class="lbl">إجمالي الطفايات</span><b class="val">${units}</b></div>
-      <div class="card tile ${bad?"alert":""}"><span class="lbl">غير صالحة</span><b class="val">${bad}</b></div>
-      <div class="card tile"><span class="lbl">حصر النهارده</span><b class="val">${list.filter(x=>x.date===today()).length}</b></div>
+      <button type="button" class="card tile" onclick="ui.eqSection='assets';ui.eqKind='ext';ui.eqFilter='all';show('equip')"><span class="lbl">طفايات مسجلة بالمعدات</span><b class="val">${assets.length}</b><span class="muted">افتح سجل الطفايات</span></button>
+      <button type="button" class="card tile ${assetsDue?"alert":""}" onclick="ui.eqSection='assets';ui.eqKind='ext';ui.eqFilter='due';show('equip')"><span class="lbl">تحتاج فحصًا</span><b class="val">${assetsDue}</b></button>
+      <button type="button" class="card tile ${assetsBad?"alert":""}" onclick="ui.eqSection='assets';ui.eqKind='ext';ui.eqFilter='bad';show('equip')"><span class="lbl">غير صالحة</span><b class="val">${assetsBad}</b></button>
+      <div class="card tile"><span class="lbl">جولات حصر محفوظة</span><b class="val">${list.length}</b><span class="muted">${units} طفاية في الجولات · ${bad} غير صالحة</span></div>
     </div>
+    <div class="banner" style="margin-bottom:12px">الطفايات الـ${assets.length} هي الأصول المسجلة وتظهر في سجل المعدات. جولات الحصر (${list.length}) أرشيف نماذج مستقل؛ استخدم زر «حصر طفايات» لتسجيل جولة جديدة.</div>
     <div class="filters" style="margin-bottom:12px"><input type="search" id="fxSearchQ" placeholder="ابحث بالمشروع أو الفاحص أو رقم الطفاية أو مكانها…" value="${esc(ui.fxQ||"")}"><span class="muted" id="fxCount">${shown.length} نتيجة</span></div>
     ${shown.length?`<div class="list">${shown.map(fxListRow).join("")}</div>`:`<div class="card">${emptyState("لسه مفيش حصر مسجل","اضغط «حصر طفايات» وسجّل طفايات الموقع وحالتها.")}</div>`}
   `;
