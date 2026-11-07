@@ -613,6 +613,8 @@ async function boot(){
   else setTimeout(verPeek,15000);
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
+window.addEventListener("offline",()=>{online=false;setSync("الاتصال اتقطع","off")});
+window.addEventListener("online",()=>{setSync("استعادة الاتصال…","");if(window.claude?.use)setTimeout(()=>location.reload(),500)});
 function renderBanner(){}
 
 /* ===== مزامنة فورية ===== */
@@ -1837,7 +1839,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.50";
+const APP_VER="5.5.52";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2134,6 +2136,7 @@ VIEWS.equip={
     const due=allL.filter(eqDue).length,bad=allL.filter(q=>eqOk(q)===false).length,doneMonth=allL.filter(q=>(lastInsp(q)?.date||"").slice(0,7)===today().slice(0,7)).length;
     const prints={ext:`${canWrite?`<button class="btn primary" onclick="fxNew()">+ جولة حصر الطفايات</button>`:""}<button class="btn" onclick="printExtList()">حصر الطفايات (10-09)</button><button class="btn" onclick="printExtCards()">كروت الطفايات (10-02)</button>`,firebox:`<button class="btn" onclick="printFireboxCards()">كروت الصناديق (10-03)</button>`,emerg:`<button class="btn" onclick="printEmergList()">حصر أجهزة الطوارئ (10-01)</button>`,machine:`<button class="btn" onclick="printMachineList()">Machine Data (08-01)</button>`,tower:""}[k]||"";
     const pendingEqReviews=eqPendingReviews();const reviewHTML=inspectionCanApprove()&&pendingEqReviews.length?`<section class="card" style="margin:10px 0;border-inline-start:4px solid var(--warn)"><h3 style="margin-top:0">⏳ فحوصات معدات محالة لك للاعتماد (${pendingEqReviews.length})</h3><div class="list">${pendingEqReviews.slice(0,8).map(({q,h,index})=>`<div class="li"><div class="grow"><div class="t">${esc(EQ_K[q.kind]?.one||"معدة")} ${esc(q.serial||q.code||q.name||"")}</div><div class="s">${esc(h.by||"الفاحص")} · ${fmtDate(h.date)} · محال لك${q.place?" · "+esc(q.place):""}</div></div><button type="button" class="btn sm primary" onclick="eqReview('${q.id}',${index})">مراجعة واعتماد</button></div>`).join("")}</div>${pendingEqReviews.length>8?`<div class="muted">ويوجد ${pendingEqReviews.length-8} فحص آخر محال لك.</div>`:""}</section>`:"";
+    $("eqBody").innerHTML=reviewHTML+`
     <div class="grid g4" style="margin:12px 0"><button type="button" class="card tile eq-filter-tile" data-eq-filter="all" aria-pressed="${ui.eqFilter==="all"}" title="عرض كل ${K.ar}"><span class="lbl">العدد · الكل</span><b class="val">${allL.length}</b></button><button type="button" class="card tile eq-filter-tile ${due?"alert":""}" data-eq-filter="due" aria-pressed="${ui.eqFilter==="due"}" title="عرض المعدات التي تحتاج فحصًا"> <span class="lbl">${K.monthly?"محتاج فحص الشهر ده":"فحصها جه أو عدّى"}</span><b class="val">${due}</b></button><button type="button" class="card tile eq-filter-tile ${bad?"alert":""}" data-eq-filter="bad" aria-pressed="${ui.eqFilter==="bad"}" title="عرض المعدات غير الصالحة"><span class="lbl">غير صالح</span><b class="val">${bad}</b></button><button type="button" class="card tile eq-filter-tile" data-eq-filter="month" aria-pressed="${ui.eqFilter==="month"}" title="عرض ما تم فحصه هذا الشهر"><span class="lbl">اتفحص الشهر ده</span><b class="val">${doneMonth}</b></button></div>
     <div class="filters" style="flex-wrap:wrap"><button class="btn primary" onclick="eqForm('${k}')">+ ${K.one}</button><div class="grow"></div>${L.length?prints:""}</div>
     ${L.length?`<div class="filters" style="margin:10px 0;gap:8px"><input id="eqQ" type="search" value="${esc(ui.eqQ||"")}" placeholder="ابحث بالرقم أو المكان أو الشهر أو النوع أو السعة أو الفاحص أو الحالة" aria-label="البحث في المعدات" style="flex:1;min-width:220px"><span class="muted" id="eqSearchCount">مطابق ${searchCount} من ${L.length}</span></div>`:""}
@@ -6046,6 +6049,7 @@ Object.assign(INSP_SPECS["الونش الجسري (Gantry Crane)"],{sig:{sig1:{n
 Object.assign(INSP_SPECS["الونش العلوي (Overhead Crane)"],{sig:{sig1:{name:[0.453,0.650,0.374,0.027],sign:[0.453,0.677,0.374,0.027]},sig2:{name:[0.060,0.650,0.393,0.027],sign:[0.060,0.677,0.393,0.027]}}});
 
 
+function inspFilterMatch(g){const x=g.record,f=ui.inspFilter||"all";if(f==="today")return x.date===today();if(f==="rejected")return x.status==="fail";if(f==="pending")return !!x.reviewRequired&&x.review?.status!=="approved"&&x.review?.status!=="returned";if(f==="duplicates")return (g.items||[]).length>1;return true}
 VIEWS.inspection={
   shell:()=>`<div class="head"><div class="grow"><h2 style="margin:0">🔍 فحوصات المعدات</h2><div class="muted" style="font-size:13px;margin-top:4px">اختار نوع المعدة لمعاينة النموذج، أو افتحه فارغًا للطباعة، أو سجّل فحصًا جديدًا.</div></div><button class="btn primary" id="inspNewBtn" ${inspectionCanInspect()?"":"disabled title=\"حسابك غير مفوض للفحص\""}>+ فحص جديد</button></div>
     <div id="inspBody"></div>`,
@@ -6055,8 +6059,8 @@ VIEWS.inspection={
     const groups=inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||""));
     const q=normName(ui.inspQ||"");
     const matches=g=>!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q);
-    const shown=groups.filter(matches);
-    const total=groups.length,bad=groups.filter(g=>g.record.status==="fail").length,today_n=groups.filter(g=>g.record.date===today()).length,dupN=duplicateInspectionCount();
+    const shown=groups.filter(g=>matches(g)&&inspFilterMatch(g));
+    const total=groups.length,bad=groups.filter(g=>g.record.status==="fail").length,today_n=groups.filter(g=>g.record.date===today()).length,pendingN=groups.filter(g=>g.record.reviewRequired&&g.record.review?.status!=="approved"&&g.record.review?.status!=="returned").length,dupN=groups.filter(g=>(g.items||[]).length>1).length;
     $("inspBody").innerHTML=reviewHTML+`
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:12px">
         <div class="card tile"><span class="lbl">إجمالي الفحوصات</span><b class="val">${total}</b></div>
@@ -6065,20 +6069,22 @@ VIEWS.inspection={
         <div class="card tile"><span class="lbl">نماذج فحص متاحة</span><b class="val">${Object.keys(INSP_FORMS).length}</b></div>
         <div class="card tile ${dupN?"alert":""}"><span class="lbl">نسخ مطابقة للمراجعة</span><b class="val">${dupN}</b></div>
       </div>
+      <div class="chips" aria-label="تصفية الفحوصات" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"><button type="button" class="chipbtn" data-insp-filter="all" aria-pressed="${(ui.inspFilter||"all")==="all"}">الكل (${total})</button><button type="button" class="chipbtn" data-insp-filter="today" aria-pressed="${ui.inspFilter==="today"}">فحص النهارده (${today_n})</button><button type="button" class="chipbtn" data-insp-filter="rejected" aria-pressed="${ui.inspFilter==="rejected"}">مرفوض (${bad})</button><button type="button" class="chipbtn" data-insp-filter="pending" aria-pressed="${ui.inspFilter==="pending"}">بانتظار الاعتماد (${pendingN})</button><button type="button" class="chipbtn" data-insp-filter="duplicates" aria-pressed="${ui.inspFilter==="duplicates"}">نسخ مكررة (${dupN})</button></div>
       <div class="filters" style="margin-bottom:12px"><input type="search" id="inspSearchQ" placeholder="ابحث بنوع المعدة أو المشروع أو الفاحص أو الكود…" value="${esc(ui.inspQ||"")}" style="flex:1;min-width:220px"><span class="muted" id="inspCount">${shown.length} نتيجة</span></div>
-      ${shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("لسه مفيش فحوصات مسجلة","اضغط «فحص جديد» واختار نوع المعدة واملأ بنود الفحص. كل فحص بيتحفظ بتوقيع الفاحص وصورة المعدة.")}</div>`}
+      <div id="inspResults">${shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("مفيش نتائج في التصفية دي","اختار تصنيف تاني أو امسح البحث لعرض سجلات أخرى.")}</div>`}</div>
     `;
     const sq=$("inspSearchQ");if(sq)sq.oninput=()=>{ui.inspQ=sq.value;refreshInspSearch()};
+    document.querySelectorAll("[data-insp-filter]").forEach(b=>b.onclick=()=>{ui.inspFilter=b.dataset.inspFilter;VIEWS.inspection.fill()});
   }
 };
 
 function refreshInspSearch(){
   const q=normName(ui.inspQ||"");
   const groups=inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||""));
-  const shown=groups.filter(g=>!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q));
-  const listEl=$("inspBody")?.querySelector(".list");
+  const shown=groups.filter(g=>(!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q))&&inspFilterMatch(g));
+  const results=$("inspResults");
   const countEl=$("inspCount");
-  if(listEl)listEl.innerHTML=shown.map(g=>inspRow(g.record,g.items)).join("");
+  if(results)results.innerHTML=shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("مفيش نتائج في التصفية دي","اختار تصنيف تاني أو امسح البحث لعرض سجلات أخرى.")}</div>`;
   if(countEl)countEl.textContent=shown.length+" نتيجة";
 }
 
@@ -6981,8 +6987,8 @@ async function inspStampSig(g, src, r){
   }catch(e){}
 }
 
-show(tab);
-boot();
+try{show(tab)}catch(err){console.error("Initial screen render failed",err);setSync("تعذر عرض الصفحة","off");const main=document.getElementById("main");if(main)main.innerHTML='<div class="card" role="alert"><b>تعذر عرض الصفحة</b><div class="muted" style="margin-top:6px">حدّث الصفحة. لو استمرت المشكلة، أعد فتح المنظومة بعد استقرار الاتصال.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'}
+boot().catch(err=>{console.error("App connection startup failed",err);booted=true;online=false;setSync("الاتصال اتقطع","off");const main=document.getElementById("main");if(main&&!main.innerHTML.trim())main.innerHTML='<div class="card" role="alert"><b>فقدنا الاتصال بقاعدة البيانات</b><div class="muted" style="margin-top:6px">اتأكد من الإنترنت واضغط «إعادة المحاولة». البيانات المحفوظة لن تتأثر.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'});
 
 </script>
 </body></html>
