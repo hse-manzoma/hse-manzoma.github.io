@@ -1837,7 +1837,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.47";
+const APP_VER="5.5.48";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6042,6 +6042,7 @@ const INSP_ALIAS={"أقفال الرفع (Lifting Shackles)":"شاكل شكل ا
 
 /* مواضع التوقيعات في نماذج الفحص الرأسية؛ sig1 لمسؤول الفحص يمينًا وsig2 للمشرف يسارًا. */
 Object.assign(INSP_SPECS["حزام الأمان الكامل (Full-Body Harness)"],{sig:{sig1:{name:[0.454,0.839,0.356,0.027],sign:[0.454,0.866,0.356,0.027]},sig2:{name:[0.060,0.839,0.394,0.027],sign:[0.060,0.866,0.394,0.027]}}});
+Object.assign(INSP_SPECS["حزام الأمان الكامل (Full-Body Harness)"],{f:{dept:[0.0613,0.1083,0.2331,0.0279],project:[0.5468,0.1083,0.1177,0.0279],date:[0.4081,0.1363,0.1387,0.0274],code:[0.6645,0.1363,0.1879,0.0274]}});
 Object.assign(INSP_SPECS["السقالات (Scaffold)"],{sig:{sig1:{name:[0.453,0.895,0.374,0.027],sign:[0.453,0.922,0.374,0.027]},sig2:{name:[0.060,0.895,0.393,0.027],sign:[0.060,0.922,0.393,0.027]}}});
 Object.assign(INSP_SPECS["الونش الجسري (Gantry Crane)"],{sig:{sig1:{name:[0.453,0.870,0.374,0.027],sign:[0.453,0.897,0.374,0.027]},sig2:{name:[0.060,0.870,0.393,0.027],sign:[0.060,0.897,0.393,0.027]}}});
 Object.assign(INSP_SPECS["الونش العلوي (Overhead Crane)"],{sig:{sig1:{name:[0.453,0.650,0.374,0.027],sign:[0.453,0.677,0.374,0.027]},sig2:{name:[0.060,0.650,0.393,0.027],sign:[0.060,0.677,0.393,0.027]}}});
@@ -6670,8 +6671,8 @@ function inspPrintHTML(x){
   }
   if(!chunks.length)chunks.push([]);
   const headTbl=`<table><tbody>
-    <tr><th style="width:18%">اسم المشروع</th><td class="r">${esc(x.project||"")}</td>
-        <th style="width:18%">تاريخ الفحص</th><td class="r">${esc(x.date||"")}</td></tr>
+    <tr><th style="width:18%">اسم المشروع</th><td class="r">${esc(x.project||S.settings.project||"صواري")}</td>
+        <th style="width:18%">تاريخ الفحص</th><td class="r">${esc(fmtDate(x.date))}</td></tr>
     <tr><th>نوع المعدة</th><td class="r">${esc(x.equipType||"")}</td>
         <th>كود المعدة</th><td class="r">${esc(x.code||"")}</td></tr>
     <tr><th>الإدارة / القسم</th><td class="r">${esc(x.dept||"")}</td>
@@ -6934,7 +6935,7 @@ async function inspOriginalPages(x){
 
   /* الهيدر والتوقيعات على الصفحة الأولى */
   const p0=ctx(0), R0=fr=>inspRect(fr,p0.W,p0.H);
-  const vals={eqType:x.equipType,project:x.project,code:x.code,date:x.date,dept:x.dept};
+  const vals={eqType:x.equipType,project:x.project||S.settings.project||"صواري",code:x.code,date:fmtDate(x.date),dept:x.dept||"HSE"};
   for(const k in (sp.f||{})){
     if(vals[k])inspText(p0.g,vals[k],R0(sp.f[k]),{bold:k==="eqType"});
   }
