@@ -369,6 +369,109 @@ table.ed input,table.ed textarea{width:100%}
 }
 @media print{#bnav,#fab{display:none!important}}
 
+/* ======================================================================
+   طبقة التشطيب البصري — لازم تفضل قبل علامة مستندات الطباعة فوق،
+   عشان docCSS() بياخد اللي بعد العلامة بس وما تتسربش على النماذج.
+   ====================================================================== */
+:root{
+  --ring:color-mix(in srgb,var(--accent) 38%,transparent);
+  --glow:color-mix(in srgb,var(--accent) 16%,transparent);
+  --hair:color-mix(in srgb,var(--accent) 22%,var(--line));
+  --sheen:linear-gradient(180deg,color-mix(in srgb,var(--surface) 70%,#fff) 0%,var(--surface) 46%);
+}
+:root[data-theme="dark"],:root[data-theme="navy"]{
+  --sheen:linear-gradient(180deg,color-mix(in srgb,var(--surface) 86%,#fff) 0%,var(--surface) 52%);
+}
+
+/* ---- الهيدر: ثابت فوق مع ضبابية خفيفة وخط لوني رفيع ---- */
+header{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:saturate(1.3) blur(12px);-webkit-backdrop-filter:saturate(1.3) blur(12px);border-bottom:1px solid var(--line)}
+header::after{content:"";position:absolute;inset-inline:0;bottom:-1px;height:2px;background:linear-gradient(90deg,transparent,var(--accent),color-mix(in srgb,var(--info) 70%,var(--accent)),transparent);opacity:.55}
+.brand h1{letter-spacing:-.2px}
+
+/* ---- شريط التبويبات ---- */
+nav.tabs{overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
+nav.tabs button,nav.tabs summary{border-radius:9px 9px 0 0;transition:color .18s ease,background-color .18s ease,border-color .18s ease}
+nav.tabs button:hover,nav.tabs summary:hover{color:var(--ink);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+nav.tabs button[aria-selected="true"],nav.tabs .nav-group[open]>summary{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+nav.tabs .nav-menu{box-shadow:0 18px 44px -18px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.08)}
+
+/* ---- الكروت ---- */
+.card{border-radius:16px;background-image:var(--sheen);transition:transform .18s ease,box-shadow .22s ease,border-color .22s ease}
+.card:hover{border-color:var(--hair);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 2px 6px rgba(16,32,26,.07),0 16px 34px -20px rgba(16,32,26,.34)}
+section.card>h3:first-child,.card>h3:first-child{letter-spacing:-.1px}
+
+/* ---- البلاطات الرقمية ---- */
+.tile{position:relative;border-radius:16px;overflow:hidden}
+.tile::before{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:3px;background:var(--accent);opacity:.0;transition:opacity .2s ease}
+.tile:hover::before,.tile[aria-pressed="true"]::before{opacity:.85}
+.tile[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+.tile .val{font-size:32px;letter-spacing:-.6px}
+.tile.alert{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.tile.alert::before{background:var(--bad);opacity:.85}
+button.tile{text-align:start;cursor:pointer}
+
+/* ---- الأزرار ---- */
+.btn{border-radius:11px}
+.btn:hover{border-color:var(--hair)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background-image:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff) 0%,var(--accent) 58%);border-color:color-mix(in srgb,var(--accent) 72%,#000);color:var(--accent-ink);box-shadow:0 1px 0 rgba(255,255,255,.28) inset,0 2px 6px color-mix(in srgb,var(--accent) 30%,transparent),0 10px 22px -14px color-mix(in srgb,var(--accent) 65%,transparent)}
+.btn.primary:hover{filter:saturate(1.06) brightness(1.03)}
+.btn.sign{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.btn.danger{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));color:var(--bad)}
+.btn.danger:hover{background:var(--bad-soft)}
+.btn:disabled{opacity:.52;cursor:not-allowed;box-shadow:none}
+:where(button,[role="button"],a,input,select,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:9px}
+
+/* ---- الشرائح ---- */
+.chipbtn{transition:background-color .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease}
+.chipbtn:hover{color:var(--ink);border-color:var(--hair)}
+.chipbtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 2px 8px -2px color-mix(in srgb,var(--accent) 55%,transparent)}
+.chipbtn[aria-pressed="true"] .muted,.chipbtn[aria-pressed="true"] *{color:inherit}
+.chipbtn[aria-pressed="true"] .muted{opacity:.78}
+.sub{gap:7px;padding-bottom:2px}
+
+/* ---- الحقول ---- */
+input,select,textarea{border-radius:10px;transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow);outline:none}
+input[type="search"]{background-image:none}
+
+/* ---- الجداول ---- */
+.tbl{border-radius:14px;overflow:hidden}
+.tbl table thead th{position:sticky;top:0;z-index:2;background:var(--sunk);backdrop-filter:blur(6px);font-weight:600;letter-spacing:-.1px}
+.tbl table tbody tr:nth-child(even){background:color-mix(in srgb,var(--sunk) 45%,transparent)}
+.tbl table tbody tr:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.num,.tile .val{font-variant-numeric:tabular-nums}
+
+/* ---- القوائم والحالات الفارغة ---- */
+.li{border-radius:9px;padding-inline:6px;transition:background-color .15s ease}
+.li:hover{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.empty{border:1.5px dashed var(--line);border-radius:14px;background:color-mix(in srgb,var(--sunk) 40%,transparent)}
+.empty b{display:block;color:var(--ink);font:600 15px var(--f-display);margin-bottom:5px}
+.banner{border-radius:12px}
+.pill{letter-spacing:-.1px}
+
+/* ---- أقسام الإعدادات ---- */
+#setNav{overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+#setNav::-webkit-scrollbar{display:none}
+.setsec{animation:setsecIn .22s ease both}
+@keyframes setsecIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* ---- شريط التمرير ---- */
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 34%,transparent);border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+*::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 55%,transparent);background-clip:padding-box}
+*::-webkit-scrollbar-track{background:transparent}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  .card:hover,.btn:active{transform:none}
+}
+@media print{
+  header{position:static;backdrop-filter:none}
+  header::after{display:none}
+  .card,.tile,.btn{box-shadow:none!important;background-image:none!important}
+}
+
 /* ===== printable documents (A4) ===== */
 .dpage{display:flex;flex-direction:column;width:210mm;height:297mm;box-sizing:border-box;padding:8mm;background:#fff;color:#000;font-family:"IBM Plex Sans Arabic",Arial,sans-serif;font-size:10.5pt;line-height:1.45;direction:rtl;overflow:hidden;page-break-after:always;break-after:page}
 .dpage.land{width:297mm;height:210mm}
@@ -1126,8 +1229,7 @@ function fillAtt(el){
   if(own&&myEid&&!team.length){el.innerHTML=`<div class="card">${emptyState("حضورك غير مسجل","حسابك مش مربوط بموظف في فريق السلامة. راجع المدير.")}</div>`;return}
   const recs=attDoc(ui.attDate)?.records||{};
   const c={};for(const e of fullTeam){const s=recs[e.id]?.s;if(s)c[s]=(c[s]||0)+1}
-  if(!own)$("attSum").textContent=Object.entries(ATT).map(([k,v])=>`${v[0]} ${c[k]||0}`).join(" · ")+` · من ${fullTeam.length}`;
-  else $("attSum").textContent=`حضورك · ${fmtDate(ui.attDate)}`;
+  {const sum=$("attSum");if(sum)sum.textContent=!own?Object.entries(ATT).map(([k,v])=>`${v[0]} ${c[k]||0}`).join(" · ")+` · من ${fullTeam.length}`:`حضورك · ${fmtDate(ui.attDate)}`;}
   el.innerHTML=`<div class="card"><h3>${own?"حضورك":"فريق السلامة"} <span class="muted" style="font-weight:400">${own?"":`(${fullTeam.length}) · `}${fmtDate(ui.attDate)}</span></h3><div class="list">
     ${team.map(e=>{const r=recs[e.id]||{};return `<div class="li" style="flex-wrap:wrap"><div class="grow" style="min-width:150px"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?` · <span class="num">${esc(e.code)}</span>`:""}</div></div>
       <div class="seg" role="group" aria-label="حالة ${esc(e.name)}">${Object.entries(ATT).map(([k,v])=>`<button type="button" class="${v[1]}" aria-pressed="${r.s===k}" onclick="setAtt('${e.id}','${k}')" ${!canWrite||own?"disabled":""}>${v[0]}</button>`).join("")}</div></div>`}).join("")}
@@ -1281,7 +1383,7 @@ async function usersCardHTML(){
   const tr=p=>{const e=emp(p.emp_id);const tb=p.role==="admin"?allTabs("full"):(p.tabs||{});const self=p.id===ME.id;
     return `<tr><td><b>${esc(e?.name||p.username)}</b><div class="muted" style="font-size:12px" dir="ltr">👤 ${esc(p.username)}${e?.job?` · ${esc(e.job)}`:""}</div></td>
       <td>${esc(p.role==="admin"?"مدير المنظومة":ROLES_ALL()[p.role]?.ar||"مخصص")}${p.scope==="own"?'<div class="muted" style="font-size:12px">شغله بس</div>':""}</td>
-      <td style="font-size:12.5px;max-width:320px">${p.role==="admin"?"كل الأقسام":Object.entries(tb).map(([k,l])=>`${TAB_NAMES[k]||k}${l==="view"?" (مشاهدة)":l==="full"?" (+مسح)":""}`).join("، ")}</td>
+      <td style="font-size:12.5px;max-width:320px">${p.role==="admin"?"كل الأقسام":Object.entries(tb).filter(([k])=>k!=="inspection").map(([k,l])=>`${TAB_NAMES[k]||k}${l==="view"?" (مشاهدة)":l==="full"?" (+مسح)":""}`).join("، ")}</td>
       <td>${p.disabled?'<span class="pill p-closed">موقوف</span>':'<span class="pill p-appr">شغال</span>'}${self?' <span class="pill p-open">أنت</span>':""}</td>
       <td><div class="row-actions">${self?"":`<button class="btn ghost sm" style="color:#128C7E" onclick="sendInvite('${p.id}')">📲 واتساب</button><button class="btn ghost sm" onclick="userForm('${p.id}')">تعديل</button><button class="btn ghost sm" onclick="newPin('${p.id}')">كلمة سر جديدة</button><button class="btn ghost sm" onclick="userToggle('${p.id}')">${p.disabled?"تفعيل":"إيقاف"}</button><button class="btn ghost sm danger" onclick="userDelete('${p.id}')">حذف</button>`}</div></td></tr>`};
   return `<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h3 class="grow" style="margin:0">المستخدمين (${rows.length})</h3><button class="btn primary" onclick="userForm()">+ مستخدم جديد</button></div>
@@ -1291,13 +1393,16 @@ async function usersCardHTML(){
 function rolesCardHTML(){const R=ROLES_ALL();
   return `<div class="card" style="margin-top:14px"><div style="display:flex;align-items:center;gap:10px"><h3 class="grow" style="margin:0">الأدوار والصلاحيات</h3><button class="btn" onclick="roleForm()">+ دور جديد</button></div>
   <p class="muted" style="font-size:13px">كل دور بيحدد الأقسام اللي تظهر وإيه اللي يقدر يعمله في كل قسم: مشاهدة بس، أو إضافة وتعديل، أو كمان مسح. الأدوار الجاهزة تقدر تعدّلها، واللي تعمله بنفسك تقدر تمسحه.</p>
-  <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${Object.entries(r.tabs||{}).map(([t,l])=>`${TAB_NAMES[t]||t} (${LV[l]||l})`).join("، ")}</div></div>${r.fixed?"":`<div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div>`}</div>`).join("")}</div></div>`}
+  <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${Object.entries(r.tabs||{}).filter(([t])=>t!=="inspection").map(([t,l])=>`${TAB_NAMES[t]||t} (${LV[l]||l})`).join("، ")}</div></div>${r.fixed?"":`<div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div>`}</div>`).join("")}</div></div>`}
 function tabsMatrix(cur){return `<div class="field full"><label>الأقسام والصلاحية في كل قسم</label><div class="tbl" style="border:0"><table><tbody>${Object.entries(TAB_NAMES).filter(([k])=>k!=="settings").map(([k,l])=>`<tr><td>${l}</td><td><select name="lv_${k}"><option value="">مخفي</option>${Object.entries(LV).map(([v,n])=>`<option value="${v}" ${cur[k]===v?"selected":""}>${n}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div></div>`}
+/* الفحوصات على السيرفر بتتحقق من مفتاح inspection، والواجهة بتمنح equip —
+   فبنعكس الصلاحية تلقائيًا عشان ميحصلش منع صامت لحفظ الفحص */
+function withInspectionTab(tabs){const o={...(tabs||{})};if(o.equip)o.inspection=o.equip;else delete o.inspection;return o}
 const readMatrix=form=>{const o={};for(const k of Object.keys(TAB_NAMES)){const v=form.querySelector(`[name="lv_${k}"]`)?.value;if(v)o[k]=v}return o};
 function roleForm(key){const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
   openSheet(key?"تعديل الدور":"دور جديد",`<div class="form">${f("اسم الدور","ar",{value:r.ar,req:true,full:true,attrs:'placeholder="مثلاً: مراقب سلامة مقاول"'})}${tabsMatrix(r.tabs||{})}</div>`,async(fd,form)=>{
     if(!fd.ar.trim())return "اكتب اسم الدور";const tabs=readMatrix(form);if(!Object.keys(tabs).length)return "اختار قسم واحد على الأقل";
-    const k=key||("r"+Date.now().toString(36));const roles={...(S.settings.roles||{}),[k]:{ar:fd.ar.trim(),tabs}};
+    const k=key||("r"+Date.now().toString(36));const roles={...(S.settings.roles||{}),[k]:{ar:fd.ar.trim(),tabs:withInspectionTab(tabs)}};
     const ok=await write(()=>db.doc("settings/main").update({roles}),"اتحفظ الدور");if(ok){for(const p of (S.profiles||[]).filter(p=>p.role===k))await SB.from("profiles").update({tabs}).eq("user_id",p.id)}return ok?null:"الحفظ فشل"})}
 function roleDelete(k){const used=Object.values(S.settings.users||{}).concat(Object.values(S.settings.invites||{})).filter(u=>u.role===k).length;
   confirmSheet(BUILTIN_ROLES[k]?"رجوع الدور لأصله":"حذف الدور",used&&!BUILTIN_ROLES[k]?`فيه ${used} مستخدم على الدور ده، هيتحولوا لـ «مشاهدة الرئيسية بس» لحد ما تغيّر دورهم.`:"متأكد؟",()=>{const roles={...(S.settings.roles||{})};delete roles[k];return write(()=>db.doc("settings/main").update({roles}),"تم")},BUILTIN_ROLES[k]?"رجّعه":"احذف")}
@@ -1310,7 +1415,7 @@ function userForm(uid){
     ${f("يشوف إيه","scope",{value:u.scope||"all",opts:[["all","كل الشغل في الأقسام بتاعته"],["own","شغله هو بس (اللي سجّله أو المسؤول عنه)"]]})}
     <div id="cust" ${u.role==="custom"?"":"hidden"} class="full">${tabsMatrix(u.tabs||{dash:"view"})}</div></div>${empDatalist2()}`,async(fd,form)=>{
     const e=resolveEmp(fd.emp);if(!e)return "اختار الموظف من القائمة";
-    const tabs=fd.role==="custom"?readMatrix(form):fd.role==="admin"?{}:(ROLES_ALL()[fd.role]?.tabs||{});if(fd.role==="custom"&&!Object.keys(tabs).length)return "اختار قسم واحد على الأقل";
+    let tabs=fd.role==="custom"?readMatrix(form):fd.role==="admin"?{}:(ROLES_ALL()[fd.role]?.tabs||{});if(fd.role==="custom"&&!Object.keys(tabs).length)return "اختار قسم واحد على الأقل";tabs=withInspectionTab(tabs);
     if(p){const {error}=await SB.from("profiles").update({role:fd.role,scope:fd.scope,emp_id:e.id,tabs}).eq("user_id",p.id);if(error)return "الحفظ فشل";toast("اتحفظ");return null}
     let uname=String(fd.uname||e.code||"").trim().toLowerCase();if(!/^[a-z0-9._-]{3,40}$/.test(uname))return "اكتب اسم مستخدم إنجليزي أو أرقام (٣ حروف على الأقل)";
     const pin=genPin();
@@ -2173,7 +2278,7 @@ VIEWS.equip={
   fill(){
     if(ui.eqKind==="inspect"){const body=$("eqBody");if(body){body.innerHTML=VIEWS.inspection.shell();VIEWS.inspection.fill()}return}
     const k=ui.eqKind,K=EQ_K[k],allL=S.equipment.filter(q=>q.kind===k&&q.active!==false).sort((a,b)=>String(a.serial||a.code||"").localeCompare(String(b.serial||b.code||""),"ar",{numeric:true}));
-    const L=allL.filter(q=>ui.eqFilter==="due"?eqDue(q):ui.eqFilter==="bad"?eqOk(q)===false:ui.eqFilter==="month"?(lastInsp(q)?.date||"").slice(0,7)===today().slice(0,7):true);
+    const L=allL.filter(q=>ui.eqFilter==="due"?eqDue(q):ui.eqFilter==="bad"?eqOk(q)===false:ui.eqFilter==="month"?(lastInsp(q)?.date||"").slice(0,7)===today().slice(0,7):true).filter(q=>periodMatch("eq",lastInsp(q)?.date));
     const searchKey=q=>{const ok=eqOk(q),li=lastInsp(q);return [q.serial,q.code,q.name,eqLabel(q),q.type,EXT_T[q.type],q.cap,q.model,q.capacity,q.place,q.contractor,ok===null?"لسه":ok?"صالح":"غير صالح",li?.date,li?.date?.slice(0,7),li?.date?monthName(li.date.slice(0,7)):"",li?.by,eqNext(q)].filter(Boolean).join(" ")};
     const searchQuery=normName(ui.eqQ||""),searchMatches=q=>!searchQuery||normName(searchKey(q)).includes(searchQuery),searchCount=L.filter(searchMatches).length;
     const due=allL.filter(eqDue).length,bad=allL.filter(q=>eqOk(q)===false).length,doneMonth=allL.filter(q=>(lastInsp(q)?.date||"").slice(0,7)===today().slice(0,7)).length;
@@ -2182,16 +2287,74 @@ VIEWS.equip={
     $("eqBody").innerHTML=reviewHTML+`
     <div class="grid g4" style="margin:12px 0"><button type="button" class="card tile eq-filter-tile" data-eq-filter="all" aria-pressed="${ui.eqFilter==="all"}" title="عرض كل ${K.ar}"><span class="lbl">العدد · الكل</span><b class="val">${allL.length}</b></button><button type="button" class="card tile eq-filter-tile ${due?"alert":""}" data-eq-filter="due" aria-pressed="${ui.eqFilter==="due"}" title="عرض المعدات التي تحتاج فحصًا"> <span class="lbl">${K.monthly?"محتاج فحص الشهر ده":"فحصها جه أو عدّى"}</span><b class="val">${due}</b></button><button type="button" class="card tile eq-filter-tile ${bad?"alert":""}" data-eq-filter="bad" aria-pressed="${ui.eqFilter==="bad"}" title="عرض المعدات غير الصالحة"><span class="lbl">غير صالح</span><b class="val">${bad}</b></button><button type="button" class="card tile eq-filter-tile" data-eq-filter="month" aria-pressed="${ui.eqFilter==="month"}" title="عرض ما تم فحصه هذا الشهر"><span class="lbl">اتفحص الشهر ده</span><b class="val">${doneMonth}</b></button></div>
     <div class="filters" style="flex-wrap:wrap"><button class="btn primary" onclick="eqForm('${k}')">+ ${K.one}</button><div class="grow"></div>${L.length?prints:""}</div>
+    ${periodBarHTML("eq",L.length)}
     ${L.length?`<div class="filters" style="margin:10px 0;gap:8px"><input id="eqQ" type="search" value="${esc(ui.eqQ||"")}" placeholder="ابحث بالرقم أو المكان أو الشهر أو النوع أو السعة أو الفاحص أو الحالة" aria-label="البحث في المعدات" style="flex:1;min-width:220px"><span class="muted" id="eqSearchCount">مطابق ${searchCount} من ${L.length}</span></div>`:""}
     ${L.length?`<div class="tbl"><table><thead><tr><th>${["ext","firebox","emerg"].includes(k)?"المسلسل":"الكود / المسلسل"}</th><th>${k==="ext"?"النوع / السعة":k==="tower"?"الونش / الموديل":k==="machine"?"المعدة الميكانيكية":k==="electrical"?"المعدة الكهربية":k==="lifting"?"أداة الرفع":k==="safety"?"معدات الحماية":k==="vehicle"?"المركبة":"الاسم / النوع"}</th><th>المكان</th><th>آخر فحص</th><th>الحالة</th><th>موعد الفحص الدوري القادم</th><th></th></tr></thead><tbody>
     ${L.map(q=>{const li=lastInsp(q),ok=eqOk(q),n=eqNext(q);const ident=k==="tower"?[q.code,q.serial&&q.serial!==q.code?q.serial:""].filter(Boolean).join(" / "):q.serial||q.code||"";return `<tr data-eq-search="${esc(searchKey(q))}" ${searchMatches(q)?"":"hidden"}><td><span class="num">${esc(ident)}</span></td><td>${esc(eqLabel(q))}${q.contractor?`<div class="muted" style="font-size:12px">${esc(q.contractor)}</div>`:""}</td><td>${esc(q.place||"")}</td><td class="n">${k==="tower"&&q.certDate?fmtDate(q.certDate):li?fmtDate(li.date):"—"}</td><td>${ok===null?'<span class="pill p-closed">لسه</span>':ok?'<span class="pill p-appr">صالح</span>':'<span class="pill p-canc">غير صالح</span>'}</td><td class="n" style="${n&&n<=today()||!n?"color:var(--bad);font-weight:600":""}">${n?fmtDate(n):"محتاج فحص"}</td>
-      <td><div class="row-actions">${inspectionCanInspect()?`<button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>`:""}${canAssignTasks()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')">📩 اختار فاحص</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}<button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')">مسح</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
+      <td><div class="row-actions">${inspectionCanInspect()?`<button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>`:""}${canAssignTasks()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')">📩 اختار فاحص</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}<button class="btn ghost sm" onclick="eqFormsSheet('${q.id}')" title="عرض نماذج الفحص السابقة وطباعتها">📄 النماذج</button><button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')">مسح</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
     ${k==="tower"?`<p class="muted" style="font-size:13px;margin-top:14px">سجّل موعد الفحص الشامل من الشهادة السارية، واستخدم قائمة الفحص المعتمدة من المصنع. أرفق شهادة المعايرة، تقييم المخاطر، وخطوات التركيب من زر «المرفقات» لكل ونش.</p>`:`<p class="muted" style="font-size:13px;margin-top:14px">نماذج الطوارئ التانية (الفرق المساعدة، أرقام الطوارئ، خطة التجارب، تقرير التجربة، سجل الحوادث) موجودة في «النماذج والسجلات ← الطوارئ والمعدات».</p>`}${k==="ext"?fxArchiveHTML():""}`;
     $("eqBody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{ui.eqKind=b.dataset.eq;ui.eqFilter="all";ui.eqQ="";refresh()});
     $("eqBody").querySelectorAll("[data-eq-filter]").forEach(b=>b.onclick=()=>{ui.eqFilter=b.dataset.eqFilter;refresh()});
     const eqQ=$("eqQ");if(eqQ)eqQ.oninput=()=>{ui.eqQ=eqQ.value;const query=normName(ui.eqQ);let n=0;$("eqBody").querySelectorAll("tr[data-eq-search]").forEach(tr=>{const ok=!query||normName(tr.dataset.eqSearch||"").includes(query);tr.hidden=!ok;if(ok)n++});const c=$("eqSearchCount");if(c)c.textContent=`مطابق ${n} من ${L.length}`};
+    periodBind("eq",()=>refresh());
   }
 };
+/* ===== نماذج فحص المعدة الواحدة: كل النماذج السابقة مع فلتر الفترة ===== */
+function eqInspectionForms(q){
+  if(!q)return [];
+  const ids=[q.code,q.serial].map(inspCodeKey).filter(Boolean);
+  const out=(q.insp||[]).map((h,i)=>({i,date:h.date||"",by:h.by||"",h,rec:h.sourceInspectionId?(S.inspections||[]).find(x=>x.id===h.sourceInspectionId)||null:null}));
+  for(const x of (S.inspections||[])){
+    if(!ids.length||!ids.includes(inspCodeKey(x.code)))continue;
+    if(out.some(o=>o.rec&&o.rec.id===x.id))continue;
+    out.push({i:-1,date:x.date||"",by:x.inspector1||"",h:null,rec:x});
+  }
+  return out.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+}
+function eqFormResultAr(e,q){
+  if(e.rec)return inspStatusAr(e.rec);
+  const v=Object.values(e.h&&e.h.res||{});
+  if(!v.length)return "—";
+  return v.some(x=>x==="nok")?"✘ غير صالح":"✔ صالح";
+}
+function eqFormsRowsHTML(q){
+  const all=eqInspectionForms(q);
+  const L=all.filter(e=>periodMatch("eqforms",e.date));
+  if(!L.length)return `<div class="card" style="margin-top:10px">${emptyState("مفيش نماذج فحص في الفترة دي","غيّر الفترة لـ«الكل» عشان تشوف كل النماذج المحفوظة للمعدة.")}</div>`;
+  return `<div class="list" style="max-height:52vh;overflow:auto;margin-top:10px">${L.map(e=>{
+    const K=EQ_K[q.kind],det=e.h&&K?K.checks.filter(([k])=>e.h.res&&e.h.res[k]==="nok").map(([,l])=>l).join("، "):"";
+    const appr=e.h&&e.h.review&&e.h.review.status==="approved"?` · ✔ اعتمده ${esc(e.h.review.name||"")}`:(e.h&&e.h.reviewRequired?" · ⏳ بانتظار الاعتماد":"");
+    return `<div class="li" style="align-items:flex-start">
+      <div class="grow">
+        <div class="t">${fmtDate(e.date)} · ${eqFormResultAr(e,q)}</div>
+        <div class="s">الفاحص: ${esc(e.by||"—")}${appr}${e.rec?` · نموذج شركة: ${esc(e.rec.equipType||"")}`:""}</div>
+        ${det?`<div class="muted" style="font-size:12.5px;margin-top:3px">بنود غير صالحة: ${esc(det)}</div>`:""}
+        ${e.h&&e.h.notes?`<div class="muted" style="font-size:12.5px;margin-top:3px">${esc(e.h.notes)}</div>`:""}
+        ${!e.rec?`<div class="muted" style="font-size:12px;margin-top:3px">فحص سريع مسجّل على المعدة — مش مربوط بنموذج شركة.</div>`:""}
+      </div>
+      <div class="row-actions">
+        ${e.rec?`<button type="button" class="btn ghost sm" onclick="inspView('${e.rec.id}')">👁 عرض النموذج</button><button type="button" class="btn ghost sm" onclick="inspPrint('${e.rec.id}')" title="طباعة على نموذج الشركة">🖨️</button>`:""}
+      </div>
+    </div>`}).join("")}</div>`;
+}
+function eqFormsRender(id){
+  const q=(S.equipment||[]).find(x=>x.id===id);if(!q)return;
+  const box=document.getElementById("eqFormsBox");if(!box)return;
+  const all=eqInspectionForms(q),shown=all.filter(e=>periodMatch("eqforms",e.date));
+  box.innerHTML=periodBarHTML("eqforms",shown.length)+eqFormsRowsHTML(q);
+  periodBind("eqforms",()=>eqFormsRender(id));
+}
+function eqFormsSheet(id){
+  const q=(S.equipment||[]).find(x=>x.id===id);if(!q)return;
+  const all=eqInspectionForms(q),withForm=all.filter(e=>e.rec).length;
+  const ident=q.serial||q.code||"";
+  openSheet(`نماذج فحص ${esc(eqLabel(q))} ${esc(ident)}`,`
+    <div class="banner">كل نماذج وفحوصات المعدة دي (${all.length} سجل${withForm?` · ${withForm} منهم على نموذج شركة`:""}) من الأحدث للأقدم. اختار الفترة: يومي أو شهري أو سنوي.</div>
+    <div id="eqFormsBox"></div>
+  `,async()=>null,"إغلاق");
+  setTimeout(()=>eqFormsRender(id),30);
+}
+
 function eqForm(kind,id){
   const q=id?S.equipment.find(x=>x.id===id):{kind,active:true};const K=EQ_K[kind];
   const categoryEdit=id&&["machine","electrical","lifting","safety","vehicle"].includes(kind)?f("القسم","category",{value:kind,opts:[["vehicle","نقل وحركة"],["machine","معدات ميكانيكية"],["electrical","معدات كهربية"],["lifting","أدوات رفع"],["safety","معدات السلامة والحماية"]],full:true}):"";
@@ -6093,6 +6256,91 @@ Object.assign(INSP_SPECS["الونش الجسري (Gantry Crane)"],{sig:{sig1:{n
 Object.assign(INSP_SPECS["الونش العلوي (Overhead Crane)"],{sig:{sig1:{name:[0.453,0.650,0.374,0.027],sign:[0.453,0.677,0.374,0.027]},sig2:{name:[0.060,0.650,0.393,0.027],sign:[0.060,0.677,0.393,0.027]}}});
 
 
+/* ===== فترة السجل: يومي / شهري / سنوي — تُستخدم في كل سجلات الفحص ===== */
+function periodSt(ns){
+  if(!ui.periods)ui.periods={};
+  if(!ui.periods[ns])ui.periods[ns]={mode:"all",day:today(),month:thisMonth(),year:String(new Date().getFullYear())};
+  return ui.periods[ns];
+}
+function periodMatch(ns,date){
+  const p=periodSt(ns),d=String(date||"");
+  if(p.mode==="all")return true;
+  if(!d)return false;
+  if(p.mode==="day")return d===p.day;
+  if(p.mode==="month")return d.slice(0,7)===p.month;
+  if(p.mode==="year")return d.slice(0,4)===p.year;
+  return true;
+}
+function periodSummary(ns){
+  const p=periodSt(ns);
+  if(p.mode==="day")return "يوم "+fmtDate(p.day);
+  if(p.mode==="month")return "شهر "+monthName(p.month);
+  if(p.mode==="year")return "سنة "+p.year;
+  return "كل السجلات المحفوظة";
+}
+function periodBarHTML(ns,n){
+  const p=periodSt(ns);
+  const chip=(m,t)=>`<button type="button" class="chipbtn" data-pmode="${m}" data-pns="${ns}" aria-pressed="${p.mode===m}">${t}</button>`;
+  const inp=p.mode==="day"?`<input type="date" data-pval="${ns}" value="${esc(p.day)}" aria-label="اختار اليوم" style="max-width:170px">`
+    :p.mode==="month"?`<input type="month" data-pval="${ns}" value="${esc(p.month)}" aria-label="اختار الشهر" style="max-width:170px">`
+    :p.mode==="year"?`<input type="number" data-pval="${ns}" value="${esc(p.year)}" min="2015" max="2100" step="1" aria-label="اختار السنة" style="max-width:120px">`:"";
+  return `<div class="card" style="padding:10px 12px;margin-bottom:12px">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+      <b style="font-size:13px;white-space:nowrap">📅 فترة السجل</b>
+      <div class="chips" style="display:flex;flex-wrap:wrap;gap:6px">${chip("day","يومي")}${chip("month","شهري")}${chip("year","سنوي")}${chip("all","الكل")}</div>
+      ${inp}
+      <span class="muted" style="font-size:12.5px">${esc(periodSummary(ns))}${n==null?"":" · "+n+" سجل"}</span>
+    </div>
+  </div>`;
+}
+function periodBind(ns,cb){
+  document.querySelectorAll(`[data-pns="${ns}"]`).forEach(b=>b.onclick=()=>{periodSt(ns).mode=b.dataset.pmode;cb()});
+  const inp=document.querySelector(`[data-pval="${ns}"]`);
+  if(inp)inp.onchange=()=>{const p=periodSt(ns),v=inp.value;if(!v)return;if(p.mode==="day")p.day=v;else if(p.mode==="month")p.month=v;else p.year=String(v).slice(0,4);cb()};
+}
+
+/* ===== النموذج السابق لنفس المعدة ===== */
+const inspOrd=r=>String(r&&r.date||"")+"#"+String((r&&r.createdAt)||0).padStart(16,"0");
+function inspSameEquip(x){
+  if(!x)return [];
+  const key=inspCodeKey(x.code),type=String(x.equipType||"");
+  return (S.inspections||[]).filter(r=>key?inspCodeKey(r.code)===key:(String(r.equipType||"")===type&&!inspCodeKey(r.code)));
+}
+function inspHistory(x){return inspSameEquip(x).sort((a,b)=>inspOrd(b).localeCompare(inspOrd(a)))}
+function inspPreviousOf(x){
+  const me=inspOrd(x);
+  return inspSameEquip(x).filter(r=>r.id!==x.id&&inspOrd(r)<me).sort((a,b)=>inspOrd(b).localeCompare(inspOrd(a)))[0]||null;
+}
+const inspStatusAr=x=>x&&x.status==="pass"?"✔ مطابق":x&&x.status==="fail"?"✘ غير مطابق":"⏳ جزئي";
+function inspPrevCardHTML(x){
+  const prev=inspPreviousOf(x),hist=inspHistory(x);
+  const ident=x.code?"كود "+esc(x.code):esc(x.equipType||"المعدة");
+  if(!prev)return `<div class="card" style="padding:10px 12px;margin-bottom:12px"><div class="muted" style="font-size:12.5px">↩ مفيش نموذج فحص سابق لنفس المعدة (${ident}) — ده أول فحص محفوظ ليها.</div></div>`;
+  return `<div class="card" style="padding:11px 12px;margin-bottom:12px;border-inline-start:4px solid var(--accent)">
+    <div style="font-weight:700;font-size:13px">↩ النموذج السابق لنفس المعدة (${ident})</div>
+    <div class="muted" style="font-size:12.5px;margin-top:3px">${fmtDate(prev.date)} · ${inspStatusAr(prev)} · الفاحص: ${esc(prev.inspector1||"—")}${prev.failCount?` · ${prev.failCount} بند مرفوض`:""}</div>
+    <div class="row-actions" style="margin-top:8px">
+      <button type="button" class="btn sm" onclick="inspView('${prev.id}')">👁 عرض النموذج السابق</button>
+      <button type="button" class="btn sm" onclick="inspPrint('${prev.id}')">🖨️ طباعته على نموذج الشركة</button>
+      ${hist.length>1?`<button type="button" class="btn ghost sm" onclick="inspEquipHistory('${x.id}')">📚 كل فحوصات المعدة (${hist.length})</button>`:""}
+    </div>
+  </div>`;
+}
+function inspEquipHistory(id){
+  const x=(S.inspections||[]).find(r=>r.id===id);if(!x)return;
+  const hist=inspHistory(x);
+  const ident=x.code?"كود "+esc(x.code):esc(x.equipType||"المعدة");
+  openSheet(`سجل فحوصات المعدة — ${ident}`,`
+    <div class="banner">كل نماذج الفحص المحفوظة لنفس المعدة مرتبة من الأحدث للأقدم (${hist.length} نموذج). اضغط «عرض» لمراجعة النموذج أو «🖨️» لطباعته على نموذج الشركة.</div>
+    <div class="list" style="max-height:60vh;overflow:auto;margin-top:10px">${hist.map(r=>`<div class="li"><div class="grow"><div class="t">${fmtDate(r.date)}${r.id===x.id?' <span class="pill p-open">المعروض حاليًا</span>':""}</div><div class="s">${inspStatusAr(r)} · الفاحص: ${esc(r.inspector1||"—")}${r.project?" · "+esc(r.project):""}</div></div><div class="row-actions"><button type="button" class="btn ghost sm" onclick="inspView('${r.id}')">👁 عرض</button><button type="button" class="btn ghost sm" onclick="inspPrint('${r.id}')" title="طباعة على نموذج الشركة">🖨️</button></div></div>`).join("")}</div>
+  `,async()=>null,"إغلاق");
+}
+function fxPreviousOf(x){
+  if(!x)return null;
+  const me=inspOrd(x);
+  return (S.fireext||[]).filter(r=>r.id!==x.id&&inspOrd(r)<me).sort((a,b)=>inspOrd(b).localeCompare(inspOrd(a)))[0]||null;
+}
+
 function inspFilterMatch(g){const x=g.record,f=ui.inspFilter||"all";if(f==="today")return x.date===today();if(f==="rejected")return x.status==="fail";if(f==="pending")return !!x.reviewRequired&&x.review?.status!=="approved"&&x.review?.status!=="returned";if(f==="duplicates")return (g.items||[]).length>1;return true}
 VIEWS.inspection={
   shell:()=>`<div class="head"><div class="grow"><h2 style="margin:0">🔍 فحوصات المعدات</h2><div class="muted" style="font-size:13px;margin-top:4px">اختار نوع المعدة لمعاينة النموذج، أو افتحه فارغًا للطباعة، أو سجّل فحصًا جديدًا.</div></div>${canWrite?`<button class="btn" onclick="syncInspectionsToPeriodicEquipment()">↗ ربط الفحوصات السابقة بالمعدات</button>`:""}<button class="btn primary" id="inspNewBtn" ${inspectionCanInspect()?"":"disabled title=\"حسابك غير مفوض للفحص\""}>+ فحص جديد</button></div>
@@ -6103,8 +6351,9 @@ VIEWS.inspection={
     const groups=inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||""));
     const q=normName(ui.inspQ||"");
     const matches=g=>!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q);
-    const shown=groups.filter(g=>matches(g)&&inspFilterMatch(g));
-    const total=groups.length,bad=groups.filter(g=>g.record.status==="fail").length,today_n=groups.filter(g=>g.record.date===today()).length,pendingN=groups.filter(g=>g.record.reviewRequired&&g.record.review?.status!=="approved"&&g.record.review?.status!=="returned").length,dupN=groups.filter(g=>(g.items||[]).length>1).length;
+    const scoped=groups.filter(g=>periodMatch("insp",g.record.date));
+    const shown=scoped.filter(g=>matches(g)&&inspFilterMatch(g));
+    const total=scoped.length,bad=scoped.filter(g=>g.record.status==="fail").length,today_n=scoped.filter(g=>g.record.date===today()).length,pendingN=scoped.filter(g=>g.record.reviewRequired&&g.record.review?.status!=="approved"&&g.record.review?.status!=="returned").length,dupN=scoped.filter(g=>(g.items||[]).length>1).length;
     $("inspBody").innerHTML=reviewHTML+`
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:12px">
         <div class="card tile"><span class="lbl">إجمالي الفحوصات</span><b class="val">${total}</b></div>
@@ -6113,19 +6362,21 @@ VIEWS.inspection={
         <div class="card tile"><span class="lbl">نماذج فحص متاحة</span><b class="val">${Object.keys(INSP_FORMS).length}</b></div>
         <div class="card tile ${dupN?"alert":""}"><span class="lbl">نسخ مطابقة للمراجعة</span><b class="val">${dupN}</b></div>
       </div>
+      ${periodBarHTML("insp",shown.length)}
       <div class="chips" aria-label="تصفية الفحوصات" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"><button type="button" class="chipbtn" data-insp-filter="all" aria-pressed="${(ui.inspFilter||"all")==="all"}">الكل (${total})</button><button type="button" class="chipbtn" data-insp-filter="today" aria-pressed="${ui.inspFilter==="today"}">فحص النهارده (${today_n})</button><button type="button" class="chipbtn" data-insp-filter="rejected" aria-pressed="${ui.inspFilter==="rejected"}">مرفوض (${bad})</button><button type="button" class="chipbtn" data-insp-filter="pending" aria-pressed="${ui.inspFilter==="pending"}">بانتظار الاعتماد (${pendingN})</button><button type="button" class="chipbtn" data-insp-filter="duplicates" aria-pressed="${ui.inspFilter==="duplicates"}">نسخ مكررة (${dupN})</button></div>
       <div class="filters" style="margin-bottom:12px"><input type="search" id="inspSearchQ" placeholder="ابحث بنوع المعدة أو المشروع أو الفاحص أو الكود…" value="${esc(ui.inspQ||"")}" style="flex:1;min-width:220px"><span class="muted" id="inspCount">${shown.length} نتيجة</span></div>
       <div id="inspResults">${shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("مفيش نتائج في التصفية دي","اختار تصنيف تاني أو امسح البحث لعرض سجلات أخرى.")}</div>`}</div>
     `;
     const sq=$("inspSearchQ");if(sq)sq.oninput=()=>{ui.inspQ=sq.value;refreshInspSearch()};
     document.querySelectorAll("[data-insp-filter]").forEach(b=>b.onclick=()=>{ui.inspFilter=b.dataset.inspFilter;VIEWS.inspection.fill()});
+    periodBind("insp",()=>VIEWS.inspection.fill());
   }
 };
 
 function refreshInspSearch(){
   const q=normName(ui.inspQ||"");
     const groups=inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||""));
-  const shown=groups.filter(g=>(!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q))&&inspFilterMatch(g));
+  const shown=groups.filter(g=>(!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q))&&inspFilterMatch(g)&&periodMatch("insp",g.record.date));
   const results=$("inspResults");
   const countEl=$("inspCount");
   if(results)results.innerHTML=shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("مفيش نتائج في التصفية دي","اختار تصنيف تاني أو امسح البحث لعرض سجلات أخرى.")}</div>`;
@@ -6422,6 +6673,7 @@ function inspView(id){
 
   openSheet("عرض الفحص",`
     <button type="button" class="btn primary" style="width:100%;margin-bottom:12px" onclick="inspPrint('${id}')">🖨️ طباعة على نموذج الشركة</button>
+    ${inspPrevCardHTML(x)}
     <div style="background:${statusColor}20;border:1.5px solid ${statusColor}40;border-radius:12px;padding:14px;margin-bottom:16px">
       <div style="font-size:18px;font-weight:700">${esc(x.equipType||"")}</div>
       <div style="color:${statusColor};font-weight:600;margin-top:4px">${statusLabel}</div>
@@ -6625,7 +6877,8 @@ function fxFill(){
   const list=[...(S.fireext||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const assets=(S.equipment||[]).filter(q=>q.kind==="ext"&&q.active!==false);
   const q=normName(ui.fxQ||"");
-  const shown=list.filter(x=>!q||normName([x.project,x.dept,x.inspector,x.date,
+  const inPeriod=list.filter(x=>periodMatch("fx",x.date));
+  const shown=inPeriod.filter(x=>!q||normName([x.project,x.dept,x.inspector,x.date,
     ...(x.items||[]).map(i=>[i.sn,i.place,i.maker].join(" "))].join(" ")).includes(q));
   const units=list.reduce((n,x)=>n+(x.total||0),0);
   const bad=list.reduce((n,x)=>n+(x.bad||0),0);
@@ -6638,11 +6891,13 @@ function fxFill(){
       <div class="card tile"><span class="lbl">جولات حصر محفوظة</span><b class="val">${list.length}</b><span class="muted">${units} طفاية في الجولات · ${bad} غير صالحة</span></div>
     </div>
     <div class="banner" style="margin-bottom:12px">الطفايات الـ${assets.length} هي الأصول المسجلة وتظهر في سجل المعدات. جولات الحصر (${list.length}) أرشيف نماذج مستقل؛ استخدم زر «حصر طفايات» لتسجيل جولة جديدة.</div>
+    ${periodBarHTML("fx",shown.length)}
     <div class="filters" style="margin-bottom:12px"><input type="search" id="fxSearchQ" placeholder="ابحث بالمشروع أو الفاحص أو رقم الطفاية أو مكانها…" value="${esc(ui.fxQ||"")}"><span class="muted" id="fxCount">${shown.length} نتيجة</span></div>
     ${shown.length?`<div class="list">${shown.map(fxListRow).join("")}</div>`:`<div class="card">${emptyState("لسه مفيش حصر مسجل","اضغط «حصر طفايات» وسجّل طفايات الموقع وحالتها.")}</div>`}
   `;
   const sq=$("fxSearchQ");
   if(sq)sq.oninput=()=>{ui.fxQ=sq.value;fxFill();const e=$("fxSearchQ");if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}};
+  periodBind("fx",fxFill);
 }
 
 function fxView(id){
@@ -6653,8 +6908,10 @@ function fxView(id){
     <td style="color:${it.status==="bad"?"var(--bad)":"var(--ok)"};font-weight:600">${it.status==="bad"?"✘ غير صالحة":"✔ صالحة"}</td>
     <td>${esc(it.place||"—")}</td><td>${esc(it.lastDate||"—")}</td><td>${esc(it.note||"")}</td>
   </tr>`).join("");
+  const fxPrev=fxPreviousOf(x);
   openSheet("حصر طفايات الحريق — "+esc(x.date||""),`
     <button type="button" class="btn primary" style="width:100%;margin-bottom:12px" onclick="fxPrint('${id}')">🖨️ طباعة على نموذج الشركة</button>
+    ${fxPrev?`<div class="card" style="padding:11px 12px;margin-bottom:12px;border-inline-start:4px solid var(--accent)"><div style="font-weight:700;font-size:13px">↩ جولة الحصر السابقة</div><div class="muted" style="font-size:12.5px;margin-top:3px">${fmtDate(fxPrev.date)} · ${fxPrev.total||0} طفاية · ${fxPrev.bad||0} غير صالحة${fxPrev.project?" · "+esc(fxPrev.project):""}</div><div class="row-actions" style="margin-top:8px"><button type="button" class="btn sm" onclick="fxView('${fxPrev.id}')">👁 عرض الجولة السابقة</button><button type="button" class="btn sm" onclick="fxPrint('${fxPrev.id}')">🖨️ طباعتها</button></div></div>`:""}
     <div class="grid g4" style="margin-bottom:12px">
       <div class="card tile"><span class="lbl">إجمالي الطفايات</span><b class="val">${x.total||0}</b></div>
       <div class="card tile ${x.bad?"alert":""}"><span class="lbl">غير صالحة</span><b class="val">${x.bad||0}</b></div>
@@ -7004,37 +7261,84 @@ async function inspOriginalPages(x){
   }
   return pages;
 }
-function inspText(g, txt, r, opt){
-  txt=String(txt==null?"":txt).trim(); if(!txt)return;
-  opt=opt||{};
-  const [x,y,w,h]=r;
-  g.save();
-  if(opt.clear!==false){ g.fillStyle="#fff"; g.fillRect(x+1,y+1,Math.max(1,w-2),Math.max(1,h-2)); }
-  g.fillStyle=opt.color||"#10389c";
-  g.textBaseline="middle"; g.textAlign="center"; g.direction="rtl";
-  let fs=Math.min(h*0.62, 30);
-  const fam='"IBM Plex Sans Arabic",Arial,sans-serif';
-  for(let i=0;i<14;i++){
-    g.font=(opt.bold?"600 ":"")+fs+"px "+fam;
-    if(g.measureText(txt).width<=w*0.93||fs<=7)break;
-    fs-=1;
-  }
-  g.beginPath(); g.rect(x,y,w,h); g.clip();
-  g.fillText(txt, x+w/2, y+h/2+fs*0.04);
-  g.restore();
-}
 
-async function inspStampSig(g, src, r){
-  if(!src)return;
-  try{
-    const im=await loadImg(src);
-    const [x,y,w,h]=r;
-    const k=Math.min(w*0.9/im.width, h*0.9/im.height);
-    g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip();
-    g.drawImage(im, x+(w-im.width*k)/2, y+(h-im.height*k)/2, im.width*k, im.height*k);
-    g.restore();
-  }catch(e){}
+
+/* ===== تنظيم صفحة الإعدادات في أقسام واضحة =====
+   بيشتغل بعد كل الإضافات اللي بتلحق كروت على #setBody، فبيوزّعها على أقسامها
+   من غير ما يلمس محتوى أي كارت أو الأحداث المربوطة بيه. */
+const SET_SECTIONS=[
+  {k:"users",   ic:"👥", ar:"المستخدمون والأدوار", hint:"حسابات الدخول، الأدوار، وصلاحية كل دور على الأقسام."},
+  {k:"perms",   ic:"🔐", ar:"الصلاحيات والاعتمادات", hint:"مين يوقّع، مين يعتمد، ومين يوزّع المهام."},
+  {k:"project", ic:"🏗️", ar:"المشروع والترقيم والأهداف", hint:"اسم المشروع، بداية ترقيم التصاريح، وأهداف الـ KPI."},
+  {k:"print",   ic:"🖨️", ar:"الطباعة والنظام", hint:"الطابعات، إصدار المنظومة، والتحديثات."},
+  {k:"data",    ic:"🗄️", ar:"البيانات والنسخ", hint:"التصدير والاستيراد ومراجعة التكرارات."}
+];
+const SET_BY_ID={ptwTeamsCard:"perms",missionApprCard:"perms",prnCard:"print",verCard:"print",dupCleanupCard:"data",setUsersBox:"users"};
+const SET_BY_TITLE=[
+  [/صلاحي(ة|ات) توزيع المهام|توزيع المهام/,"perms"],
+  [/صلاحيات التوقيع|الاعتماد/,"perms"],
+  [/فحص المعدات واعتمادها/,"perms"],
+  [/فرق التصاريح/,"perms"],
+  [/المستخدمين|الأدوار والصلاحيات/,"users"],
+  [/تصدير|Excel|Google/i,"data"],
+  [/استيراد|منظومة الإكسيل|بيانات المنظومة القديمة/,"data"],
+  [/التكرار/,"data"],
+  [/الطابع|طباعة/,"print"],
+  [/إصدار|تحديث/,"print"],
+  [/المشروع|ترقيم|KPI|أهداف/,"project"]
+];
+function setSectionOf(node){
+  if(node.id&&SET_BY_ID[node.id])return SET_BY_ID[node.id];
+  if(node.id==="setForm"||node.querySelector?.("#setForm"))return "project";
+  const h=node.querySelector?.("h3")||node.querySelector?.("h2");
+  const t=(h&&h.textContent||node.textContent||"").trim();
+  for(const [rx,k] of SET_BY_TITLE)if(rx.test(t))return k;
+  return "data";
 }
+function settingsOrganize(){
+  const body=$("setBody");
+  if(!body||body.dataset.organized==="1")return;
+  const kids=[...body.children].filter(n=>n.nodeType===1);
+  if(!kids.length)return;
+  /* الصندوق اللي بيتعمله prepend للمستخدمين والأدوار بيتملي بعدين، فبنعلّمه */
+  const first=kids[0];
+  if(first&&!first.id&&first.tagName==="DIV"&&!first.className&&!first.querySelector("#setForm"))first.id="setUsersBox";
+  const buckets={};for(const sec of SET_SECTIONS)buckets[sec.k]=[];
+  const loose=[];
+  for(const n of kids){
+    if(n.tagName==="H3"&&!n.id){loose.push(n);continue}      /* عناوين فاصلة قديمة — بنشيلها */
+    (buckets[setSectionOf(n)]||buckets.data).push(n);
+  }
+  loose.forEach(n=>n.remove());
+  const avail=SET_SECTIONS.filter(sec=>buckets[sec.k].length);
+  if(!avail.length)return;
+  if(!avail.some(sec=>sec.k===ui.setSec))ui.setSec=avail[0].k;
+  const nav=document.createElement("div");
+  nav.className="sub";nav.id="setNav";nav.style.marginBottom="12px";
+  nav.innerHTML=avail.map(sec=>`<button type="button" class="chipbtn" data-setsec="${sec.k}" aria-pressed="${ui.setSec===sec.k}">${sec.ic} ${esc(sec.ar)} <span class="muted" style="font-weight:400">(${buckets[sec.k].length})</span></button>`).join("");
+  const wrap=document.createElement("div");wrap.id="setSections";
+  for(const sec of avail){
+    const box=document.createElement("section");
+    box.className="setsec";box.dataset.setsecBody=sec.k;
+    box.hidden=ui.setSec!==sec.k;
+    const head=document.createElement("div");
+    head.style.cssText="margin:2px 0 12px";
+    head.innerHTML=`<h3 style="margin:0 0 2px;font:600 16px var(--f-display)">${sec.ic} ${esc(sec.ar)}</h3><div class="muted" style="font-size:12.5px">${esc(sec.hint)}</div>`;
+    box.appendChild(head);
+    buckets[sec.k].forEach(n=>{n.style.marginTop=n.style.marginTop||"14px";box.appendChild(n)});
+    wrap.appendChild(box);
+  }
+  body.textContent="";
+  body.appendChild(nav);body.appendChild(wrap);
+  body.dataset.organized="1";
+  nav.querySelectorAll("[data-setsec]").forEach(b=>b.onclick=()=>{
+    ui.setSec=b.dataset.setsec;
+    nav.querySelectorAll("[data-setsec]").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.setsec===ui.setSec)));
+    wrap.querySelectorAll("[data-setsec-body]").forEach(x=>{x.hidden=x.dataset.setsecBody!==ui.setSec});
+    window.scrollTo({top:0,behavior:"smooth"});
+  });
+}
+{const _setOrg=VIEWS.settings.fill;VIEWS.settings.fill=function(){const b=$("setBody");if(b)delete b.dataset.organized;_setOrg.call(this);try{settingsOrganize()}catch(e){console.error("settings organize",e)}}}
 
 try{show(tab)}catch(err){console.error("Initial screen render failed",err);setSync("تعذر عرض الصفحة","off");const main=document.getElementById("main");if(main)main.innerHTML='<div class="card" role="alert"><b>تعذر عرض الصفحة</b><div class="muted" style="margin-top:6px">حدّث الصفحة. لو استمرت المشكلة، أعد فتح المنظومة بعد استقرار الاتصال.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'}
 boot().catch(err=>{console.error("App connection startup failed",err);booted=true;online=false;setSync("الاتصال اتقطع","off");const main=document.getElementById("main");if(main&&!main.innerHTML.trim())main.innerHTML='<div class="card" role="alert"><b>فقدنا الاتصال بقاعدة البيانات</b><div class="muted" style="margin-top:6px">اتأكد من الإنترنت واضغط «إعادة المحاولة». البيانات المحفوظة لن تتأثر.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'});
