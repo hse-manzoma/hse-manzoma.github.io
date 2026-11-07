@@ -1839,7 +1839,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.5.52";
+const APP_VER="5.5.53";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2100,6 +2100,31 @@ function inspectionDailyKey(data){if(!data.date)return "legacy:"+(data.id||JSON.
 function inspectionDailyDocId(data){let h=2166136261;for(const ch of inspectionDailyKey(data)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return "daily_"+(h>>>0).toString(36)}
 function inspectionDailyGroups(rows){const groups=new Map();for(let i=0;i<(rows||[]).length;i++){const x=rows[i],code=inspCodeKey(x.code);const dayKey=inspectionDailyKey(x),fingerprint=code?inspectionCleanupFingerprint(x):"uncoded:"+(x.id||i),key=dayKey+"::"+fingerprint;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x)}return [...groups.values()].map(items=>items.sort((a,b)=>((b.review?.status==="approved")?2:(b.sig1?1:0))-((a.review?.status==="approved")?2:(a.sig1?1:0))||((a.createdAt||0)-(b.createdAt||0)))).map(items=>({record:items[0],items}))}
 function inspectionRecordDuplicate(data,skipId=""){const code=inspCodeKey(data.code),project=normName(data.project||""),type=normName(data.equipType||""),ownership=data.ownership||"company";const same=(x)=>{if(x.id===skipId||x.date!==data.date)return false;const xc=inspCodeKey(x.code);if(code||xc)return !!code&&!!xc&&code===xc;return normName(x.equipType||"")===type&&normName(x.project||"")===project&&(x.ownership||"company")===ownership};const record=(S.inspections||[]).find(same);if(record)return record;const matchingEquipment=(S.equipment||[]).find(q=>{const ids=[q.code,q.serial].map(inspCodeKey).filter(Boolean);return code&&ids.includes(code)});return matchingEquipment&&eqInspectionExistsOnDate(matchingEquipment,data.date)?{...matchingEquipment,equipType:EQ_K[matchingEquipment.kind]?.one||matchingEquipment.kind,code:matchingEquipment.code||matchingEquipment.serial}:null}
+function linkInspectionToPeriodicEquipment(record,id){
+  const code=inspCodeKey(record.code);if(!code)return {linked:false,reason:"missing-code"};
+  let q=(S.equipment||[]).find(x=>x.active!==false&&[x.code,x.serial].some(v=>inspCodeKey(v)===code));
+  if(!q)return {linked:false,reason:"not-found"};
+  const inspectionId=id||record.id||"";
+  if((q.insp||[]).some(h=>h.sourceInspectionId===inspectionId))return {linked:true,existing:true,id:q.id,kind:q.kind};
+  const checks=record.checks||{},res={};for(const [k,i] of Object.keys(checks).map((key,i)=>[key,i]))res[k]=checks[k]==="fail"?"nok":checks[k]==="pass"?"ok":"na";
+  const history={date:record.date||today(),by:record.inspector1||"",by_id:record.inspector1Id||"",res,notes:record.note||"",sourceInspectionId:inspectionId,sourceForm:"F-HSE-18-01",reviewRequired:!!record.reviewRequired,review:record.review||null,sigImg:record.sig1||"",photos:[...(record.photos||[]),...Object.values(record.itemPhotos||{}).flat()]};
+  const patch={insp:[...(q.insp||[]),history]};if(q.kind==="machine")patch.next=addMonths(history.date,3);
+  upsert("equipment",q.id,patch);return {linked:true,id:q.id,kind:q.kind};
+}
+function addInspectionEquipment(id){
+  const x=(S.inspections||[]).find(r=>r.id===id);if(!x){toast("سجل الفحص غير موجود");return}
+  const code=inspCodeKey(x.code);if(!code){toast("لا يمكن إضافته قبل إدخال كود أو رقم مسلسل للمعدة في سجل الفحص");return}
+  const found=(S.equipment||[]).find(q=>q.active!==false&&[q.code,q.serial].some(v=>inspCodeKey(v)===code));
+  if(found){linkInspectionToPeriodicEquipment(x,id);toast(`المعدة موجودة بالفعل ضمن ${EQ_K[found.kind]?.ar||"المعدات الدورية"}، وتم ربط الفحص بها`);VIEWS.inspection.fill();return}
+  const guessed=Object.keys(EQ_K).find(k=>normName(EQ_K[k].one)===normName(x.equipType)||normName(EQ_K[k].ar)===normName(x.equipType))||"machine";
+  openSheet("إضافة المعدة للفحص الدوري",`<p class="muted" style="margin-top:0">سيتم إنشاء أصل واحد وربط سجل الفحص الحالي به، مع حفظ الفاحص والتوقيع والصور والاعتماد.</p><div class="form">${f("فئة المعدة","kind",{value:guessed,opts:Object.entries(EQ_K).map(([k,v])=>[k,v.ar]),req:true})}${f("اسم المعدة","name",{value:x.equipType||"معدة",req:true})}${f("الكود / الرقم المسلسل","code",{value:x.code,req:true})}${f("المشروع / المكان","place",{value:x.project||"صواري"})}${f("موعد الفحص الدوري القادم","next",{type:"date",value:addMonths(x.date||today(),3)})}</div>`,async fd=>{
+    const duplicate=(S.equipment||[]).find(q=>q.active!==false&&[q.code,q.serial].some(v=>inspCodeKey(v)===inspCodeKey(fd.code)));if(duplicate)return "هذا الكود مسجل بالفعل في قائمة المعدات";
+    const kind=EQ_K[fd.kind]?fd.kind:"machine",checks=x.checks||{},res={};for(const key of Object.keys(checks))res[key]=checks[key]==="fail"?"nok":checks[key]==="pass"?"ok":"na";
+    const history={date:x.date||today(),by:x.inspector1||"",by_id:x.inspector1Id||"",res,notes:x.note||"",sourceInspectionId:id,sourceForm:"F-HSE-18-01",reviewRequired:!!x.reviewRequired,review:x.review||null,sigImg:x.sig1||"",photos:[...(x.photos||[]),...Object.values(x.itemPhotos||{}).flat()]};
+    const data={kind,name:String(fd.name||"").trim(),code:String(fd.code||"").trim(),serial:String(fd.code||"").trim(),place:String(fd.place||"").trim(),active:true,insp:[history],createdAt:Date.now(),next:fd.next||addMonths(history.date,3)};
+    const ref=await db.collection("equipment").add(data);return ref?.id?null:"إضافة المعدة فشلت";
+  },"إضافة وربط المعدة");
+}
 function inspectionAccess(){return S.settings.inspectionAccess||{}}
 function inspectionInspectorEmployees(){const cfg=inspectionAccess(),ids=Array.isArray(cfg.inspectors)?cfg.inspectors:null;return hseTeam().filter(e=>(!ids||ids.includes(e.id))&&(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled))}
 function inspectionApproverProfiles({excludeSelf=true}={}){const cfg=inspectionAccess(),ids=Array.isArray(cfg.approvers)?cfg.approvers:null;return (S.profiles||[]).filter(p=>REVIEWERS.includes(p.role)&&!p.disabled&&(!excludeSelf||p.id!==ME.id)&&(!ids||ids.includes(p.id))).sort((a,b)=>profName(a).localeCompare(profName(b),"ar"))}
@@ -6080,7 +6105,7 @@ VIEWS.inspection={
 
 function refreshInspSearch(){
   const q=normName(ui.inspQ||"");
-  const groups=inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||""));
+    const groups=inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||""));
   const shown=groups.filter(g=>(!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q))&&inspFilterMatch(g));
   const results=$("inspResults");
   const countEl=$("inspCount");
@@ -6093,6 +6118,8 @@ function inspRow(x,copies=[x],compact=false){
   const statusLabel=x.status==="pass"?"✔ مطابق":x.status==="fail"?"✘ غير مطابق":"⏳ جزئي";
   const failCount=Object.values(x.checks||{}).filter(v=>v==="fail").length;
   const approval=x.review?.status==="approved"?`✔ اعتمده ${esc(x.review.name||x.inspector2||"المشرف")}`:x.reviewRequired?`⏳ بانتظار ${esc(x.reviewToName||"المعتمد المختار")}`:"";
+  const periodicEq=(S.equipment||[]).find(q=>q.active!==false&&[q.code,q.serial].some(v=>inspCodeKey(v)===inspCodeKey(x.code)));
+  const linked=!!periodicEq&&(periodicEq.insp||[]).some(h=>h.sourceInspectionId===x.id);
   return `<div class="li" style="flex-wrap:wrap">
     <div class="grow">
       <div class="t" style="display:flex;align-items:center;gap:8px">
@@ -6108,6 +6135,7 @@ function inspRow(x,copies=[x],compact=false){
       ${!compact&&copies.length>1?`<button class="btn ghost sm" onclick="inspDuplicateCopies('${encodeURIComponent(JSON.stringify(copies.map(y=>y.id)))}')">عرض النسخ</button>`:""}
       <button class="btn sm" onclick="inspView('${x.id}')">👁 عرض</button>
       <button class="btn sm" onclick="inspPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
+      ${!compact?(linked?`<span class="pill p-appr" title="مرتبط بجدول الفحص الدوري">✓ ضمن الفحص الدوري</span>`:`<button class="btn sm" onclick="addInspectionEquipment('${x.id}')">＋ أضف للفحص الدوري</button>`):""}
       ${x.reviewRequired&&x.reviewTo===ME.id&&x.review?.status!=="approved"&&inspectionCanApprove()?`<button class="btn sm primary" onclick="inspApprove('${x.id}')">اعتماد بتوقيعي</button>`:""}
       ${canWrite?`<button class="btn sm" onclick="inspEdit('${x.id}')">✏️ تعديل</button>`:""}
       ${canDelete?`<button class="btn ghost sm danger" onclick="inspDel('${x.id}')">مسح</button>`:""}
@@ -6319,7 +6347,9 @@ function inspForm(equipType,existingId){
       else{savedId=dailyDocId;await upsert("inspections",savedId,data)}
     },overallStatus==="fail"?`🔴 فحص مرفوض — ${failCount} بند`:overallStatus==="pass"?"✅ فحص ناجح":"🟡 فحص جزئي");
     if(!ok){for(const p of uploaded)try{await assetsNS?.delete(p.a)}catch(e){}return "الحفظ فشل"}
+    const periodicLink=linkInspectionToPeriodicEquipment(data,savedId);
     if(savedId)await notifyUsers([approver.id],"🧰 فحص معدة محال لك للاعتماد",`${data.inspector1||"الفاحص"} أرسل فحص ${equipType} ${data.code||""} للمراجعة والتوقيع.`,`?go=inspection&id=${encodeURIComponent(savedId)}`);
+    if(periodicLink.linked)toast("تم حفظ الفحص وربطه بقائمة الفحص الدوري للمعدة");
     return null;
   },"حفظ الفحص");
 
