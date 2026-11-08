@@ -1014,8 +1014,19 @@ VIEWS.ppe = {
       F.innerHTML=`<input id="pQ" list="empList2" autocomplete="off" style="flex:1 1 280px" placeholder="اكتب اسم الموظف أو كوده" value="${esc(ui.pQ||"")}">${(()=>{const ids=new Set(S.moves.map(m=>m.empId));return `<datalist id="empList2">${S.employees.filter(e=>ids.has(e.id)).map(e=>`<option value="${esc(e.name+(e.code?" · "+e.code:""))}">${esc(e.job||"")}</option>`).join("")}</datalist>`})()}`;
       $("pQ").oninput=e=>{ui.pQ=e.target.value;this.fill()};
     } else {
-      F.innerHTML=`<input type="month" id="ppeMonth" value="${esc(ui.ppeMonth)}" aria-label="الشهر">`;
-      $("ppeMonth").onchange=e=>{ui.ppeMonth=e.target.value;this.fill()};
+      {const st=periodSt("moves");
+       if(!st._init){st._init=1;st.mode="month";st.month=ui.ppeMonth||thisMonth()}
+       /* الشريط متبني هنا مش في fill، فلازم نعيد رسمه بنفسنا عشان نوع الحقل
+          (يوم/شهر/سنة) وحالة الشرائح يتغيروا مع الاختيار */
+       const draw=()=>{
+         F.innerHTML=`<div style="flex:1 1 100%">${periodBarHTML("moves",null)}</div>`;
+         periodBind("moves",()=>{
+           const p=periodSt("moves");
+           ui.ppeMonth=p.mode==="day"?p.day.slice(0,7):p.mode==="month"?p.month:ui.ppeMonth;
+           draw();this.fill();
+         });
+       };
+       draw();}
     }
   },
   fill(){
@@ -1033,8 +1044,8 @@ VIEWS.ppe = {
       </tbody></table></div><p class="muted" style="font-size:12.5px">${L.length} صنف</p>`;
     } else {
       if(waiting("moves")){el.innerHTML=waiting("moves");return}
-      const L=S.moves.filter(m=>(m.date||"").startsWith(ui.ppeMonth)).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.createdAt)-num(a.createdAt));
-      if(!L.length){el.innerHTML=`<div class="card">${emptyState("مفيش حركة في "+monthName(ui.ppeMonth),"أذون الصرف والاستلام بتظهر هنا.")}</div>`;return}
+      const L=S.moves.filter(m=>periodMatch("moves",m.date)).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.createdAt)-num(a.createdAt));
+      if(!L.length){el.innerHTML=`<div class="card">${emptyState("مفيش حركة في "+periodSummary("moves"),"أذون الصرف والاستلام بتظهر هنا. غيّر الفترة من فوق.")}</div>`;return}
       const pg=page(L,"moves");
       el.innerHTML=`<div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>رقم الإذن</th><th>الصنف</th><th class="n">الكمية</th><th>المستلم</th><th>ملاحظات</th><th></th></tr></thead><tbody>
       ${pg.rows.map(m=>`<tr><td class="n">${fmtDate(m.date)}</td><td>${m.type==="receipt"?'<span class="pill p-appr">استلام</span>':'<span class="pill p-open">صرف</span>'}</td><td><span class="num">${esc(m.voucher||"")}</span></td><td>${esc(item(m.itemId)?.name||"صنف ممسوح")}</td><td class="n">${num(m.qty)}</td><td>${m.empId?esc(empName(m.empId)):""}</td><td class="muted">${esc(m.note||"")}</td>
@@ -7734,7 +7745,17 @@ function pgVoucherKeys(){
   return out;
 }
 function pgVoucherList(){
-  return pgVoucherKeys().map(k=>{const sp=voucherSpec(k);if(!sp)return null;
+  /* صفحة حركة المخزن مقسّمة صفحات — فبناخد الأذون من البيانات نفسها
+     عشان «تحميل الكل» يشمل كل أذون الفترة مش الصفحة الظاهرة بس */
+  let keys;
+  if(tab==="ppe"&&ui.ppeSub==="moves"){
+    keys=[];
+    for(const m of (S.moves||[])){
+      if(m.type!=="issue"||!periodMatch("moves",m.date))continue;
+      const k=voucherKey(m);if(k&&!keys.includes(k))keys.push(k);
+    }
+  }else keys=pgVoucherKeys();
+  return keys.map(k=>{const sp=voucherSpec(k);if(!sp)return null;
     const att=(sp.head&&sp.head.att)||[];
     return {key:k,name:sp.emp.name||"",date:sp.date,voucher:(sp.rows[0]&&sp.rows[0].voucher)||"",
             items:sp.rows.length,att:att.length}}).filter(Boolean);
