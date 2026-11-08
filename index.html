@@ -7952,6 +7952,62 @@ function pageExportSheet(){
   b("pgPrint",()=>window.print());
 }
 
+
+/* ======================================================================
+   شريط التصدير الظاهر في كل صفحة — تحت عنوان الصفحة على طول،
+   عشان التحديد والبحث والتحميل يكونوا قدام العين مش مخبيين في الهيدر.
+   ====================================================================== */
+function pgAllDocs(){
+  const out=[...pgPrintables().filter(p=>p.fn!=="printVoucher")];
+  for(const v of pgVoucherList())
+    out.push({fn:"printVoucher",arg:v.key,arr:false,
+      label:[v.voucher,v.name,fmtDate(v.date)].filter(Boolean).join(" · "),title:"إذن صرف"});
+  for(const x of pgFormRecords())
+    out.push({fn:"inspPrint",arg:x.id,arr:false,
+      label:[x.equipType,x.code,fmtDate(x.date)].filter(Boolean).join(" · "),title:"نموذج فحص معدة"});
+  const seen=new Set();
+  return out.filter(p=>{const k=p.fn+"|"+p.arg;if(seen.has(k))return false;seen.add(k);return true});
+}
+async function pgDownloadAllDocs(){
+  const L=pgAllDocs();
+  if(!L.length){toast("مفيش نماذج في الصفحة دي");return}
+  openSheet(`تحميل كل نماذج الصفحة (${L.length})`,`
+    <div class="banner">هينزّل <b>${L.length}</b> نموذج، كل واحد في ملف PDF باسمه. المتصفح هيسألك مرة تسمح بتنزيل ملفات متعددة — وافق.</div>
+    <div id="pgProg"></div>
+    <div class="list" style="max-height:40vh;overflow:auto;margin-top:10px">${L.slice(0,150).map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.label.slice(0,70))}</div><div class="s">${esc(p.title||"")}</div></div></div>`).join("")}</div>
+    <button type="button" class="btn primary" style="width:100%;margin-top:12px" id="pgGoAll">⬇ ابدأ التنزيل</button>
+  `,async()=>null,"إغلاق");
+  const g=document.getElementById("pgGoAll");
+  if(g)g.onclick=()=>{g.disabled=true;pgEachPrintable(L)};
+}
+function pgBarMount(){
+  try{
+    const main=$("main");if(!main)return;
+    const old=main.querySelector("#pgBar");if(old)old.remove();
+    const h=main.querySelector("h2");if(!h)return;
+    const docs=pgAllDocs().length,tbl=pgTables().length;
+    if(!docs&&!tbl)return;
+    const bar=document.createElement("div");
+    bar.id="pgBar";
+    bar.style.cssText="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 12px";
+    bar.innerHTML=`<button type="button" class="btn sm" onclick="pageExportSheet()" title="تحديد وبحث وتصدير">📥 تحديد وبحث وتصدير</button>`
+      +(docs?`<button type="button" class="btn sm primary" onclick="pgDownloadAllDocs()">🗂️ تحميل كل نماذج الصفحة (${docs})</button>`:"")
+      +`<span class="muted" style="font-size:12.5px">${tbl?`${tbl} جدول`:""}${tbl&&docs?" · ":""}${docs?`${docs} نموذج`:""}</span>`;
+    h.insertAdjacentElement("afterend",bar);
+  }catch(e){}
+}
+/* بنعلّق الشريط على كل صفحة بعد ما ترسم */
+for(const _k of Object.keys(VIEWS)){
+  const _f=VIEWS[_k].fill;
+  if(typeof _f!=="function")continue;
+  VIEWS[_k].fill=function(){
+    const r=_f.apply(this,arguments);
+    if(r&&typeof r.then==="function")r.then(()=>setTimeout(pgBarMount,60),()=>{});
+    else setTimeout(pgBarMount,60);
+    return r;
+  };
+}
+
 try{show(tab)}catch(err){console.error("Initial screen render failed",err);setSync("تعذر عرض الصفحة","off");const main=document.getElementById("main");if(main)main.innerHTML='<div class="card" role="alert"><b>تعذر عرض الصفحة</b><div class="muted" style="margin-top:6px">حدّث الصفحة. لو استمرت المشكلة، أعد فتح المنظومة بعد استقرار الاتصال.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'}
 boot().catch(err=>{console.error("App connection startup failed",err);booted=true;online=false;setSync("الاتصال اتقطع","off");const main=document.getElementById("main");if(main&&!main.innerHTML.trim())main.innerHTML='<div class="card" role="alert"><b>فقدنا الاتصال بقاعدة البيانات</b><div class="muted" style="margin-top:6px">اتأكد من الإنترنت واضغط «إعادة المحاولة». البيانات المحفوظة لن تتأثر.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'});
 
