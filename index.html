@@ -2285,7 +2285,7 @@ VIEWS.equip={
     const searchKey=q=>{const ok=eqOk(q),li=lastInsp(q);return [q.serial,q.code,q.name,eqLabel(q),q.type,EXT_T[q.type],q.cap,q.model,q.capacity,q.place,q.contractor,ok===null?"لسه":ok?"صالح":"غير صالح",li?.date,li?.date?.slice(0,7),li?.date?monthName(li.date.slice(0,7)):"",li?.by,eqNext(q)].filter(Boolean).join(" ")};
     const searchQuery=normName(ui.eqQ||""),searchMatches=q=>!searchQuery||normName(searchKey(q)).includes(searchQuery),searchCount=L.filter(searchMatches).length;
     const due=allL.filter(eqDue).length,bad=allL.filter(q=>eqOk(q)===false).length,doneMonth=allL.filter(q=>(lastInsp(q)?.date||"").slice(0,7)===today().slice(0,7)).length;
-    const prints={ext:`${canWrite?`<button class="btn primary" onclick="fxNew()">+ جولة حصر الطفايات</button>`:""}<button class="btn" onclick="printExtList()">حصر الطفايات (10-09)</button><button class="btn" onclick="printExtCards()">كروت الطفايات (10-02)</button>`,firebox:`<button class="btn" onclick="printFireboxCards()">كروت الصناديق (10-03)</button>`,emerg:`<button class="btn" onclick="printEmergList()">حصر أجهزة الطوارئ (10-01)</button>`,machine:`<button class="btn" onclick="printMachineList()">Machine Data (08-01)</button>`,tower:""}[k]||"";
+    const prints={ext:`${canWrite?`<button class="btn primary" onclick="fxNew()">+ جولة حصر الطفايات</button>`:""}<button class="btn" onclick="printExtList()">حصر الطفايات (10-09)</button>`,firebox:`<button class="btn" onclick="printFireboxCards()">كروت الصناديق (10-03)</button>`,emerg:`<button class="btn" onclick="printEmergList()">حصر أجهزة الطوارئ (10-01)</button>`,machine:`<button class="btn" onclick="printMachineList()">Machine Data (08-01)</button>`,tower:""}[k]||"";
     const pendingEqReviews=eqPendingReviews();const reviewHTML=inspectionCanApprove()&&pendingEqReviews.length?`<section class="card" style="margin:10px 0;border-inline-start:4px solid var(--warn)"><h3 style="margin-top:0">⏳ فحوصات معدات محالة لك للاعتماد (${pendingEqReviews.length})</h3><div class="list">${pendingEqReviews.slice(0,8).map(({q,h,index})=>`<div class="li"><div class="grow"><div class="t">${esc(EQ_K[q.kind]?.one||"معدة")} ${esc(q.serial||q.code||q.name||"")}</div><div class="s">${esc(h.by||"الفاحص")} · ${fmtDate(h.date)} · محال لك${q.place?" · "+esc(q.place):""}</div></div><button type="button" class="btn sm primary" onclick="eqReview('${q.id}',${index})">مراجعة واعتماد</button></div>`).join("")}</div>${pendingEqReviews.length>8?`<div class="muted">ويوجد ${pendingEqReviews.length-8} فحص آخر محال لك.</div>`:""}</section>`:"";
     $("eqBody").innerHTML=reviewHTML+`
     <div class="grid g4" style="margin:12px 0"><button type="button" class="card tile eq-filter-tile" data-eq-filter="all" aria-pressed="${ui.eqFilter==="all"}" title="عرض كل ${K.ar}"><span class="lbl">العدد · الكل</span><b class="val">${allL.length}</b></button><button type="button" class="card tile eq-filter-tile ${due?"alert":""}" data-eq-filter="due" aria-pressed="${ui.eqFilter==="due"}" title="عرض المعدات التي تحتاج فحصًا"> <span class="lbl">${K.monthly?"محتاج فحص الشهر ده":"فحصها جه أو عدّى"}</span><b class="val">${due}</b></button><button type="button" class="card tile eq-filter-tile ${bad?"alert":""}" data-eq-filter="bad" aria-pressed="${ui.eqFilter==="bad"}" title="عرض المعدات غير الصالحة"><span class="lbl">غير صالح</span><b class="val">${bad}</b></button><button type="button" class="card tile eq-filter-tile" data-eq-filter="month" aria-pressed="${ui.eqFilter==="month"}" title="عرض ما تم فحصه هذا الشهر"><span class="lbl">اتفحص الشهر ده</span><b class="val">${doneMonth}</b></button></div>
@@ -2294,7 +2294,7 @@ VIEWS.equip={
     ${L.length?`<div class="filters" style="margin:10px 0;gap:8px"><input id="eqQ" type="search" value="${esc(ui.eqQ||"")}" placeholder="ابحث بالرقم أو المكان أو الشهر أو النوع أو السعة أو الفاحص أو الحالة" aria-label="البحث في المعدات" style="flex:1;min-width:220px"><span class="muted" id="eqSearchCount">مطابق ${searchCount} من ${L.length}</span></div>`:""}
     ${L.length?`<div class="tbl"><table><thead><tr><th>${["ext","firebox","emerg"].includes(k)?"المسلسل":"الكود / المسلسل"}</th><th>${k==="ext"?"النوع / السعة":k==="tower"?"الونش / الموديل":k==="machine"?"المعدة الميكانيكية":k==="electrical"?"المعدة الكهربية":k==="lifting"?"أداة الرفع":k==="safety"?"معدات الحماية":k==="vehicle"?"المركبة":"الاسم / النوع"}</th><th>المكان</th><th>آخر فحص</th><th>الحالة</th><th>موعد الفحص الدوري القادم</th><th></th></tr></thead><tbody>
     ${L.map(q=>{const li=lastInsp(q),ok=eqOk(q),n=eqNext(q);const ident=k==="tower"?[q.code,q.serial&&q.serial!==q.code?q.serial:""].filter(Boolean).join(" / "):q.serial||q.code||"";return `<tr data-eq-search="${esc(searchKey(q))}" ${searchMatches(q)?"":"hidden"}><td><span class="num">${esc(ident)}</span></td><td>${esc(eqLabel(q))}${q.contractor?`<div class="muted" style="font-size:12px">${esc(q.contractor)}</div>`:""}</td><td>${esc(q.place||"")}</td><td class="n">${k==="tower"&&q.certDate?fmtDate(q.certDate):li?fmtDate(li.date):"—"}</td><td>${ok===null?'<span class="pill p-closed">لسه</span>':ok?'<span class="pill p-appr">صالح</span>':'<span class="pill p-canc">غير صالح</span>'}</td><td class="n" style="${n&&n<=today()||!n?"color:var(--bad);font-weight:600":""}">${n?fmtDate(n):"محتاج فحص"}</td>
-      <td><div class="row-actions">${inspectionCanInspect()?`<button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>`:""}${canAssignTasks()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')">📩 اختار فاحص</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}<button class="btn ghost sm" onclick="eqFormsSheet('${q.id}')" title="عرض نماذج الفحص السابقة وطباعتها">📄 النماذج</button><button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')">مسح</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
+      <td><div class="row-actions">${inspectionCanInspect()?`<button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>`:""}${canAssignTasks()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')">📩 اختار فاحص</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])" title="كارت فحص الطفاية (F-HSE-10-02)">🎫 الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])" title="كارت صندوق الإطفاء (F-HSE-10-03)">🎫 الكارت</button>`:""}<button class="btn ghost sm" onclick="eqFormsSheet('${q.id}')" title="عرض نماذج الفحص السابقة وطباعتها">📄 النماذج</button><button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')">مسح</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
     ${k==="tower"?`<p class="muted" style="font-size:13px;margin-top:14px">سجّل موعد الفحص الشامل من الشهادة السارية، واستخدم قائمة الفحص المعتمدة من المصنع. أرفق شهادة المعايرة، تقييم المخاطر، وخطوات التركيب من زر «المرفقات» لكل ونش.</p>`:`<p class="muted" style="font-size:13px;margin-top:14px">نماذج الطوارئ التانية (الفرق المساعدة، أرقام الطوارئ، خطة التجارب، تقرير التجربة، سجل الحوادث) موجودة في «النماذج والسجلات ← الطوارئ والمعدات».</p>`}${k==="ext"?fxArchiveHTML():""}`;
     $("eqBody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{ui.eqKind=b.dataset.eq;ui.eqFilter="all";ui.eqQ="";refresh()});
     $("eqBody").querySelectorAll("[data-eq-filter]").forEach(b=>b.onclick=()=>{ui.eqFilter=b.dataset.eqFilter;refresh()});
@@ -2363,7 +2363,10 @@ function eqFormsSheet(id){
   const q=(S.equipment||[]).find(x=>x.id===id);if(!q)return;
   const all=eqInspectionForms(q),withForm=all.filter(e=>e.rec).length;
   const ident=q.serial||q.code||"";
+  const cardBtn=q.kind==="ext"?`<button type="button" class="btn primary" style="width:100%;margin-bottom:10px" onclick="printExtCards(['${q.id}'])">🎫 كارت فحص الطفاية (F-HSE-10-02)</button>`
+    :q.kind==="firebox"?`<button type="button" class="btn primary" style="width:100%;margin-bottom:10px" onclick="printFireboxCards(['${q.id}'])">🎫 كارت صندوق الإطفاء (F-HSE-10-03)</button>`:"";
   openSheet(`نماذج فحص ${esc(eqLabel(q))} ${esc(ident)}`,`
+    ${cardBtn}
     <div class="banner">كل نماذج وفحوصات المعدة دي (${all.length} سجل${withForm?` · ${withForm} منهم على نموذج شركة`:""}) من الأحدث للأقدم. اختار الفترة: يومي أو شهري أو سنوي.</div>
     <div id="eqFormsBox"></div>
   `,async()=>null,"إغلاق");
@@ -7762,10 +7765,110 @@ async function pgEachVoucherPdf(keys,withAtt){
   }
   pgProg(`✔ خلص — ${keys.length-fail} إذن${extra?` و${extra} مرفق PDF`:""}${fail?` · ${fail} مانفعش`:""}`);
 }
+
+/* ======================================================================
+   تنزيل أي نموذج محرَّر في أي صفحة (تصاريح · سجلات · حوادث · إجازات · مأموريات …)
+   الفكرة: بنلفّ openViewer مؤقتًا فبدل ما يعرض، بيسلّمنا الصفحات — فأي زرار
+   طباعة موجود في المنظومة بيشتغل معانا من غير ما نلمس كوده.
+   ====================================================================== */
+let PG_CAP=null;
+{const _ov=openViewer;
+ window.openViewer=function(title,opt){
+   if(!PG_CAP)return _ov.apply(this,arguments);
+   const rec={title,opt:opt||{},pages:null,html:null,err:null};
+   PG_CAP.push(rec);
+   return {root:null,body:document.createElement("div"),
+     setPages(p){rec.pages=p},setHtml(h){rec.html=h},
+     note(){},fail(m){rec.err=m||"فشل"},actions(){}};
+ };}
+async function pgCaptureDoc(fn){
+  const prev=PG_CAP;PG_CAP=[];
+  try{await fn()}catch(e){console.error(e)}
+  const out=PG_CAP;PG_CAP=prev;return out;
+}
+/* كل زراير الطباعة الظاهرة في الصفحة */
+const PG_SKIP=new Set(["printRecord"]);           /* ليها مسار خاص موجود */
+const PG_DOC_AR={printExtCards:"كارت فحص طفاية",printFireboxCards:"كارت صندوق إطفاء",printVoucher:"إذن صرف",
+  printLeave:"إذن إجازة",printExtList:"حصر الطفايات",printEmergList:"حصر أجهزة الطوارئ",inspPrint:"نموذج فحص معدة",fxPrint:"حصر طفايات"};
+function pgPrintables(){
+  const root=$("main");if(!root)return [];
+  const rx=/([A-Za-z_$][\w$]*(?:[Pp]rint|Card|Doc)[\w$]*)\s*\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|\[\s*'((?:[^'\\]|\\.)*)'\s*\])\s*\)/;
+  const out=[],seen=new Set();
+  root.querySelectorAll("[onclick]").forEach(b=>{
+    if(b.offsetParent===null)return;
+    const code=b.getAttribute("onclick")||"";
+    if(!/print|Card/i.test(code))return;
+    const m=rx.exec(code);if(!m)return;
+    const fn=m[1];
+    if(typeof window[fn]!=="function")return;
+    const arg=(m[2]!==undefined?m[2]:m[3]!==undefined?m[3]:m[4]||"").replace(/\\'/g,"'").replace(/\\"/g,'"');
+    if(!arg)return;
+    const arr=m[4]!==undefined;
+    const key=fn+"|"+arg;
+    if(seen.has(key))return;seen.add(key);
+    const row=b.closest("tr,.li,.card")||b.parentElement;
+    const k=row?row.cloneNode(true):null;
+    if(k)k.querySelectorAll("button,svg,input,select,.row-actions").forEach(e=>e.remove());
+    let label="";
+    if(k&&k.tagName==="TR")label=[...k.cells].map(c=>(c.innerText||"").replace(/\s+/g," ").trim()).filter(Boolean).join(" · ");
+    else if(k){const t=k.querySelector(".t"),sub=k.querySelector(".s");
+      label=[t,sub].map(e=>e?(e.innerText||"").replace(/\s+/g," ").trim():"").filter(Boolean).join(" · ")
+        ||(k.innerText||"").replace(/\s+/g," ").trim();}
+    label=(label||b.title||fn).slice(0,90);
+    out.push({fn,arg,arr,label,title:(b.title||"").trim()||PG_DOC_AR[fn]||"نموذج"});
+  });
+  return out;
+}
+async function pgEachPrintable(list){
+  if(!list||!list.length){toast("محددتش نماذج");return}
+  let n=0,fail=0;const used=new Map();
+  for(const p of list){
+    pgProg(`بيجهّز ${++n} من ${list.length} — ${esc(p.label.slice(0,42))}`);
+    try{
+      const caps=await pgCaptureDoc(()=>window[p.fn](p.arr?[p.arg]:p.arg));
+      let got=0;
+      for(const c of caps){
+        let blob=null;
+        if(c.pages&&c.pages.length)blob=await permitPdfBlob(c.pages);
+        else if(c.html)blob=await htmlPdf(c.html);
+        if(!blob)continue;
+        let nm=pgSafe((c.opt&&c.opt.filename?String(c.opt.filename).replace(/\.pdf$/i,""):"")||c.title||p.label);
+        /* نفس الدالة بتدي نفس اسم الملف لكل عنصر — فبنضيف تعريف الصف عشان مايتكتبوش فوق بعض */
+        if(list.length>1){
+          const tag=pgSafe(p.label.split(" · ").slice(0,2).join(" "))||p.arg;
+          if(tag&&!nm.includes(tag))nm=`${nm} - ${tag}`;
+        }
+        if(used.has(nm))nm=`${nm} (${used.get(nm)+1})`;
+        used.set(nm,(used.get(nm)||0)+1);
+        await pgSaveBlob(blob,pgSafe(nm)+".pdf");got++;await pgWait(400);
+      }
+      if(!got)fail++;
+    }catch(e){console.error(e);fail++}
+  }
+  pgProg(`✔ خلص — ${list.length-fail} نموذج${fail?` · ${fail} مانفعش`:""}`);
+}
+/* بحث داخل قوائم التحديد */
+function pgFilterLists(q){
+  const t=normName(q||"");
+  document.querySelectorAll("#pgPickBox label.li").forEach(l=>{
+    l.hidden=!!t&&!normName(l.innerText).includes(t);
+  });
+  const vis=[...document.querySelectorAll("#pgPickBox label.li")].filter(l=>!l.hidden).length;
+  const c=document.getElementById("pgFilterCount");
+  if(c)c.textContent=t?`ظاهر ${vis}`:"";
+}
+function pgSelectVisible(sel,on){
+  document.querySelectorAll(`#pgPickBox ${sel}`).forEach(cb=>{
+    const l=cb.closest("label.li");
+    if(l&&l.hidden)return;
+    cb.checked=on;
+  });
+}
 function pageExportSheet(){
   const tables=pgTables(),F=pgFormRecords(),forms=F.length,recIds=pgRecordIds(),VK=pgVoucherList();
+  const PR=pgPrintables().filter(p=>p.fn!=="printVoucher");
   const title=($("main")?.querySelector("h2")?.textContent||TAB_NAMES[tab]||"الصفحة").replace(/\s+/g," ").trim();
-  if(!tables.length&&!forms&&!recIds.length&&!VK.length){
+  if(!tables.length&&!forms&&!recIds.length&&!VK.length&&!PR.length){
     openSheet("تصدير الصفحة",`<div class="card" style="padding:14px">${emptyState("مفيش جداول في الصفحة دي","افتح صفحة فيها جدول — زي المخزن أو المعدات أو الموظفين — واضغط 📥 تاني.")}</div>
       <button type="button" class="btn" style="width:100%;margin-top:10px" onclick="window.print()">🖨️ طباعة الصفحة زي ما هي</button>`,async()=>null,"إغلاق");
     return;
@@ -7773,6 +7876,13 @@ function pageExportSheet(){
   const total=tables.reduce((n,t)=>n+t.n,0);
   openSheet("تصدير — "+title,`
     <div class="banner">بيتصدّر اللي ظاهر قدامك دلوقتي بالظبط، بفلاتره وبحثه (${tables.length} جدول · ${total} صف).</div>
+    <div class="filters" style="margin-top:10px;gap:8px">
+      <input type="search" id="pgFilter" placeholder="ابحث جوه القوائم دي — اسم، كود، تاريخ…" style="flex:1">
+      <button type="button" class="btn sm" id="pgSelVis">تحديد الظاهر</button>
+      <button type="button" class="btn ghost sm" id="pgSelNone">إلغاء الكل</button>
+      <span class="muted" id="pgFilterCount" style="font-size:12.5px"></span>
+    </div>
+    <div id="pgPickBox">
     ${tables.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">الجداول</b><button type="button" class="btn ghost sm" data-pgall="t">تحديد الكل / إلغاء</button></div>
       ${tables.map((t,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgt="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(t.name)}</span><span class="s">${t.n} صف</span></span></label>`).join("")}
@@ -7786,6 +7896,12 @@ function pageExportSheet(){
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">أذون الصرف</b><button type="button" class="btn ghost sm" data-pgall="v">تحديد الكل / إلغاء</button></div>
       <div class="list" style="max-height:34vh;overflow:auto">${VK.map((v,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgv="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(v.voucher||"إذن")} · ${esc(v.name)}</span><span class="s">${esc(fmtDate(v.date))} · ${v.items} صنف${v.att?` · 📎 ${v.att} مرفق`:" · بدون مرفقات"}</span></span></label>`).join("")}</div>
     </div>`:""}
+    ${PR.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">النماذج المحرَّرة في الصفحة</b><button type="button" class="btn ghost sm" data-pgall="p">تحديد الكل / إلغاء</button></div>
+      <div class="list" style="max-height:38vh;overflow:auto">${PR.slice(0,200).map((p,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgp="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(p.label.slice(0,70))}</span><span class="s">${esc(p.title||p.fn)}</span></span></label>`).join("")}</div>
+      ${PR.length>200?`<div class="muted" style="font-size:12.5px;margin-top:6px">… و${PR.length-200} كمان</div>`:""}
+    </div>`:""}
+    </div>
     <div id="pgProg"></div>
     <div style="margin-top:14px;font-weight:700;font-size:13px">ملف منفصل لكل حاجة</div>
     <div class="muted" style="font-size:12.5px;margin-bottom:6px">كل جدول في ملف باسمه، وكل نموذج في PDF باسمه. المتصفح ممكن يسألك مرة واحدة تسمح بتنزيل ملفات متعددة — وافق.</div>
@@ -7795,6 +7911,7 @@ function pageExportSheet(){
       ${F.length?`<button type="button" class="btn primary" id="pgEachForm">🗂️ PDF لكل نموذج</button>`:""}
       ${VK.length?`<button type="button" class="btn primary" id="pgEachVouchAtt">🗂️ PDF لكل إذن + مرفقاته</button>
       <button type="button" class="btn" id="pgEachVouch">🗂️ PDF لكل إذن (من غير مرفقات)</button>`:""}
+      ${PR.length?`<button type="button" class="btn primary" id="pgEachPrintable">🗂️ PDF لكل نموذج محدَّد (${PR.length})</button>`:""}
     </div>
     <div style="margin-top:14px;font-weight:700;font-size:13px">ملف واحد مجمّع</div>
     <div class="row-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
@@ -7810,7 +7927,7 @@ function pageExportSheet(){
   const pickF=()=>F.filter((_,i)=>document.querySelector(`[data-pgf="${i}"]`)?.checked);
   const b=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
   document.querySelectorAll("[data-pgall]").forEach(btn=>btn.onclick=()=>{
-    const sel=btn.dataset.pgall==="t"?"[data-pgt]":btn.dataset.pgall==="v"?"[data-pgv]":"[data-pgf]";
+    const sel={t:"[data-pgt]",v:"[data-pgv]",p:"[data-pgp]"}[btn.dataset.pgall]||"[data-pgf]";
     const boxes=[...document.querySelectorAll(sel)],on=boxes.some(x=>!x.checked);
     boxes.forEach(x=>x.checked=on);
   });
@@ -7818,6 +7935,11 @@ function pageExportSheet(){
   b("pgEachPdf",()=>pgEachTablePdf(pick(),title));
   b("pgEachForm",()=>pgEachFormPdf(pickF()));
   const pickV=()=>VK.filter((_,i)=>document.querySelector(`[data-pgv="${i}"]`)?.checked).map(v=>v.key);
+  const pickP=()=>PR.filter((_,i)=>{const cb=document.querySelector(`[data-pgp="${i}"]`);return cb&&cb.checked&&!cb.closest("label.li")?.hidden});
+  b("pgEachPrintable",()=>pgEachPrintable(pickP()));
+  {const f=document.getElementById("pgFilter");if(f)f.oninput=()=>pgFilterLists(f.value);}
+  {const a=document.getElementById("pgSelVis");if(a)a.onclick=()=>pgSelectVisible("input[type=checkbox]",true);}
+  {const a=document.getElementById("pgSelNone");if(a)a.onclick=()=>pgSelectVisible("input[type=checkbox]",false);}
   b("pgEachVouchAtt",()=>pgEachVoucherPdf(pickV(),true));
   b("pgEachVouch",()=>pgEachVoucherPdf(pickV(),false));
   b("pgXl",()=>pgExportXlsx(pick()));
