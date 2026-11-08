@@ -1960,7 +1960,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.6.1";
+const APP_VER="5.6.2";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2334,7 +2334,7 @@ VIEWS.equip={
     const searchKey=q=>{const ok=eqOk(q),li=lastInsp(q);return [q.serial,q.code,q.name,eqLabel(q),q.type,EXT_T[q.type],q.cap,q.model,q.capacity,q.place,q.contractor,ok===null?"لسه":ok?"صالح":"غير صالح",li?.date,li?.date?.slice(0,7),li?.date?monthName(li.date.slice(0,7)):"",li?.by,eqNext(q)].filter(Boolean).join(" ")};
     const searchQuery=normName(ui.eqQ||""),searchMatches=q=>!searchQuery||normName(searchKey(q)).includes(searchQuery),searchCount=L.filter(searchMatches).length;
     const due=allL.filter(eqDue).length,bad=allL.filter(q=>eqOk(q)===false).length,doneMonth=allL.filter(q=>(lastInsp(q)?.date||"").slice(0,7)===today().slice(0,7)).length;
-    const prints={ext:`${canWrite?`<button class="btn primary" onclick="fxNew()">+ جولة حصر الطفايات</button>`:""}<button class="btn" onclick="printExtList()">حصر الطفايات (10-09)</button>`,firebox:`<button class="btn" onclick="printFireboxCards()">كروت الصناديق (10-03)</button>`,emerg:`<button class="btn" onclick="printEmergList()">حصر أجهزة الطوارئ (10-01)</button>`,machine:`<button class="btn" onclick="printMachineList()">Machine Data (08-01)</button>`,tower:""}[k]||"";
+    const prints={ext:`${canWrite?`<button class="btn primary" onclick="fxNew()">+ جولة حصر الطفايات</button>`:""}<button class="btn" onclick="printExtList()">حصر الطفايات (10-09)</button><button class="btn" onclick="printExtDailyAll()" title="كارت يومي لكل طفاية — شهر كامل">🗓️ كروت يومية</button>`,firebox:`<button class="btn" onclick="printFireboxCards()">كروت الصناديق (10-03)</button>`,emerg:`<button class="btn" onclick="printEmergList()">حصر أجهزة الطوارئ (10-01)</button>`,machine:`<button class="btn" onclick="printMachineList()">Machine Data (08-01)</button>`,tower:""}[k]||"";
     const pendingEqReviews=eqPendingReviews();const reviewHTML=inspectionCanApprove()&&pendingEqReviews.length?`<section class="card" style="margin:10px 0;border-inline-start:4px solid var(--warn)"><h3 style="margin-top:0">⏳ فحوصات معدات محالة لك للاعتماد (${pendingEqReviews.length})</h3><div class="list">${pendingEqReviews.slice(0,8).map(({q,h,index})=>`<div class="li"><div class="grow"><div class="t">${esc(EQ_K[q.kind]?.one||"معدة")} ${esc(q.serial||q.code||q.name||"")}</div><div class="s">${esc(h.by||"الفاحص")} · ${fmtDate(h.date)} · محال لك${q.place?" · "+esc(q.place):""}</div></div><button type="button" class="btn sm primary" onclick="eqReview('${q.id}',${index})">مراجعة واعتماد</button></div>`).join("")}</div>${pendingEqReviews.length>8?`<div class="muted">ويوجد ${pendingEqReviews.length-8} فحص آخر محال لك.</div>`:""}</section>`:"";
     $("eqBody").innerHTML=reviewHTML+`
     <div class="grid g4" style="margin:12px 0"><button type="button" class="card tile eq-filter-tile" data-eq-filter="all" aria-pressed="${ui.eqFilter==="all"}" title="عرض كل ${K.ar}"><span class="lbl">العدد · الكل</span><b class="val">${allL.length}</b></button><button type="button" class="card tile eq-filter-tile ${due?"alert":""}" data-eq-filter="due" aria-pressed="${ui.eqFilter==="due"}" title="عرض المعدات التي تحتاج فحصًا"> <span class="lbl">${K.monthly?"محتاج فحص الشهر ده":"فحصها جه أو عدّى"}</span><b class="val">${due}</b></button><button type="button" class="card tile eq-filter-tile ${bad?"alert":""}" data-eq-filter="bad" aria-pressed="${ui.eqFilter==="bad"}" title="عرض المعدات غير الصالحة"><span class="lbl">غير صالح</span><b class="val">${bad}</b></button><button type="button" class="card tile eq-filter-tile" data-eq-filter="month" aria-pressed="${ui.eqFilter==="month"}" title="عرض ما تم فحصه هذا الشهر"><span class="lbl">اتفحص الشهر ده</span><b class="val">${doneMonth}</b></button></div>
@@ -2343,7 +2343,7 @@ VIEWS.equip={
     ${L.length?`<div class="filters" style="margin:10px 0;gap:8px"><input id="eqQ" type="search" value="${esc(ui.eqQ||"")}" placeholder="ابحث بالرقم أو المكان أو الشهر أو النوع أو السعة أو الفاحص أو الحالة" aria-label="البحث في المعدات" style="flex:1;min-width:220px"><span class="muted" id="eqSearchCount">مطابق ${searchCount} من ${L.length}</span></div>`:""}
     ${L.length?`<div class="tbl"><table><thead><tr><th>${["ext","firebox","emerg"].includes(k)?"المسلسل":"الكود / المسلسل"}</th><th>${k==="ext"?"النوع / السعة":k==="tower"?"الونش / الموديل":k==="machine"?"المعدة الميكانيكية":k==="electrical"?"المعدة الكهربية":k==="lifting"?"أداة الرفع":k==="safety"?"معدات الحماية":k==="vehicle"?"المركبة":"الاسم / النوع"}</th><th>المكان</th><th>آخر فحص</th><th>الحالة</th><th>موعد الفحص الدوري القادم</th><th></th></tr></thead><tbody>
     ${L.map(q=>{const li=lastInsp(q),ok=eqOk(q),n=eqNext(q);const ident=k==="tower"?[q.code,q.serial&&q.serial!==q.code?q.serial:""].filter(Boolean).join(" / "):q.serial||q.code||"";return `<tr data-eq-search="${esc(searchKey(q))}" ${searchMatches(q)?"":"hidden"}><td><span class="num">${esc(ident)}</span></td><td>${esc(eqLabel(q))}${q.contractor?`<div class="muted" style="font-size:12px">${esc(q.contractor)}</div>`:""}</td><td>${esc(q.place||"")}</td><td class="n">${k==="tower"&&q.certDate?fmtDate(q.certDate):li?fmtDate(li.date):"—"}</td><td>${ok===null?'<span class="pill p-closed">لسه</span>':ok?'<span class="pill p-appr">صالح</span>':'<span class="pill p-canc">غير صالح</span>'}</td><td class="n" style="${n&&n<=today()||!n?"color:var(--bad);font-weight:600":""}">${n?fmtDate(n):"محتاج فحص"}</td>
-      <td><div class="row-actions">${inspectionCanInspect()?`<button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>`:""}${canAssignTasks()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')">📩 اختار فاحص</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])" title="كارت فحص الطفاية (F-HSE-10-02)">🎫 الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])" title="كارت صندوق الإطفاء (F-HSE-10-03)">🎫 الكارت</button>`:""}<button class="btn ghost sm" onclick="eqSetStatus('${q.id}')" title="تغيير حالة المعدة بقرار موثّق">🚦 الحالة</button><button class="btn ghost sm" onclick="eqFormsSheet('${q.id}')" title="عرض نماذج الفحص السابقة وطباعتها">📄 النماذج</button><button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')">مسح</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
+      <td><div class="row-actions">${inspectionCanInspect()?`<button class="btn sm" onclick="eqInspect('${q.id}')">فحص</button>`:""}${canAssignTasks()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')">📩 اختار فاحص</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])">الكارت</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])">الكارت</button>`:k==="machine"?`<button class="btn ghost sm" onclick="printTag('${q.id}')">كارت الصلاحية</button>`:""}${k==="ext"?`<button class="btn ghost sm" onclick="printExtCards(['${q.id}'])" title="الكارت الشهري (F-HSE-10-02)">🎫 شهري</button><button class="btn ghost sm" onclick="printExtDaily('${q.id}')" title="كارت الفحص اليومي — شهر كامل يوم بيوم">🗓️ يومي</button>`:k==="firebox"?`<button class="btn ghost sm" onclick="printFireboxCards(['${q.id}'])" title="كارت صندوق الإطفاء (F-HSE-10-03)">🎫 الكارت</button>`:""}<button class="btn ghost sm" onclick="eqSetStatus('${q.id}')" title="تغيير حالة المعدة بقرار موثّق">🚦 الحالة</button><button class="btn ghost sm" onclick="eqFormsSheet('${q.id}')" title="عرض نماذج الفحص السابقة وطباعتها">📄 النماذج</button><button class="btn ghost sm" onclick="eqForm('${k}','${q.id}')">تعديل</button>${attBtn("equipment",q.id,q)}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')">مسح</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
     ${k==="tower"?`<p class="muted" style="font-size:13px;margin-top:14px">سجّل موعد الفحص الشامل من الشهادة السارية، واستخدم قائمة الفحص المعتمدة من المصنع. أرفق شهادة المعايرة، تقييم المخاطر، وخطوات التركيب من زر «المرفقات» لكل ونش.</p>`:`<p class="muted" style="font-size:13px;margin-top:14px">نماذج الطوارئ التانية (الفرق المساعدة، أرقام الطوارئ، خطة التجارب، تقرير التجربة، سجل الحوادث) موجودة في «النماذج والسجلات ← الطوارئ والمعدات».</p>`}${k==="ext"?fxArchiveHTML():""}`;
     $("eqBody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{ui.eqKind=b.dataset.eq;ui.eqFilter="all";ui.eqQ="";refresh()});
     $("eqBody").querySelectorAll("[data-eq-filter]").forEach(b=>b.onclick=()=>{ui.eqFilter=b.dataset.eqFilter;refresh()});
@@ -2519,9 +2519,92 @@ function compose(cards,perPage,landscape){const W=landscape?1754:1241,H=landscap
     cards.slice(i,i+perPage).forEach((cv,j)=>{const cols=perPage===4?2:1,rows=perPage===1?1:2;const cw=W/cols,ch=H/rows;const s=Math.min(cw/cv.width,ch/cv.height)*0.97;const w=cv.width*s,h=cv.height*s;
       const col=perPage===4?(1-(j%2)):0;g.drawImage(cv,col*cw+(cw-w)/2,Math.floor(j/cols)*ch+(ch-h)/2,w,h)});out.push(c)}return out}
 const chunk=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o.length?o:[[]]};
-const resRows=(q,keys,n=12)=>[...(q.insp||[])].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).slice(-n).map(h=>{const r={date:h.date,by:h.by,notes:h.notes||"",sigImg:h.sigImg||h.sig_img||"",sigAt:h.sigAt||0,sigBy:h.sigBy||""};for(const k of keys)r[k]=h.res?.[k]||"";return r});
+/* المعدة ميصحّش يكون ليها أكتر من فحص في نفس اليوم — بناخد واحد لكل يوم
+   (المعتمد له الأولوية، وبعده الأحدث) عشان الكارت ما يتكررش */
+function inspOnePerDay(list){
+  const by=new Map();
+  for(const h of (list||[])){
+    const d=h&&h.date||"";if(!d)continue;
+    const old=by.get(d);
+    if(!old){by.set(d,h);continue}
+    const score=x=>(x.review&&x.review.status==="approved"?2:0)+(x.sigImg||x.sig_img?1:0);
+    if(score(h)>score(old)||(score(h)===score(old)&&num(h.at||0)>=num(old.at||0)))by.set(d,h);
+  }
+  return [...by.values()];
+}
+const resRows=(q,keys,n=12)=>inspOnePerDay(q.insp).sort((a,b)=>(a.date||"").localeCompare(b.date||"")).slice(-n).map(h=>{const r={date:h.date,by:h.by,notes:h.notes||"",sigImg:h.sigImg||h.sig_img||"",sigAt:h.sigAt||0,sigBy:h.sigBy||""};for(const k of keys)r[k]=h.res?.[k]||"";return r});
 function printExtCards(ids){const L=S.equipment.filter(q=>q.kind==="ext"&&q.active!==false&&(!ids||ids.includes(q.id)));if(!L.length){toast("مفيش طفايات");return}
   printPages("كروت فحص الطفايات",async()=>{const cards=[];for(const q of L){const cv=await renderGeneric("F-HSE-10-02",{f:{serial:q.serial,type:EXT_T[q.type]||q.type,site:S.settings.project||"",cap:q.cap,place:q.place},rows:resRows(q,["body","press"])});cards.push(cv[0])}return compose(cards,4)},`كروت الطفايات ${today()}.pdf`)}
+/* ===== الكارت اليومي: شهر كامل يوم بيوم ===== */
+function extDailyPageHTML(q,ym){
+  const [Y,M]=ym.split("-").map(Number);
+  const days=new Date(Y,M,0).getDate();
+  const byDay={};
+  for(const h of inspOnePerDay(q.insp))if((h.date||"").slice(0,7)===ym)byDay[+h.date.slice(8,10)]=h;
+  const ok=v=>v==="ok"?"✔":v==="nok"?"✘":"";
+  const rows=[];
+  for(let d=1;d<=days;d++){
+    const h=byDay[d],r=h&&h.res||{};
+    const bad=Object.values(r).some(v=>v==="nok");
+    rows.push(`<tr${bad?' style="background:#fde8e8"':""}>
+      <td class="num">${d}</td>
+      <td class="num">${String(d).padStart(2,"0")}/${String(M).padStart(2,"0")}/${Y}</td>
+      <td class="num">${ok(r.body)}</td><td class="num">${ok(r.press)}</td>
+      <td class="r">${esc(h&&h.notes||"")}</td>
+      <td class="r">${esc(h&&h.by||"")}</td></tr>`);
+  }
+  const tot=Object.keys(byDay).length;
+  return `<div class="dpage">
+    <div class="ttl">كارت الفحص اليومي لطفاية الحريق — ${esc(monthName(ym))}</div>
+    <div class="kv" style="margin:2mm 0 3mm">
+      <span>المشروع :</span><b>${esc(S.settings?.project||"")}</b>
+      <span>رقم الطفاية :</span><b>${esc(q.serial||q.code||"")}</b>
+      <span>النوع :</span><b>${esc(EXT_T[q.type]||q.type||"")}</b>
+      <span>السعة :</span><b>${esc(q.cap||"")}</b>
+      <span>المكان :</span><b>${esc(q.place||"")}</b>
+    </div>
+    <table><thead><tr>
+      <th class="num" style="width:10mm">اليوم</th><th class="num" style="width:26mm">التاريخ</th>
+      <th class="num" style="width:22mm">الجسم والخرطوم</th><th class="num" style="width:22mm">الضغط</th>
+      <th>ملاحظات</th><th style="width:40mm">الفاحص</th>
+    </tr></thead><tbody>${rows.join("")}</tbody></table>
+    <div style="margin-top:3mm;font-size:9pt;display:flex;justify-content:space-between">
+      <span>عدد أيام الفحص المسجّلة: <b>${tot}</b> من ${days}</span>
+      <span>توقيع مشرف البيئة والسلامة : ..............................</span>
+    </div>
+  </div>`;
+}
+function printExtDaily(id){
+  const q=(S.equipment||[]).find(x=>x.id===id);if(!q){toast("الطفاية مش موجودة");return}
+  const ym0=(lastInsp(q)?.date||today()).slice(0,7);
+  openSheet(`كارت يومي — ${esc(q.serial||q.code||"طفاية")}`,`
+    <div class="banner">الكارت ده بيطبع الشهر يوم بيوم (٣٠/٣١ سطر). الكارت الشهري (F-HSE-10-02) موجود زي ما هو في زرار «🎫 الكارت».</div>
+    <div class="form" style="margin-top:10px">${f("الشهر","ym",{type:"month",value:ym0})}</div>
+  `,async fd=>{
+    const ym=String(fd&&fd.ym||ym0);
+    if(!/^\d{4}-\d{2}$/.test(ym))return "اختار الشهر";
+    const V=openViewer(`كارت يومي ${q.serial||q.code||""} — ${monthName(ym)}`,
+      {filename:pgSafe(`كارت يومي ${q.serial||q.code||""} ${ym}`)+".pdf"});
+    V.setHtml(extDailyPageHTML(q,ym));
+    return null;
+  },"عرض الكارت");
+}
+/* كارت يومي لكل الطفايات المعروضة */
+function printExtDailyAll(){
+  const L=(S.equipment||[]).filter(q=>q.kind==="ext"&&q.active!==false);
+  if(!L.length){toast("مفيش طفايات");return}
+  const ym0=today().slice(0,7);
+  openSheet(`كارت يومي لكل الطفايات (${L.length})`,`
+    <div class="banner">صفحة لكل طفاية، الشهر يوم بيوم.</div>
+    <div class="form" style="margin-top:10px">${f("الشهر","ym",{type:"month",value:ym0})}</div>
+  `,async fd=>{
+    const ym=String(fd&&fd.ym||ym0);
+    if(!/^\d{4}-\d{2}$/.test(ym))return "اختار الشهر";
+    const V=openViewer(`كروت يومية — ${monthName(ym)}`,{filename:pgSafe(`كروت يومية ${ym}`)+".pdf"});
+    V.setHtml(L.map(q=>extDailyPageHTML(q,ym)).join(""));
+    return null;
+  },"عرض الكروت");
+}
 function printFireboxCards(ids){const L=S.equipment.filter(q=>q.kind==="firebox"&&q.active!==false&&(!ids||ids.includes(q.id)));if(!L.length){toast("مفيش صناديق");return}
   printPages("كروت صناديق الإطفاء",async()=>{const out=[];for(const q of L){const cv=await renderGeneric("F-HSE-10-03",{f:{serial:q.serial,site:S.settings.project||"",place:q.place},rows:resRows(q,["body","lock","hose","nozzle","obst"])});out.push(...cv)}return out},`كروت صناديق الإطفاء ${today()}.pdf`)}
 function printExtList(){const L=S.equipment.filter(q=>q.kind==="ext"&&q.active!==false);
