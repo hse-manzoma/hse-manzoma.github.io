@@ -666,7 +666,7 @@ function nextSerial(type){
 }
 function nextVoucher(){let m=0;for(const x of S.moves){if(x.voucher){const n=parseInt(String(x.voucher).replace(/\D/g,""));if(n>m)m=n}}return m+1}
 function attDoc(date){return S.att.find(a=>a.id===date)}
-function page(L,key,n=150){const lim=more[key]||n;return {rows:L.slice(0,lim),btn:L.length>lim?`<div style="text-align:center;margin-top:10px"><button class="btn sm" onclick="more['${key}']=${lim+n*2};refresh()">اعرض ${Math.min(n*2,L.length-lim)} كمان (من ${L.length})</button></div>`:""}}
+function page(L,key,n=150){(window.__pgAll||(window.__pgAll={}))[key]=L;const lim=more[key]||n;return {rows:L.slice(0,lim),btn:L.length>lim?`<div style="text-align:center;margin-top:10px"><button class="btn sm" onclick="more['${key}']=${lim+n*2};refresh()">اعرض ${Math.min(n*2,L.length-lim)} كمان (من ${L.length})</button></div>`:""}}
 function emptyState(title,body,btn){return `<div class="empty"><b>${title}</b>${body}${btn?`<div style="margin-top:12px">${btn}</div>`:""}</div>`}
 function waiting(k){return (!loaded[k]||!legacyLoaded) && db ? `<div class="empty">بيحمّل…</div>` : ""}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("اتنسخ");}catch(e){toast("حدّد النص وانسخه بإيدك")}}
@@ -7813,15 +7813,22 @@ const PG_DOC_AR={printExtCards:"كارت فحص طفاية",printFireboxCards:"�
   printLeave:"إذن إجازة",printExtList:"حصر الطفايات",printEmergList:"حصر أجهزة الطوارئ",inspPrint:"نموذج فحص معدة",fxPrint:"حصر طفايات"};
 function pgPrintables(){
   const root=$("main");if(!root)return [];
-  const rx=/([A-Za-z_$][\w$]*(?:[Pp]rint|Card|Doc)[\w$]*)\s*\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|\[\s*'((?:[^'\\]|\\.)*)'\s*\])\s*\)/;
+  const rx=/([A-Za-z_$][\w$]*)\s*\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|\[\s*'((?:[^'\\]|\\.)*)'\s*\])\s*\)/g;
   const out=[],seen=new Set();
   root.querySelectorAll("[onclick]").forEach(b=>{
     if(b.offsetParent===null)return;
     const code=b.getAttribute("onclick")||"";
-    if(!/print|Card/i.test(code))return;
-    const m=rx.exec(code);if(!m)return;
+    rx.lastIndex=0;
+    let m=null,hit=null;
+    while((m=rx.exec(code))){
+      /* أي دالة اسمها فيه print أو card أو doc — سواء في أوله أو وسطه */
+      if(!/print|card|doc/i.test(m[1]))continue;
+      if(typeof window[m[1]]!=="function")continue;
+      hit=m;break;
+    }
+    if(!hit)return;
+    m=hit;
     const fn=m[1];
-    if(typeof window[fn]!=="function")return;
     const arg=(m[2]!==undefined?m[2]:m[3]!==undefined?m[3]:m[4]||"").replace(/\\'/g,"'").replace(/\\"/g,'"');
     if(!arg)return;
     const arr=m[4]!==undefined;
@@ -7869,18 +7876,27 @@ async function pgEachPrintable(list){
   pgProg(`✔ خلص — ${list.length-fail} نموذج${fail?` · ${fail} مانفعش`:""}`);
 }
 /* بحث داخل قوائم التحديد */
+/* عرض النموذج من جوه قائمة التحديد */
+function pgPreviewSel(kind,i){
+  const S0=window.__pgSel||{};
+  try{
+    if(kind==="p"||kind==="a"){const p=(S0.PR||[])[i];if(!p)return;window[p.fn](p.arr?[p.arg]:p.arg)}
+    else if(kind==="v"){const v=(S0.VK||[])[i];if(v)printVoucher(v.key)}
+    else if(kind==="f"){const x=(S0.F||[])[i];if(x)inspPrint(x.id)}
+  }catch(e){console.error(e);toast("معرفتش أفتح النموذج")}
+}
 function pgFilterLists(q){
   const t=normName(q||"");
-  document.querySelectorAll("#pgPickBox label.li").forEach(l=>{
+  document.querySelectorAll("#pgPickBox .li").forEach(l=>{
     l.hidden=!!t&&!normName(l.innerText).includes(t);
   });
-  const vis=[...document.querySelectorAll("#pgPickBox label.li")].filter(l=>!l.hidden).length;
+  const vis=[...document.querySelectorAll("#pgPickBox .li")].filter(l=>!l.hidden).length;
   const c=document.getElementById("pgFilterCount");
   if(c)c.textContent=t?`ظاهر ${vis}`:"";
 }
 function pgSelectVisible(sel,on){
   document.querySelectorAll(`#pgPickBox ${sel}`).forEach(cb=>{
-    const l=cb.closest("label.li");
+    const l=cb.closest(".li");
     if(l&&l.hidden)return;
     cb.checked=on;
   });
@@ -7910,16 +7926,16 @@ function pageExportSheet(){
     </div>`:""}
     ${F.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">نماذج الشركة</b><button type="button" class="btn ghost sm" data-pgall="f">تحديد الكل / إلغاء</button></div>
-      <div class="list" style="max-height:34vh;overflow:auto">${F.slice(0,120).map((x,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgf="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(x.equipType||"")}${x.code?" · "+esc(x.code):""}</span><span class="s">${esc(fmtDate(x.date))} · ${esc(x.inspector1||"")}</span></span></label>`).join("")}</div>
+      <div class="list" style="max-height:34vh;overflow:auto">${F.slice(0,120).map((x,i)=>`<div class="li"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;flex:1;min-width:0"><input type="checkbox" data-pgf="${i}" checked><span class="grow"><span class="t">${esc(x.equipType||"")}${x.code?" · "+esc(x.code):""}</span><span class="s">${esc(fmtDate(x.date))} · ${esc(x.inspector1||"")}</span></span></label><button type="button" class="btn ghost sm" onclick="pgPreviewSel('f',${i})" title="اعرض النموذج">👁 عرض</button></div>`).join("")}</div>
       ${F.length>120?`<div class="muted" style="font-size:12.5px;margin-top:6px">… و${F.length-120} نموذج كمان (صفّي بالفترة)</div>`:""}
     </div>`:""}
     ${VK.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">أذون الصرف</b><button type="button" class="btn ghost sm" data-pgall="v">تحديد الكل / إلغاء</button></div>
-      <div class="list" style="max-height:34vh;overflow:auto">${VK.map((v,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgv="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(v.voucher||"إذن")} · ${esc(v.name)}</span><span class="s">${esc(fmtDate(v.date))} · ${v.items} صنف${v.att?` · 📎 ${v.att} مرفق`:" · بدون مرفقات"}</span></span></label>`).join("")}</div>
+      <div class="list" style="max-height:34vh;overflow:auto">${VK.map((v,i)=>`<div class="li"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;flex:1;min-width:0"><input type="checkbox" data-pgv="${i}" checked><span class="grow"><span class="t">${esc(v.voucher||"إذن")} · ${esc(v.name)}</span><span class="s">${esc(fmtDate(v.date))} · ${v.items} صنف${v.att?` · 📎 ${v.att} مرفق`:" · بدون مرفقات"}</span></span></label><button type="button" class="btn ghost sm" onclick="pgPreviewSel('v',${i})" title="اعرض الإذن">👁 عرض</button></div>`).join("")}</div>
     </div>`:""}
     ${PR.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">النماذج المحرَّرة في الصفحة</b><button type="button" class="btn ghost sm" data-pgall="p">تحديد الكل / إلغاء</button></div>
-      <div class="list" style="max-height:38vh;overflow:auto">${PR.slice(0,200).map((p,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgp="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(p.label.slice(0,70))}</span><span class="s">${esc(p.title||p.fn)}</span></span></label>`).join("")}</div>
+      <div class="list" style="max-height:38vh;overflow:auto">${PR.slice(0,200).map((p,i)=>`<div class="li"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;flex:1;min-width:0"><input type="checkbox" data-pgp="${i}" checked><span class="grow"><span class="t">${esc(p.label.slice(0,70))}</span><span class="s">${esc(p.title||p.fn)}</span></span></label><button type="button" class="btn ghost sm" onclick="pgPreviewSel('p',${i})" title="اعرض النموذج">👁 عرض</button></div>`).join("")}</div>
       ${PR.length>200?`<div class="muted" style="font-size:12.5px;margin-top:6px">… و${PR.length-200} كمان</div>`:""}
     </div>`:""}
     </div>
@@ -7940,10 +7956,10 @@ function pageExportSheet(){
       <button type="button" class="btn" id="pgPdf">🧾 PDF مجمّع</button>
       <button type="button" class="btn" id="pgCsv">📄 CSV مجمّع</button>`:""}
       ${F.length?`<button type="button" class="btn" id="pgForms">🗂️ كل النماذج في PDF واحد</button>`:""}
-      ${recIds.length?`<button type="button" class="btn" id="pgRecs">🗂️ النماذج المعروضة (${recIds.length})</button>`:""}
       <button type="button" class="btn ghost" id="pgPrint">🖨️ طباعة الصفحة</button>
     </div>
   `,async()=>null,"إغلاق");
+  window.__pgSel={PR,VK,F};
   const pick=()=>tables.filter((_,i)=>document.querySelector(`[data-pgt="${i}"]`)?.checked);
   const pickF=()=>F.filter((_,i)=>document.querySelector(`[data-pgf="${i}"]`)?.checked);
   const b=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
@@ -7956,7 +7972,7 @@ function pageExportSheet(){
   b("pgEachPdf",()=>pgEachTablePdf(pick(),title));
   b("pgEachForm",()=>pgEachFormPdf(pickF()));
   const pickV=()=>VK.filter((_,i)=>document.querySelector(`[data-pgv="${i}"]`)?.checked).map(v=>v.key);
-  const pickP=()=>PR.filter((_,i)=>{const cb=document.querySelector(`[data-pgp="${i}"]`);return cb&&cb.checked&&!cb.closest("label.li")?.hidden});
+  const pickP=()=>PR.filter((_,i)=>{const cb=document.querySelector(`[data-pgp="${i}"]`);return cb&&cb.checked&&!cb.closest(".li")?.hidden});
   b("pgEachPrintable",()=>pgEachPrintable(pickP()));
   {const f=document.getElementById("pgFilter");if(f)f.oninput=()=>pgFilterLists(f.value);}
   {const a=document.getElementById("pgSelVis");if(a)a.onclick=()=>pgSelectVisible("input[type=checkbox]",true);}
@@ -7980,6 +7996,18 @@ function pageExportSheet(){
    ====================================================================== */
 function pgAllDocs(){
   const out=[...pgPrintables().filter(p=>p.fn!=="printVoucher")];
+  /* التصاريح مقسّمة صفحات — ناخدها من القائمة الكاملة اللي سجّلتها page() */
+  if(tab==="ptw"&&window.__pgAll&&window.__pgAll.ptw){
+    const have=new Set(out.filter(p=>p.fn==="printPermit").map(p=>p.arg));
+    for(const p of window.__pgAll.ptw){
+      if(!p||have.has(p.id))continue;
+      if(typeof FORM_TYPES!=="undefined"&&!FORM_TYPES.includes(p.type))continue;
+      if(typeof ptwDraft==="function"&&ptwDraft(p))continue;
+      out.push({fn:"printPermit",arg:p.id,arr:false,
+        label:[p.no,(typeof PTW_TYPES!=="undefined"&&PTW_TYPES[p.type]&&PTW_TYPES[p.type].ar)||p.type,fmtDate(p.date),p.contractor,p.safetyId?empName(p.safetyId):p.safetyName].filter(Boolean).join(" · "),
+        title:"تصريح عمل"});
+    }
+  }
   for(const v of pgVoucherList())
     out.push({fn:"printVoucher",arg:v.key,arr:false,
       label:[v.voucher,v.name,fmtDate(v.date)].filter(Boolean).join(" · "),title:"إذن صرف"});
@@ -7995,9 +8023,10 @@ async function pgDownloadAllDocs(){
   openSheet(`تحميل كل نماذج الصفحة (${L.length})`,`
     <div class="banner">هينزّل <b>${L.length}</b> نموذج، كل واحد في ملف PDF باسمه. المتصفح هيسألك مرة تسمح بتنزيل ملفات متعددة — وافق.</div>
     <div id="pgProg"></div>
-    <div class="list" style="max-height:40vh;overflow:auto;margin-top:10px">${L.slice(0,150).map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.label.slice(0,70))}</div><div class="s">${esc(p.title||"")}</div></div></div>`).join("")}</div>
+    <div class="list" style="max-height:40vh;overflow:auto;margin-top:10px">${L.slice(0,150).map((p,i)=>`<div class="li"><div class="grow"><div class="t">${esc(p.label.slice(0,70))}</div><div class="s">${esc(p.title||"")}</div></div><button type="button" class="btn ghost sm" onclick="pgPreviewSel('a',${i})" title="اعرض النموذج">👁 عرض</button></div>`).join("")}</div>
     <button type="button" class="btn primary" style="width:100%;margin-top:12px" id="pgGoAll">⬇ ابدأ التنزيل</button>
   `,async()=>null,"إغلاق");
+  window.__pgSel=Object.assign(window.__pgSel||{},{PR:L});
   const g=document.getElementById("pgGoAll");
   if(g)g.onclick=()=>{g.disabled=true;pgEachPrintable(L)};
 }
