@@ -474,6 +474,8 @@ input[type="search"]{background-image:none}
   .card,.tile,.btn{box-shadow:none!important;background-image:none!important}
 }
 
+.pg-off{display:none!important}
+
 /* ===== printable documents (A4) ===== */
 .dpage{display:flex;flex-direction:column;width:210mm;height:297mm;box-sizing:border-box;padding:8mm;background:#fff;color:#000;font-family:"IBM Plex Sans Arabic",Arial,sans-serif;font-size:10.5pt;line-height:1.45;direction:rtl;overflow:hidden;page-break-after:always;break-after:page}
 .dpage.land{width:297mm;height:210mm}
@@ -7994,13 +7996,19 @@ function pageExportSheet(){
    شريط التصدير الظاهر في كل صفحة — تحت عنوان الصفحة على طول،
    عشان التحديد والبحث والتحميل يكونوا قدام العين مش مخبيين في الهيدر.
    ====================================================================== */
+/* الصفوف اللي القائمة الكاملة بتكمّلها لازم تحترم فلتر الفترة زي المعروض */
+function pgInPeriod(d){
+  if(pgNativePeriod())return true;
+  if(!d)return true;
+  return periodMatch(pgNS(),String(d).slice(0,10));
+}
 function pgAllDocs(){
   const out=[...pgPrintables().filter(p=>p.fn!=="printVoucher")];
   /* التصاريح مقسّمة صفحات — ناخدها من القائمة الكاملة اللي سجّلتها page() */
   if(tab==="ptw"&&window.__pgAll&&window.__pgAll.ptw){
     const have=new Set(out.filter(p=>p.fn==="printPermit").map(p=>p.arg));
     for(const p of window.__pgAll.ptw){
-      if(!p||have.has(p.id))continue;
+      if(!p||have.has(p.id)||!pgInPeriod(p.date))continue;
       if(typeof FORM_TYPES!=="undefined"&&!FORM_TYPES.includes(p.type))continue;
       if(typeof ptwDraft==="function"&&ptwDraft(p))continue;
       out.push({fn:"printPermit",arg:p.id,arr:false,
@@ -8014,6 +8022,28 @@ function pgAllDocs(){
   for(const x of pgFormRecords())
     out.push({fn:"inspPrint",arg:x.id,arr:false,
       label:[x.equipType,x.code,fmtDate(x.date)].filter(Boolean).join(" · "),title:"نموذج فحص معدة"});
+  /* الصفحات المقسّمة: لو كل النماذج الظاهرة بتستخدم نفس الدالة، نكمّل باقي
+     القائمة الكاملة اللي سجّلتها page() — عشان «الكل» يبقى الكل فعلاً */
+  try{
+    const fns=[...new Set(out.filter(p=>p.fn!=="printVoucher"&&p.fn!=="inspPrint").map(p=>p.fn))];
+    if(fns.length===1&&window.__pgAll){
+      const fn=fns[0],have=new Set(out.map(p=>p.arg));
+      let best=null;
+      for(const k of Object.keys(window.__pgAll)){
+        const L=window.__pgAll[k];
+        if(!Array.isArray(L)||!L.length)continue;
+        const hits=L.filter(x=>x&&have.has(x.id)).length;
+        if(hits&&(!best||L.length>best.length))best=L;
+      }
+      if(best)for(const x of best){
+        if(!x||!x.id||have.has(x.id)||!pgInPeriod(x.date))continue;
+        const lbl=[x.no||x.code||x.serial,x.title||x.name||x.type,x.date?fmtDate(x.date):""]
+          .filter(Boolean).join(" · ")||String(x.id);
+        out.push({fn,arg:x.id,arr:false,label:lbl,title:PG_DOC_AR[fn]||"نموذج"});
+        have.add(x.id);
+      }
+    }
+  }catch(e){}
   const seen=new Set();
   return out.filter(p=>{const k=p.fn+"|"+p.arg;if(seen.has(k))return false;seen.add(k);return true});
 }
@@ -8030,6 +8060,49 @@ async function pgDownloadAllDocs(){
   const g=document.getElementById("pgGoAll");
   if(g)g.onclick=()=>{g.disabled=true;pgEachPrintable(L)};
 }
+
+/* ======================================================================
+   فلتر الفترة العام: أي صفحة مالهاش فلتر فترة خاص بيها بتاخد الشريط ده،
+   وبيصفّي الصفوف حسب التاريخ الظاهر فيها (dd/mm/yyyy).
+   ====================================================================== */
+function pgNativePeriod(){
+  return tab==="inspection"||tab==="equip"||(tab==="ppe"&&ui.ppeSub==="moves");
+}
+const pgNS=()=>"pg:"+tab+":"+(ui.ppeSub||ui.eqKind||ui.recKind||"");
+function pgRowDate(el){
+  const t=el.innerText||"";
+  let m=/(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if(m)return `${m[1]}-${m[2]}-${m[3]}`;
+  m=/(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t);
+  if(m)return `${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+  return "";
+}
+function pgPeriodRows(){
+  const main=$("main");if(!main)return [];
+  return [...main.querySelectorAll("table tbody tr, .list > .li")]
+    .filter(r=>!r.closest("#pgBar")&&!r.closest(".pvwrap"));
+}
+function pgApplyPeriod(){
+  if(pgNativePeriod())return null;
+  const ns=pgNS(),st=periodSt(ns);
+  const rows=pgPeriodRows();
+  let dated=0,shown=0;
+  for(const r of rows){
+    const d=pgRowDate(r);
+    if(!d){r.classList.remove("pg-off");continue}   /* صف من غير تاريخ يفضل ظاهر */
+    dated++;
+    const ok=periodMatch(ns,d);
+    r.classList.toggle("pg-off",!ok);
+    if(ok)shown++;
+  }
+  return {dated,shown,mode:st.mode};
+}
+function pgPeriodBarHTML(){
+  if(pgNativePeriod())return "";
+  const ns=pgNS();
+  const n=pgPeriodRows().filter(r=>{const d=pgRowDate(r);return !d||periodMatch(ns,d)}).length;
+  return periodBarHTML(ns,n);
+}
 function pgBarMount(){
   try{
     const main=$("main");if(!main)return;
@@ -8044,6 +8117,19 @@ function pgBarMount(){
       +(docs?`<button type="button" class="btn sm primary" onclick="pgDownloadAllDocs()">🗂️ تحميل كل نماذج الصفحة (${docs})</button>`:"")
       +`<span class="muted" style="font-size:12.5px">${tbl?`${tbl} جدول`:""}${tbl&&docs?" · ":""}${docs?`${docs} نموذج`:""}</span>`;
     h.insertAdjacentElement("afterend",bar);
+    if(!pgNativePeriod()){
+      const ns=pgNS();
+      const box=document.createElement("div");
+      box.id="pgPeriodBox";
+      const draw=()=>{
+        box.innerHTML=pgPeriodBarHTML();
+        periodBind(ns,()=>{pgApplyPeriod();draw()});
+      };
+      bar.insertAdjacentElement("afterend",box);
+      draw();
+      pgApplyPeriod();
+      draw();
+    }
   }catch(e){}
 }
 /* بنعلّق الشريط على كل صفحة بعد ما ترسم */
