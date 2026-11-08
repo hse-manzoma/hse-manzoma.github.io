@@ -549,6 +549,7 @@ nav.tabs button>svg.ic{width:16px;height:16px;vertical-align:-.2em}
         <div style="display:flex;align-items:center;gap:6px">
           <div class="sync" id="sync"><span class="dot"></span><span>بيتصل…</span></div>
           <button class="btn ghost sm" id="syncNowBtn" onclick="syncNow()" title="مزامنة فورية" style="font-size:13px;padding:3px 7px">🔄</button>
+          <button class="btn ghost sm" id="exportPageBtn" onclick="pageExportSheet()" title="تصدير الصفحة الحالية" style="font-size:13px;padding:3px 7px">📥</button>
           <button class="btn ghost sm" id="onlineBtn" onclick="showOnline()" title="من هو متصل الآن" style="font-size:13px;padding:3px 7px">👥</button>
           <button class="btn ghost sm" id="meBtn" onclick="meMenu()" style="font-size:12.5px">👤</button>
         </div>
@@ -7277,6 +7278,91 @@ async function inspOriginalPages(x){
 }
 
 
+
+/* ======================================================================
+   تصفير أرصدة المخزن: الرصيد الحالي يبقى صفر والحركات والأذون تفضل زي ما هي.
+   الرصيد = رصيد أول + وارد − منصرف، فبنضبط «رصيد أول» = منصرف − وارد.
+   بنحتفظ بالقيمة القديمة في openingBefore عشان التراجع.
+   ====================================================================== */
+function stockZeroPlan(){
+  const T=moveTotals();
+  return (S.items||[]).map(i=>{
+    const o=T[i.id]||{inn:0,out:0};
+    const open=num(i.opening),bal=open+o.inn-o.out,want=o.out-o.inn;
+    return {id:i.id,code:i.code||"",name:i.name||"",unit:i.unit||"",inn:o.inn,out:o.out,open,bal,want,changed:open!==want};
+  });
+}
+function stockZeroUndoable(){return (S.items||[]).filter(i=>i.openingBefore!=null)}
+async function stockZeroBackup(){
+  const P=stockZeroPlan();
+  if(!P.length){toast("المخزن فاضي");return}
+  const esc=v=>{const t=String(v??"");return /[",\n;]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t};
+  const head=["الكود","الصنف","الوحدة","رصيد أول","وارد","منصرف","الرصيد"];
+  const csv="﻿"+[head.join(","),...P.map(r=>[r.code,r.name,r.unit,r.open,r.inn,r.out,r.bal].map(esc).join(","))].join("\n");
+  await pgSaveBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`أرصدة المخزن قبل التصفير ${today()}.csv`);
+}
+async function stockZeroRun(){
+  const P=stockZeroPlan().filter(r=>r.changed);
+  if(!P.length){toast("كل الأرصدة صفر بالفعل");return}
+  const ok=await write(async()=>{
+    for(const r of P){
+      const it=item(r.id)||{};
+      await upsert("ppe_items",r.id,{opening:r.want,openingBefore:(it.openingBefore!=null?it.openingBefore:r.open),zeroedAt:Date.now()});
+    }
+    return true;
+  },`اتصفّر رصيد ${P.length} صنف`);
+  if(ok){$("overlayRoot").innerHTML="";refresh()}
+}
+async function stockZeroUndo(){
+  const L=stockZeroUndoable();
+  if(!L.length){toast("مفيش تصفير أقدر أرجّعه");return}
+  const ok=await write(async()=>{
+    for(const i of L)await upsert("ppe_items",i.id,{opening:num(i.openingBefore),openingBefore:null,zeroedAt:null});
+    return true;
+  },`رجّعت رصيد ${L.length} صنف`);
+  if(ok){$("overlayRoot").innerHTML="";refresh()}
+}
+function stockZeroSheet(){
+  const P=stockZeroPlan(),ch=P.filter(r=>r.changed),undo=stockZeroUndoable().length;
+  const totalBal=P.reduce((n,r)=>n+r.bal,0),moves=P.reduce((n,r)=>n+r.inn+r.out,0);
+  openSheet("تصفير أرصدة المخزن",`
+    <div class="banner">الرصيد الحالي لكل صنف هيبقى <b>صفر</b>، و<b>كل الحركات وأذون الصرف والاستلام هتفضل زي ما هي</b> — مش هيتمسح أي إذن.
+      بيتم ده بضبط «رصيد أول المدة» لكل صنف، والقيمة القديمة بتتحفظ عشان تقدر ترجع.</div>
+    <div class="grid3" style="margin-top:10px">
+      <div class="tile"><div class="lbl">أصناف</div><div class="val">${P.length}</div></div>
+      <div class="tile"><div class="lbl">إجمالي الرصيد الحالي</div><div class="val">${num(totalBal)}</div></div>
+      <div class="tile"><div class="lbl">حركات هتفضل</div><div class="val">${moves}</div></div>
+    </div>
+    ${ch.length?`<div class="card" style="padding:10px 12px;margin-top:12px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">هيتغيّر ${ch.length} صنف</div>
+      <div class="list" style="max-height:38vh;overflow:auto">${ch.slice(0,200).map(r=>`<div class="li"><div class="grow"><div class="t">${esc(r.name)}${r.code?" · "+esc(r.code):""}</div><div class="s">الرصيد ${num(r.bal)} ← <b>0</b> · وارد ${r.inn} · منصرف ${r.out} · رصيد أول ${num(r.open)} ← ${num(r.want)}</div></div></div>`).join("")}</div>
+      ${ch.length>200?`<div class="muted" style="font-size:12.5px;margin-top:6px">… و${ch.length-200} صنف كمان</div>`:""}
+    </div>`:`<div class="card" style="margin-top:12px">${emptyState("كل الأرصدة صفر بالفعل","مفيش حاجة تتغير.")}</div>`}
+    <div class="row-actions" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+      <button type="button" class="btn" id="szBak">📄 نزّل نسخة احتياطية الأول</button>
+      ${ch.length?`<button type="button" class="btn danger" id="szGo">⚠️ صفّر رصيد ${ch.length} صنف</button>`:""}
+      ${undo?`<button type="button" class="btn ghost" id="szUndo">↩ تراجع عن آخر تصفير (${undo})</button>`:""}
+    </div>
+  `,async()=>null,"إغلاق");
+  const b=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
+  b("szBak",()=>stockZeroBackup());
+  b("szGo",()=>stockZeroRun());
+  b("szUndo",()=>stockZeroUndo());
+}
+{const _z=VIEWS.settings.fill;VIEWS.settings.fill=function(){
+  _z.call(this);
+  try{
+    const body=$("setBody");
+    if(!body||$("zeroStockCard")||!BASE.del)return;
+    const P=stockZeroPlan(),bal=P.reduce((n,r)=>n+r.bal,0);
+    const c=document.createElement("section");
+    c.className="card";c.id="zeroStockCard";
+    c.innerHTML=`<h3>تصفير أرصدة المخزن</h3>
+      <p class="muted" style="font-size:13px">بيرجّع رصيد كل الأصناف لصفر مع الإبقاء على كل الحركات وأذون الصرف والاستلام. حاليًا ${P.length} صنف وإجمالي رصيد ${num(bal)}.</p>
+      <button type="button" class="btn" onclick="stockZeroSheet()">تصفير الأرصدة</button>`;
+    body.appendChild(c);
+  }catch(e){console.error("zeroStockCard",e)}
+}}
 /* ===== تنظيم صفحة الإعدادات في أقسام واضحة =====
    بيشتغل بعد كل الإضافات اللي بتلحق كروت على #setBody، فبيوزّعها على أقسامها
    من غير ما يلمس محتوى أي كارت أو الأحداث المربوطة بيه. */
@@ -7287,7 +7373,7 @@ const SET_SECTIONS=[
   {k:"print",   ic:"🖨️", ar:"الطباعة والنظام", hint:"الطابعات، إصدار المنظومة، والتحديثات."},
   {k:"data",    ic:"🗄️", ar:"البيانات والنسخ", hint:"التصدير والاستيراد ومراجعة التكرارات."}
 ];
-const SET_BY_ID={ptwTeamsCard:"perms",missionApprCard:"perms",prnCard:"print",verCard:"print",dupCleanupCard:"data",setUsersBox:"users"};
+const SET_BY_ID={zeroStockCard:"data",ptwTeamsCard:"perms",missionApprCard:"perms",prnCard:"print",verCard:"print",dupCleanupCard:"data",setUsersBox:"users"};
 const SET_BY_TITLE=[
   [/صلاحي(ة|ات) توزيع المهام|توزيع المهام/,"perms"],
   [/صلاحيات التوقيع|الاعتماد/,"perms"],
@@ -7353,6 +7439,183 @@ function settingsOrganize(){
   });
 }
 {const _setOrg=VIEWS.settings.fill;VIEWS.settings.fill=function(){const b=$("setBody");if(b)delete b.dataset.organized;_setOrg.call(this);try{settingsOrganize()}catch(e){console.error("settings organize",e)}}}
+
+
+/* ======================================================================
+   تصدير أي صفحة: بيقرا الجداول المعروضة فعلًا على الشاشة (بفلاترها وبحثها)
+   ويطلّعها Excel أو CSV، وبيطبع الصفحة، وبيجمع نماذج الشركة في ملف واحد.
+   ====================================================================== */
+function pgCellText(c){
+  const k=c.cloneNode(true);
+  k.querySelectorAll("button,svg,.row-actions,[data-noexport]").forEach(e=>e.remove());
+  k.querySelectorAll("input,select,textarea").forEach(e=>{
+    let v="";
+    if(e.tagName==="SELECT")v=e.options[e.selectedIndex]?.text||"";
+    else if(e.type==="checkbox"||e.type==="radio")v=e.checked?"نعم":"";
+    else v=e.value||"";
+    e.replaceWith(document.createTextNode(v));
+  });
+  return (k.innerText||k.textContent||"").replace(/\s+/g," ").trim();
+}
+function pgTableName(t,i){
+  let n=t,h=null,hops=0;
+  while(n&&!h&&hops++<6){
+    let p=n.previousElementSibling;
+    while(p&&!h){const x=p.matches?.("h2,h3")?p:p.querySelector?.("h2,h3");if(x)h=x;p=p.previousElementSibling}
+    n=n.parentElement;if(!n||n===document.body)break;
+  }
+  const t2=(h?h.textContent:"").replace(/\s+/g," ").trim();
+  return (t2||("جدول "+(i+1))).replace(/[\[\]:*?\/\\]/g," ").slice(0,28).trim()||("جدول "+(i+1));
+}
+function pgTableRows(t){
+  const trs=[...t.querySelectorAll("tr")].filter(tr=>!tr.hidden&&tr.offsetParent!==null);
+  if(!trs.length)return null;
+  const headTr=(t.tHead&&t.tHead.rows[0]&&!t.tHead.rows[0].hidden)?t.tHead.rows[0]:(trs[0].querySelector("th")?trs[0]:null);
+  const head=headTr?[...headTr.cells].map(pgCellText):null;
+  const body=trs.filter(tr=>tr!==headTr&&tr.cells.length);
+  if(!body.length)return null;
+  const width=Math.max(head?head.length:0,...body.map(tr=>tr.cells.length));
+  const keep=[];
+  for(let i=0;i<width;i++){
+    const h=(head&&head[i])||"";
+    if(h||body.some(tr=>tr.cells[i]&&pgCellText(tr.cells[i])))keep.push(i);
+  }
+  if(!keep.length)return null;
+  const seen={},hdr=keep.map((i,n)=>{let h=(head&&head[i])||("عمود "+(n+1));seen[h]=(seen[h]||0)+1;return seen[h]>1?h+" "+seen[h]:h});
+  return body.map(tr=>{const o={};keep.forEach((i,n)=>{o[hdr[n]]=tr.cells[i]?pgCellText(tr.cells[i]):""});return o});
+}
+/* القوائم (.li) — صفحات الموظفين والفحوصات والفريق بتستخدمها بدل الجداول */
+function pgListRows(box){
+  const items=[...box.children].filter(li=>li.classList&&li.classList.contains("li")&&!li.hidden&&li.offsetParent!==null);
+  if(!items.length)return null;
+  const txt=el=>{if(!el)return "";const k=el.cloneNode(true);
+    k.querySelectorAll("button,svg,.pill,.row-actions,[data-noexport]").forEach(e=>e.remove());
+    return (k.innerText||k.textContent||"").replace(/\s+/g," ").trim()};
+  const rows=items.map(li=>{
+    const o={};
+    const t=li.querySelector(".t"),sub=li.querySelector(".s");
+    o["البند"]=txt(t)||txt(li).slice(0,160);
+    const d=txt(sub);if(d)o["التفاصيل"]=d;
+    const extra=[...li.querySelectorAll(".muted")].map(txt).filter(x=>x&&x!==d);
+    if(extra.length)o["ملاحظات"]=extra.join(" | ");
+    const pills=[...li.querySelectorAll(".pill")].map(p=>(p.textContent||"").replace(/\s+/g," ").trim()).filter(Boolean);
+    if(pills.length)o["الحالة"]=pills.join(" · ");
+    return o;
+  }).filter(o=>o["البند"]);
+  if(!rows.length)return null;
+  const keys=[...new Set(rows.flatMap(Object.keys))];
+  return rows.map(o=>{const r={};keys.forEach(k=>r[k]=o[k]||"");return r});
+}
+function pgTables(){
+  const root=$("main")||document.body;
+  const out=[];
+  [...root.querySelectorAll("table")].forEach((t,i)=>{
+    if(t.offsetParent===null)return;
+    const rows=pgTableRows(t);
+    if(rows&&rows.length)out.push({name:pgTableName(t,out.length),rows,n:rows.length});
+  });
+  [...root.querySelectorAll(".list")].forEach(box=>{
+    if(box.offsetParent===null||box.closest("table"))return;
+    const rows=pgListRows(box);
+    if(rows&&rows.length)out.push({name:pgTableName(box,out.length),rows,n:rows.length});
+  });
+  const seen={};
+  out.forEach(x=>{seen[x.name]=(seen[x.name]||0)+1;if(seen[x.name]>1)x.name=(x.name+" "+seen[x.name]).slice(0,31)});
+  return out;
+}
+function pgFileBase(){
+  const h=$("main")?.querySelector("h2");
+  const t=(h?h.textContent:"").replace(/\s+/g," ").trim()||(TAB_NAMES[tab]||"صفحة");
+  return `${t} ${today()}`.replace(/[\\\/:*?"<>|]/g,"-");
+}
+async function pgSaveBlob(blob,filename){
+  const dl=await window.claude?.use?.("downloads");
+  if(dl){try{await dl.save({filename,data:blob});toast("اتنزل الملف");return true}catch(e){if(e?.code==="declined"){toast("التنزيل اتلغى");return false}}}
+  try{
+    const u=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);toast("اتنزل الملف");return true;
+  }catch(e){toast("التنزيل مش متاح هنا");return false}
+}
+async function pgExportXlsx(sel){
+  if(!sel.length){toast("مفيش جداول متحددة");return}
+  toast("بيجهّز الملف…");
+  try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js")}
+  catch(e){toast("معرفتش أحمّل أداة Excel — جرّب CSV");return}
+  const wb=XLSX.utils.book_new();
+  for(const t of sel){
+    const ws=XLSX.utils.json_to_sheet(t.rows);
+    const keys=Object.keys(t.rows[0]||{});
+    ws["!cols"]=keys.map(k=>({wch:Math.min(45,Math.max(10,k.length+4,...t.rows.slice(0,300).map(r=>String(r[k]??"").length)))}));
+    ws["!views"]=[{RTL:true}];
+    XLSX.utils.book_append_sheet(wb,ws,t.name.slice(0,31));
+  }
+  wb.Workbook={Views:[{RTL:true}]};
+  const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  await pgSaveBlob(new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),pgFileBase()+".xlsx");
+}
+async function pgExportCsv(sel){
+  if(!sel.length){toast("مفيش جداول متحددة");return}
+  const esc=v=>{const t=String(v??"");return /[",\n;]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t};
+  const parts=sel.map(t=>{
+    const keys=Object.keys(t.rows[0]||{});
+    return (sel.length>1?t.name+"\n":"")+[keys.join(","),...t.rows.map(r=>keys.map(k=>esc(r[k])).join(","))].join("\n");
+  });
+  await pgSaveBlob(new Blob(["﻿"+parts.join("\n\n")],{type:"text/csv;charset=utf-8"}),pgFileBase()+".csv");
+}
+/* كل نماذج الشركة المعروضة في صفحة الفحوصات، في ملف واحد */
+function pgFormRecords(){
+  if(typeof INSP_SPECS==="undefined")return [];
+  let recs=[];
+  if(tab==="inspection"||(tab==="equip"&&ui.eqKind==="inspect")){
+    recs=inspectionDailyGroups(S.inspections||[]).map(g=>g.record)
+      .filter(x=>periodMatch("insp",x.date)).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  }
+  return recs.filter(x=>INSP_SPECS[x.equipType]);
+}
+async function pgExportForms(){
+  const recs=pgFormRecords();
+  if(!recs.length){toast("مفيش نماذج شركة في الصفحة دي");return}
+  const cap=40,use=recs.slice(0,cap);
+  toast(`بيجهّز ${use.length} نموذج…`);
+  const pages=[];
+  for(const x of use){
+    try{const p=await inspOriginalPages(x);if(p&&p.length)pages.push(...p)}catch(e){}
+  }
+  if(!pages.length){toast("معرفتش أجهّز النماذج");return}
+  const V=openViewer(`نماذج الفحص (${use.length})`,{filename:pgFileBase()+".pdf",
+    note:recs.length>cap?`اتعرض أول ${cap} نموذج من ${recs.length} — صفّي بالفترة عشان الباقي.`:""});
+  V.setPages(pages);
+}
+function pageExportSheet(){
+  const tables=pgTables(),forms=pgFormRecords().length;
+  const title=($("main")?.querySelector("h2")?.textContent||TAB_NAMES[tab]||"الصفحة").replace(/\s+/g," ").trim();
+  if(!tables.length&&!forms){
+    openSheet("تصدير الصفحة",`<div class="card" style="padding:14px">${emptyState("مفيش جداول في الصفحة دي","افتح صفحة فيها جدول — زي المخزن أو المعدات أو الموظفين — واضغط 📥 تاني.")}</div>
+      <button type="button" class="btn" style="width:100%;margin-top:10px" onclick="window.print()">🖨️ طباعة الصفحة زي ما هي</button>`,async()=>null,"إغلاق");
+    return;
+  }
+  const total=tables.reduce((n,t)=>n+t.n,0);
+  openSheet("تصدير — "+title,`
+    <div class="banner">بيتصدّر اللي ظاهر قدامك دلوقتي بالظبط، بفلاتره وبحثه (${tables.length} جدول · ${total} صف).</div>
+    ${tables.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">الجداول</div>
+      ${tables.map((t,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgt="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(t.name)}</span><span class="s">${t.n} صف</span></span></label>`).join("")}
+    </div>`:""}
+    <div class="row-actions" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+      ${tables.length?`<button type="button" class="btn primary" id="pgXl">📊 تنزيل Excel</button>
+      <button type="button" class="btn" id="pgCsv">📄 تنزيل CSV</button>`:""}
+      ${forms?`<button type="button" class="btn" id="pgForms">🗂️ كل نماذج الشركة (${forms})</button>`:""}
+      <button type="button" class="btn ghost" id="pgPrint">🖨️ طباعة الصفحة</button>
+    </div>
+  `,async()=>null,"إغلاق");
+  const pick=()=>tables.filter((_,i)=>document.querySelector(`[data-pgt="${i}"]`)?.checked);
+  const b=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
+  b("pgXl",()=>pgExportXlsx(pick()));
+  b("pgCsv",()=>pgExportCsv(pick()));
+  b("pgForms",()=>pgExportForms());
+  b("pgPrint",()=>window.print());
+}
 
 try{show(tab)}catch(err){console.error("Initial screen render failed",err);setSync("تعذر عرض الصفحة","off");const main=document.getElementById("main");if(main)main.innerHTML='<div class="card" role="alert"><b>تعذر عرض الصفحة</b><div class="muted" style="margin-top:6px">حدّث الصفحة. لو استمرت المشكلة، أعد فتح المنظومة بعد استقرار الاتصال.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'}
 boot().catch(err=>{console.error("App connection startup failed",err);booted=true;online=false;setSync("الاتصال اتقطع","off");const main=document.getElementById("main");if(main&&!main.innerHTML.trim())main.innerHTML='<div class="card" role="alert"><b>فقدنا الاتصال بقاعدة البيانات</b><div class="muted" style="margin-top:6px">اتأكد من الإنترنت واضغط «إعادة المحاولة». البيانات المحفوظة لن تتأثر.</div><button class="btn primary" style="margin-top:12px" onclick="location.reload()">إعادة المحاولة</button></div>'});
