@@ -7634,8 +7634,57 @@ async function pgExportForms(){
     note:recs.length>cap?`اتعرض أول ${cap} نموذج من ${recs.length} — صفّي بالفترة عشان الباقي.`:""});
   V.setPages(pages);
 }
+const pgSafe=t=>String(t||"").replace(/[\\\/:*?"<>|\n\r\t]/g," ").replace(/\s+/g," ").trim().slice(0,70)||"ملف";
+const pgProg=t=>{const e=document.getElementById("pgProg");if(e)e.innerHTML=t?`<div class="banner" style="margin-top:10px">${t}</div>`:""};
+const pgWait=ms=>new Promise(r=>setTimeout(r,ms));
+function pgCsvBlob(t){
+  const q=v=>{const x=String(v??"");return /[",\n;]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
+  const keys=Object.keys(t.rows[0]||{});
+  return new Blob(["\ufeff"+[keys.join(","),...t.rows.map(r=>keys.map(k=>q(r[k])).join(","))].join("\n")],{type:"text/csv;charset=utf-8"});
+}
+/* CSV: ملف منفصل لكل جدول باسمه */
+async function pgEachCsv(sel){
+  if(!sel.length){toast("محددتش جداول");return}
+  const base=pgFileBase();let n=0;
+  for(const t of sel){
+    pgProg(`بينزّل ${++n} من ${sel.length} — ${esc(t.name)}`);
+    await pgSaveBlob(pgCsvBlob(t),`${pgSafe(base+" - "+t.name)}.csv`);
+    await pgWait(450);
+  }
+  pgProg(`✔ خلص — ${sel.length} ملف CSV`);
+}
+/* PDF: ملف منفصل لكل جدول */
+async function pgEachTablePdf(sel,title){
+  if(!sel.length){toast("محددتش جداول");return}
+  const base=pgFileBase();let n=0;
+  for(const t of sel){
+    pgProg(`بيجهّز PDF ${++n} من ${sel.length} — ${esc(t.name)}`);
+    try{
+      const blob=await htmlPdf(pgPdfHTML([t],title||""));
+      await pgSaveBlob(blob,`${pgSafe(base+" - "+t.name)}.pdf`);
+    }catch(e){console.error(e);toast("معرفتش أجهّز PDF لـ "+t.name)}
+    await pgWait(450);
+  }
+  pgProg(`✔ خلص — ${sel.length} ملف PDF`);
+}
+/* PDF: ملف منفصل لكل نموذج شركة */
+async function pgEachFormPdf(recs){
+  if(!recs||!recs.length){toast("محددتش نماذج");return}
+  let n=0,fail=0;
+  for(const x of recs){
+    pgProg(`بيجهّز نموذج ${++n} من ${recs.length} — ${esc(x.equipType||"")}`);
+    try{
+      const pages=await inspOriginalPages(x);
+      if(!pages||!pages.length){fail++;continue}
+      const nm=pgSafe(`${x.equipType||"نموذج فحص"}${x.code?" - "+x.code:""} - ${x.date||today()}`);
+      await pgSaveBlob(await permitPdfBlob(pages),nm+".pdf");
+    }catch(e){console.error(e);fail++}
+    await pgWait(450);
+  }
+  pgProg(`✔ خلص — ${recs.length-fail} نموذج${fail?` · ${fail} مانفعش`:""}`);
+}
 function pageExportSheet(){
-  const tables=pgTables(),forms=pgFormRecords().length,recIds=pgRecordIds();
+  const tables=pgTables(),F=pgFormRecords(),forms=F.length,recIds=pgRecordIds();
   const title=($("main")?.querySelector("h2")?.textContent||TAB_NAMES[tab]||"الصفحة").replace(/\s+/g," ").trim();
   if(!tables.length&&!forms&&!recIds.length){
     openSheet("تصدير الصفحة",`<div class="card" style="padding:14px">${emptyState("مفيش جداول في الصفحة دي","افتح صفحة فيها جدول — زي المخزن أو المعدات أو الموظفين — واضغط 📥 تاني.")}</div>
@@ -7646,20 +7695,43 @@ function pageExportSheet(){
   openSheet("تصدير — "+title,`
     <div class="banner">بيتصدّر اللي ظاهر قدامك دلوقتي بالظبط، بفلاتره وبحثه (${tables.length} جدول · ${total} صف).</div>
     ${tables.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
-      <div style="font-weight:700;font-size:13px;margin-bottom:6px">الجداول</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">الجداول</b><button type="button" class="btn ghost sm" data-pgall="t">تحديد الكل / إلغاء</button></div>
       ${tables.map((t,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgt="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(t.name)}</span><span class="s">${t.n} صف</span></span></label>`).join("")}
     </div>`:""}
-    <div class="row-actions" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
-      ${tables.length?`<button type="button" class="btn primary" id="pgXl">📊 تنزيل Excel</button>
-      <button type="button" class="btn" id="pgPdf">🧾 طباعة / PDF</button>
-      <button type="button" class="btn" id="pgCsv">📄 تنزيل CSV</button>`:""}
-      ${forms?`<button type="button" class="btn" id="pgForms">🗂️ كل نماذج الشركة PDF (${forms})</button>`:""}
+    ${F.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">نماذج الشركة</b><button type="button" class="btn ghost sm" data-pgall="f">تحديد الكل / إلغاء</button></div>
+      <div class="list" style="max-height:34vh;overflow:auto">${F.slice(0,120).map((x,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgf="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(x.equipType||"")}${x.code?" · "+esc(x.code):""}</span><span class="s">${esc(fmtDate(x.date))} · ${esc(x.inspector1||"")}</span></span></label>`).join("")}</div>
+      ${F.length>120?`<div class="muted" style="font-size:12.5px;margin-top:6px">… و${F.length-120} نموذج كمان (صفّي بالفترة)</div>`:""}
+    </div>`:""}
+    <div id="pgProg"></div>
+    <div style="margin-top:14px;font-weight:700;font-size:13px">ملف منفصل لكل حاجة</div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:6px">كل جدول في ملف باسمه، وكل نموذج في PDF باسمه. المتصفح ممكن يسألك مرة واحدة تسمح بتنزيل ملفات متعددة — وافق.</div>
+    <div class="row-actions" style="display:flex;flex-wrap:wrap;gap:8px">
+      ${tables.length?`<button type="button" class="btn primary" id="pgEachCsv">📄 CSV لكل جدول</button>
+      <button type="button" class="btn" id="pgEachPdf">🧾 PDF لكل جدول</button>`:""}
+      ${F.length?`<button type="button" class="btn primary" id="pgEachForm">🗂️ PDF لكل نموذج</button>`:""}
+    </div>
+    <div style="margin-top:14px;font-weight:700;font-size:13px">ملف واحد مجمّع</div>
+    <div class="row-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+      ${tables.length?`<button type="button" class="btn" id="pgXl">📊 Excel (كل الجداول)</button>
+      <button type="button" class="btn" id="pgPdf">🧾 PDF مجمّع</button>
+      <button type="button" class="btn" id="pgCsv">📄 CSV مجمّع</button>`:""}
+      ${F.length?`<button type="button" class="btn" id="pgForms">🗂️ كل النماذج في PDF واحد</button>`:""}
       ${recIds.length?`<button type="button" class="btn" id="pgRecs">🗂️ النماذج المعروضة (${recIds.length})</button>`:""}
       <button type="button" class="btn ghost" id="pgPrint">🖨️ طباعة الصفحة</button>
     </div>
   `,async()=>null,"إغلاق");
   const pick=()=>tables.filter((_,i)=>document.querySelector(`[data-pgt="${i}"]`)?.checked);
+  const pickF=()=>F.filter((_,i)=>document.querySelector(`[data-pgf="${i}"]`)?.checked);
   const b=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
+  document.querySelectorAll("[data-pgall]").forEach(btn=>btn.onclick=()=>{
+    const sel=btn.dataset.pgall==="t"?"[data-pgt]":"[data-pgf]";
+    const boxes=[...document.querySelectorAll(sel)],on=boxes.some(x=>!x.checked);
+    boxes.forEach(x=>x.checked=on);
+  });
+  b("pgEachCsv",()=>pgEachCsv(pick()));
+  b("pgEachPdf",()=>pgEachTablePdf(pick(),title));
+  b("pgEachForm",()=>pgEachFormPdf(pickF()));
   b("pgXl",()=>pgExportXlsx(pick()));
   b("pgPdf",()=>pgExportPdf(pick(),title));
   b("pgCsv",()=>pgExportCsv(pick()));
