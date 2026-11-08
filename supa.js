@@ -41,7 +41,7 @@ const cacheGet=(col,id)=>ido("docs","readonly",s=>s.get(K(col,id))).then(r=>r?r.
 const cachePut=(col,id,data)=>ido("docs","readwrite",s=>s.put({k:K(col,id),col,id,data,at:Date.now()}));
 const cacheDel=(col,id)=>ido("docs","readwrite",s=>s.delete(K(col,id)));
 const cacheCol=col=>ido("docs","readonly",s=>s.getAll(IDBKeyRange.bound(col+"\u0000",col+"\u0000￿")))
-  .then(r=>(r||[]).map(x=>({id:x.id,data:x.data})));
+  .then(r=>(r||[]).map(x=>({id:x.id,data:x.data,u:x.u||""})));
 /* نسخة القائمة كلها بتتكتب في معاملة واحدة.
    (كانت معاملة لكل صف — مع آلاف الصفوف كانت بتخنق الصفحة وتخليها ما تحمّلش) */
 async function cacheReplaceCol(col,rows){
@@ -55,7 +55,7 @@ async function cacheReplaceCol(col,rows){
         const c=e.target.result;
         if(c){if(!keep.has(c.value&&c.value.id))c.delete();c.continue();return}
         const at=Date.now();
-        for(const r of rows)st.put({k:K(col,r.id),col,id:r.id,data:r.data,at});
+        for(const r of rows)st.put({k:K(col,r.id),col,id:r.id,data:r.data,u:r.u||"",at});
       };
       cur.onerror=()=>rej(cur.error);
       t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||new Error("aborted"));
@@ -432,16 +432,82 @@ const PAGE=1000;
 async function fetchCol(col){let out=[],from=0;for(;;){const {data,error}=await sb.from("docs").select("id,data").eq("col",col).range(from,from+PAGE-1);if(error)throw error;out=out.concat(data);if(data.length<PAGE)break;from+=PAGE}return out}
 async function fetchProfiles(){const {data,error}=await sb.from("profiles").select("*");if(error)throw error;return data.map(p=>({id:p.user_id,data:p}))}
 /* قراءة مع نسخة احتياطية محلية: لو النت موجود بنجيب ونحدّث النسخة، ولو مقطوع بنقرا النسخة */
-async function pullCol(col){
-  const net=col==="__profiles"?fetchProfiles:()=>fetchCol(col);
+/* بصمة المجموعة: عدد الصفوف + أحدث تعديل. نداء صغير جدًا (مش بيرجّع بيانات) */
+async function colStamp(col){
+  const h=await sb.from("docs").select("id",{count:"exact",head:true}).eq("col",col);
+  if(h.error)throw h.error;
+  const l=await sb.from("docs").select("updated_at").eq("col",col)
+    .order("updated_at",{ascending:false,nullsFirst:false}).limit(1);
+  if(l.error)throw l.error;
+  return {n:h.count||0,at:(l.data&&l.data[0]&&l.data[0].updated_at)||""};
+}
+/* بنجيب قائمة (id, updated_at) بس — كيلوبايتات قليلة — وننزّل بيانات
+   الصفوف الجديدة أو المتغيّرة فقط، ونمسح اللي اتشال من السيرفر. */
+async function syncColDelta(col,cached){
+  let list=[],from=0;
+  for(;;){
+    const {data,error}=await sb.from("docs").select("id,updated_at").eq("col",col).range(from,from+PAGE-1);
+    if(error)throw error;
+    list=list.concat(data);
+    if(data.length<PAGE)break;
+    from+=PAGE;
+  }
+  const have=new Map(cached.map(r=>[r.id,r.u||""]));
+  const live=new Set(list.map(r=>r.id));
+  const uBy=new Map(list.map(r=>[r.id,r.updated_at||""]));
+  const need=[];
+  for(const r of list){
+    const u=r.updated_at||"";
+    /* من غير updated_at ما ينفعش نتأكد، فبنجيبه لو مش عندنا أصلاً */
+    if(!have.has(r.id)||(u&&have.get(r.id)!==u))need.push(r.id);
+  }
+  const keep=new Map();
+  for(const r of cached)if(live.has(r.id))keep.set(r.id,r);
+  const removed=cached.length-keep.size;
+  for(let i=0;i<need.length;i+=200){
+    const part=need.slice(i,i+200);
+    const {data,error}=await sb.from("docs").select("id,data").eq("col",col).in("id",part);
+    if(error)throw error;
+    for(const r of data)keep.set(r.id,{id:r.id,data:r.data,u:uBy.get(r.id)||""});
+  }
+  const rows=[...keep.values()];
+  cacheReplaceCol(col,rows).catch(()=>{});
+  return {rows,changed:need.length,removed};
+}
+async function pullCol(col,force){
+  /* الحسابات قليلة جدًا (عدد المستخدمين)، فبنسحبها كاملة زي ما هي */
+  if(col==="__profiles"){
+    try{
+      if(!NET())throw new Error("offline");
+      const rows=await fetchProfiles();
+      cacheReplaceCol(col,rows).catch(()=>{});
+      return {rows,fromCache:false};
+    }catch(e){
+      const rows=await cacheCol(col);
+      if(rows&&rows.length)return {rows,fromCache:true};
+      throw e;
+    }
+  }
+  const cached=(await cacheCol(col))||[];
+  if(!NET()){
+    if(cached.length)return {rows:cached,fromCache:true};
+    throw new Error("offline");
+  }
   try{
-    if(!NET())throw new Error("offline");
-    const rows=await net();
-    cacheReplaceCol(col,rows).catch(()=>{});
-    return {rows,fromCache:false};
+    const st=await colStamp(col);
+    const meta=await metaGet("sync:"+col);
+    /* مفيش أي تغيير من آخر مزامنة — ما بنحمّلش ولا بايت بيانات */
+    if(!force&&cached.length&&meta&&meta.n===st.n&&meta.at===st.at){
+      console.debug("[sync]",col,"بدون تغيير",cached.length);
+      return {rows:cached,fromCache:true};
+    }
+    const d=await syncColDelta(col,cached);
+    await metaSet("sync:"+col,{n:st.n,at:st.at});
+    console.debug("[sync]",col,"متغيّر",d.changed,"ممسوح",d.removed,"إجمالي",d.rows.length);
+    return {rows:d.rows,fromCache:false};
   }catch(e){
-    const rows=await cacheCol(col);
-    if(rows&&rows.length)return {rows,fromCache:true};
+    console.warn("[sync] فشل تحديث",col,e);
+    if(cached.length)return {rows:cached,fromCache:true};
     throw e;
   }
 }
@@ -538,10 +604,11 @@ const db={
 /* ================= محرك المزامنة التلقائية ================= */
 let syncing=false,syncT=0,parked=[];
 function syncSoon(ms=1200){clearTimeout(syncT);syncT=setTimeout(()=>{syncNow()},ms)}
+let FORCE_NEXT=false;
 async function repull(){
   for(const col of Object.keys(subs)){
     const S=subs[col];if(!S||!S.cbs.size)continue;
-    try{const {rows}=await pullCol(col);S.map.clear();for(const r of rows)S.map.set(r.id,r.data);await overlayPending(col,S.map);S.fromCache=false;S.emit()}
+    try{const {rows}=await pullCol(col,FORCE_NEXT);S.map.clear();for(const r of rows)S.map.set(r.id,r.data);await overlayPending(col,S.map);S.fromCache=false;S.emit()}
     catch(e){/* لسه مفيش نت */ break}
   }
 }
@@ -596,6 +663,9 @@ addEventListener("online",()=>{badge();syncNow()});
 addEventListener("offline",()=>badge());
 setInterval(()=>{if(NET())outCount().then(n=>{if(n)syncNow()})},60000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&NET())syncSoon(400)});
+window.SBA.pullCol=pullCol;   /* للاختبار والتشخيص */
+/* مزامنة كاملة بالإجبار — لو حد عدّل في قاعدة البيانات من برّه المنظومة */
+window.SBA.resync=async()=>{FORCE_NEXT=true;try{await repull()}finally{FORCE_NEXT=false}};
 window.SBA.sync={now:syncNow,pending:outCount,parked:()=>parked.slice(),lastSync:()=>metaGet("lastSync"),online:NET};
 window.SBA.store={get:metaGet,set:metaSet};
 
