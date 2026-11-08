@@ -668,7 +668,7 @@ function nextSerial(type){
 }
 function nextVoucher(){let m=0;for(const x of S.moves){if(x.voucher){const n=parseInt(String(x.voucher).replace(/\D/g,""));if(n>m)m=n}}return m+1}
 function attDoc(date){return S.att.find(a=>a.id===date)}
-function page(L,key,n=150){(window.__pgAll||(window.__pgAll={}))[key]=L;const lim=more[key]||n;return {rows:L.slice(0,lim),btn:L.length>lim?`<div style="text-align:center;margin-top:10px"><button class="btn sm" onclick="more['${key}']=${lim+n*2};refresh()">اعرض ${Math.min(n*2,L.length-lim)} كمان (من ${L.length})</button></div>`:""}}
+function page(L,key,n=150){(window.__pgAll||(window.__pgAll={}))[key]={L,at:Date.now()};const lim=more[key]||n;return {rows:L.slice(0,lim),btn:L.length>lim?`<div style="text-align:center;margin-top:10px"><button class="btn sm" onclick="more['${key}']=${lim+n*2};refresh()">اعرض ${Math.min(n*2,L.length-lim)} كمان (من ${L.length})</button></div>`:""}}
 function emptyState(title,body,btn){return `<div class="empty"><b>${title}</b>${body}${btn?`<div style="margin-top:12px">${btn}</div>`:""}</div>`}
 function waiting(k){return (!loaded[k]||!legacyLoaded) && db ? `<div class="empty">بيحمّل…</div>` : ""}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("اتنسخ");}catch(e){toast("حدّد النص وانسخه بإيدك")}}
@@ -8005,9 +8005,9 @@ function pgInPeriod(d){
 function pgAllDocs(){
   const out=[...pgPrintables().filter(p=>p.fn!=="printVoucher")];
   /* التصاريح مقسّمة صفحات — ناخدها من القائمة الكاملة اللي سجّلتها page() */
-  if(tab==="ptw"&&window.__pgAll&&window.__pgAll.ptw){
+  if(tab==="ptw"&&window.__pgAll&&window.__pgAll.ptw&&Date.now()-window.__pgAll.ptw.at<8000){
     const have=new Set(out.filter(p=>p.fn==="printPermit").map(p=>p.arg));
-    for(const p of window.__pgAll.ptw){
+    for(const p of window.__pgAll.ptw.L){
       if(!p||have.has(p.id)||!pgInPeriod(p.date))continue;
       if(typeof FORM_TYPES!=="undefined"&&!FORM_TYPES.includes(p.type))continue;
       if(typeof ptwDraft==="function"&&ptwDraft(p))continue;
@@ -8028,10 +8028,12 @@ function pgAllDocs(){
     const fns=[...new Set(out.filter(p=>p.fn!=="printVoucher"&&p.fn!=="inspPrint").map(p=>p.fn))];
     if(fns.length===1&&window.__pgAll){
       const fn=fns[0],have=new Set(out.map(p=>p.arg));
-      let best=null;
+      let best=null;const now=Date.now();
       for(const k of Object.keys(window.__pgAll)){
-        const L=window.__pgAll[k];
-        if(!Array.isArray(L)||!L.length)continue;
+        const e=window.__pgAll[k];
+        /* بس القوائم اللي اترسمت مع الصفحة دي دلوقتي — مش بقايا صفحة قبلها */
+        if(!e||!Array.isArray(e.L)||!e.L.length||now-e.at>8000)continue;
+        const L=e.L;
         const hits=L.filter(x=>x&&have.has(x.id)).length;
         if(hits&&(!best||L.length>best.length))best=L;
       }
@@ -8106,7 +8108,7 @@ function pgPeriodBarHTML(){
 function pgBarMount(){
   try{
     const main=$("main");if(!main)return;
-    const old=main.querySelector("#pgBar");if(old)old.remove();
+    main.querySelectorAll("#pgBar,#pgPeriodBox").forEach(e=>e.remove());
     const h=main.querySelector("h2");if(!h)return;
     const docs=pgAllDocs().length,tbl=pgTables().length;
     if(!docs&&!tbl)return;
