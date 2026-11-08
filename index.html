@@ -6377,6 +6377,28 @@ function fxPreviousOf(x){
   return (S.fireext||[]).filter(r=>r.id!==x.id&&inspOrd(r)<me).sort((a,b)=>inspOrd(b).localeCompare(inspOrd(a)))[0]||null;
 }
 
+/* ===== قرار صلاحية المعدة =====
+   البطاقة الحمراء مش بتتحط تلقائي لمجرد وجود بند مرفوض — الفاحص هو اللي
+   بياخد القرار، والمعتمِد يقدر يغيّره. البنود المرفوضة بتفضل مسجّلة في الحالتين. */
+const INSP_DECIDE={
+  pass:{ar:"صالح للتشغيل",pill:"p-ok",tag:""},
+  cond:{ar:"صالح باشتراطات",pill:"p-open",tag:"🟡 بطاقة صفراء"},
+  fail:{ar:"غير صالح — إيقاف",pill:"p-bad",tag:"🔴 بطاقة حمراء"}
+};
+/* المقترح على الفاحص، مش قرار */
+function inspSuggest(failCount,total){
+  if(!failCount)return "pass";
+  return failCount>=Math.max(2,Math.ceil((total||1)*0.25))?"fail":"cond";
+}
+function inspDecisionOf(x){
+  if(x&&x.decision&&INSP_DECIDE[x.decision])return x.decision;
+  /* سجلات قديمة اتحفظت قبل ما القرار يبقى يدوي */
+  return x&&x.status==="fail"?"fail":x&&x.status==="pass"?"pass":"cond";
+}
+function inspDecisionPill(x){
+  const d=INSP_DECIDE[inspDecisionOf(x)];
+  return `<span class="pill ${d.pill}">${esc(d.ar)}${d.tag?" · "+d.tag:""}</span>`;
+}
 function inspFilterMatch(g){const x=g.record,f=ui.inspFilter||"all";if(f==="today")return x.date===today();if(f==="rejected")return x.status==="fail";if(f==="pending")return !!x.reviewRequired&&x.review?.status!=="approved"&&x.review?.status!=="returned";if(f==="duplicates")return (g.items||[]).length>1;return true}
 VIEWS.inspection={
   shell:()=>`<div class="head"><div class="grow"><h2 style="margin:0">🔍 فحوصات المعدات</h2><div class="muted" style="font-size:13px;margin-top:4px">اختار نوع المعدة لمعاينة النموذج، أو افتحه فارغًا للطباعة، أو سجّل فحصًا جديدًا.</div></div>${canWrite?`<button class="btn" onclick="syncInspectionsToPeriodicEquipment()">↗ ربط الفحوصات السابقة بالمعدات</button>`:""}<button class="btn primary" id="inspNewBtn" ${inspectionCanInspect()?"":"disabled title=\"حسابك غير مفوض للفحص\""}>+ فحص جديد</button></div>
@@ -6501,11 +6523,24 @@ async function inspApprove(id){
   if(!inspectionCanApprove()){toast("حسابك غير مفوض لاعتماد الفحوصات");return}
   const signature=await mySig();if(!signature){toast("احفظ توقيعك من ملفك الشخصي قبل اعتماد الفحص");return}
   const itemPhotoList=Object.values(x.itemPhotos||{}).flat();
-  openSheet("اعتماد فحص المعدة",`<div class="banner"><b>${esc(x.equipType||"فحص معدة")}</b><div>${esc(x.project||"")} · ${esc(x.code||"")} · ${fmtDate(x.date)}</div><div>الفاحص: ${esc(x.inspector1||"—")}</div><div>النتيجة: ${x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":x.status==="partial"?"جزئي":"غير مسجل"} · ${x.failCount||0} بنود غير جيدة</div>${x.note?`<div>ملاحظات: ${esc(x.note)}</div>`:""}</div>${x.photos?.length?`<div style="margin-top:10px"><b>صور المعدة</b>${thumbs(x.photos,72)}</div>`:""}${itemPhotoList.length?`<div style="margin-top:10px"><b>صور بنود الفحص</b>${thumbs(itemPhotoList,72)}</div>`:""}<p class="muted">سيُحفظ اعتمادك بتوقيعك الشخصي في خانة المشرف على النموذج، ويُحتسب الفحص للفاحص والمعتمد في KPI.</p>`,async()=>{
+  const decNow=inspDecisionOf(x);
+  openSheet("اعتماد فحص المعدة",`<div class="card" style="padding:11px 12px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:13px">قرار صلاحية المعدة</div>
+      <div class="muted" style="font-size:12.5px;margin:3px 0 8px">قرار الفاحص: <b>${esc(INSP_DECIDE[decNow].ar)}</b>${x.failCount?` · ${x.failCount} بند مرفوض`:""} — تقدر تأكده أو تغيّره قبل الاعتماد.</div>
+      <div class="chips" id="inspApDecide">${Object.entries(INSP_DECIDE).map(([k,v])=>`<button type="button" class="chipbtn" data-apdecide="${k}" aria-pressed="${decNow===k}">${esc(v.ar)}${v.tag?" "+v.tag:""}</button>`).join("")}</div>
+      <input type="hidden" id="inspApDecision" value="${esc(decNow)}">
+    </div><div class="banner"><b>${esc(x.equipType||"فحص معدة")}</b><div>${esc(x.project||"")} · ${esc(x.code||"")} · ${fmtDate(x.date)}</div><div>الفاحص: ${esc(x.inspector1||"—")}</div><div>النتيجة: ${x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":x.status==="partial"?"جزئي":"غير مسجل"} · ${x.failCount||0} بنود غير جيدة</div>${x.note?`<div>ملاحظات: ${esc(x.note)}</div>`:""}</div>${x.photos?.length?`<div style="margin-top:10px"><b>صور المعدة</b>${thumbs(x.photos,72)}</div>`:""}${itemPhotoList.length?`<div style="margin-top:10px"><b>صور بنود الفحص</b>${thumbs(itemPhotoList,72)}</div>`:""}<p class="muted">سيُحفظ اعتمادك بتوقيعك الشخصي في خانة المشرف على النموذج، ويُحتسب الفحص للفاحص والمعتمد في KPI.</p>`,async()=>{
     const current=S.inspections?.find(r=>r.id===id);if(!current||current.review?.status==="approved"||current.reviewTo!==ME.id)return "الفحص اتغير أو محال لمستخدم آخر";if(!inspectionCanApprove())return "حسابك غير موجود في قائمة المعتمدين";if(current.inspectorUid===ME.id)return "الفاحص لا يعتمد فحصه بنفسه";
-    const approved={status:"approved",by:ME.id,name:myEmpName(),at:Date.now(),signature};const approver=profOf(ME.id);const patch={review:approved,inspector2Id:approver?.emp_id||"",inspector2:myEmpName(),sig2:signature};
+    const approved={status:"approved",by:ME.id,name:myEmpName(),at:Date.now(),signature};const approver=profOf(ME.id);
+    const dec=document.getElementById("inspApDecision")?.value;
+    const patch={review:approved,inspector2Id:approver?.emp_id||"",inspector2:myEmpName(),sig2:signature};
+    if(INSP_DECIDE[dec]){patch.decision=dec;patch.status=dec==="fail"?"fail":dec==="pass"?"pass":"partial";
+      if(dec!==inspDecisionOf(current))patch.decisionBy=myEmpName();}
     const ok=await write(()=>upsert("inspections",id,patch),"اتعمد الفحص بتوقيعك");if(!ok)return "الحفظ فشل";await linkInspectionToPeriodicEquipment({...current,...patch},id);if(current.createdBy)await notifyUsers([current.createdBy],"✅ فحص المعدة اتعمد",`${myEmpName()} اعتمد فحص ${current.equipType||"المعدة"} بتوقيعه.`,`?go=inspection`);return null
   },"اعتماد بتوقيعي")
+  {const box=document.getElementById("inspApDecide"),hid=document.getElementById("inspApDecision");
+   if(box&&hid)box.querySelectorAll("[data-apdecide]").forEach(b=>b.onclick=()=>{hid.value=b.dataset.apdecide;
+     box.querySelectorAll("[data-apdecide]").forEach(z=>z.setAttribute("aria-pressed",String(z.dataset.apdecide===hid.value)))});}
 }
 function inspForm(equipType,existingId){
   if(!canWrite){toast("مالكش صلاحية التسجيل");return}
@@ -6546,7 +6581,8 @@ function inspForm(equipType,existingId){
         <div style="color:var(--muted);font-size:12.5px;margin-top:3px">المرجع: F-HSE-18-01 · ${checks.length} بند للفحص</div>
       </div>
       ${f("اسم المشروع","project",{value:existing?.project||"صواري",req:true,full:true})}
-      ${f("كود المعدة / الرقم التسلسلي","code",{value:existing?.code||""})}
+      ${f("كود المعدة / الرقم التسلسلي","code",{value:existing?.code||"",attrs:'placeholder="لو المعدة مالهاش كود اكتبه هنا"'})}
+      <div class="muted" style="font-size:12.5px;grid-column:1/-1;margin:-6px 0 4px">المعدة اللي مالهاش كود: اكتب كودها هنا، وبعد الحفظ تقدر تضيفها لسجل الفحص الدوري بالكود ده من زر «ربط بالمعدات».</div>
       ${f("تاريخ الفحص","date",{type:"date",value:existing?.date||today(),req:true})}
       ${f("ملكية المعدة","ownership",{value:existing?.ownership||"company",opts:[["company","شركة"],["rental","إيجار"],["contractor","مقاول"]]})}
       ${f("رقم الإدارة / القسم","dept",{value:existing?.dept||"HSE"})}
@@ -6558,6 +6594,12 @@ function inspForm(equipType,existingId){
     </div>
     <h3 style="margin:18px 0 10px">التوقيعات</h3>
     <div class="form">
+      <div class="card" id="inspDecideCard" style="padding:11px 12px;margin:14px 0;grid-column:1/-1">
+        <div style="font-weight:700;font-size:13px">قرار صلاحية المعدة</div>
+        <div class="muted" style="font-size:12.5px;margin:3px 0 8px" id="inspDecideHint">البطاقة الحمراء بتتحط بقرارك إنت، مش تلقائيًا. بند مرفوض لوحده مش معناه إيقاف المعدة — لو العيب إداري (لافتة، شنطة إسعافات، نظافة) اختار «صالح باشتراطات» وسجّل إجراء تصحيحي بمهلة.</div>
+        <div class="chips" id="inspDecideChips">${Object.entries(INSP_DECIDE).map(([k,v])=>`<button type="button" class="chipbtn" data-decide="${k}" aria-pressed="${(existing?inspDecisionOf(existing):"")===k}">${esc(v.ar)}${v.tag?" "+v.tag:""}</button>`).join("")}</div>
+        <input type="hidden" name="decision" id="inspDecision" value="${existing?inspDecisionOf(existing):""}">
+      </div>
       ${f("مسئول السلامة القائم بالفحص","inspector1Id",{value:selfId,opts:inspectorOpts,req:true})}
       ${f("المعتمد (مشرف أو أدمن بالاسم)","reviewTo",{value:existing?.reviewTo||"",opts:[["","— اختار الشخص الذي سيعتمد الفحص —"],...approvers.map(p=>[p.id,`${profName(p)} · ${{admin:"أدمن",hse:"مسؤول السلامة",hsesup:"مشرف السلامة"}[p.role]||"معتمد"}`])],req:true})}
     </div>
@@ -6584,7 +6626,9 @@ function inspForm(equipType,existingId){
       if(v==="pass")passCount++;
     }
     const unanswered=checks.length-(failCount+passCount);
-    const overallStatus=failCount>0?"fail":passCount===checks.length?"pass":"partial";
+    /* القرار من الفاحص؛ لو ما اختارش بنرجع للمقترح */
+    const decision=INSP_DECIDE[fd.decision]?fd.decision:inspSuggest(failCount,checks.length);
+    const overallStatus=decision==="fail"?"fail":decision==="pass"&&passCount===checks.length?"pass":decision==="pass"?"pass":"partial";
 
     // Signatures
     if(!fd.inspector1Id)return "اختار مسئول البيئة والسلامة من القائمة";
@@ -6661,6 +6705,7 @@ function inspForm(equipType,existingId){
 
   // Bind signature pads
   if(root){
+    try{inspDecideBind(root,checks.length)}catch(e){console.error("decide",e)}
     window.inspSig1Pad=sigPadBind(root.querySelector("#inspSig1Canvas"));
     root.querySelector("#inspSig1Clear").onclick=()=>inspSig1Pad.clear();
     const pi=root.querySelector("#inspPhoto");
@@ -7142,6 +7187,22 @@ async function fxPrint(id){
 
 
 /* ---------- تعديل فحص مسجَّل ---------- */
+/* المقترح بيتحدّث مع البنود، والقرار النهائي اختيار المستخدم */
+function inspDecideBind(root,total){
+  const hid=root.querySelector("#inspDecision"),chips=root.querySelector("#inspDecideChips");
+  if(!hid||!chips)return;
+  const set=k=>{hid.value=k;chips.querySelectorAll("[data-decide]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.decide===k)))};
+  chips.querySelectorAll("[data-decide]").forEach(b=>b.onclick=()=>set(b.dataset.decide));
+  const hint=root.querySelector("#inspDecideHint"),base=hint?hint.textContent:"";
+  const recalc=()=>{
+    const bad=[...root.querySelectorAll('input[type="radio"]:checked')].filter(r=>r.value==="fail").length;
+    const sug=inspSuggest(bad,total);
+    if(hint)hint.innerHTML=(bad?`<b>${bad} بند مرفوض — المقترح: ${esc(INSP_DECIDE[sug].ar)}</b> (القرار النهائي ليك)<br>`:"")+esc(base);
+    if(!hid.value)set(sug);
+  };
+  root.addEventListener("change",e=>{if(e.target&&e.target.type==="radio")recalc()});
+  recalc();
+}
 function inspEdit(id){
   if(!canWrite){toast("مالكش صلاحية التعديل");return}
   const x=S.inspections?.find(r=>r.id===id);
