@@ -3325,19 +3325,24 @@ const DAYS_AR=["الأحد","الاثنين","الثلاثاء","الأربعا�
 function dayName(s){if(!s)return "";const [y,m,d]=s.split("-").map(Number);return DAYS_AR[new Date(y,m-1,d).getDay()]}
 function toArDigits(s){return String(s).replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[d])}
 function voucherKey(m){return m.voucher||(m.date+"|"+m.empId)}
-async function printVoucher(key){
-  const L=S.moves.filter(m=>m.type==="issue"&&voucherKey(m)===key);if(!L.length){toast("الإذن مش موجود");return}
+/* مواصفات مستند إذن الصرف — بيستخدمها العرض والتنزيل المجمّع */
+function voucherSpec(key){
+  const L=S.moves.filter(m=>m.type==="issue"&&voucherKey(m)===key);
+  if(!L.length)return null;
   const e=emp(L[0].empId)||{};const d=L[0].date;
   const vals={name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(d),d1:toArDigits(dmy(d)),d2:toArDigits(dmy(d)),d3:toArDigits(dmy(d))};
   L.slice(0,4).forEach((m,i)=>{const it=item(m.itemId)||{};vals["item"+i]=it.name||"";vals["icode"+i]=it.code||"";vals["qty"+i]=String(num(m.qty))});
-  /* توقيع الإذن: السجل بتاعه هو أول حركة صرف، والتوقيعات بتتحفظ عليها */
   const head=voucherHead(key);
   const sg=signsOf(head);
-  /* ترتيب الخانات: أول توقيع يمين (اعداد الإدارة الطالبة)، التاني في النص، التالت شمال (مهندس التكاليف) */
   vals.sigName1=sg[0]?.name||"";vals.sigName2=sg[1]?.name||"";vals.sigName3=sg[2]?.name||"";
-  printDoc({title:"إذن صرف · "+(e.name||""),T:"IV",vals,
-    miss:L.length>4?["النموذج بياخد 4 أصناف بس، الباقي محتاج إذن تاني"]:[],
-    filename:`اذن صرف ${e.name||""} ${d}.pdf`,rec:head,
+  return {key,rows:L,emp:e,date:d,vals,head,
+    title:"إذن صرف · "+(e.name||""),
+    filename:`اذن صرف ${e.name||""} ${d}.pdf`,
+    miss:L.length>4?["النموذج بياخد 4 أصناف بس، الباقي محتاج إذن تاني"]:[]};
+}
+async function printVoucher(key){
+  const sp=voucherSpec(key);if(!sp){toast("الإذن مش موجود");return}
+  printDoc({title:sp.title,T:"IV",vals:sp.vals,miss:sp.miss,filename:sp.filename,rec:sp.head,
     signCol:"ppe_moves",reopen:`printVoucher('${String(key).replace(/'/g,"\\'")}')`});
 }
 async function printLeave(id){
@@ -7683,10 +7688,84 @@ async function pgEachFormPdf(recs){
   }
   pgProg(`✔ خلص — ${recs.length-fail} نموذج${fail?` · ${fail} مانفعش`:""}`);
 }
+
+/* ===== تنزيل النماذج بمرفقاتها: كل نموذج PDF واحد جواه الورقة + صور المرفقات ===== */
+const A4W=1240,A4H=1754;
+function pgBlankPage(w,h){const c=document.createElement("canvas");c.width=w;c.height=h;
+  const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,w,h);return c}
+async function pgImagePage(url,caption){
+  const im=await loadImg(url);
+  const land=(im.naturalWidth||im.width)>(im.naturalHeight||im.height);
+  const W=land?A4H:A4W,H=land?A4W:A4H;
+  const c=pgBlankPage(W,H),g=c.getContext("2d");
+  const pad=40,boxH=H-pad*2-(caption?46:0);
+  const k=Math.min((W-pad*2)/im.width,boxH/im.height);
+  const w=im.width*k,h=im.height*k;
+  g.drawImage(im,(W-w)/2,pad+(boxH-h)/2,w,h);
+  if(caption){g.fillStyle="#333";g.textAlign="center";g.direction="rtl";
+    g.font='600 22px "IBM Plex Sans Arabic",Arial,sans-serif';g.fillText(caption,W/2,H-pad)}
+  return c;
+}
+/* صور المرفقات كصفحات؛ بترجّع كمان مرفقات PDF عشان تتنزّل لوحدها */
+async function pgAttPages(att,label){
+  const pages=[],pdfs=[];
+  let i=0;
+  for(const a of (att||[])){
+    i++;
+    const url="/_blob/"+a.a;
+    if(String(a.type||"").includes("pdf")){pdfs.push({url,n:i});continue}
+    try{pages.push(await pgImagePage(url,`${label} — مرفق ${i}`))}catch(e){}
+  }
+  return {pages,pdfs};
+}
+function pgVoucherKeys(){
+  const root=$("main");if(!root)return [];
+  const out=[];
+  root.querySelectorAll('[onclick*="printVoucher("]').forEach(b=>{
+    if(b.offsetParent===null)return;
+    const m=/printVoucher\('((?:[^'\\]|\\.)*)'\)/.exec(b.getAttribute("onclick")||"");
+    if(!m)return;
+    const key=m[1].replace(/\\'/g,"'");
+    if(!out.includes(key))out.push(key);
+  });
+  return out;
+}
+function pgVoucherList(){
+  return pgVoucherKeys().map(k=>{const sp=voucherSpec(k);if(!sp)return null;
+    const att=(sp.head&&sp.head.att)||[];
+    return {key:k,name:sp.emp.name||"",date:sp.date,voucher:(sp.rows[0]&&sp.rows[0].voucher)||"",
+            items:sp.rows.length,att:att.length}}).filter(Boolean);
+}
+async function pgEachVoucherPdf(keys,withAtt){
+  if(!keys||!keys.length){toast("محددتش أذون");return}
+  let n=0,fail=0,extra=0;
+  for(const key of keys){
+    const sp=voucherSpec(key);
+    pgProg(`بيجهّز إذن ${++n} من ${keys.length} — ${esc(sp?sp.emp.name||"":"")}`);
+    if(!sp){fail++;continue}
+    try{
+      let pages=await renderForm("IV",sp.vals,{});
+      try{pages=await stampSavedSigs("IV",sp.head,pages,sp.vals)}catch(e){}
+      let pdfs=[];
+      if(withAtt&&sp.head&&(sp.head.att||[]).length){
+        const r=await pgAttPages(sp.head.att,`إذن صرف ${sp.emp.name||""}`);
+        pages=pages.concat(r.pages);pdfs=r.pdfs;
+      }
+      const base=pgSafe(`اذن صرف ${sp.emp.name||""} ${(sp.rows[0]&&sp.rows[0].voucher)||""} ${sp.date}`);
+      await pgSaveBlob(await permitPdfBlob(pages),base+".pdf");
+      await pgWait(400);
+      for(const p of pdfs){
+        try{const r=await fetch(p.url);if(!r.ok)continue;
+          await pgSaveBlob(await r.blob(),`${base} - مرفق ${p.n}.pdf`);extra++;await pgWait(400)}catch(e){}
+      }
+    }catch(e){console.error(e);fail++}
+  }
+  pgProg(`✔ خلص — ${keys.length-fail} إذن${extra?` و${extra} مرفق PDF`:""}${fail?` · ${fail} مانفعش`:""}`);
+}
 function pageExportSheet(){
-  const tables=pgTables(),F=pgFormRecords(),forms=F.length,recIds=pgRecordIds();
+  const tables=pgTables(),F=pgFormRecords(),forms=F.length,recIds=pgRecordIds(),VK=pgVoucherList();
   const title=($("main")?.querySelector("h2")?.textContent||TAB_NAMES[tab]||"الصفحة").replace(/\s+/g," ").trim();
-  if(!tables.length&&!forms&&!recIds.length){
+  if(!tables.length&&!forms&&!recIds.length&&!VK.length){
     openSheet("تصدير الصفحة",`<div class="card" style="padding:14px">${emptyState("مفيش جداول في الصفحة دي","افتح صفحة فيها جدول — زي المخزن أو المعدات أو الموظفين — واضغط 📥 تاني.")}</div>
       <button type="button" class="btn" style="width:100%;margin-top:10px" onclick="window.print()">🖨️ طباعة الصفحة زي ما هي</button>`,async()=>null,"إغلاق");
     return;
@@ -7703,6 +7782,10 @@ function pageExportSheet(){
       <div class="list" style="max-height:34vh;overflow:auto">${F.slice(0,120).map((x,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgf="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(x.equipType||"")}${x.code?" · "+esc(x.code):""}</span><span class="s">${esc(fmtDate(x.date))} · ${esc(x.inspector1||"")}</span></span></label>`).join("")}</div>
       ${F.length>120?`<div class="muted" style="font-size:12.5px;margin-top:6px">… و${F.length-120} نموذج كمان (صفّي بالفترة)</div>`:""}
     </div>`:""}
+    ${VK.length?`<div class="card" style="padding:10px 12px;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px" class="grow">أذون الصرف</b><button type="button" class="btn ghost sm" data-pgall="v">تحديد الكل / إلغاء</button></div>
+      <div class="list" style="max-height:34vh;overflow:auto">${VK.map((v,i)=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-pgv="${i}" checked style="margin-inline-end:9px"><span class="grow"><span class="t">${esc(v.voucher||"إذن")} · ${esc(v.name)}</span><span class="s">${esc(fmtDate(v.date))} · ${v.items} صنف${v.att?` · 📎 ${v.att} مرفق`:" · بدون مرفقات"}</span></span></label>`).join("")}</div>
+    </div>`:""}
     <div id="pgProg"></div>
     <div style="margin-top:14px;font-weight:700;font-size:13px">ملف منفصل لكل حاجة</div>
     <div class="muted" style="font-size:12.5px;margin-bottom:6px">كل جدول في ملف باسمه، وكل نموذج في PDF باسمه. المتصفح ممكن يسألك مرة واحدة تسمح بتنزيل ملفات متعددة — وافق.</div>
@@ -7710,6 +7793,8 @@ function pageExportSheet(){
       ${tables.length?`<button type="button" class="btn primary" id="pgEachCsv">📄 CSV لكل جدول</button>
       <button type="button" class="btn" id="pgEachPdf">🧾 PDF لكل جدول</button>`:""}
       ${F.length?`<button type="button" class="btn primary" id="pgEachForm">🗂️ PDF لكل نموذج</button>`:""}
+      ${VK.length?`<button type="button" class="btn primary" id="pgEachVouchAtt">🗂️ PDF لكل إذن + مرفقاته</button>
+      <button type="button" class="btn" id="pgEachVouch">🗂️ PDF لكل إذن (من غير مرفقات)</button>`:""}
     </div>
     <div style="margin-top:14px;font-weight:700;font-size:13px">ملف واحد مجمّع</div>
     <div class="row-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
@@ -7725,13 +7810,16 @@ function pageExportSheet(){
   const pickF=()=>F.filter((_,i)=>document.querySelector(`[data-pgf="${i}"]`)?.checked);
   const b=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
   document.querySelectorAll("[data-pgall]").forEach(btn=>btn.onclick=()=>{
-    const sel=btn.dataset.pgall==="t"?"[data-pgt]":"[data-pgf]";
+    const sel=btn.dataset.pgall==="t"?"[data-pgt]":btn.dataset.pgall==="v"?"[data-pgv]":"[data-pgf]";
     const boxes=[...document.querySelectorAll(sel)],on=boxes.some(x=>!x.checked);
     boxes.forEach(x=>x.checked=on);
   });
   b("pgEachCsv",()=>pgEachCsv(pick()));
   b("pgEachPdf",()=>pgEachTablePdf(pick(),title));
   b("pgEachForm",()=>pgEachFormPdf(pickF()));
+  const pickV=()=>VK.filter((_,i)=>document.querySelector(`[data-pgv="${i}"]`)?.checked).map(v=>v.key);
+  b("pgEachVouchAtt",()=>pgEachVoucherPdf(pickV(),true));
+  b("pgEachVouch",()=>pgEachVoucherPdf(pickV(),false));
   b("pgXl",()=>pgExportXlsx(pick()));
   b("pgPdf",()=>pgExportPdf(pick(),title));
   b("pgCsv",()=>pgExportCsv(pick()));
