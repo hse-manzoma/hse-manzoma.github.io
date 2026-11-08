@@ -7322,6 +7322,19 @@ async function stockZeroUndo(){
   },`رجّعت رصيد ${L.length} صنف`);
   if(ok){$("overlayRoot").innerHTML="";refresh()}
 }
+function stockZeroMount(){
+  try{
+    if(tab!=="ppe"||ui.ppeSub!=="items"||!BASE.del)return;
+    if($("szInline"))return;
+    const host=$("main")?.querySelector(".filters");
+    if(!host)return;
+    const b=document.createElement("button");
+    b.type="button";b.className="btn";b.id="szInline";b.textContent="⚠️ تصفير الأرصدة";
+    b.title="تصفير رصيد كل الأصناف مع الإبقاء على الحركات والأذون";
+    b.onclick=()=>stockZeroSheet();
+    host.appendChild(b);
+  }catch(e){}
+}
 function stockZeroSheet(){
   const P=stockZeroPlan(),ch=P.filter(r=>r.changed),undo=stockZeroUndoable().length;
   const totalBal=P.reduce((n,r)=>n+r.bal,0),moves=P.reduce((n,r)=>n+r.inn+r.out,0);
@@ -7349,6 +7362,7 @@ function stockZeroSheet(){
   b("szGo",()=>stockZeroRun());
   b("szUndo",()=>stockZeroUndo());
 }
+{const _pz=VIEWS.ppe.fill;VIEWS.ppe.fill=function(){const r=_pz.apply(this,arguments);try{stockZeroMount()}catch(e){}return r}}
 {const _z=VIEWS.settings.fill;VIEWS.settings.fill=function(){
   _z.call(this);
   try{
@@ -7537,6 +7551,28 @@ async function pgSaveBlob(blob,filename){
     setTimeout(()=>URL.revokeObjectURL(u),4000);toast("اتنزل الملف");return true;
   }catch(e){toast("التنزيل مش متاح هنا");return false}
 }
+function pgPdfHTML(sel,title){
+  const per=20,out=[];
+  const stamp=`<div class="kv" style="margin:2mm 0 3mm"><span>المشروع :</span><b>${esc(S.settings?.project||"")}</b><span>القسم :</span><b>${esc(title)}</b><span>تاريخ الطباعة :</span><b>${esc(fmtDate(today()))}</b></div>`;
+  for(const t of sel){
+    const keys=Object.keys(t.rows[0]||{}),np=Math.max(1,Math.ceil(t.rows.length/per));
+    for(let i=0;i<t.rows.length;i+=per){
+      const chunk=t.rows.slice(i,i+per),pi=Math.floor(i/per)+1;
+      out.push(`<div class="dpage"><div class="ttl">${esc(t.name)}</div>
+        ${i===0?stamp:""}
+        <table><thead><tr><th class="num" style="width:10mm">م</th>${keys.map(k=>`<th>${esc(k)}</th>`).join("")}</tr></thead>
+        <tbody>${chunk.map((r,j)=>`<tr><td class="num">${i+j+1}</td>${keys.map(k=>`<td class="r">${esc(r[k]??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>
+        <div style="margin-top:2mm;font-size:8.5pt;text-align:center">صفحة ${pi} من ${np} · إجمالي ${t.rows.length} صف</div>
+      </div>`);
+    }
+  }
+  return out.join("");
+}
+function pgExportPdf(sel,title){
+  if(!sel.length){toast("مفيش جداول متحددة");return}
+  const V=openViewer("طباعة / PDF — "+(title||""),{filename:pgFileBase()+".pdf"});
+  V.setHtml(pgPdfHTML(sel,title||""));
+}
 async function pgExportXlsx(sel){
   if(!sel.length){toast("مفيش جداول متحددة");return}
   toast("بيجهّز الملف…");
@@ -7573,6 +7609,17 @@ function pgFormRecords(){
   }
   return recs.filter(x=>INSP_SPECS[x.equipType]);
 }
+/* سجلات النماذج الرسمية المعروضة في صفحة «النماذج والسجلات» */
+function pgRecordIds(){
+  if(tab!=="forms")return [];
+  const root=$("main");if(!root)return [];
+  const ids=new Set();
+  root.querySelectorAll('[onclick*="printRecord("]').forEach(b=>{
+    const m=/printRecord\(['"]([^'"]+)['"]\)/.exec(b.getAttribute("onclick")||"");
+    if(m&&b.offsetParent!==null)ids.add(m[1]);
+  });
+  return [...ids];
+}
 async function pgExportForms(){
   const recs=pgFormRecords();
   if(!recs.length){toast("مفيش نماذج شركة في الصفحة دي");return}
@@ -7588,9 +7635,9 @@ async function pgExportForms(){
   V.setPages(pages);
 }
 function pageExportSheet(){
-  const tables=pgTables(),forms=pgFormRecords().length;
+  const tables=pgTables(),forms=pgFormRecords().length,recIds=pgRecordIds();
   const title=($("main")?.querySelector("h2")?.textContent||TAB_NAMES[tab]||"الصفحة").replace(/\s+/g," ").trim();
-  if(!tables.length&&!forms){
+  if(!tables.length&&!forms&&!recIds.length){
     openSheet("تصدير الصفحة",`<div class="card" style="padding:14px">${emptyState("مفيش جداول في الصفحة دي","افتح صفحة فيها جدول — زي المخزن أو المعدات أو الموظفين — واضغط 📥 تاني.")}</div>
       <button type="button" class="btn" style="width:100%;margin-top:10px" onclick="window.print()">🖨️ طباعة الصفحة زي ما هي</button>`,async()=>null,"إغلاق");
     return;
@@ -7604,16 +7651,22 @@ function pageExportSheet(){
     </div>`:""}
     <div class="row-actions" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
       ${tables.length?`<button type="button" class="btn primary" id="pgXl">📊 تنزيل Excel</button>
+      <button type="button" class="btn" id="pgPdf">🧾 طباعة / PDF</button>
       <button type="button" class="btn" id="pgCsv">📄 تنزيل CSV</button>`:""}
-      ${forms?`<button type="button" class="btn" id="pgForms">🗂️ كل نماذج الشركة (${forms})</button>`:""}
+      ${forms?`<button type="button" class="btn" id="pgForms">🗂️ كل نماذج الشركة PDF (${forms})</button>`:""}
+      ${recIds.length?`<button type="button" class="btn" id="pgRecs">🗂️ النماذج المعروضة (${recIds.length})</button>`:""}
       <button type="button" class="btn ghost" id="pgPrint">🖨️ طباعة الصفحة</button>
     </div>
   `,async()=>null,"إغلاق");
   const pick=()=>tables.filter((_,i)=>document.querySelector(`[data-pgt="${i}"]`)?.checked);
   const b=(id,fn)=>{const e=document.getElementById(id);if(e)e.onclick=fn};
   b("pgXl",()=>pgExportXlsx(pick()));
+  b("pgPdf",()=>pgExportPdf(pick(),title));
   b("pgCsv",()=>pgExportCsv(pick()));
   b("pgForms",()=>pgExportForms());
+  b("pgRecs",()=>{const ids=pgRecordIds();if(!ids.length){toast("مفيش نماذج");return}
+    $("overlayRoot").innerHTML="";ids.slice(0,1).forEach(id=>printRecord(id));
+    if(ids.length>1)toast(`افتح باقي النماذج من السجل (${ids.length-1} كمان)`)});
   b("pgPrint",()=>window.print());
 }
 
