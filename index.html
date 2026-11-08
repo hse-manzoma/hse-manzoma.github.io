@@ -389,7 +389,8 @@ header::after{content:"";position:absolute;inset-inline:0;bottom:-1px;height:2px
 .brand h1{letter-spacing:-.2px}
 
 /* ---- شريط التبويبات ---- */
-nav.tabs{overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
+/* ممنوع أي overflow هنا: القوائم المنسدلة absolute جوه nav.tabs وبتتقص */
+nav.tabs{padding-bottom:1px}
 nav.tabs button,nav.tabs summary{border-radius:9px 9px 0 0;transition:color .18s ease,background-color .18s ease,border-color .18s ease}
 nav.tabs button:hover,nav.tabs summary:hover{color:var(--ink);background:color-mix(in srgb,var(--accent) 7%,transparent)}
 nav.tabs button[aria-selected="true"],nav.tabs .nav-group[open]>summary{background:color-mix(in srgb,var(--accent) 10%,transparent)}
@@ -436,8 +437,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 input[type="search"]{background-image:none}
 
 /* ---- الجداول ---- */
-.tbl{border-radius:14px;overflow:hidden}
-.tbl table thead th{position:sticky;top:0;z-index:2;background:var(--sunk);backdrop-filter:blur(6px);font-weight:600;letter-spacing:-.1px}
+/* ما نلمسش overflow-x:auto الأصلي — الجداول العريضة محتاجاه للتمرير */
+.tbl{border-radius:14px}
+.tbl table thead th{background:var(--sunk);font-weight:600;letter-spacing:-.1px}
 .tbl table tbody tr:nth-child(even){background:color-mix(in srgb,var(--sunk) 45%,transparent)}
 .tbl table tbody tr:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
 .num,.tile .val{font-variant-numeric:tabular-nums}
@@ -2207,7 +2209,7 @@ const inspCodeKey=v=>String(v||"").trim().toLocaleLowerCase().replace(/[\s._-]+/
 function eqInspectionExistsOnDate(q,date){if(!q||!date)return false;const own=(q.insp||[]).some(h=>h.date===date);if(own)return true;const ids=[q.code,q.serial].map(inspCodeKey).filter(Boolean);return ids.length>0&&(S.inspections||[]).some(x=>x.date===date&&ids.includes(inspCodeKey(x.code)))}
 function inspectionDailyKey(data){if(!data.date)return "legacy:"+(data.id||JSON.stringify(data));const code=inspCodeKey(data.code);return [data.date,code||[normName(data.equipType||""),normName(data.project||""),data.ownership||"company"].join("|")].join("::")}
 function inspectionDailyDocId(data){let h=2166136261;for(const ch of inspectionDailyKey(data)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return "daily_"+(h>>>0).toString(36)}
-function inspectionDailyGroups(rows){const groups=new Map();for(let i=0;i<(rows||[]).length;i++){const x=rows[i],code=inspCodeKey(x.code);const dayKey=inspectionDailyKey(x),fingerprint=code?inspectionCleanupFingerprint(x):"uncoded:"+(x.id||i),key=dayKey+"::"+fingerprint;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x)}return [...groups.values()].map(items=>items.sort((a,b)=>((b.review?.status==="approved")?2:(b.sig1?1:0))-((a.review?.status==="approved")?2:(a.sig1?1:0))||((a.createdAt||0)-(b.createdAt||0)))).map(items=>({record:items[0],items}))}
+function inspectionDailyGroups(rows){const groups=new Map();for(let i=0;i<(rows||[]).length;i++){const x=rows[i],code=inspCodeKey(x.code);const dayKey=inspectionDailyKey(x),key=code?dayKey:dayKey+"::uncoded:"+(x.id||i);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x)}return [...groups.values()].map(items=>items.sort((a,b)=>((b.review?.status==="approved")?2:(b.sig1?1:0))-((a.review?.status==="approved")?2:(a.sig1?1:0))||((a.createdAt||0)-(b.createdAt||0)))).map(items=>({record:items[0],items}))}
 function inspectionRecordDuplicate(data,skipId=""){const code=inspCodeKey(data.code),project=normName(data.project||""),type=normName(data.equipType||""),ownership=data.ownership||"company";const same=(x)=>{if(x.id===skipId||x.date!==data.date)return false;const xc=inspCodeKey(x.code);if(code||xc)return !!code&&!!xc&&code===xc;return normName(x.equipType||"")===type&&normName(x.project||"")===project&&(x.ownership||"company")===ownership};const record=(S.inspections||[]).find(same);if(record)return record;const matchingEquipment=(S.equipment||[]).find(q=>{const ids=[q.code,q.serial].map(inspCodeKey).filter(Boolean);return code&&ids.includes(code)});return matchingEquipment&&eqInspectionExistsOnDate(matchingEquipment,data.date)?{...matchingEquipment,equipType:EQ_K[matchingEquipment.kind]?.one||matchingEquipment.kind,code:matchingEquipment.code||matchingEquipment.serial}:null}
 async function linkInspectionToPeriodicEquipment(record,id){
   const code=inspCodeKey(record.code);if(!code)return {linked:false,reason:"missing-code"};
@@ -2303,11 +2305,23 @@ VIEWS.equip={
 function eqInspectionForms(q){
   if(!q)return [];
   const ids=[q.code,q.serial].map(inspCodeKey).filter(Boolean);
-  const out=(q.insp||[]).map((h,i)=>({i,date:h.date||"",by:h.by||"",h,rec:h.sourceInspectionId?(S.inspections||[]).find(x=>x.id===h.sourceInspectionId)||null:null}));
-  for(const x of (S.inspections||[])){
-    if(!ids.length||!ids.includes(inspCodeKey(x.code)))continue;
-    if(out.some(o=>o.rec&&o.rec.id===x.id))continue;
-    out.push({i:-1,date:x.date||"",by:x.inspector1||"",h:null,rec:x});
+  const linked=new Set();
+  for(const h of q.insp||[])if(h.sourceInspectionId)linked.add(h.sourceInspectionId);
+  /* نماذج الشركة الخاصة بالمعدة، مجمّعة بنفس منطق سجل الفحوصات: فحص واحد لليوم */
+  const recs=(S.inspections||[]).filter(x=>linked.has(x.id)||(ids.length&&ids.includes(inspCodeKey(x.code))));
+  const out=inspectionDailyGroups(recs).map(g=>{
+    const rec=g.record;
+    const h=(q.insp||[]).find(z=>z.sourceInspectionId&&g.items.some(it=>it.id===z.sourceInspectionId))||null;
+    return {date:rec.date||(h&&h.date)||"",by:rec.inspector1||(h&&h.by)||"",h,rec,copies:g.items.length};
+  });
+  /* الفحص السريع المسجّل على المعدة — بس لو اليوم ده مالوش نموذج أصلاً */
+  const days=new Set(out.map(o=>o.date));
+  for(const h of q.insp||[]){
+    if(h.sourceInspectionId)continue;
+    const d=h.date||"";
+    if(days.has(d))continue;
+    days.add(d);
+    out.push({date:d,by:h.by||"",h,rec:null,copies:1});
   }
   return out.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 }
@@ -2326,7 +2340,7 @@ function eqFormsRowsHTML(q){
     const appr=e.h&&e.h.review&&e.h.review.status==="approved"?` · ✔ اعتمده ${esc(e.h.review.name||"")}`:(e.h&&e.h.reviewRequired?" · ⏳ بانتظار الاعتماد":"");
     return `<div class="li" style="align-items:flex-start">
       <div class="grow">
-        <div class="t">${fmtDate(e.date)} · ${eqFormResultAr(e,q)}</div>
+        <div class="t">${fmtDate(e.date)} · ${eqFormResultAr(e,q)}${e.copies>1?` <span class="pill p-open">${e.copies} نسخ محفوظة · تُعرض مرة واحدة</span>`:""}</div>
         <div class="s">الفاحص: ${esc(e.by||"—")}${appr}${e.rec?` · نموذج شركة: ${esc(e.rec.equipType||"")}`:""}</div>
         ${det?`<div class="muted" style="font-size:12.5px;margin-top:3px">بنود غير صالحة: ${esc(det)}</div>`:""}
         ${e.h&&e.h.notes?`<div class="muted" style="font-size:12.5px;margin-top:3px">${esc(e.h.notes)}</div>`:""}
