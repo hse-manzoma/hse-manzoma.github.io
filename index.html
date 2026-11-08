@@ -1960,7 +1960,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.6.0";
+const APP_VER="5.6.1";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2305,10 +2305,11 @@ function eqSetStatus(id){
       `<button type="button" class="chipbtn" data-eqdec="${k}" aria-pressed="${cur===k}">${esc(v.ar)}${v.tag?" "+v.tag:""}</button>`).join("")}</div>
     <input type="hidden" id="eqDecVal" value="${esc(cur)}">
     <div class="form" style="margin-top:12px">${f("سبب تغيير الحالة","why",{full:true,value:""})}</div>
-  `,async form=>{
+  `,async fd=>{
     const dec=document.getElementById("eqDecVal")?.value;
     if(!INSP_DECIDE[dec])return "اختار الحالة";
-    const why=(form.querySelector('[name="why"]')?.value||"").trim();
+    /* الدالة بتستقبل بيانات الفورم، مش عنصر الفورم */
+    const why=String(fd&&fd.why||"").trim();
     if(dec!==cur&&!why)return "اكتب سبب تغيير الحالة";
     const insp=[...(q.insp||[])];
     const i=insp.indexOf(li);if(i<0)return "الفحص اتغير، اقفل وافتح تاني";
