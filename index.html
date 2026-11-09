@@ -1960,7 +1960,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.6.4";
+const APP_VER="5.6.5";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6677,8 +6677,10 @@ function inspRow(x,copies=[x],compact=false){
 
 function inspDuplicateCopies(encoded){let ids=[];try{ids=JSON.parse(decodeURIComponent(encoded))}catch{}const items=ids.map(id=>(S.inspections||[]).find(x=>x.id===id)).filter(Boolean);if(!items.length)return;openSheet("السجلات المحفوظة المتكررة",`<div class="banner">عُرضت هذه النسخ كسجل واحد لتسهيل المتابعة. لم تُحذف أي بيانات.</div><div class="list">${items.map(x=>inspRow(x,[x],true)).join("")}</div>`,async()=>null,"إغلاق")}
 function inspNew(){
-  if(!inspectionCanInspect()){toast("حسابك غير مفوض للفحص أو غير مربوط بفرد من فريق السلامة");return}
-  const root=openSheet("فحص جديد — اختار نوع المعدة",`
+  /* المعاينة وطباعة النموذج الفارغ متاحة للكل؛ التفويض مطلوب للتسجيل بس */
+  const mayLog=inspectionCanInspect();
+  const root=openSheet(mayLog?"فحص جديد — اختار نوع المعدة":"نماذج الفحص — معاينة وطباعة",`
+    ${mayLog?"":`<div class="banner">تقدر تعاين وتطبع أي نموذج فاضي من هنا. <b>تسجيل فحص جديد</b> محتاج إن حسابك يكون مربوط بموظف من فريق السلامة ومُفوَّض للفحص — من <b>الإعدادات ← 👥 المستخدمون والأدوار</b> (اربط الحساب بموظف)، وكمان <b>🔐 الصلاحيات ← صلاحيات فحص المعدات واعتمادها</b>.</div>`}
     <input type="search" id="inspPickQ" autocomplete="off" placeholder="دوّر بالاسم الدارج… مثال: شنيور، صاروخ، ونش، سقالة، بوكلين" style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font:inherit;color:var(--ink)">
     <div class="muted" style="font-size:12.5px;margin:8px 0"><b id="inspPickCount">${Object.keys(INSP_FORMS).length}</b> نوع معدة متاح</div>
     <div id="inspPickList" class="list" style="max-height:58vh;overflow:auto"></div>
@@ -6696,7 +6698,7 @@ function inspPickRender(root,q){
   if(cnt)cnt.textContent=hits.length;
   if(!box)return;
   box.innerHTML=hits.length
-    ? hits.map(t=>`<div class="li" style="flex-wrap:wrap;gap:8px"><div class="grow"><div class="t"><span data-insp-type="${esc(t)}" onmouseenter="inspTypeHoverPreview(event,this.dataset.inspType)" onmouseleave="inspTypeHidePreview()" title="قف بالمؤشر لمعاينة النموذج" style="cursor:help;border-bottom:1px dotted var(--accent)">${esc(t)}</span></div><div class="s">${INSP_FORMS[t].length} بند فحص · قف على الاسم لمعاينة صفحة من النموذج</div></div><div class="row-actions"><button type="button" class="btn sm" onclick="inspTemplatePreview(this.dataset.t)" data-t="${esc(t)}">👁 عرض / طباعة فارغ</button><button type="button" class="btn sm primary" onclick="inspPick(this.dataset.t)" data-t="${esc(t)}">اختيار</button></div></div>`).join("")
+    ? hits.map(t=>`<div class="li" style="flex-wrap:wrap;gap:8px"><div class="grow"><div class="t"><span data-insp-type="${esc(t)}" onmouseenter="inspTypeHoverPreview(event,this.dataset.inspType)" onmouseleave="inspTypeHidePreview()" title="قف بالمؤشر لمعاينة النموذج" style="cursor:help;border-bottom:1px dotted var(--accent)">${esc(t)}</span></div><div class="s">${INSP_FORMS[t].length} بند فحص · قف على الاسم لمعاينة صفحة من النموذج</div></div><div class="row-actions"><button type="button" class="btn sm" onclick="inspTemplatePreview(this.dataset.t)" data-t="${esc(t)}">👁 عرض / طباعة فارغ</button>${inspectionCanInspect()?`<button type="button" class="btn sm primary" onclick="inspPick(this.dataset.t)" data-t="${esc(t)}">اختيار</button>`:`<button type="button" class="btn sm" disabled title="حسابك غير مفوّض لتسجيل الفحص">اختيار</button>`}</div></div>`).join("")
     : `<div class="muted" style="padding:14px 4px">مفيش نوع معدة بالاسم ده. جرّب كلمة تانية أو امسح البحث.</div>`;
 }
 
@@ -6716,6 +6718,11 @@ window.inspTemplatePreview=async function(t){
 
 window.inspPick=function(t){
   if(!INSP_FORMS[t])return;
+  if(!inspectionCanInspect()){
+    toast(!myEmpId()?"حسابك مش مربوط بموظف — اربطه من الإعدادات ← المستخدمون والأدوار"
+      :"اسمك مش في قائمة المفوَّضين بالفحص — الإعدادات ← الصلاحيات ← صلاحيات فحص المعدات واعتمادها");
+    return;
+  }
   const o=document.getElementById("overlayRoot");if(o)o.innerHTML="";
   setTimeout(()=>inspForm(t),50);
 };
