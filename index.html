@@ -1960,7 +1960,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.7.1";
+const APP_VER="5.7.2";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5662,8 +5662,11 @@ const RESTRICT_FORMS={eng:["F-HSE-07-01","F-HSE-07-03"],sup:["F-HSE-07-01","F-HS
 const isViolationRec=r=>r?.form==="F-HSE-07-01";
 const REVIEW_SIGN_FORMS=new Set(["F-HSE-07-03","F-HSE-24-01","F-HSE-24-02",...CHECKLIST_FORMS]);
 const recordAuthorSigned=r=>!!(r?.createdBy&&r.signs?.[r.createdBy]?.signature);
-const needsReview=r=>{const p=profOf(r?.createdBy);return !!p&&!r.review&&(isViolationRec(r)?p.role!=="admin":AUTHORS_NEED_REVIEW.includes(p.role))&&(!REVIEW_SIGN_FORMS.has(r.form)||recordAuthorSigned(r))};
-const canReview=r=>isViolationRec(r)?myRole()==="admin":REVIEWERS.includes(myRole());
+const recApproved=r=>!!(r&&(r.approved||r.review?.status==="approved"));
+const needsReview=r=>{const p=profOf(r?.createdBy);return !!p&&!recApproved(r)&&!r.review&&(isViolationRec(r)?p.role!=="admin":AUTHORS_NEED_REVIEW.includes(p.role))&&(!REVIEW_SIGN_FORMS.has(r.form)||recordAuthorSigned(r))};
+const canReview=r=>(isViolationRec(r)?myRole()==="admin":REVIEWERS.includes(myRole()))&&canApproveGroup("records")
+/* نموذج مستني مراجعتي أنا: محتاج مراجعة + أنا مخوّل + مش من كتابتي */
+const recNeedsMyReview=r=>needsReview(r)&&canReview(r)&&r.createdBy!==ME.id;
 function pendingReviews(){return S.records.filter(r=>needsReview(r)&&canReview(r))}
 async function notifyRecordReview(r){if(!r||!needsReview(r)||isViolationRec(r))return;const reviewers=(S.profiles||[]).filter(p=>REVIEWERS.includes(p.role)&&!p.disabled&&p.id!==r.createdBy).map(p=>p.id);if(reviewers.length)await notifyUsers(reviewers,"📝 سجل موقّع ينتظر مراجعة المشرف",`${profName(profOf(r.createdBy))||"عضو الفريق"} وقّع ${r.form}؛ راجعه واعتمده بتوقيعك.`,`?go=rec&id=${encodeURIComponent(r.id)}`);else toast("اتسجل توقيعك، لكن لا يوجد حساب مراجِع مرتبط لاستقبال الإشعار")}
 async function reviewRecord(id,ok){const r=S.records.find(x=>x.id===id);if(!r)return;if(!needsReview(r)||!canReview(r)||r.createdBy===ME.id){toast("مراجعة السجل متاحة لمشرف آخر، وليس لمُصدره");return}const me=myEmpName();
@@ -5686,7 +5689,7 @@ function roleDuties(uid){const p=profOf(uid);const r=p?.role;const ws=weekStart(
   if(["hse","hsesup","officer"].includes(r)){const n=D.filter(isInsp).length;L.push({k:"insp",t:`قوائم تفتيش النهارده: ${n}`,ok:n>=1,go:"wsFocus('inspToday')"})}
   if(["hse","hsesup","officer","monitor"].includes(r)){const n=W.filter(isObs).length;L.push({k:"obs",t:`ملاحظات أوضاع/تصرفات غير آمنة الأسبوع: ${n}`,ok:n>=1,go:"recordForm('F-HSE-07-03')"})}
   if(r==="monitor"){const d=S.equipment.filter(q=>q.active!==false&&eqDue(q)).length;L.push({k:"eq",t:`طفايات ومعدات محتاجة فحص: ${d}`,ok:d===0,go:"ui.eqKind='ext';show('equip')"})}
-  if(REVIEWERS.includes(r)&&r!=="admin"){const n=S.records.filter(needsReview).length;L.push({k:"rev",t:`نماذج مستنية اعتمادك: ${n}`,ok:n===0,go:"wsFocus('revForms')"})}
+  if(REVIEWERS.includes(r)&&r!=="admin"){const n=S.records.filter(recNeedsMyReview).length;L.push({k:"rev",t:`نماذج مستنية اعتمادك: ${n}`,ok:n===0,go:"wsFocus('revForms')"})}
   if(HSE_FINAL_ROLES.includes(r)&&r!=="admin"){const n=S.permits.filter(x=>isReq(x)&&!x.hseOk&&(x.hseUid===uid||!x.hseUid)).length;L.push({k:"ptw",t:`طلبات تصاريح مستنية السلامة: ${n}`,ok:n===0,go:"show('ptw')"})}
   if(r==="sup"){const n=S.permits.filter(x=>isReq(x)&&!isSupOk(x)&&(x.supUid===uid||!x.supUid)).length;L.push({k:"ptw",t:`طلبات تصاريح مستنية اعتمادك: ${n}`,ok:n===0,go:"show('ptw')"})}
   const tk=S.tasks.filter(x=>x.status!=="done"&&p?.emp_id&&x.assignee===p.emp_id).length;if(tk)L.push({k:"task",t:`مهام مفتوحة: ${tk}`,ok:false,go:"show('dash')"});
@@ -8449,7 +8452,7 @@ function wsFocusDefs(){
       html:()=>P.mine.filter(p=>p.status==="rejected").map(p=>flowCard(p,`<button class="btn sm primary" onclick="ptwRequestForm('${p.id}')">تعديل وإعادة إرسال</button>`)).join("")},
     revForms:{t:"نماذج مستنية مراجعتك واعتمادك",
       s:"دوس على أي نموذج عشان يفتح على نموذج الشركة، وأزرار الاعتماد فوق في شريط العرض.",
-      html:()=>(S.records||[]).filter(r=>needsReview(r)&&canReview(r)&&r.createdBy!==ME.id)
+      html:()=>(S.records||[]).filter(recNeedsMyReview)
         .sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).map(recRow).join("")},
     inspToday:{t:"قوائم التفتيش",s:"اختار القائمة اللي عايز تسجّلها النهاردة.",
       html:()=>(typeof CHECKLIST_FORMS!=="undefined"?CHECKLIST_FORMS:[]).map(fid=>`<button type="button" class="li" style="width:100%;text-align:right;background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;cursor:pointer" onclick="wsFocusClose();recordForm('${fid}')"><div class="grow"><div class="t">${esc(FORMS2?.[fid]?.title||fid)}</div><div class="s" dir="ltr" style="text-align:right">${esc(fid)}</div></div><span class="btn sm primary" style="pointer-events:none">+ سجّل</span></button>`).join("")}
