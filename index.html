@@ -476,6 +476,36 @@ input[type="search"]{background-image:none}
 
 .pg-off{display:none!important}
 
+/* طبقة المظهر — لازم تفضل قبل علامة مستندات الطباعة، وإلا بتتسرب للنماذج المطبوعة */
+/* ===== مظهر حديث بعمق ثلاثي الأبعاد (شكل فقط) ===== */
+.btn{background-image:var(--d-gloss);box-shadow:var(--d-lift);transition:transform .09s ease,box-shadow .15s ease,background-color .15s ease;will-change:transform}
+@media (hover:hover){.btn:hover:not(:disabled){box-shadow:var(--d-lift-h);transform:translateY(-1px)}}
+.btn:active:not(:disabled){transform:translateY(1px);box-shadow:var(--d-press)}
+.btn:disabled,.btn[disabled]{background-image:none;box-shadow:none;transform:none}
+.btn.primary{background-image:linear-gradient(180deg,color-mix(in srgb,#fff 24%,var(--accent)),var(--accent) 60%,color-mix(in srgb,#000 9%,var(--accent)));border-color:color-mix(in srgb,#000 14%,var(--accent));text-shadow:0 1px 1px rgba(0,0,0,.16)}
+.btn.sign{background-image:linear-gradient(180deg,#3a6cae,#1f4f8f 62%,#1a4479);border-color:#17395f;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+.btn.danger{background-image:linear-gradient(180deg,color-mix(in srgb,#fff 22%,var(--bad)),var(--bad) 62%,color-mix(in srgb,#000 10%,var(--bad)));border-color:color-mix(in srgb,#000 14%,var(--bad));color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.2)}
+.btn.ghost{background-image:none;box-shadow:none}
+@media (hover:hover){.btn.ghost:hover{background:var(--sunk);box-shadow:var(--d-lift);transform:none}}
+.btn.ghost:active{background:var(--sunk);box-shadow:var(--d-press);transform:none}
+.card{box-shadow:var(--d-card)}
+.tile{background-image:var(--d-gloss)}
+.pill{box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 1px 2px rgba(16,32,26,.12)}
+.mark{background-image:linear-gradient(155deg,color-mix(in srgb,#fff 22%,var(--accent)),var(--accent) 58%,color-mix(in srgb,#000 14%,var(--accent)));box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 3px 8px -2px rgba(16,32,26,.35)}
+nav.tabs button{border-radius:9px 9px 0 0;transition:background .15s ease,color .15s ease}
+@media (hover:hover){nav.tabs button:hover{background:var(--sunk)}}
+nav.tabs button[aria-selected="true"]{background:linear-gradient(180deg,var(--sunk),transparent)}
+#bnav button{transition:transform .1s ease,background .15s ease}
+#bnav button:active{transform:scale(.93)}
+#bnav button[aria-current="true"]{background:var(--accent-soft);box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 2px 6px -1px rgba(16,32,26,.14)}
+#bnav button svg{filter:drop-shadow(0 1px 1px rgba(16,32,26,.22))}
+@media (prefers-reduced-motion:reduce){.btn,.btn:hover,.btn:active,#bnav button:active{transform:none!important;transition:none!important}}
+.btn>svg.ic,#bnav button>svg.ic{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 0 rgba(16,32,26,.18))}
+#bnav button>svg.ic{width:22px;height:22px}
+.btn.ghost>svg.ic{width:18px;height:18px;stroke-width:1.8}
+h1>svg.ic,h2>svg.ic,h3>svg.ic,h4>svg.ic,span.grow>svg.ic,nav.tabs button>svg.ic{width:1.05em;height:1.05em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.15em;margin-left:.3em;opacity:.95}
+nav.tabs button>svg.ic{width:16px;height:16px;vertical-align:-.2em}
+
 /* ===== printable documents (A4) ===== */
 .dpage{display:flex;flex-direction:column;width:210mm;height:297mm;box-sizing:border-box;padding:8mm;background:#fff;color:#000;font-family:"IBM Plex Sans Arabic",Arial,sans-serif;font-size:10.5pt;line-height:1.45;direction:rtl;overflow:hidden;page-break-after:always;break-after:page}
 .dpage.land{width:297mm;height:210mm}
@@ -510,34 +540,6 @@ input[type="search"]{background-image:none}
 .dpage .stamp{display:inline-block;border:1.5px solid #1f4f8f;color:#1f4f8f;border-radius:4px;padding:.5mm 2mm;font-size:8.5pt;font-weight:700}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
-/* ===== مظهر حديث بعمق ثلاثي الأبعاد (شكل فقط) ===== */
-.btn{background-image:var(--d-gloss);box-shadow:var(--d-lift);transition:transform .09s ease,box-shadow .15s ease,background-color .15s ease;will-change:transform}
-@media (hover:hover){.btn:hover:not(:disabled){box-shadow:var(--d-lift-h);transform:translateY(-1px)}}
-.btn:active:not(:disabled){transform:translateY(1px);box-shadow:var(--d-press)}
-.btn:disabled,.btn[disabled]{background-image:none;box-shadow:none;transform:none}
-.btn.primary{background-image:linear-gradient(180deg,color-mix(in srgb,#fff 24%,var(--accent)),var(--accent) 60%,color-mix(in srgb,#000 9%,var(--accent)));border-color:color-mix(in srgb,#000 14%,var(--accent));text-shadow:0 1px 1px rgba(0,0,0,.16)}
-.btn.sign{background-image:linear-gradient(180deg,#3a6cae,#1f4f8f 62%,#1a4479);border-color:#17395f;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
-.btn.danger{background-image:linear-gradient(180deg,color-mix(in srgb,#fff 22%,var(--bad)),var(--bad) 62%,color-mix(in srgb,#000 10%,var(--bad)));border-color:color-mix(in srgb,#000 14%,var(--bad));color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.2)}
-.btn.ghost{background-image:none;box-shadow:none}
-@media (hover:hover){.btn.ghost:hover{background:var(--sunk);box-shadow:var(--d-lift);transform:none}}
-.btn.ghost:active{background:var(--sunk);box-shadow:var(--d-press);transform:none}
-.card{box-shadow:var(--d-card)}
-.tile{background-image:var(--d-gloss)}
-.pill{box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 1px 2px rgba(16,32,26,.12)}
-.mark{background-image:linear-gradient(155deg,color-mix(in srgb,#fff 22%,var(--accent)),var(--accent) 58%,color-mix(in srgb,#000 14%,var(--accent)));box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 3px 8px -2px rgba(16,32,26,.35)}
-nav.tabs button{border-radius:9px 9px 0 0;transition:background .15s ease,color .15s ease}
-@media (hover:hover){nav.tabs button:hover{background:var(--sunk)}}
-nav.tabs button[aria-selected="true"]{background:linear-gradient(180deg,var(--sunk),transparent)}
-#bnav button{transition:transform .1s ease,background .15s ease}
-#bnav button:active{transform:scale(.93)}
-#bnav button[aria-current="true"]{background:var(--accent-soft);box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 2px 6px -1px rgba(16,32,26,.14)}
-#bnav button svg{filter:drop-shadow(0 1px 1px rgba(16,32,26,.22))}
-@media (prefers-reduced-motion:reduce){.btn,.btn:hover,.btn:active,#bnav button:active{transform:none!important;transition:none!important}}
-.btn>svg.ic,#bnav button>svg.ic{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 0 rgba(16,32,26,.18))}
-#bnav button>svg.ic{width:22px;height:22px}
-.btn.ghost>svg.ic{width:18px;height:18px;stroke-width:1.8}
-h1>svg.ic,h2>svg.ic,h3>svg.ic,h4>svg.ic,span.grow>svg.ic,nav.tabs button>svg.ic{width:1.05em;height:1.05em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.15em;margin-left:.3em;opacity:.95}
-nav.tabs button>svg.ic{width:16px;height:16px;vertical-align:-.2em}
 </style>
 
 <div id="app">
@@ -1517,7 +1519,7 @@ function remindersBase(){
   if(al.includes("contractors")){const w=S.employees.filter(e=>e.group==="ctr"&&e.active!==false);const noId=w.filter(e=>!hasID(e)).length,noInd=w.filter(e=>!S.records.some(r=>r.form==="F-HSE-24-01"&&(r.rows||[]).some(x=>x&&x.name_id===e.id))).length;
     if(noId)R.push({lv:"warn",t:`${noId} عامل مقاول من غير صورة بطاقة`,go:"ui.mpG='ctr';ui.mpID='no';show('manpower')"});if(noInd)R.push({lv:"warn",t:`${noInd} عامل مقاول ما حضرش محاضرة Induction`,go:"show('contractors')"})}
   if(al.includes("team")&&hseTeam().length&&!attDoc(t0))R.push({lv:"warn",t:"حضور النهارده لسه ما اتسجلش",go:"ui.teamSub='att';show('team')"});
-  {const mm=S.leaves.filter(l=>isMissionKind(l.kind)&&canSignMission(l)&&!iSignedMission(l));
+  {const mm=S.leaves.filter(missionNeedsMySign);
    if(mm.length)R.push({lv:"warn",t:`عندك ${mm.length} مأمورية مستنية توقيعك الإلكتروني`,go:"ui.teamSub='duties';show('team')"});}
   if(al.includes("forms")){const d=new Date();if(d.getDate()>=20){const m=thisMonth();const did=S.records.some(r=>r.form==="F-HSE-24-02"&&(r.date||"").startsWith(m)&&mineRec(r));if(!did)R.push({lv:"warn",t:"مفيش محاضرة توعية (TBT) اتسجلت الشهر ده",go:"ui.formSel='F-HSE-24-02';show('forms')"})}}
   const T=S.tasks.filter(x=>x.status!=="done"&&(x.assignee===me||x.createdBy===ME.id||(!ownScope()&&myAccess()?.role==="admin")));
@@ -1960,7 +1962,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.7.2";
+const APP_VER="5.7.3";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3038,6 +3040,13 @@ function kpiSources(empId,month){
   const correctionText=v=>typeof v==="string"?v.trim():Array.isArray(v)?v.filter(Boolean).join(" ").trim():"";
   const addCorrection=(r,label,text,part="",suffix="")=>{if(!correctionText(text))return;const who=authorEmp(r);if(who!==empId)return;const key=`record:${r.id}${suffix?`:${suffix}`:""}`;if(!o.corrective.some(x=>x.id===key))o.corrective.push({type:"form",id:r.id,date:r.date,label,who:profName(profOf(r.createdBy))||r.f?.writer||r.f?.officer||r.f?.reporter||e?.name||"",role:"كاتب الإجراء التصحيحي",part})};
   const reviewedBy=r=>{const a=r.review||r.approved;if(!a?.signature)return false;const p=profOf(a.by);return p?.emp_id===empId};
+  /* الفحص الواحد كان بيتعدّ مرتين: مرة من سجل الفحص المستقل ومرة من نسخته
+     المرتبطة بالمعدة في الفحص الدوري. المفتاح ده بيوحّد الاتنين:
+     نفس المعدة + نفس اليوم = فحص واحد. */
+  const _ik=new Set();
+  const inspKeyEq=(q,h)=>{const c=inspCodeKey(q.serial||q.code||"");return c&&h.date?`d:${c}:${h.date}`:(h.sourceInspectionId?`insp:${h.sourceInspectionId}`:`eq:${q.id}:${h.date||""}`)};
+  const inspKeyRec=x=>{const c=inspCodeKey(x.code||"");return c&&x.date?`d:${c}:${x.date}`:`insp:${x.id}`};
+  const addInsp=(key,row)=>{if(_ik.has(key))return;_ik.add(key);o.inspection.push(row)};
   for(const r of S.records){if(!(r.date||"").startsWith(month))continue;
     if(CHECKLIST_FORMS.includes(r.form)&&(by(r,"officer")||reviewedBy(r)))o.inspection.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.place||r.f?.location||"قائمة تفتيش"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.officer||e?.name||""),role:reviewedBy(r)?"المعتمد":"الفاحص"});
     if(r.form==="F-HSE-07-03")for(const [i,x] of (r.rows||[]).entries()){if(x?.kind==="USC"&&(by(r,"reporter")||reviewedBy(r)))o.unsafeCond.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"ظرف غير آمن"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.reporter||e?.name||""),role:reviewedBy(r)?"المعتمد":"المبلّغ",part:i+1});else if(x?.kind==="USA"&&(by(r,"reporter")||reviewedBy(r)))o.unsafeActs.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"تصرف غير آمن"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.reporter||e?.name||""),role:reviewedBy(r)?"المعتمد":"المبلّغ",part:i+1});if(x?.action)addCorrection(r,`F-HSE-07-03 · ${x.desc||x.description||x.place||"إجراء تصحيحي"}`,x.action,i+1,String(i))}
@@ -3045,12 +3054,12 @@ function kpiSources(empId,month){
     if(r.form==="F-HSE-07-01")addCorrection(r,`F-HSE-07-01 · ${r.f?.desc||"مخالفة"}`,r.f?.action,"","v");
     if(r.form==="F-HSE-03-01")addCorrection(r,`F-HSE-03-01 · ${r.f?.desc||"تقرير حادث"}`,r.f?.corrective||r.f?.immediate,"","c");
     if((r.form==="F-HSE-24-02"&&(by(r,"trainer")||reviewedBy(r)))||(r.form==="F-HSE-24-01"&&(by(r,"lecturer")||reviewedBy(r))))o.tbt.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.title||r.f?.topic||"محاضرة توعية"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.trainer||r.f?.lecturer||e?.name||""),role:reviewedBy(r)?"المعتمد":"المحاضر"});}
-  for(const q of S.equipment)for(const h of q.insp||[])if((h.date||"").startsWith(month)&&((h.by_id===empId||normName(h.by||"")===nm)||(h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId)))o.inspection.push({type:"equipment",id:q.id,date:h.date,label:`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""} · ${eqLabel(q)} · ${q.place||""}`,who:h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId?h.review.name:(h.by||e?.name||""),role:h.review?.status==="approved"&&profOf(h.review.by)?.emp_id===empId?"المعتمد":"الفاحص",status:Object.values(h.res||{}).every(v=>v!=="nok")?"صالح":"غير صالح"});
-  for(const x of inspectionDailyGroups(S.inspections||[]).map(g=>g.record))if((x.date||"").startsWith(month)){const reviewer=x.review?.status==="approved"&&x.review.signature&&profOf(x.review.by)?.emp_id===empId;const inspector=x.inspector1Id===empId||(!x.inspector1Id&&x.inspector1&&normName(x.inspector1)===nm);if(inspector||reviewer)o.inspection.push({type:"form",id:x.id,date:x.date,label:`F-HSE-18-01 · ${x.equipType||"فحص معدة"} · ${x.project||x.code||""}`,who:reviewer?(x.review.name||x.inspector2||e?.name||""):(x.inspector1||e?.name||""),role:reviewer?"المعتمد":"الفاحص",status:x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":x.status==="partial"?"جزئي":"غير مسجل"})}
+  for(const q of S.equipment)for(const h of q.insp||[])if((h.date||"").startsWith(month)&&((h.by_id===empId||normName(h.by||"")===nm)||(h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId)))addInsp(inspKeyEq(q,h),{type:"equipment",id:q.id,date:h.date,label:`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""} · ${eqLabel(q)} · ${q.place||""}`,who:h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId?h.review.name:(h.by||e?.name||""),role:h.review?.status==="approved"&&profOf(h.review.by)?.emp_id===empId?"المعتمد":"الفاحص",status:Object.values(h.res||{}).every(v=>v!=="nok")?"صالح":"غير صالح"});
+  for(const x of inspectionDailyGroups(S.inspections||[]).map(g=>g.record))if((x.date||"").startsWith(month)){const reviewer=x.review?.status==="approved"&&x.review.signature&&profOf(x.review.by)?.emp_id===empId;const inspector=x.inspector1Id===empId||(!x.inspector1Id&&x.inspector1&&normName(x.inspector1)===nm);if(inspector||reviewer)addInsp(inspKeyRec(x),{type:"form",id:x.id,date:x.date,label:`F-HSE-18-01 · ${x.equipType||"فحص معدة"} · ${x.project||x.code||""}`,who:reviewer?(x.review.name||x.inspector2||e?.name||""):(x.inspector1||e?.name||""),role:reviewer?"المعتمد":"الفاحص",status:x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":x.status==="partial"?"جزئي":"غير مسجل"})}
   for(const x of (S.fireext||[]))if((x.date||"").startsWith(month)){
     const reviewer=x.review?.status==="approved"&&x.review.signature&&profOf(x.review.by)?.emp_id===empId;
     const inspector=x.inspectorId===empId||(x.inspector&&normName(x.inspector)===nm);
-    if(inspector||reviewer)o.inspection.push({type:"form",id:x.id,date:x.date,
+    if(inspector||reviewer)addInsp(`fx:${x.id}`,{type:"form",id:x.id,date:x.date,
       label:`F-HSE-10-09 · حصر طفايات${x.project?" · "+x.project:""} · ${(x.items||[]).length} طفاية`,
       who:reviewer?(x.review.name||e?.name||""):(x.inspector||e?.name||""),
       role:reviewer?"المعتمد":"الفاحص",
@@ -3611,6 +3620,23 @@ function canApproveMission(l){
 }
 function isMissionRequester(l){const me=myEmpId();return !!(me&&l&&l.empId===me)}
 function canSignMission(l){return isMissionRequester(l)||canApproveMission(l)}
+/* مين فعليًا مطلوب منه التوقيع: صاحب المأمورية، أو المعتمد المحدد عليها،
+   أو — لو مفيش معتمد محدد — أعضاء قائمة المعتمدين. الأدمن يقدر يوقّع من
+   الشاشة، لكن مش بيتنبّه على مأموريات مش موجّهة له؛ ولما المأمورية تتعتمد
+   ما يفضلش مستني غير توقيع صاحبها. */
+function missionApproved(l){return !!(l&&(l.approvedAt||l.approvedBy))}
+function missionIsMyDuty(l){
+  if(!l||!isMissionKind(l.kind))return false;
+  const me=myEmpId();if(!me)return false;
+  if(l.empId===me)return true;
+  if(l.approverId)return l.approverId===me;
+  return missionApproverIds().includes(me);
+}
+function missionNeedsMySign(l){
+  if(!missionIsMyDuty(l)||iSignedMission(l))return false;
+  if(missionApproved(l))return l.empId===myEmpId();
+  return true;
+}
 function iSignedMission(l){return signsOf(l).some(s=>s.uid===ME.id)}
 function missionSignedName(l,nm){const n=normName(nm);return !!n&&signsOf(l).some(s=>normName(s.name)===n)}
 async function stampMissionSigs(T,rec,vals,pages){
