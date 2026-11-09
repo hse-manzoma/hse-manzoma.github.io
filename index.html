@@ -1435,7 +1435,7 @@ async function usersCardHTML(){
       <td>${esc(p.role==="admin"?"مدير المنظومة":ROLES_ALL()[p.role]?.ar||"مخصص")}${p.scope==="own"?'<div class="muted" style="font-size:12px">شغله بس</div>':""}</td>
       <td style="font-size:12.5px;max-width:320px">${p.role==="admin"?"كل الأقسام":Object.entries(tb).filter(([k])=>k!=="inspection").map(([k,l])=>`${TAB_NAMES[k]||k}${l==="view"?" (مشاهدة)":l==="full"?" (+مسح)":""}`).join("، ")}</td>
       <td>${p.disabled?'<span class="pill p-closed">موقوف</span>':'<span class="pill p-appr">شغال</span>'}${self?' <span class="pill p-open">أنت</span>':""}</td>
-      <td><div class="row-actions">${self?"":`<button class="btn ghost sm" style="color:#128C7E" onclick="sendInvite('${p.id}')">📲 واتساب</button><button class="btn ghost sm" onclick="userForm('${p.id}')">تعديل</button><button class="btn ghost sm" onclick="newPin('${p.id}')">كلمة سر جديدة</button><button class="btn ghost sm" onclick="userToggle('${p.id}')">${p.disabled?"تفعيل":"إيقاف"}</button><button class="btn ghost sm danger" onclick="userDelete('${p.id}')">حذف</button>`}</div></td></tr>`};
+      <td><div class="row-actions">${self?`<button class="btn ghost sm${emp(p.emp_id)?"":" primary"}" onclick="linkMyEmp()" title="ربط حسابك بموظف من فريق السلامة">🔗 ${emp(p.emp_id)?"غيّر الموظف":"اربط بموظف"}</button>`:`<button class="btn ghost sm" style="color:#128C7E" onclick="sendInvite('${p.id}')">📲 واتساب</button><button class="btn ghost sm" onclick="userForm('${p.id}')">تعديل</button><button class="btn ghost sm" onclick="newPin('${p.id}')">كلمة سر جديدة</button><button class="btn ghost sm" onclick="userToggle('${p.id}')">${p.disabled?"تفعيل":"إيقاف"}</button><button class="btn ghost sm danger" onclick="userDelete('${p.id}')">حذف</button>`}</div></td></tr>`};
   return `<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h3 class="grow" style="margin:0">المستخدمين (${rows.length})</h3><button class="btn primary" onclick="userForm()">+ مستخدم جديد</button></div>
     <p class="muted" style="font-size:13px">كل مستخدم بيدخل باسم مستخدم وكلمة سر. لما تسجّل حد جديد المنظومة بتعمله كلمة سر وتجهزلك رسالة واتساب فيها اللينك واليوزر والباسورد. الصلاحيات بتتنفذ على السيرفر نفسه.</p>
     <div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th>الدور</th><th>الأقسام</th><th>الحالة</th><th></th></tr></thead><tbody>${rows.map(tr).join("")}</tbody></table></div></div>`;
@@ -1456,6 +1456,33 @@ function roleForm(key){const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
     const ok=await write(()=>db.doc("settings/main").update({roles}),"اتحفظ الدور");if(ok){for(const p of (S.profiles||[]).filter(p=>p.role===k))await SB.from("profiles").update({tabs}).eq("user_id",p.id)}return ok?null:"الحفظ فشل"})}
 function roleDelete(k){const used=Object.values(S.settings.users||{}).concat(Object.values(S.settings.invites||{})).filter(u=>u.role===k).length;
   confirmSheet(BUILTIN_ROLES[k]?"رجوع الدور لأصله":"حذف الدور",used&&!BUILTIN_ROLES[k]?`فيه ${used} مستخدم على الدور ده، هيتحولوا لـ «مشاهدة الرئيسية بس» لحد ما تغيّر دورهم.`:"متأكد؟",()=>{const roles={...(S.settings.roles||{})};delete roles[k];return write(()=>db.doc("settings/main").update({roles}),"تم")},BUILTIN_ROLES[k]?"رجّعه":"احذف")}
+/* ربط حسابك انت بموظف.
+   صف حسابك في جدول المستخدمين مكانش فيه زرار تعديل خالص (عشان ماتقفلش على
+   نفسك بالغلط)، فماكانش فيه أي طريقة تربط حسابك بموظف. الشاشة دي بتعدّل
+   الربط بس — الدور والصلاحيات مابتتلمسش. */
+function linkMyEmp(){
+  const p=myProfile();
+  if(!p){toast("مش لاقي بيانات حسابك");return}
+  const cur=emp(p.emp_id);
+  openSheet("ربط حسابك بموظف",`
+    <div class="banner">ربط الحساب بموظف هو اللي بيخلي <b>اسمك</b> يظهر في النماذج والتوقيعات بدل اسم المستخدم، وبيخلي شغلك يتحسب في الـKPI بتاعك.</div>
+    <div class="form">
+      <div class="field"><label>اسم المستخدم</label><div class="serial" dir="ltr">${esc(p.username||"")}</div></div>
+      <div class="field"><label>الحالة دلوقتي</label><div class="serial">${cur?esc(cur.name):"غير مربوط"}</div></div>
+      <div class="field full"><label for="f_me">الموظف</label>
+        <input id="f_me" name="emp" list="empListAll" autocomplete="off" value="${esc(cur?.name||"")}" placeholder="اكتب الاسم أو الكود واختار من القائمة"></div>
+    </div>${empDatalist2()}`,
+  async fd=>{
+    const e=resolveEmp(fd&&fd.emp);
+    if(!e)return "اختار الموظف من القائمة";
+    const {error}=await SB.from("profiles").update({emp_id:e.id}).eq("user_id",p.id);
+    if(error)return "الحفظ فشل — جرّب تاني";
+    p.emp_id=e.id;
+    toast("اتربط بـ"+e.name);
+    setTimeout(()=>{try{applyRole()}catch(x){}refresh()},200);
+    return null;
+  },"حفظ الربط");
+}
 function userForm(uid){
   const p=uid?(S.profiles||[]).find(x=>x.id===uid):null;const u=p?{role:p.role,scope:p.scope,empId:p.emp_id,tabs:p.tabs}:{role:"hse",scope:"all",empId:""};
   const roleOpts=[["admin","مدير المنظومة (كل حاجة)"],...Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,v])=>[k,v.ar]),["custom","مخصص (أحدده هنا)"]];
@@ -1997,7 +2024,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.7.6";
+const APP_VER="5.7.7";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
