@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مأمورية مجموع - فريق</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'IBM Plex Sans Arabic', sans-serif;
+      background: #0B1526;
+      color: #EAF1FB;
+      padding: 20px;
+      direction: rtl;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #13213B;
+      border: 1px solid #243654;
+      border-radius: 12px;
+      padding: 30px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #3B7DF5;
+      padding-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+      color: #3B7DF5;
+    }
+    .header p {
+      font-size: 13px;
+      color: #93A6C4;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group.full {
+      grid-column: 1 / -1;
+    }
+    label {
+      font-weight: 600;
+      font-size: 13px;
+      color: #93A6C4;
+    }
+    input, select, textarea {
+      border: 1px solid #243654;
+      background: #0E1A30;
+      color: #EAF1FB;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font: inherit;
+      direction: rtl;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #3B7DF5;
+      box-shadow: 0 0 0 2px rgba(59, 125, 245, 0.1);
+    }
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .members-section {
+      background: #0E1A30;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      border: 1px solid #243654;
+    }
+    .members-title {
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #3B7DF5;
+    }
+    .member-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: flex-end;
+    }
+    .member-row input {
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    .btn-add {
+      background: #3B7DF5;
+      color: white;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-add:hover {
+      background: #2456C7;
+    }
+    .btn-remove {
+      background: transparent;
+      border: 1px solid #F2776B;
+      color: #F2776B;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 1px solid #243654;
+    }
+    .signature-box {
+      text-align: center;
+    }
+    .signature-line {
+      height: 40px;
+      border-bottom: 1px solid #243654;
+      margin-bottom: 10px;
+    }
+    .signature-label {
+      font-size: 12px;
+      color: #93A6C4;
+      margin-top: 10px;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: #3B7DF5;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #2456C7;
+    }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid #243654;
+      color: #93A6C4;
+    }
+    .btn-secondary:hover {
+      border-color: #3B7DF5;
+      color: #EAF1FB;
+    }
+    .form-info {
+      background: #0E1A30;
+      border-right: 4px solid #3B7DF5;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #93A6C4;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>👥 مأمورية مجموع - فريق عمل</h1>
+      <p>طلب قيام بمأمورية عمل لمجموعة من الموظفين</p>
+    </div>
+
+    <form id="missionForm">
+      <!-- بيانات المأمورية -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label>قائد الفريق / المجموعة *</label>
+          <input type="text" id="leaderName" required>
+        </div>
+        <div class="form-group">
+          <label>كود قائد الفريق *</label>
+          <input type="text" id="leaderCode" required>
+        </div>
+        <div class="form-group">
+          <label>عدد الموظفين في الفريق *</label>
+          <input type="number" id="teamSize" min="2" required>
+        </div>
+        <div class="form-group">
+          <label>القسم / الإدارة *</label>
+          <input type="text" id="department" required>
+        </div>
+
+        <!-- التواريخ والأوقات -->
+        <div class="form-group">
+          <label>تاريخ بدء المأمورية *</label>
+          <input type="date" id="startDate" required>
+        </div>
+        <div class="form-group">
+          <label>تاريخ نهاية المأمورية *</label>
+          <input type="date" id="endDate" required>
+        </div>
+
+        <!-- جهة المأمورية والغرض -->
+        <div class="form-group full">
+          <label>جهة / موقع المأمورية *</label>
+          <input type="text" id="destination" placeholder="المدينة / المشروع / الموقع" required>
+        </div>
+        <div class="form-group full">
+          <label>الغرض من المأمورية *</label>
+          <textarea id="purpose" required></textarea>
+        </div>
+
+        <!-- ملاحظات -->
+        <div class="form-group full">
+          <label>ملاحظات / تفاصيل إضافية</label>
+          <textarea id="notes"></textarea>
+        </div>
+      </div>
+
+      <!-- أعضاء الفريق -->
+      <div class="members-section">
+        <div class="members-title">👥 أعضاء الفريق</div>
+        <div id="membersList"></div>
+        <button type="button" class="btn-add" onclick="addMember()">+ إضافة موظف</button>
+      </div>
+
+      <!-- التوقيعات -->
+      <div class="signature-section">
+        <div class="signature-box">
+          <div class="signature-label">مدير القسم / الإدارة</div>
+          <div class="signature-line"></div>
+          <input type="text" placeholder="الاسم" style="width: 100%; margin-top: 10px;">
+          <input type="date" style="width: 100%; margin-top: 8px;">
+        </div>
+        <div class="signature-box">
+          <div class="signature-label">قائد الفريق</div>
+          <div class="signature-line"></div>
+          <input type="text" placeholder="الاسم" style="width: 100%; margin-top: 10px;">
+          <input type="date" style="width: 100%; margin-top: 8px;">
+        </div>
+      </div>
+
+      <div class="form-info">
+        ✓ هذا النموذج سيتم حفظه في النظام مع إمكانية تتبع حالته والموافقات اللازمة
+      </div>
+
+      <!-- الأزرار -->
+      <div class="button-group">
+        <button type="button" class="btn-secondary" onclick="resetForm()">مسح</button>
+        <button type="button" class="btn-secondary" onclick="window.print()">طباعة</button>
+        <button type="submit" class="btn-primary">💾 حفظ المأمورية</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    let memberCount = 0;
+
+    function addMember() {
+      memberCount++;
+      const membersList = document.getElementById('membersList');
+      const memberRow = document.createElement('div');
+      memberRow.className = 'member-row';
+      memberRow.id = `member-${memberCount}`;
+      memberRow.innerHTML = `
+        <input type="text" placeholder="اسم الموظف" class="member-name">
+        <input type="text" placeholder="الكود الوظيفي" class="member-code">
+        <button type="button" class="btn-remove" onclick="removeMember('member-${memberCount}')">حذف</button>
+      `;
+      membersList.appendChild(memberRow);
+    }
+
+    function removeMember(id) {
+      const element = document.getElementById(id);
+      if (element) element.remove();
+    }
+
+    // إضافة عضو واحد افتراضياً
+    window.addEventListener('load', () => {
+      addMember();
+      document.getElementById('startDate').valueAsDate = new Date();
+    });
+
+    document.getElementById('missionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const members = Array.from(document.querySelectorAll('.member-row')).map(row => ({
+        name: row.querySelector('.member-name').value,
+        code: row.querySelector('.member-code').value
+      }));
+
+      const missionData = {
+        type: 'mission_group',
+        leader_name: document.getElementById('leaderName').value,
+        leader_code: document.getElementById('leaderCode').value,
+        team_size: parseInt(document.getElementById('teamSize').value),
+        department: document.getElementById('department').value,
+        start_date: document.getElementById('startDate').value,
+        end_date: document.getElementById('endDate').value,
+        destination: document.getElementById('destination').value,
+        purpose: document.getElementById('purpose').value,
+        notes: document.getElementById('notes').value,
+        members: members,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+
+      try {
+        if (window.HSE_SYSTEMS && window.HSE_SYSTEMS.MissionSystem) {
+          const result = await window.HSE_SYSTEMS.MissionSystem.createGroupMission(missionData);
+          alert(`✅ تم حفظ المأمورية بنجاح!\nالرقم: ${result.id}`);
+          resetForm();
+        } else {
+          alert('⚠️ نظام المأموريات غير متاح.\nيرجى تحديث الصفحة.');
+        }
+      } catch (error) {
+        alert(`❌ خطأ: ${error.message}`);
+      }
+    });
+
+    function resetForm() {
+      document.getElementById('missionForm').reset();
+      document.getElementById('membersList').innerHTML = '';
+      memberCount = 0;
+      addMember();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نموذج طلب المأمورية - GIECO</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+      direction: rtl;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+      background-image: url('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAIBAQIBAQICAgICAgICAwUDAwwUAxUTAwsZV2NnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2dnZ2H/2wBDAQICAgICAwUDAwwUGAwIFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQH/wAARCAAOABADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8VAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA8A/9k=');
+      background-size: cover;
+      background-repeat: no-repeat;
+      padding: 60px 40px 40px 40px;
+      min-height: 800px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    .form-overlay {
+      position: relative;
+      z-index: 10;
+    }
+
+    .form-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-field input,
+    .form-field textarea,
+    .form-field select {
+      border: none;
+      background: transparent;
+      border-bottom: 1px solid #333;
+      padding: 5px;
+      font-family: 'Arial', sans-serif;
+      text-align: right;
+      font-size: 13px;
+      color: #000;
+    }
+
+    .form-field input::placeholder,
+    .form-field textarea::placeholder {
+      color: #999;
+    }
+
+    .form-field textarea {
+      resize: vertical;
+      min-height: 60px;
+      border: 1px solid #ddd;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    .signature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      margin-top: 60px;
+    }
+
+    .signature-box {
+      text-align: center;
+    }
+
+    .signature-line {
+      height: 40px;
+      border-bottom: 1px solid #333;
+      margin-bottom: 5px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 40px;
+      padding-top: 20px;
+    }
+
+    button {
+      padding: 10px 30px;
+      font-size: 14px;
+      font-weight: bold;
+      border: 2px solid #0066cc;
+      background: #0066cc;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    button:hover {
+      background: #0052a3;
+    }
+
+    button.secondary {
+      background: white;
+      color: #0066cc;
+    }
+
+    button.secondary:hover {
+      background: #f0f0f0;
+    }
+
+    .message {
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      margin-top: 20px;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .button-group, .message {
+        display: none;
+      }
+      .container {
+        box-shadow: none;
+        padding: 0;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .form-fields {
+        grid-template-columns: 1fr;
+      }
+      .signature-section {
+        gap: 30px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="form-overlay">
+      <form id="missionForm">
+        <!-- الحقول الأساسية -->
+        <div class="form-fields">
+          <!-- اسم طالب المأمورية -->
+          <div class="form-field">
+            <input type="text" id="requestorName" placeholder="اسم طالب المأمورية" required>
+          </div>
+
+          <!-- الكود الوظيفي -->
+          <div class="form-field">
+            <input type="text" id="employeeCode" placeholder="الكود الوظيفي" required>
+          </div>
+
+          <!-- الوظيفة -->
+          <div class="form-field">
+            <input type="text" id="jobTitle" placeholder="الوظيفة" required>
+          </div>
+
+          <!-- رقم الإدارة / القسم -->
+          <div class="form-field">
+            <input type="text" id="departmentCode" placeholder="رقم الإدارة / القسم">
+          </div>
+
+          <!-- تاريخ القيام بالمأمورية -->
+          <div class="form-field">
+            <input type="date" id="startDate" required>
+          </div>
+
+          <!-- تاريخ العودة -->
+          <div class="form-field">
+            <input type="date" id="returnDate" required>
+          </div>
+
+          <!-- جهة المأمورية -->
+          <div class="form-field full-width">
+            <input type="text" id="destination" placeholder="جهة المأمورية (الموقع)" required>
+          </div>
+
+          <!-- الغرض من المأمورية -->
+          <div class="form-field full-width">
+            <textarea id="purpose" placeholder="الغرض من المأمورية" required></textarea>
+          </div>
+        </div>
+
+        <!-- التوقيعات -->
+        <div class="signature-section">
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            <p>مدير الإدارة</p>
+          </div>
+
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            <p>طالب المأمورية</p>
+          </div>
+        </div>
+
+        <!-- الأزرار -->
+        <div class="button-group">
+          <button type="button" class="secondary" onclick="window.print()">طباعة</button>
+          <button type="button" class="secondary" onclick="resetForm()">مسح</button>
+          <button type="submit">حفظ المأمورية</button>
+        </div>
+
+        <div class="message">
+          هذا النموذج الأصلي من الشركة الغرابية للأعمال الهندسية المتكاملة
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Set default dates
+    function setDefaultDates() {
+      const today = new Date();
+      document.getElementById('startDate').valueAsDate = today;
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      document.getElementById('returnDate').valueAsDate = tomorrow;
+    }
+
+    function resetForm() {
+      document.getElementById('missionForm').reset();
+      setDefaultDates();
+    }
+
+    // Form submission
+    document.getElementById('missionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const missionData = {
+        title: `مأمورية: ${document.getElementById('destination').value}`,
+        employee_name: document.getElementById('requestorName').value,
+        employee_code: document.getElementById('employeeCode').value,
+        destination: document.getElementById('destination').value,
+        purpose: document.getElementById('purpose').value,
+        start_date: document.getElementById('startDate').value,
+        end_date: document.getElementById('returnDate').value,
+        notes: `الوظيفة: ${document.getElementById('jobTitle').value}\nالقسم: ${document.getElementById('departmentCode').value}`
+      };
+
+      try {
+        if (window.HSE_SYSTEMS && window.HSE_SYSTEMS.MissionSystem) {
+          const result = await window.HSE_SYSTEMS.MissionSystem.createIndividualMission(missionData);
+          alert(`تم حفظ المأمورية بنجاح!\nالرقم: ${result.id}`);
+          resetForm();
+        } else {
+          alert('نظام المأموريات غير متاح.\nيرجى التأكد من تحميل نظام HSE بشكل صحيح.');
+        }
+      } catch (error) {
+        alert(`خطأ: ${error.message}`);
+      }
+    });
+
+    // Initialize
+    setDefaultDates();
+  </script>
+</body>
+</html>

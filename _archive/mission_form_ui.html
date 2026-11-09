@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نموذج طلب مأمورية - منظومة السلامة</title>
+  <style>
+    :root {
+      --primary: #D9480F;
+      --success: #3FBF78;
+      --error: #F2776B;
+      --bg: #0B1526;
+      --surface: #13213B;
+      --text: #EAF1FB;
+      --border: #243654;
+      --font: 'IBM Plex Sans Arabic', system-ui;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 5px;
+      color: var(--primary);
+    }
+
+    .header p {
+      color: #93A6C4;
+      font-size: 14px;
+    }
+
+    /* Mission Type Selection */
+    .mission-type-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .type-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+
+    .type-card:hover {
+      border-color: var(--primary);
+      background: #1A2E4A;
+    }
+
+    .type-card.active {
+      border-color: var(--primary);
+      background: rgba(217, 72, 15, 0.1);
+    }
+
+    .type-card h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: var(--primary);
+    }
+
+    .type-card p {
+      font-size: 13px;
+      color: #93A6C4;
+      line-height: 1.5;
+    }
+
+    /* Forms */
+    .form-section {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .form-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(217, 72, 15, 0.1);
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    /* Employee Selection for Group Mission */
+    .employees-selection {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .employee-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: var(--bg);
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .employee-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .employee-item label {
+      flex: 1;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    /* Buttons */
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    button {
+      padding: 12px 24px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font);
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      border-color: var(--primary);
+      background: #1A2E4A;
+    }
+
+    button.primary {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    button.primary:hover {
+      background: #C2400D;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      padding: 12px 16px;
+      background: none;
+      border: none;
+      color: #93A6C4;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Messages */
+    .message {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .message.success {
+      background: rgba(63, 191, 120, 0.1);
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+
+    .message.error {
+      background: rgba(242, 119, 107, 0.1);
+      color: var(--error);
+      border: 1px solid var(--error);
+    }
+
+    @media (max-width: 600px) {
+      .mission-type-selector {
+        grid-template-columns: 1fr;
+      }
+
+      .form-actions {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🎯 نموذج طلب مأمورية</h1>
+      <p>نموذج GIECO الرسمي لطلب مأمورية عمل فردي أو جماعي</p>
+    </div>
+
+    <!-- Mission Type Selection -->
+    <div class="mission-type-selector">
+      <div class="type-card active" onclick="selectMissionType('individual')">
+        <h3>👤 مأمورية فردي</h3>
+        <p>لموظف واحد فقط</p>
+        <p style="margin-top: 10px; font-size: 12px; color: #6FA8EA;">
+          اختر هذا النوع إذا كانت المأمورية لموظف واحد فقط
+        </p>
+      </div>
+
+      <div class="type-card" onclick="selectMissionType('group')">
+        <h3>👥 مأمورية مجموعة</h3>
+        <p>لمجموعة موظفين</p>
+        <p style="margin-top: 10px; font-size: 12px; color: #6FA8EA;">
+          اختر هذا النوع إذا كانت المأمورية لمجموعة موظفين
+        </p>
+      </div>
+    </div>
+
+    <!-- Message Area -->
+    <div id="message" class="message" style="display: none;"></div>
+
+    <!-- Individual Mission Form -->
+    <div id="individual-form" class="form-section active">
+      <h2 style="margin-bottom: 20px; color: var(--primary);">📋 بيانات المأمورية الفردية</h2>
+
+      <!-- Basic Info -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('individual', 'basic')">معلومات أساسية</button>
+        <button class="tab-btn" onclick="switchTab('individual', 'dates')">التواريخ والأوقات</button>
+        <button class="tab-btn" onclick="switchTab('individual', 'approval')">الموافقات</button>
+      </div>
+
+      <!-- Basic Tab -->
+      <div id="individual-basic" class="tab-content active">
+        <div class="form-group">
+          <label>عنوان المأمورية</label>
+          <input type="text" id="ind_title" placeholder="مثلاً: فحص السلامة في الموقع">
+        </div>
+
+        <div class="form-group">
+          <label>الموظف</label>
+          <select id="ind_employee">
+            <option value="">اختر الموظف</option>
+            <option value="emp001">أحمد محمد - 001</option>
+            <option value="emp002">فاطمة علي - 002</option>
+            <option value="emp003">محمود حسن - 003</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>جهة المأمورية</label>
+          <input type="text" id="ind_destination" placeholder="المقر الرئيسي / الموقع الثاني">
+        </div>
+
+        <div class="form-group">
+          <label>الغرض من المأمورية</label>
+          <textarea id="ind_purpose" placeholder="اشرح الغرض من هذه المأمورية"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>ملاحظات إضافية</label>
+          <textarea id="ind_notes" placeholder="أي ملاحظات خاصة"></textarea>
+        </div>
+      </div>
+
+      <!-- Dates Tab -->
+      <div id="individual-dates" class="tab-content">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div class="form-group">
+            <label>تاريخ البداية</label>
+            <input type="date" id="ind_start_date">
+          </div>
+          <div class="form-group">
+            <label>وقت البداية</label>
+            <input type="time" id="ind_start_time">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div class="form-group">
+            <label>تاريخ النهاية</label>
+            <input type="date" id="ind_end_date">
+          </div>
+          <div class="form-group">
+            <label>وقت النهاية</label>
+            <input type="time" id="ind_end_time">
+          </div>
+        </div>
+      </div>
+
+      <!-- Approval Tab -->
+      <div id="individual-approval" class="tab-content">
+        <div class="form-group">
+          <label>☑️ الموافقات المطلوبة</label>
+          <div class="employees-selection">
+            <div class="employee-item">
+              <input type="checkbox" id="ind_dept_manager" checked>
+              <label for="ind_dept_manager">مدير القسم / الإدارة</label>
+            </div>
+            <div class="employee-item">
+              <input type="checkbox" id="ind_hr_manager" checked>
+              <label for="ind_hr_manager">مدير الموارد البشرية</label>
+            </div>
+            <div class="employee-item">
+              <input type="checkbox" id="ind_safety_manager">
+              <label for="ind_safety_manager">مدير السلامة والصحة</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="secondary" onclick="resetIndividualForm()">إعادة تعيين</button>
+        <button class="primary" onclick="submitIndividualMission()">✅ إرسال المأمورية</button>
+      </div>
+    </div>
+
+    <!-- Group Mission Form -->
+    <div id="group-form" class="form-section">
+      <h2 style="margin-bottom: 20px; color: var(--primary);">👥 بيانات المأمورية الجماعية</h2>
+
+      <!-- Basic Info -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('group', 'basic')">معلومات أساسية</button>
+        <button class="tab-btn" onclick="switchTab('group', 'employees')">الموظفون</button>
+        <button class="tab-btn" onclick="switchTab('group', 'dates')">التواريخ والأوقات</button>
+      </div>
+
+      <!-- Basic Tab -->
+      <div id="group-basic" class="tab-content active">
+        <div class="form-group">
+          <label>عنوان المأمورية</label>
+          <input type="text" id="grp_title" placeholder="مثلاً: مشروع صيانة المصنع">
+        </div>
+
+        <div class="form-group">
+          <label>قائد المجموعة</label>
+          <select id="grp_leader">
+            <option value="">اختر قائد المجموعة</option>
+            <option value="emp001">أحمد محمد - 001</option>
+            <option value="emp002">فاطمة علي - 002</option>
+            <option value="emp003">محمود حسن - 003</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>جهة المأمورية</label>
+          <input type="text" id="grp_destination" placeholder="المقر الرئيسي / الموقع الثاني">
+        </div>
+
+        <div class="form-group">
+          <label>الغرض من المأمورية</label>
+          <textarea id="grp_purpose" placeholder="اشرح الغرض من هذه المأمورية"></textarea>
+        </div>
+      </div>
+
+      <!-- Employees Tab -->
+      <div id="group-employees" class="tab-content">
+        <label style="display: block; margin-bottom: 15px; font-weight: 600;">
+          ✓ اختر الموظفين (يجب اختيار 2 على الأقل)
+        </label>
+        <div class="employees-selection">
+          <div class="employee-item">
+            <input type="checkbox" class="grp_employee" value="emp001">
+            <label>أحمد محمد - 001</label>
+          </div>
+          <div class="employee-item">
+            <input type="checkbox" class="grp_employee" value="emp002">
+            <label>فاطمة علي - 002</label>
+          </div>
+          <div class="employee-item">
+            <input type="checkbox" class="grp_employee" value="emp003">
+            <label>محمود حسن - 003</label>
+          </div>
+          <div class="employee-item">
+            <input type="checkbox" class="grp_employee" value="emp004">
+            <label>سارة إبراهيم - 004</label>
+          </div>
+          <div class="employee-item">
+            <input type="checkbox" class="grp_employee" value="emp005">
+            <label>علي خالد - 005</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dates Tab -->
+      <div id="group-dates" class="tab-content">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div class="form-group">
+            <label>تاريخ البداية</label>
+            <input type="date" id="grp_start_date">
+          </div>
+          <div class="form-group">
+            <label>وقت البداية</label>
+            <input type="time" id="grp_start_time">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div class="form-group">
+            <label>تاريخ النهاية المتوقع</label>
+            <input type="date" id="grp_end_date">
+          </div>
+          <div class="form-group">
+            <label>وقت النهاية المتوقع</label>
+            <input type="time" id="grp_end_time">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="secondary" onclick="resetGroupForm()">إعادة تعيين</button>
+        <button class="primary" onclick="submitGroupMission()">✅ إرسال المأمورية</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Select Mission Type
+    function selectMissionType(type) {
+      document.querySelectorAll('.type-card').forEach(card => card.classList.remove('active'));
+      event.target.closest('.type-card').classList.add('active');
+
+      document.querySelectorAll('.form-section').forEach(form => form.classList.remove('active'));
+      document.getElementById(type + '-form').classList.add('active');
+    }
+
+    // Switch Tabs
+    function switchTab(type, tab) {
+      const prefix = type === 'individual' ? 'individual' : 'group';
+
+      // Hide all tabs
+      document.querySelectorAll(`#${prefix}-${tab}`).forEach(el => {
+        if (el.classList.contains('tab-content')) {
+          el.classList.remove('active');
+        }
+      });
+
+      // Hide all tab buttons
+      document.querySelectorAll(`.tabs .tab-btn`).forEach(btn => {
+        if (btn.getAttribute('onclick').includes(type)) {
+          btn.classList.remove('active');
+        }
+      });
+
+      // Show selected tab and button
+      event.target.classList.add('active');
+      document.getElementById(prefix + '-' + tab).classList.add('active');
+    }
+
+    // Submit Individual Mission
+    function submitIndividualMission() {
+      const missionData = {
+        title: document.getElementById('ind_title').value,
+        employee_id: document.getElementById('ind_employee').value,
+        destination: document.getElementById('ind_destination').value,
+        purpose: document.getElementById('ind_purpose').value,
+        start_date: document.getElementById('ind_start_date').value,
+        end_date: document.getElementById('ind_end_date').value,
+        notes: document.getElementById('ind_notes').value
+      };
+
+      if (!missionData.title || !missionData.employee_id || !missionData.start_date || !missionData.end_date) {
+        showMessage('الرجاء ملء جميع الحقول المطلوبة', 'error');
+        return;
+      }
+
+      // Send to backend
+      sendMission('individual', missionData);
+    }
+
+    // Submit Group Mission
+    function submitGroupMission() {
+      const selectedEmployees = Array.from(document.querySelectorAll('.grp_employee:checked'))
+        .map(cb => cb.value);
+
+      if (selectedEmployees.length < 2) {
+        showMessage('يجب اختيار موظفين اثنين على الأقل', 'error');
+        return;
+      }
+
+      const missionData = {
+        title: document.getElementById('grp_title').value,
+        group_leader_id: document.getElementById('grp_leader').value,
+        employees: selectedEmployees,
+        destination: document.getElementById('grp_destination').value,
+        purpose: document.getElementById('grp_purpose').value,
+        start_date: document.getElementById('grp_start_date').value,
+        end_date: document.getElementById('grp_end_date').value
+      };
+
+      if (!missionData.title || !missionData.group_leader_id || !missionData.start_date) {
+        showMessage('الرجاء ملء جميع الحقول المطلوبة', 'error');
+        return;
+      }
+
+      // Send to backend
+      sendMission('group', missionData);
+    }
+
+    // Send Mission to Backend
+    async function sendMission(type, data) {
+      try {
+        const result = type === 'individual'
+          ? await window.HSE_SYSTEMS.MissionSystem.createIndividualMission(data)
+          : await window.HSE_SYSTEMS.MissionSystem.createGroupMission(data);
+
+        showMessage(`✅ تم إرسال المأمورية بنجاح - رقم المأمورية: ${result.id}`, 'success');
+        type === 'individual' ? resetIndividualForm() : resetGroupForm();
+      } catch (error) {
+        showMessage(`❌ خطأ: ${error.message}`, 'error');
+      }
+    }
+
+    // Reset Forms
+    function resetIndividualForm() {
+      document.getElementById('ind_title').value = '';
+      document.getElementById('ind_employee').value = '';
+      document.getElementById('ind_destination').value = '';
+      document.getElementById('ind_purpose').value = '';
+      document.getElementById('ind_start_date').value = '';
+      document.getElementById('ind_end_date').value = '';
+      document.getElementById('ind_notes').value = '';
+    }
+
+    function resetGroupForm() {
+      document.getElementById('grp_title').value = '';
+      document.getElementById('grp_leader').value = '';
+      document.getElementById('grp_destination').value = '';
+      document.getElementById('grp_purpose').value = '';
+      document.getElementById('grp_start_date').value = '';
+      document.getElementById('grp_end_date').value = '';
+      document.querySelectorAll('.grp_employee').forEach(cb => cb.checked = false);
+    }
+
+    // Show Message
+    function showMessage(msg, type) {
+      const msgEl = document.getElementById('message');
+      msgEl.textContent = msg;
+      msgEl.className = `message ${type}`;
+      msgEl.style.display = 'block';
+      setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
+    }
+  </script>
+</body>
+</html>
