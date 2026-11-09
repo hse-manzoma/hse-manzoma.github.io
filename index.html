@@ -1512,7 +1512,7 @@ function remindersBase(){
     if(!ownScope()&&late.length)R.push({lv:"bad",t:`${late.length} إجراء تصحيحي عدّى ميعاده`,go:"ui.actF='late';show('actions')"});
     const un=A.filter(a=>!a.ownerId&&!a.ownerName);if(!ownScope()&&un.length)R.push({lv:"warn",t:`${un.length} بند محتاج تحدد له مسؤول وميعاد`,go:"ui.actF='open';show('actions')"})}
   if(al.includes("equip")){for(const [k,v] of Object.entries(EQ_K)){const d=S.equipment.filter(q=>q.kind===k&&q.active!==false&&eqDue(q));if(d.length)R.push({lv:"warn",t:`${d.length} من ${v.ar} محتاجة فحص${v.monthly?" الشهر ده":""}`,go:`ui.eqKind='${k}';show('equip')`})}}
-  if(al.includes("ptw")){const ex=expiredPermits();if(ex.length)R.push({lv:"bad",t:`${ex.length} تصريح وصل لموعد انتهائه ولسه مفتوح — راجع الإغلاق`,go:"show('ptw')"})}
+  if(al.includes("ptw")){const ex=expiredPermits();if(ex.length)R.push({lv:"bad",t:`${ex.length} تصريح وصل لموعد انتهائه ولسه مفتوح — راجع الإغلاق`,go:"closeExpired()"})}
   if(al.includes("ppe")){const low=S.items.filter(i=>num(i.min)>0&&balance(i.id)<=num(i.min));if(low.length)R.push({lv:"warn",t:`${low.length} صنف في المخزن تحت الحد الأدنى`,go:"show('ppe')"})}
   if(al.includes("contractors")){const w=S.employees.filter(e=>e.group==="ctr"&&e.active!==false);const noId=w.filter(e=>!hasID(e)).length,noInd=w.filter(e=>!S.records.some(r=>r.form==="F-HSE-24-01"&&(r.rows||[]).some(x=>x&&x.name_id===e.id))).length;
     if(noId)R.push({lv:"warn",t:`${noId} عامل مقاول من غير صورة بطاقة`,go:"ui.mpG='ctr';ui.mpID='no';show('manpower')"});if(noInd)R.push({lv:"warn",t:`${noInd} عامل مقاول ما حضرش محاضرة Induction`,go:"show('contractors')"})}
@@ -1960,7 +1960,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.7.0";
+const APP_VER="5.7.1";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5452,8 +5452,8 @@ VIEWS.dash={
 };
 /* extra reminders */
 function reminders(){const o=remindersBase();const R=o.R;const al=allowedTabs()||[];
-  if(al.includes("ptw")){const P=pendingForMe();if(P.sup.length)R.unshift({lv:"warn",t:`${P.sup.length} طلب تصريح مستني اعتمادك كمشرف`,go:"show('ptw')"});if(P.final.length)R.unshift({lv:"bad",t:`${P.final.length} طلب تصريح اعتمده المشرف ومستني مراجعة السلامة`,go:"show('ptw')"});
-    const rej=P.mine.filter(p=>p.status==="rejected"&&(p.flow||[]).slice(-1)[0]?.at>Date.now()-7*864e5);if(rej.length)R.push({lv:"bad",t:`${rej.length} طلب تصريح من طلباتك اترفض — شوف السبب`,go:"show('ptw')"})}
+  if(al.includes("ptw")){const P=pendingForMe();if(P.sup.length)R.unshift({lv:"warn",t:`${P.sup.length} طلب تصريح مستني اعتمادك كمشرف`,go:"wsFocus('ptwSup')"});if(P.final.length)R.unshift({lv:"bad",t:`${P.final.length} طلب تصريح اعتمده المشرف ومستني مراجعة السلامة`,go:"wsFocus('ptwFinal')"});
+    const rej=P.mine.filter(p=>p.status==="rejected"&&(p.flow||[]).slice(-1)[0]?.at>Date.now()-7*864e5);if(rej.length)R.push({lv:"bad",t:`${rej.length} طلب تصريح من طلباتك اترفض — شوف السبب`,go:"wsFocus('ptwMine')"})}
   if(al.includes("matreq")){const n=S.matreq.filter(r=>r.status==="new").length,a=S.matreq.filter(r=>r.status==="approved").length;if(n&&mrCanApprove())R.push({lv:"warn",t:`${n} طلب احتياج مهمات مستني اعتمادك`,go:"ui.mrF='new';show('matreq')"});if(a&&mrCanIssue())R.push({lv:"warn",t:`${a} طلب مهمات معتمد ومستني الصرف`,go:"ui.mrF='approved';show('matreq')"})}
   if(al.includes("office")||al.includes("report")){const late=reqFiles().filter(x=>x.status==="late"&&(!x.tab||al.includes(x.tab)));if(late.length)R.push({lv:"bad",t:late.length===1?`متأخر: ${late[0].title}`:`${late.length} ملفات ضرورية متأخرة`,go:al.includes("office")?"show('office')":late[0].go})}
   return o}
@@ -5683,10 +5683,10 @@ const isInsp=r=>CHECKLIST_FORMS.includes(r.form)||r.form==="F-HSE-08-01"||r.form
 const isObs=r=>r.form==="F-HSE-07-03";
 function roleDuties(uid){const p=profOf(uid);const r=p?.role;const ws=weekStart(),t0=today();const W=userRecs(uid,ws,t0),D=userRecs(uid,t0,t0);const L=[];
   if(LECT_ROLES.includes(r)){const n=W.filter(isLect).length;L.push({k:"lect",t:`محاضرات توعية الأسبوع: ${n} من 3`,ok:n>=3,go:"recordForm('F-HSE-24-02')"})}
-  if(["hse","hsesup","officer"].includes(r)){const n=D.filter(isInsp).length;L.push({k:"insp",t:`قوائم تفتيش النهارده: ${n}`,ok:n>=1,go:"ui.formSel='F-HSE-07-02';show('forms')"})}
+  if(["hse","hsesup","officer"].includes(r)){const n=D.filter(isInsp).length;L.push({k:"insp",t:`قوائم تفتيش النهارده: ${n}`,ok:n>=1,go:"wsFocus('inspToday')"})}
   if(["hse","hsesup","officer","monitor"].includes(r)){const n=W.filter(isObs).length;L.push({k:"obs",t:`ملاحظات أوضاع/تصرفات غير آمنة الأسبوع: ${n}`,ok:n>=1,go:"recordForm('F-HSE-07-03')"})}
   if(r==="monitor"){const d=S.equipment.filter(q=>q.active!==false&&eqDue(q)).length;L.push({k:"eq",t:`طفايات ومعدات محتاجة فحص: ${d}`,ok:d===0,go:"ui.eqKind='ext';show('equip')"})}
-  if(REVIEWERS.includes(r)&&r!=="admin"){const n=S.records.filter(needsReview).length;L.push({k:"rev",t:`نماذج مستنية اعتمادك: ${n}`,ok:n===0,go:"show('forms')"})}
+  if(REVIEWERS.includes(r)&&r!=="admin"){const n=S.records.filter(needsReview).length;L.push({k:"rev",t:`نماذج مستنية اعتمادك: ${n}`,ok:n===0,go:"wsFocus('revForms')"})}
   if(HSE_FINAL_ROLES.includes(r)&&r!=="admin"){const n=S.permits.filter(x=>isReq(x)&&!x.hseOk&&(x.hseUid===uid||!x.hseUid)).length;L.push({k:"ptw",t:`طلبات تصاريح مستنية السلامة: ${n}`,ok:n===0,go:"show('ptw')"})}
   if(r==="sup"){const n=S.permits.filter(x=>isReq(x)&&!isSupOk(x)&&(x.supUid===uid||!x.supUid)).length;L.push({k:"ptw",t:`طلبات تصاريح مستنية اعتمادك: ${n}`,ok:n===0,go:"show('ptw')"})}
   const tk=S.tasks.filter(x=>x.status!=="done"&&p?.emp_id&&x.assignee===p.emp_id).length;if(tk)L.push({k:"task",t:`مهام مفتوحة: ${tk}`,ok:false,go:"show('dash')"});
@@ -6670,6 +6670,7 @@ function inspRow(x,copies=[x],compact=false){
     </div>
     <div class="row-actions">
       ${!compact&&copies.length>1?`<button class="btn ghost sm" onclick="inspDuplicateCopies('${encodeURIComponent(JSON.stringify(copies.map(y=>y.id)))}')">عرض النسخ</button>`:""}
+      ${!x.code&&inspCanSetCode(x)?`<button class="btn sm primary" onclick="inspCodeSheet('${x.id}')" title="النموذج ده مفيهوش كود معدة">🔑 حط الكود</button>`:""}
       <button class="btn sm" onclick="inspView('${x.id}')">👁 عرض</button>
       <button class="btn sm" onclick="inspPrint('${x.id}')" title="طباعة على نموذج الشركة">🖨️</button>
       ${!compact?(linked?`<span class="pill p-appr" title="مرتبط بجدول الفحص الدوري">✓ ضمن الفحص الدوري</span>`:`<button class="btn sm" onclick="addInspectionEquipment('${x.id}')">＋ أضف للفحص الدوري</button>`):""}
@@ -8429,6 +8430,74 @@ function pgBarMount(){
   }catch(e){}
 }
 /* بنعلّق الشريط على كل صفحة بعد ما ترسم */
+/* ===== وصلات مباشرة: كل تنبيه يفتح بالظبط البنود اللي اتعدّت، مش الصفحة كلها ===== */
+function wsFocusClose(){const r=$("overlayRoot");if(r)r.innerHTML=""}
+function wsFocusDefs(){
+  const P=(typeof pendingForMe==="function")?pendingForMe():{sup:[],final:[],mine:[]};
+  const recRow=r=>`<button type="button" class="li" style="width:100%;text-align:right;background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;cursor:pointer" onclick="wsFocusClose();printRecord('${r.id}')">
+      <div class="grow"><div class="t">${esc(FORMS2?.[r.form]?.title||r.form)}</div>
+      <div class="s">${fmtDate(r.date)}${r.createdBy?" · "+esc(profName(profOf(r.createdBy))||""):""}${r.reviewNote?' · <span style="color:var(--bad)">مترجّع للتعديل</span>':""}</div></div>
+      <span class="btn sm primary" style="pointer-events:none">✔ راجع واعتمد</span></button>`;
+  return {
+    ptwFinal:{t:`تصاريح مستنية مراجعتك كمسؤول سلامة (${P.final.length})`,
+      s:"كل تصريح هنا اعتمده المشرف وواقف على توقيعك.",
+      html:()=>P.final.map(p=>flowCard(p,`<button class="btn sm primary" onclick="ptwFinalForm('${p.id}')">مراجعة واعتماد</button><button class="btn ghost sm danger" onclick="ptwReject('${p.id}','hse')">رفض</button>`)).join("")},
+    ptwSup:{t:`تصاريح مستنية اعتمادك كمشرف تنفيذ (${P.sup.length})`,
+      s:"اعتماد مكان العمل والعاملين.",
+      html:()=>P.sup.map(p=>flowCard(p,`<button class="btn sm ok" onclick="ptwSupDecide('${p.id}',true)">اعتماد</button><button class="btn ghost sm danger" onclick="ptwSupDecide('${p.id}',false)">رفض</button>`)).join("")},
+    ptwMine:{t:"طلباتك المرفوضة",s:"افتح الطلب، شوف سبب الرفض، وعدّله وابعته تاني.",
+      html:()=>P.mine.filter(p=>p.status==="rejected").map(p=>flowCard(p,`<button class="btn sm primary" onclick="ptwRequestForm('${p.id}')">تعديل وإعادة إرسال</button>`)).join("")},
+    revForms:{t:"نماذج مستنية مراجعتك واعتمادك",
+      s:"دوس على أي نموذج عشان يفتح على نموذج الشركة، وأزرار الاعتماد فوق في شريط العرض.",
+      html:()=>(S.records||[]).filter(r=>needsReview(r)&&canReview(r)&&r.createdBy!==ME.id)
+        .sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).map(recRow).join("")},
+    inspToday:{t:"قوائم التفتيش",s:"اختار القائمة اللي عايز تسجّلها النهاردة.",
+      html:()=>(typeof CHECKLIST_FORMS!=="undefined"?CHECKLIST_FORMS:[]).map(fid=>`<button type="button" class="li" style="width:100%;text-align:right;background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;cursor:pointer" onclick="wsFocusClose();recordForm('${fid}')"><div class="grow"><div class="t">${esc(FORMS2?.[fid]?.title||fid)}</div><div class="s" dir="ltr" style="text-align:right">${esc(fid)}</div></div><span class="btn sm primary" style="pointer-events:none">+ سجّل</span></button>`).join("")}
+  };
+}
+async function wsFocus(kind){
+  const d=wsFocusDefs()[kind];
+  if(!d){toast("مفيش بنود");return}
+  if(kind==="revForms"||kind==="inspToday"){try{await loadForms2()}catch(e){}}
+  let body="";
+  try{body=d.html()||""}catch(e){console.error(e)}
+  openSheet(d.t,(d.s?`<p class="muted" style="margin-top:0">${d.s}</p>`:"")
+    +(body?`<div class="list" style="max-height:62vh;overflow:auto">${body}</div>`:`<div class="card">${emptyState("مفيش بنود مستنية","كله تمام دلوقتي.")}</div>`),
+    async()=>null,"إغلاق");
+}
+
+/* ===== كود المعدة: تعديل سريع من غير ما تفتح الفحص كله ===== */
+function inspCanSetCode(x){ return !!canWrite && (myRole()==="admin"||inspectionCanInspect()||(x&&x.inspectorUid===ME.id)); }
+function inspCodeSheet(id){
+  const x=(S.inspections||[]).find(r=>r.id===id);
+  if(!x){toast("سجل الفحص مش موجود");return}
+  if(!inspCanSetCode(x)){toast("كود المعدة بيتحط من الفاحص أو الأدمن");return}
+  openSheet("كود المعدة — "+(x.equipType||"فحص معدة"),
+    `<div class="banner">الكود ده بيتكتب في خانة <b>«كود المعدة»</b> في نموذج الشركة المطبوع، وبيربط الفحص بالمعدة في السجل الدوري.</div>
+     <div class="form">${f("كود المعدة / الرقم المسلسل","code",{value:x.code||"",req:true})}</div>`,
+    async fd=>{
+      const code=String(fd&&fd.code||"").trim();
+      if(!code)return "اكتب الكود الأول";
+      const ok=await write(async()=>{
+        await upsert("inspections",id,{code});
+        const q=(S.equipment||[]).find(e=>e.active!==false&&[e.code,e.serial].some(v=>inspCodeKey(v)===inspCodeKey(code)));
+        if(q&&!String(q.code||"").trim())await upsert("equipment",q.id,{code});
+      },"الكود اتسجّل على النموذج");
+      if(!ok)return "تعذر حفظ الكود";
+      x.code=code; setTimeout(refresh,150); return null;
+    },"حفظ الكود");
+}
+/* نفس الزرار جوه شاشة عرض النموذج */
+{const _ip=window.inspPrint;
+ if(typeof _ip==="function") window.inspPrint=async function(id){
+   const r=await _ip.apply(this,arguments);
+   try{ const x=(S.inspections||[]).find(y=>y.id===id);
+     if(x&&inspCanSetCode(x)&&$("pvAct"))
+       $("pvAct").insertAdjacentHTML("afterbegin",`<button class="btn${x.code?"":" primary"}" data-extra onclick="pvClose();inspCodeSheet('${id}')">🔑 ${x.code?"تعديل كود المعدة":"حط كود المعدة"}</button>`);
+   }catch(e){console.error(e)}
+   return r; };}
+
+
 /* ===================== مساحات العمل (Workspaces) =====================
    المنظومة اتبنت حول «الأقسام»؛ الطبقة دي بتعيد ترتيبها حول «الشخص».
    كل دور بيشوف 3–5 صفحات بس، وكل صفحة جواها شرائح للأقسام اللي بتخصه.
