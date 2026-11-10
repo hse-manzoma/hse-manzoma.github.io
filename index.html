@@ -2029,7 +2029,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.8.0";
+const APP_VER="5.8.2";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4271,15 +4271,20 @@ async function printPages(title,make,filename){const V=openViewer(title,{filenam
 async function stampSavedSigs(T,rec,pages,vals){
   const F=(await loadForms())[T];if(!F)return pages;
   vals=formVals(vals);
-  const L=signsOf(rec);if(!L.length)return pages;
+  /* توقيع واحد لكل اسم: لو الاسم نفسه موقّع من أكتر من حساب، الأقدم هو اللي بيتطبع.
+     وبنطبع التوقيع المحفوظ جوه التوقيع نفسه الأول، وتوقيع الحساب الشخصي احتياطي بس. */
+  const seenN=new Set();
+  const L=[...signsOf(rec)].sort((a,b)=>(a.at||0)-(b.at||0)).filter(z=>{const k=normName(z.name);if(!k)return true;if(seenN.has(k))return false;seenN.add(k);return true});
+  if(!L.length)return pages;
   const mine=await mySig();
+  const imgOf=z=>z.signature?"":(z.uid===ME.id?mine:"");
   const used=new Set();
   /* الأول: كل واحد يمضي في الخانة اللي مكتوب فيها اسمه */
   for(const b of (F.sigBoxes||[])){
     const want=normName((vals||{})[b.field]||"");if(!want)continue;
     const i=L.findIndex((z,k)=>!used.has(k)&&normName(z.name)===want);
     if(i<0)continue;used.add(i);
-    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[i].uid===ME.id?mine:"",L[i],{fit:b.fit});
+    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],imgOf(L[i]),L[i],{fit:b.fit});
   }
   /* الباقي: أي توقيع ما لقاش خانة باسمه ياخد أول خانة فاضية */
   const free=(F.sigBoxes||[]).filter(b=>{const w=normName((vals||{})[b.field]||"");
@@ -4288,7 +4293,7 @@ async function stampSavedSigs(T,rec,pages,vals){
   for(let k=0;k<L.length;k++){
     if(used.has(k))continue;
     const b=free[fi++];if(!b)break;
-    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],L[k].uid===ME.id?mine:"",L[k],{fit:b.fit});
+    await stampOn(pages[b.page||0],[b.x,b.y,b.w,b.h],imgOf(L[k]),L[k],{fit:b.fit});
   }
   return pages;
 }
@@ -4296,11 +4301,21 @@ async function stampSavedSigs(T,rec,pages,vals){
 function docSignBtns(col,id,reopen){
   if(!col||!id)return "";
   const x=current(col,id);const mine=signsOf(x).some(z=>z.uid===ME.id);
+  const nm=normName(myEmpName());const dup=!mine&&!!nm&&signsOf(x).some(z=>normName(z.name)===nm);   /* اسمي متوقّع من حساب تاني */
   const re=reopen?`,{reopen:()=>{${reopen}}}`:",{}";
-  return mine
+  const main=mine
     ? `<button class="btn" data-extra onclick="pvClose();unsignDoc('${col}','${id}',()=>{${reopen||""}})" title="شيل توقيعك من النموذج ده">✕ إلغاء توقيعي</button>`
-    : `<button class="btn sign" data-extra onclick="pvClose();signDoc('${col}','${id}'${re})">✍ وقّع واعتمد</button>`;
+    : dup?"":`<button class="btn sign" data-extra onclick="pvClose();signDoc('${col}','${id}'${re})">✍ وقّع واعتمد</button>`;
+  /* الأدمن يصلّح الغلط: يشيل توقيع حد تاني */
+  const rm=myAccess()?.role==="admin"?Object.values(x?.signs||{}).filter(z=>z.uid!==ME.id).slice(0,2).map(z=>`<button class="btn ghost" data-extra onclick="pvClose();adminRemoveSign('${col}','${id}','${z.uid}',()=>{${reopen||""}})" title="للأدمن: شيل التوقيع ده">🗑 شيل توقيع ${esc(z.name||"")}</button>`).join(""):"";
+  return main+rm;
 }
+async function adminRemoveSign(col,id,uid,reopen){
+  if(myAccess()?.role!=="admin"){toast("متاح للأدمن بس");return}
+  const x=current(col,id);const sg=x?.signs?.[uid];if(!sg){toast("التوقيع مش موجود");return}
+  if(!confirm(`تشيل توقيع «${sg.name||""}» من النموذج ده؟`))return;
+  const signs={...(x.signs||{})};delete signs[uid];
+  if(await write(()=>upsert(col,id,{signs}),"اتشال التوقيع"))setTimeout(()=>reopen&&reopen(),300)}
 /* ===== محرر المواضع: الأدمن يسحب ويكبّر النصوص والتوقيعات على النموذج نفسه ===== */
 let TWEAK_DOC=null;          /* {T,reopen} — النموذج المفتوح دلوقتي */
 function tweakBtn(T,reopen){
@@ -5444,6 +5459,8 @@ function myNameIn(values){const n=normName(myEmpName());return !!n&&values.some(
 async function signDoc(col,id,{reopen,extraPatch={}}={}){
   const x=current(col,id)||(col==="matreq"?S.matreq.find(r=>r.id===id):null);if(!x)return;
   if(col==="permits"&&myAccess()?.role==="admin"){toast("الأدمن يعتمد التصريح من إجراءات الاعتماد، ولا يوقّع كطرف في نموذج التصريح");return}
+  {const nm=normName(myEmpName());const dup=nm&&Object.values(x.signs||{}).find(z=>z.uid!==ME.id&&normName(z.name)===nm);
+   if(dup){toast("النموذج ده متوقّع بالفعل باسم "+dup.name+" من حساب تاني. لو ده غلط، الأدمن يشيل التوقيع القديم الأول.");return}}
   const permitRoles=col==="permits"?ptwSignerRoles(x,myEmpName()):[];
   if(col==="permits"&&!permitRoles.length){toast("التوقيع على التصريح متاح للأسماء المسجلة كأطراف فيه فقط");return}
   const rolePref=myRole()==="eng"?"site":myRole()==="sup"?"sup":"hse",permitRole=permitRoles.includes(rolePref)?rolePref:permitRoles[0];
@@ -5791,7 +5808,7 @@ function recCanApproveUid(p){if(!p||p.disabled)return false;if(p.role==="admin")
 /* المطلوب من مستخدم معيّن على سجل: "review" | "sign" | null */
 function recTodoFor(r,uid){if(!r||recApproved(r))return null;const p=profOf(uid);if(!p||p.disabled)return null;
   if(needsReview(r)&&r.createdBy!==uid&&(isViolationRec(r)?p.role==="admin":REVIEWERS.includes(p.role))&&recCanApproveUid(p))return "review";
-  if((!needsReview(r)||r.createdBy===uid)&&!r.signs?.[uid]&&recFresh(r)&&slotMineOf(r,emp(p.emp_id)?.name||""))return "sign";
+  if((!needsReview(r)||r.createdBy===uid)&&!r.signs?.[uid]&&recFresh(r)&&slotMineOf(r,emp(p.emp_id||(uid===ME.id?myEmpId():""))?.name||""))return "sign";
   return null}
 const recTodo=r=>recTodoFor(r,ME.id);
 /* كل الأزرار المسموحة لي على سجل */
@@ -5846,20 +5863,35 @@ async function loadNotifs(){try{const {data}=await SB.from("notif").select("*").
    الإشعار صورة وقت الحدث؛ لو الشيء اتعتمد/اتقفل بعدها ما يفضلش «محتاج اعتماد». */
 const NOTIF_RESULT_RE=/اتعتمد|اترفض|اتوافق|اتنفذ|اتقفل|اتمدد|اتلغى|^\s*(✅|❌)|تم |انتهى/;
 const NOTIF_ASK_RE=/محتاج|ينتظر|مستني|مستنيك|مستنية|للاعتماد|مراجعة|مطلوب|محال لك|مهمة جديدة|طلب .*جديد|طلب إجازة|طلب تعديل|🚨|تنبيه/;
-function notifLive(n){/* true: لسه مطلوب · false: خلص · null: معلومة */
-  const t=String(n?.title||"");if(NOTIF_RESULT_RE.test(t)||!NOTIF_ASK_RE.test(t))return null;
+function notifLive(n){/* true: لسه مطلوب · false: خلص/قديم · null: معلومة */
+  const t=String(n?.title||""),body=String(n?.body||"");
+  const endAlert=/^انتهى موعد التصريح/.test(t);
+  if(!endAlert&&(NOTIF_RESULT_RE.test(t)||!NOTIF_ASK_RE.test(t)))return null;
   let go="",id="";try{const q=new URLSearchParams(String(n.url||"").split("?")[1]||"");go=q.get("go")||"";id=q.get("id")||""}catch(e){}
+  const old=(Date.now()-new Date(n.at||Date.now()).getTime())>3*864e5;   /* طلبي ومش عارفين نربطه بحاجة وعدّى عليه ٣ أيام = قديم */
+  const myEmp=myEmpId();
   try{
     if(go==="rec"){const r=(S.records||[]).find(x=>x.id===id);if(!r)return loaded.records?false:null;
       if(/تعديل/.test(t))return !!r.reviewNote&&!recApproved(r);return recTodo(r)!==null}
     if(go==="ptw"||go==="ptw-close"){const p=(S.permits||[]).find(x=>x.id===id);if(!p)return loaded.permits?false:null;
-      if(go==="ptw-close")return p.status==="open"||p.status==="approved";
-      const P=pendingForMe();return P.sup.includes(p)||P.final.includes(p)||(!!p.closeRequest&&p.status!=="closed")||(P.mine.includes(p)&&p.status==="rejected")}
+      if(p.status==="closed"||p.status==="rejected"||p.status==="cancelled")return false;
+      if(endAlert||go==="ptw-close")return p.status==="open"||p.status==="approved";
+      if(p.closeRequest&&/إغلاق/.test(t)){const done=Object.values(p.closeSignatures||{}).some(z=>z&&z.uid===ME.id);return !done}
+      const P=pendingForMe();return P.sup.includes(p)||P.final.includes(p)||(P.mine.includes(p)&&p.status==="rejected")}
     if(go==="inspection"){return inspPendingReviews().some(x=>x.id===id)}
+    if(go==="equip"){/* فحص معدة محال لي للاعتماد: مفيش id، فبنبص هل لسه فيه فحص مستنيني */
+      const n1=(typeof eqPendingReviews==="function"?eqPendingReviews().length:0)+inspPendingReviews().length;return n1>0}
     if(go==="task"){const k=(S.tasks||[]).find(x=>x.id===id);return k?k.status!=="done":(loaded.tasks?false:null)}
-    if(go==="follow")return (S.leavereq||[]).some(c=>c.status==="new")||(S.changereq||[]).some(c=>c.status==="new")
+    if(go==="attendance-confirm"){const d=(new URLSearchParams(String(n.url||"").split("?")[1]||"")).get("date")||today();
+      if(d!==today())return false;const rec=attDoc(d)?.records?.[myEmp];return !(rec&&(rec.s==="p"||rec.selfConfirmed))}
+    if(go==="me"&&/تنبيه من متابعة/.test(t))return roleDuties(ME.id).some(x=>!x.ok)
+    if(go==="follow"){
+      const lr=(S.leavereq||[]).filter(c=>c.status==="new"),cr=(S.changereq||[]).filter(c=>c.status==="new");
+      if(!lr.length&&!cr.length)return false;
+      const who=body.split(":")[0].trim();if(who)return lr.some(c=>(c.empName||empName(c.empId))===who)||cr.some(c=>(c.byName||c.by||"")===who||body.includes(c.after?.name||"\u0000")||body.includes(c.before?.name||"\u0000"));
+      return true}
   }catch(e){}
-  return null}
+  return old?false:null}
 const notifOpen=x=>notifLive(x)===false;
 function bellBadge(){const n=NOTIFS.filter(x=>!x.read&&!notifOpen(x)).length;const b=$("bellBtn");if(b)b.innerHTML=`🔔${n?`<span style="background:var(--bad);color:#fff;border-radius:999px;font-size:10.5px;padding:0 5px;margin-inline-start:3px">${n}</span>`:""}`}
 function bellPanel(){
