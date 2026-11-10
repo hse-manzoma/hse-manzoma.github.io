@@ -1023,6 +1023,9 @@ function ptwFormBase(id){
   });
   if(isNew) $("f_type").onchange=e=>{$("serialPrev").textContent=`${e.target.value}-${nextSerial(e.target.value)}`;$("excBox").hidden=e.target.value!=="EXC";const field=document.querySelector('[name="workCategory"]')?.closest(".field"),fresh=ptwActivityField({type:e.target.value});if(field){if(fresh){const wrap=document.createElement("div");wrap.innerHTML=fresh;field.replaceWith(wrap.firstElementChild)}else field.remove()}else if(fresh){$("f_date").closest(".field").insertAdjacentHTML("beforebegin",fresh)}};
 }
+function ptwCancelReq(id){const p=S.permits.find(x=>x.id===id);if(!p)return;
+  if(!(p.status==="requested"||p.status==="rejected")){toast("الطلب اتعالج، مينفعش يتلغي من هنا");return}
+  confirmSheet("إلغاء طلب التصريح","الطلب هيتشال من القايمة نهائيًا، ومش هيوصل لحد تاني. متأكد؟",()=>write(()=>remove("permits",id),"اتلغى الطلب"),"إلغاء الطلب")}
 function ptwDel(id){const p=S.permits.find(x=>x.id===id);confirmSheet("مسح التصريح "+p.number,"التصريح هيتمسح نهائياً. لو عايز توقفه بس، غيّر حالته لـ «ملغي».",()=>write(()=>remove("permits",id),"اتمسح"))}
 
 /* ---------- PPE ---------- */
@@ -2039,7 +2042,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.1.4";
+const APP_VER="6.1.5";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4934,7 +4937,7 @@ function flowCard(p,actions){return `<div class="li" style="align-items:flex-sta
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
   <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${actions}</div></div>`}
 VIEWS.ptw={
-  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${R.final?`<button class="btn" id="newReq">+ طلب تصريح</button><button class="btn primary" id="newPtw">+ تصريح مباشر</button>`:`<button class="btn primary" id="newReq">+ طلب تصريح</button>`}</div>
+  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${R.final?`<button class="btn primary" id="newPtw">+ تصريح مباشر</button>`:`<button class="btn primary" id="newReq">+ طلب تصريح</button>`}</div>
     <div id="ptwFlow"></div>
     <div class="filters">
       <input type="search" id="ptwQ" placeholder="ابحث برقم التصريح، المكان، المقاول…" value="${esc(ui.ptwQ)}">
@@ -4942,7 +4945,7 @@ VIEWS.ptw={
       <select id="ptwStatus"><option value="">كل الحالات</option>${Object.entries(PTW_STATUS).map(([k,v])=>`<option value="${k}" ${ui.ptwStatus===k?"selected":""}>${v[0]}</option>`).join("")}</select>
       <input type="month" id="ptwMonth" value="${esc(ui.ptwMonth)}" aria-label="الشهر">
     </div><div id="ptwExp"></div><div id="ptwNext" class="sub"></div><div id="ptwList"></div>`},
-  bind(){$("newReq").onclick=()=>ptwRequestForm();if($("newPtw"))$("newPtw").onclick=()=>ptwForm();
+  bind(){if($("newReq"))$("newReq").onclick=()=>ptwRequestForm();if($("newPtw"))$("newPtw").onclick=()=>ptwForm();
     $("ptwQ").oninput=e=>{ui.ptwQ=e.target.value;this.fill()};$("ptwType").onchange=e=>{ui.ptwType=e.target.value;this.fill()};
     $("ptwStatus").onchange=e=>{ui.ptwStatus=e.target.value;this.fill()};$("ptwMonth").onchange=e=>{ui.ptwMonth=e.target.value;this.fill()}},
   fill(){
@@ -4951,7 +4954,7 @@ VIEWS.ptw={
     if(P.sup.length)blocks.push(`<div class="inbox"><h3 style="margin:0 0 4px">🟠 مستني اعتمادك كمشرف تنفيذ: مكان العمل والعاملين (${P.sup.length})</h3><div class="list">${P.sup.map(p=>flowCard(p,`<button class="btn sm ok" onclick="ptwSupDecide('${p.id}',true)">اعتماد المكان والعاملين</button><button class="btn ghost sm danger" onclick="ptwSupDecide('${p.id}',false)">رفض</button>`)).join("")}</div></div>`);
     if(P.final.length)blocks.push(`<div class="inbox" style="border-inline-start-color:var(--info)"><h3 style="margin:0 0 4px">🔵 مستني اعتمادك كمسؤول سلامة (${P.final.length})</h3><div class="list">${P.final.map(p=>flowCard(p,`<button class="btn sm primary" onclick="ptwFinalForm('${p.id}')">مراجعة واعتماد</button><button class="btn ghost sm danger" onclick="ptwReject('${p.id}','hse')">رفض</button>`)).join("")}</div></div>`);
     const mine=P.mine.filter(p=>!P.sup.includes(p)&&!P.final.includes(p));
-    if(mine.length)blocks.push(`<div class="card" style="margin-bottom:14px"><h3 style="margin:0 0 4px">طلباتي</h3><div class="list">${mine.map(p=>flowCard(p,p.status==="rejected"||p.status==="requested"?`<button class="btn ghost sm" onclick="ptwRequestForm('${p.id}')">${p.status==="rejected"?"تعديل وإعادة إرسال":"تعديل"}</button>`:"")).join("")}</div></div>`);
+    if(mine.length)blocks.push(`<div class="card" style="margin-bottom:14px"><h3 style="margin:0 0 4px">طلباتي</h3><div class="list">${mine.map(p=>flowCard(p,p.status==="rejected"||p.status==="requested"?`<button class="btn ghost sm" onclick="ptwRequestForm('${p.id}')">${p.status==="rejected"?"تعديل وإعادة إرسال":"تعديل"}</button><button class="btn ghost sm danger" onclick="ptwCancelReq('${p.id}')">✖ إلغاء الطلب</button>`:"")).join("")}</div></div>`);
     $("ptwFlow").innerHTML=blocks.join("");
     $("ptwNext").innerHTML=R.final?Object.keys(PTW_TYPES).slice(0,5).map(t=>`<span class="chipbtn" style="cursor:default">${PTW_TYPES[t].ar}: الرقم الجاي <span class="num">${t}-${nextSerial(t)}</span></span>`).join(""):"";
     const q=ui.ptwQ.trim().toLowerCase();
@@ -4961,7 +4964,7 @@ VIEWS.ptw={
     L.sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.serial)-num(a.serial));
     const el=$("ptwList");
     if(waiting("permits")){el.innerHTML=waiting("permits");return}
-    if(!L.length){el.innerHTML=`<div class="card">${S.permits.length?emptyState("مفيش نتايج","غيّر البحث أو الفلتر."):emptyState("لسه مفيش تصاريح","",`<button class="btn primary sm" onclick="ptwRequestForm()">+ طلب تصريح</button>`)}</div>`;return}
+    if(!L.length){el.innerHTML=`<div class="card">${S.permits.length?emptyState("مفيش نتايج","غيّر البحث أو الفلتر."):emptyState("لسه مفيش تصاريح","",`<button class="btn primary sm" onclick="${ptwRole().final?"ptwForm()":"ptwRequestForm()"}">${ptwRole().final?"+ تصريح مباشر":"+ طلب تصريح"}</button>`)}</div>`;return}
     const pg=page(L,"ptw");
     el.innerHTML=`<div class="tbl"><table><thead><tr><th>الرقم</th><th>النوع</th><th>التاريخ</th><th>المكان / الوصف</th><th>المقاول</th><th>مسؤول السلامة</th><th>الحالة</th><th></th></tr></thead><tbody>
       ${pg.rows.map(p=>`<tr><td><span class="num">${esc(p.number)}</span></td><td>${typeChip(p.type)}</td><td class="n"><div>${fmtDate(p.startDate||p.date)}</div><div class="muted" style="font-size:11px">${p.from?`${esc(p.from)} – ${esc(p.to||"")}`:""}${p.closedAt?` · إغلاق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}</div></td>
@@ -5643,7 +5646,7 @@ VIEWS.dash={
   shell:()=>`<div id="dHero"></div><div id="dRem"></div><div class="kstrip" id="dK"></div><div class="dgrid" id="dGrid"></div><div class="dgrid" style="margin-top:14px" id="dMore"></div>`,
   fill(){
     const al=allowedTabs()||[];const has=t=>al.includes(t);const lv=t=>tabLevel(t)!=="view";const m=thisMonth();const hseView=has("kpi")||has("office")||has("actions")&&has("forms");
-    const qa=[has("ptw")&&lv("ptw")&&`<button class="btn" onclick="ptwRequestForm()">+ طلب تصريح</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-24-02')">+ محاضرة TBT</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-07-03')">+ ملاحظة غير آمنة</button>`,has("matreq")&&`<button class="btn" onclick="mrForm()">+ طلب مهمات</button>`,has("report")&&lv("report")&&`<button class="btn" onclick="show('report')">التقرير الشهري</button>`,window._installEvt&&`<button class="btn" onclick="installApp()">📲 ثبّت التطبيق</button>`].filter(Boolean);
+    const qa=[has("ptw")&&lv("ptw")&&(ptwRole().final?`<button class="btn" onclick="ptwForm()">+ تصريح مباشر</button>`:`<button class="btn" onclick="ptwRequestForm()">+ طلب تصريح</button>`),has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-24-02')">+ محاضرة TBT</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-07-03')">+ ملاحظة غير آمنة</button>`,has("matreq")&&`<button class="btn" onclick="mrForm()">+ طلب مهمات</button>`,has("report")&&lv("report")&&`<button class="btn" onclick="show('report')">التقرير الشهري</button>`,window._installEvt&&`<button class="btn" onclick="installApp()">📲 ثبّت التطبيق</button>`].filter(Boolean);
     $("dHero").innerHTML=`<div class="hero"><div style="flex:1;min-width:220px;position:relative;z-index:1"><h2>${greet()}${myEmpName()?`، ${esc(myEmpName().split(" ")[0])}`:""} 👋</h2><div class="sub2">${esc(S.settings.project||"منظومة السلامة")} · ${arDate(today())}</div></div><div class="qa">${qa.join("")}</div></div>`;
     $("dRem").innerHTML=remindersHTML();
     // KPI strip
