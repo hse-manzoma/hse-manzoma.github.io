@@ -2039,8 +2039,8 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.8.6";
-const APP_BUILD="2026-11-07";
+const APP_VER="6.0.0";
+const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
 async function checkAppUpdate(loud){
@@ -8085,6 +8085,30 @@ async function omUndoClick(){
   toast(msg||"اترجع ✔");
   if(!msg){$("overlayRoot").innerHTML="";setTimeout(refresh,200)}
 }
+
+/* ===== تمييز أكواد المعدات: اسم الصنف قبل الكود (للأكواد القديمة) ===== */
+const eqShortName=n=>String(n||"").split("(")[0].replace(/\s+/g," ").trim();
+const codeHasName=(code,sn)=>{const k=inspCodeKey(code),n=inspCodeKey(sn);return !!n&&k.startsWith(n)};
+function codePrefixPlan(){
+  const plan=[],newOf=new Map();
+  for(const q of (S.equipment||[])){const c=String(q.code||"").trim(),sn=eqShortName(q.name);if(!c||!sn||codeHasName(c,sn))continue;const to=sn+" "+c;newOf.set(q.id,to);plan.push({col:"equipment",id:q.id,label:q.name||"",from:c,to})}
+  for(const x of (S.inspections||[])){const c=String(x.code||"").trim(),sn=eqShortName(x.equipType);if(!c)continue;
+    const eqs=(S.equipment||[]).filter(q=>[q.code,q.serial].map(inspCodeKey).includes(inspCodeKey(c))&&inspEquipTypeOk(q,x.equipType));
+    let to="";if(eqs.length){const q=eqs[0];to=newOf.get(q.id)||"";if(!to)continue}
+    else{if(!sn||codeHasName(c,sn))continue;to=sn+" "+c}
+    if(to===c)continue;plan.push({col:"inspections",id:x.id,label:x.equipType||"",from:c,to})}
+  return plan}
+function codePrefixSheet(){
+  if(myRole()!=="admin"){toast("الأداة دي للأدمن فقط");return}
+  const plan=codePrefixPlan();
+  if(!plan.length){openSheet("تمييز أكواد المعدات",`<p>كل الأكواد فيها اسم الصنف بالفعل، مفيش حاجة تتغيّر ✔</p>`,async()=>null,"تمام");return}
+  const eq=plan.filter(x=>x.col==="equipment").length,ins=plan.length-eq;
+  openSheet("تمييز أكواد المعدات باسم الصنف",`<p style="margin-top:0">هيتكتب اسم الصنف قبل الكود القديم عشان كودين متشابهين من صنفين مختلفين ما يتلخبطوش. الكود القديم بيتحفظ جنب الجديد.</p>
+   <p><b>${eq}</b> معدة · <b>${ins}</b> نموذج فحص</p>
+   <div style="max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table style="width:100%;font-size:13px"><thead><tr><th>النوع</th><th>الصنف</th><th>القديم</th><th>الجديد</th></tr></thead><tbody>${plan.slice(0,150).map(x=>`<tr><td>${x.col==="equipment"?"معدة":"فحص"}</td><td>${esc(eqShortName(x.label))}</td><td dir="ltr">${esc(x.from)}</td><td dir="ltr"><b>${esc(x.to)}</b></td></tr>`).join("")}</tbody></table></div>${plan.length>150?`<p class="muted">+ ${plan.length-150} صف تاني بنفس الطريقة</p>`:""}`,
+  async()=>{const ok=await write(async()=>{for(const x of plan)await upsert(x.col,x.id,{code:x.to,codeOld:x.from})},`اتحدّث ${plan.length} كود ✔`);return ok?null:"الحفظ فشل"},"طبّق التغيير")}
+{const _cp=VIEWS.settings.fill;VIEWS.settings.fill=function(){_cp.call(this);try{const body=$("setBody");if(!body||$("codePrefixCard")||myRole()!=="admin")return;const c=document.createElement("section");c.className="card";c.id="codePrefixCard";
+  c.innerHTML=`<h3>تمييز أكواد المعدات باسم الصنف</h3><p class="muted" style="font-size:13px">بيكتب اسم الصنف قبل الكود القديم (زي «الصاروخ المحمول 009») في المعدات ونماذج الفحص، عشان نفس الرقم في صنفين مختلفين ما يتلخبطش. بيعرض معاينة قبل التطبيق.</p><button type="button" class="btn" onclick="codePrefixSheet()">معاينة وتطبيق</button>`;body.appendChild(c)}catch(e){console.error("codePrefixCard",e)}}}
 {const _os=VIEWS.settings.fill;VIEWS.settings.fill=function(){
   _os.call(this);
   try{
@@ -8110,7 +8134,7 @@ const SET_SECTIONS=[
   {k:"print",   ic:"🖨️", ar:"الطباعة والنظام", hint:"الطابعات، إصدار المنظومة، والتحديثات."},
   {k:"data",    ic:"🗄️", ar:"البيانات والنسخ", hint:"التصدير والاستيراد ومراجعة التكرارات."}
 ];
-const SET_BY_ID={ownerMoveCard:"data",zeroStockCard:"data",ptwTeamsCard:"perms",missionApprCard:"perms",prnCard:"print",verCard:"print",dupCleanupCard:"data",setUsersBox:"users"};
+const SET_BY_ID={ownerMoveCard:"data",codePrefixCard:"data",zeroStockCard:"data",ptwTeamsCard:"perms",missionApprCard:"perms",prnCard:"print",verCard:"print",dupCleanupCard:"data",setUsersBox:"users"};
 const SET_BY_TITLE=[
   [/صلاحي(ة|ات) توزيع المهام|توزيع المهام/,"perms"],
   [/صلاحيات التوقيع|الاعتماد/,"perms"],
