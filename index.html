@@ -2039,7 +2039,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.8.4";
+const APP_VER="5.8.5";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3493,7 +3493,55 @@ async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!==
   const rows={COLD:{name:{site:[.17,.869,.24,.026],sup:[.422,.869,.24,.026],hse:[.671,.869,.23,.026]},time:{site:[.17,.897,.24,.02],sup:[.422,.897,.24,.02],hse:[.671,.897,.23,.02]},date:{site:[.17,.925,.24,.02],sup:[.422,.925,.24,.02],hse:[.671,.925,.23,.02]}},HEIGHT:{name:{site:[.64,.813,.23,.026],sup:[.393,.813,.24,.026],hse:[.145,.813,.24,.026]},time:{site:[.64,.844,.23,.02],sup:[.393,.844,.24,.02],hse:[.145,.844,.24,.02]},date:{site:[.64,.873,.23,.022],sup:[.393,.873,.24,.022],hse:[.145,.873,.24,.022]}},LIFT:{name:{sup:[.127,.862,.211,.027],site:[.339,.862,.16,.027],req:[.50,.862,.22,.027],hse:[.722,.862,.19,.027]},time:{sup:[.127,.891,.211,.02],site:[.339,.891,.16,.02],req:[.50,.891,.22,.02],hse:[.722,.891,.19,.02]},date:{sup:[.127,.919,.211,.02],site:[.339,.919,.16,.02],req:[.50,.919,.22,.02],hse:[.722,.919,.19,.02]}},HOT:{name:{site:[.14,.775,.24,.024],hse:[.39,.775,.30,.024],sup:[.70,.775,.27,.024]},time:{site:[.14,.807,.24,.02],hse:[.39,.807,.30,.02],sup:[.70,.807,.27,.02]},date:{site:[.14,.92,.24,.026],hse:[.39,.92,.30,.026],sup:[.70,.92,.27,.026]}},CONF:{name:{site:[.18,.845,.25,.024],hse:[.44,.845,.27,.024],sup:[.72,.845,.26,.024]},time:{site:[.18,.879,.25,.02],hse:[.44,.879,.27,.02],sup:[.72,.879,.26,.02]},date:{site:[.18,.949,.25,.026],hse:[.44,.949,.27,.026],sup:[.72,.949,.26,.026]}},EXC:{name:{site:[.67,.84,.15,.022],hse:[.51,.84,.15,.022],sup:[.35,.84,.15,.022]},time:{site:[.67,.865,.15,.018],hse:[.51,.865,.15,.018],sup:[.35,.865,.15,.018]},date:{site:[.67,.889,.15,.018],hse:[.51,.889,.15,.018],sup:[.35,.889,.15,.018]}}};
   const roles=Object.keys(PTW_SIG_CELLS[p.type]?.close||{}).filter(r=>rows[p.type]?.name?.[r]);for(const role of roles){const s=signatures[role];const name=s?.name||ptwPartyName(p,role);if(name)put(rows[p.type].name[role],name,25);if(s&&!ptwAdminActor(s.uid)){const time=ptwSignatureTime(s),date=ptwSignatureDate(s,p.closedAt);if(time)put(rows[p.type]?.time?.[role],time,22);if(date)put(rows[p.type]?.date?.[role],date,22)}}
 }
-async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});if(p.type==="COLD"){drawColdSiteChecks(pages,p);if(p.status==="closed"&&p.closedAt)await drawColdCloseInfo(pages,p)}if(p.extended||p.extSignature||p.extensions?.length)await drawPermitExtension(pages,p);return pages}
+
+/* ===== أسماء العاملين بالتصريح على النموذج (بدون تعديل صورة النموذج الأصلية) ===== */
+const PERMIT_CREW_GRID={
+ HOT:{pg:0,w:1161,h:1679,rows:[602,651,700,748],cols:[25,143,362,472,680,842,1049]},
+ CONF:{pg:0,w:1150,h:1680,rows:[565,614,663,712],cols:[21,139,358,468,677,824,1048]},
+ EXC:{pg:0,w:1241,h:1754,rows:[614,656,699,741],cols:[80,188,393,489,680,770,1018]},
+ LIFT:{pg:0,w:1132,h:1629,rows:[490,532,575,617],cols:[10,126,348,453,657,763,1042]}};
+const PERMIT_CREW_NOTES={COLD:{pg:2,x0:33/1155,x1:1145/1155,y0:1033/1625,y1:1363/1625},HEIGHT:{pg:2,x0:75/1076,x1:995/1076,y0:1038/1634,y1:1268/1634}};
+const CREW_FONT="'IBM Plex Sans Arabic',Arial,sans-serif";
+function permitCrewList(p){return (p&&p.crew||[]).map(c=>({name:String(c&&c.name||"").trim(),job:String(c&&c.job||"").trim()})).filter(c=>c.name)}
+function crewFit(g,t,maxW,sz,wt){let s=sz;g.font=`${wt} ${s}px ${CREW_FONT}`;while(s>9&&g.measureText(t).width>maxW){s--;g.font=`${wt} ${s}px ${CREW_FONT}`}return s}
+function crewCapacity(T){return PERMIT_CREW_GRID[T]?9:PERMIT_CREW_NOTES[T]?21:0}
+function crewNotesLayout(T,W,H,n){const B=PERMIT_CREW_NOTES[T];if(!B||!n)return null;n=Math.min(n,21);const blocks=n<=3?1:n<=6?2:3,rows=Math.ceil(n/blocks),rh=Math.min(H*0.0225,(B.y1-B.y0)*H/(rows+2.4)),th=(rows+2)*rh;return {B,blocks,rows,rh,th,top:B.y1*H-th-5}}
+function drawPermitCrew(pages,p){
+ const T=p.type,list=permitCrewList(p);if(!list.length)return;
+ const G=PERMIT_CREW_GRID[T];
+ if(G){const cv=pages[G.pg];if(!cv)return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,c=G.cols.map(x=>x/G.w*W),r=G.rows.map(y=>y/G.h*H);
+  g.save();g.direction="rtl";g.textBaseline="middle";g.textAlign="center";g.fillStyle="#102b4b";
+  list.slice(0,9).forEach((w,k)=>{const gi=k%3,row=Math.floor(k/3),nL=c[5-2*gi],nR=c[6-2*gi],jL=c[4-2*gi],jR=c[5-2*gi],cy=(r[row]+r[row+1])/2,rh=r[row+1]-r[row],sz=Math.max(11,rh*0.4);
+   const nl=nL+W*0.004,nr=nR-W*0.032;const s1=crewFit(g,w.name,nr-nl-4,sz,"700");g.fillText(w.name,(nl+nr)/2,cy+1);
+   if(w.job){crewFit(g,w.job,jR-jL-8,sz*0.85,"600");g.fillText(w.job,(jL+jR)/2,cy+1)}});
+  g.restore();return}
+ const N=PERMIT_CREW_NOTES[T];if(!N)return;const cv=pages[N.pg];if(!cv)return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,L=crewNotesLayout(T,W,H,list.length);if(!L)return;
+ const shown=list.slice(0,21),right=N.x1*W-6,left=N.x0*W+6,gap=W*0.008,bw=((right-left)-gap*2)/3,{rows,rh,top,blocks}=L;
+ const usedL=right-blocks*bw-(blocks-1)*gap;
+ g.save();g.direction="rtl";g.textBaseline="middle";g.textAlign="center";
+ g.fillStyle="#fff";g.fillRect(usedL-3,top-3,right-usedL+6,L.th+6);
+ g.strokeStyle="#5b6b7d";g.lineWidth=1.4;g.fillStyle="#d6dee8";g.fillRect(usedL,top,right-usedL,rh);g.strokeRect(usedL,top,right-usedL,rh);
+ g.fillStyle="#102b4b";crewFit(g,"العاملون بالتصريح — Workers ("+list.length+")",right-usedL-10,rh*0.52,"800");g.fillText("العاملون بالتصريح — Workers ("+list.length+")",(usedL+right)/2,top+rh/2+1);
+ for(let b=0;b<blocks;b++){const bx=right-(b+1)*bw-b*gap,cw=[bw*0.12,bw*0.5,bw*0.38],xs=[bx+bw-cw[0],bx+bw-cw[0]-cw[1],bx];
+  const hy=top+rh;g.fillStyle="#eef2f7";g.fillRect(bx,hy,bw,rh);
+  [["م",0],["الاسم",1],["الوظيفة",2]].forEach(([t,i])=>{g.fillStyle="#102b4b";g.font=`800 ${rh*0.46}px ${CREW_FONT}`;g.fillText(t,xs[i]+cw[i]/2,hy+rh/2+1)});
+  for(let k=0;k<rows;k++){const idx=b*rows+k,y=hy+rh*(k+1),w=shown[idx];
+   g.strokeStyle="#7b8794";g.lineWidth=1;[0,1,2].forEach(i=>g.strokeRect(xs[i],y,cw[i],rh));
+   if(!w)continue;g.fillStyle="#102b4b";g.font=`700 ${rh*0.46}px ${CREW_FONT}`;g.fillText(String(idx+1),xs[0]+cw[0]/2,y+rh/2+1);
+   crewFit(g,w.name,cw[1]-8,rh*0.5,"700");g.fillText(w.name,xs[1]+cw[1]/2,y+rh/2+1);
+   if(w.job){crewFit(g,w.job,cw[2]-8,rh*0.44,"600");g.fillText(w.job,xs[2]+cw[2]/2,y+rh/2+1)}}
+  g.strokeStyle="#5b6b7d";g.lineWidth=1.4;g.strokeRect(bx,hy,bw,rh*(rows+1))}
+ g.restore()}
+function permitCrewPage(p){
+ const list=permitCrewList(p),c=document.createElement("canvas");c.width=1240;c.height=1754;const g=c.getContext("2d"),W=c.width,H=c.height;
+ g.fillStyle="#fff";g.fillRect(0,0,W,H);g.strokeStyle="#1b3658";g.lineWidth=5;g.strokeRect(38,38,W-76,H-76);
+ g.direction="rtl";g.textAlign="right";g.textBaseline="middle";g.fillStyle="#17365d";g.font=`800 42px ${CREW_FONT}`;g.fillText("كشف العاملين بالتصريح",W-90,105);
+ g.font=`700 27px ${CREW_FONT}`;g.fillText((p.number||"")+" · "+(PTW_TYPES[p.type]?.ar||"")+" · "+list.length+" عامل",W-90,166);
+ const x0=90,x1=W-90,cw=[90,(x1-x0-90)*0.58,(x1-x0-90)*0.42],xs=[x1-cw[0],x1-cw[0]-cw[1],x0],rh=46,rowsMax=Math.floor((H-330)/rh);let y=215;
+ g.fillStyle="#17365d";g.fillRect(x0,y,x1-x0,rh);g.fillStyle="#fff";g.textAlign="center";g.font=`800 26px ${CREW_FONT}`;[["م",0],["الاسم",1],["الوظيفة",2]].forEach(([t,i])=>g.fillText(t,xs[i]+cw[i]/2,y+rh/2));y+=rh;
+ list.slice(0,rowsMax-1).forEach((w,i)=>{g.fillStyle=i%2?"#f1f5fa":"#fff";g.fillRect(x0,y,x1-x0,rh);g.strokeStyle="#9aa8b8";g.lineWidth=1;[0,1,2].forEach(k=>g.strokeRect(xs[k],y,cw[k],rh));g.fillStyle="#102b4b";g.font=`700 25px ${CREW_FONT}`;g.fillText(String(i+1),xs[0]+cw[0]/2,y+rh/2);crewFit(g,w.name,cw[1]-14,25,"700");g.fillText(w.name,xs[1]+cw[1]/2,y+rh/2);if(w.job){crewFit(g,w.job,cw[2]-14,23,"600");g.fillText(w.job,xs[2]+cw[2]/2,y+rh/2)}y+=rh});
+ return c}
+async function renderPermitPagesBase(p){const F=(await loadForms())[p.type],pages=await renderForm(p.type,ptwValues(p),{skipBox:b=>ptwSkipRepeatedApproval(p.type,b,F.pages.length)});try{drawPermitCrew(pages,p)}catch(e){console.error(e)}if(p.type==="COLD"){drawColdSiteChecks(pages,p);if(p.status==="closed"&&p.closedAt)await drawColdCloseInfo(pages,p)}if(p.extended||p.extSignature||p.extensions?.length)await drawPermitExtension(pages,p);if(permitCrewList(p).length>crewCapacity(p.type))pages.push(permitCrewPage(p));return pages}
 const PTW_CLOSE_CHECKS=[
   {k:"work",role:"site",t:"أُوقف العمل وأُنجزت الأعمال المشمولة بالتصريح."},
   {k:"people",role:"site",t:"تم حصر العاملين والتأكد من خروجهم من منطقة العمل."},
@@ -3519,7 +3567,7 @@ async function drawColdCloseInfo(pages,p){const c=pages[2];if(!c)return;const g=
  const notes=p.closeNotesByRole||{},recs=p.closeRecommendationsByRole||{},labels={site:"مهندس التنفيذ",sup:"مشرف التنفيذ",hse:"مسؤول السلامة"},items=[];
  for(const r of ["site","sup","hse"]){if(notes[r])items.push([labels[r]+" — ملاحظة",notes[r]]);if(recs[r])items.push([labels[r]+" — توصية",recs[r]])}
  if(p.closeNote)items.unshift(["سبب الإغلاق",p.closeNote]);
- const GY=[];for(let i=0;i<13;i++)GY.push(H*(0.6585+i*0.01354));
+ const GY=[];{const _l=crewNotesLayout("COLD",W,H,permitCrewList(p).length);for(let i=0;i<13;i++){const yy=H*(0.6585+i*0.01354);if(!_l||yy<_l.top-6)GY.push(yy)}}
  const rx=W*0.95,lx=W*0.07,gap=W*0.006,drop=H*0.0038;
  const wrap=(txt,avail,first)=>{const words=String(txt).trim().split(/\s+/);const L=[];let line="";let av=first;for(const w of words){const t=line?line+" "+w:w;if(g.measureText(t).width<=av||!line)line=t;else{L.push(line);line=w;av=avail}}if(line)L.push(line);return L};
  g.save();g.direction="rtl";g.textBaseline="alphabetic";let li=0;
