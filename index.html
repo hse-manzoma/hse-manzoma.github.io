@@ -2039,7 +2039,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.1.2";
+const APP_VER="6.1.3";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2440,6 +2440,37 @@ VIEWS.equip={
     periodBind("eq",()=>refresh());
   }
 };
+
+/* ===== معاينة النموذج بالوقوف + زرار عرض — مبدأ عام على أي صف فيه نموذج ===== */
+const EQ_QUICK_FORM={ext:"F-HSE-10-02",firebox:"F-HSE-10-03",emerg:"F-HSE-10-01",machine:"F-HSE-08-01"};
+function hoverImgFor(row){
+  if(row._hvImg!==undefined)return row._hvImg;let img="",title="";
+  const el=row.querySelector('[data-hover-img]');
+  if(el){img=el.dataset.hoverImg;title=el.dataset.hoverTitle||""}
+  else{let m,b;
+    if((b=row.querySelector('[onclick*="inspView("]'))&&(m=/inspView\('([^']+)'\)/.exec(b.getAttribute("onclick")))){const x=(S.inspections||[]).find(r=>r.id===m[1]);const f=x&&typeof INSP_SPECS!=="undefined"&&INSP_SPECS[x.equipType]?.imgs?.[0];if(f){img="forms/"+f;title=x.equipType}}
+    else if((b=row.querySelector('[onclick*="printRecord("]'))&&(m=/printRecord\('([^']+)'\)/.exec(b.getAttribute("onclick")))){const r=(S.records||[]).find(z=>z.id===m[1]);if(r&&r.form){img=`f-${r.form}-p1.jpg`;title=r.form}}
+    else if((b=row.querySelector('[onclick*="printPermit("]'))&&(m=/printPermit\('([^']+)'\)/.exec(b.getAttribute("onclick")))){const p=(S.permits||[]).find(z=>z.id===m[1]);if(p&&p.type){img=`f-${p.type}-p1.jpg`;title=(PTW_TYPES[p.type]?.ar||p.type)+" "+(p.number||"")}}}
+  row._hvImg=img?{img,title}:null;return row._hvImg}
+function hoverTipShow(row,h){
+  let tip=document.getElementById("formHoverTip");if(!tip){tip=document.createElement("div");tip.id="formHoverTip";tip.setAttribute("role","tooltip");tip.style.cssText="position:fixed;z-index:10050;width:min(280px,calc(100vw - 24px));padding:9px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--d-card);pointer-events:none";document.body.appendChild(tip)}
+  tip.innerHTML=`<div style="font-weight:700;font-size:12.5px;margin-bottom:6px">${esc(h.title||"معاينة النموذج")}</div><img src="${esc(h.img)}" alt="" style="width:100%;height:190px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid var(--line)" onerror="this.closest('#formHoverTip').hidden=true">`;
+  const r=row.getBoundingClientRect(),w=Math.min(280,innerWidth-24),left=r.left>w+24?r.left-w-12:Math.min(innerWidth-w-12,r.right+12);
+  tip.style.left=Math.max(12,left)+"px";tip.style.top=Math.max(12,Math.min(innerHeight-270,r.top))+"px";tip.hidden=false}
+if(!window._hvBound){window._hvBound=true;
+  document.addEventListener("mouseover",e=>{if(window.matchMedia?.("(hover: none)").matches)return;const row=e.target.closest?.(".li,tr");const tip=document.getElementById("formHoverTip");
+    if(!row){if(tip)tip.hidden=true;return}const h=hoverImgFor(row);if(!h){if(tip)tip.hidden=true;return}if(row!==window._hvRow||(tip&&tip.hidden)){window._hvRow=row;hoverTipShow(row,h)}});
+  document.addEventListener("mouseout",e=>{const row=e.target.closest?.(".li,tr");if(row&&!row.contains(e.relatedTarget)){const t=document.getElementById("formHoverTip");if(t)t.hidden=true;window._hvRow=null}});
+  document.addEventListener("click",()=>{const t=document.getElementById("formHoverTip");if(t)t.hidden=true},true)}
+function eqQuickView(qid,index){
+  const q=(S.equipment||[]).find(x=>x.id===qid),h=q?.insp?.[index];if(!q||!h){toast("الفحص مش موجود");return}
+  const K=EQ_K[q.kind]||{},res=Object.entries(h.res||{}).map(([k,v])=>`${esc((K.checks||[]).find(c=>c[0]===k)?.[1]||k)}: ${v==="ok"?"✔ صالح":v==="nok"?"✘ غير صالح":"—"}`);
+  const photos=(h.photos||[]).filter(Boolean);
+  openSheet("فحص سريع — "+esc(q.code||q.serial||q.name||""),`<div class="banner"><b>${fmtDate(h.date)}</b> · الفاحص: ${esc(h.by||"—")}${h.review?.status==="approved"?` · ✔ اعتمده ${esc(h.review.name||"")}`:h.reviewRequired?" · ⏳ بانتظار الاعتماد":""}</div>
+   ${res.length?`<div class="list" style="margin-top:8px">${res.map(t=>`<div class="li"><div class="grow">${t}</div></div>`).join("")}</div>`:""}
+   ${h.notes?`<p style="margin:10px 0 0">${esc(Array.isArray(h.notes)?h.notes.join(" · "):h.notes)}</p>`:""}
+   ${photos.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${photos.map(p=>{const id=typeof p==="string"?p:p.a;return id?`<img src="/_blob/${esc(id)}" alt="" style="width:96px;height:96px;object-fit:cover;border-radius:8px">`:""}).join("")}</div>`:""}
+   ${EQ_QUICK_FORM[q.kind]?`<p class="muted" style="font-size:12.5px;margin:10px 0 0">النموذج المقابل: ${EQ_QUICK_FORM[q.kind]}</p>`:""}`,async()=>null,"إغلاق")}
 /* ===== نماذج فحص المعدة الواحدة: كل النماذج السابقة مع فلتر الفترة ===== */
 function eqInspectionForms(q){
   if(!q)return [];
@@ -2486,7 +2517,7 @@ function eqFormsRowsHTML(q){
         ${!e.rec?`<div class="muted" style="font-size:12px;margin-top:3px">فحص سريع مسجّل على المعدة — مش مربوط بنموذج شركة.</div>`:""}
       </div>
       <div class="row-actions">
-        ${e.rec?`<button type="button" class="btn ghost sm" onclick="inspView('${e.rec.id}')">👁 عرض النموذج</button><button type="button" class="btn ghost sm" onclick="inspPrint('${e.rec.id}')" title="طباعة على نموذج الشركة">🖨️</button>`:""}
+        ${e.rec?`<button type="button" class="btn ghost sm" onclick="inspView('${e.rec.id}')">👁 عرض النموذج</button><button type="button" class="btn ghost sm" onclick="inspPrint('${e.rec.id}')" title="طباعة على نموذج الشركة">🖨️</button>`:(()=>{const ix=(q.insp||[]).indexOf(e.h);const fid=EQ_QUICK_FORM[q.kind];return ix>=0?`<button type="button" class="btn ghost sm" ${fid?`data-hover-img="f-${fid}-p1.jpg" data-hover-title="${fid}"`:""} onclick="eqQuickView('${q.id}',${ix})">👁 عرض</button>`:""})()}
       </div>
     </div>`}).join("")}</div>`;
 }
