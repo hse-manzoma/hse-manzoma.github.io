@@ -2039,7 +2039,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.1.0";
+const APP_VER="6.1.1";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -8097,9 +8097,13 @@ function eqPeriodicForm(id,pre){
   const q=id?S.equipment.find(x=>x.id===id):{};if(id&&!q){toast("المعدة مش موجودة");return}
   pre=pre||{};const cur=eqTypeOf(q)||pre.type||"";const groups={};
   periodicTypes().forEach(t=>{const k=inferPeriodicEquipmentKind(t);(groups[k]=groups[k]||[]).push(t)});
-  const typeSel=`<div class="field full"><label for="f_type">نوع المعدة (نموذج الفحص)</label><select id="f_type" name="type" required>${cur?"":'<option value="">اختار النوع…</option>'}${Object.entries(groups).map(([k,L])=>`<optgroup label="${esc(EQ_K[k]?.ar||k)}">${L.map(t=>`<option value="${esc(t)}" ${t===cur?"selected":""}>${esc(t)}</option>`).join("")}</optgroup>`).join("")}</select></div>`;
+  const typeSel=`<div class="field full"><label>نوع المعدة (نموذج الفحص)</label><input type="hidden" name="type" id="pqType" value="${esc(cur)}">
+    <div class="banner" style="display:flex;gap:8px;align-items:center;margin:0 0 8px"><span class="grow" id="pqChosenT">${cur?esc(cur):"لسه ما اخترتش نوع"}</span><button type="button" class="btn sm" id="pqView" ${cur?"":"disabled"}>👁 عرض النموذج</button></div>
+    <input type="search" id="pqSearch" placeholder="دوّر: شنيور، صاروخ، ونش، سقالة…" autocomplete="off" style="width:100%">
+    <div id="pqList" class="list" style="max-height:230px;overflow:auto;margin-top:6px"></div>
+    <div class="muted" style="font-size:12px;margin-top:4px">قف بالمؤشر على أي نوع تشوف صورة النموذج، أو دوس 👁 لعرضه كامل.</div></div>`;
   const att=(q.att||[]).filter(a=>a.kind==="photo");
-  openSheet(id?"تعديل معدة الفحص الدوري":"إضافة معدة للفحص الدوري",`<div class="form">${typeSel}
+  const root=openSheet(id?"تعديل معدة الفحص الدوري":"إضافة معدة للفحص الدوري",`<div class="form">${typeSel}
     ${f("كود المعدة","code",{value:q.code||pre.code||"",req:true})}
     ${f("المكان / القسم بالموقع","place",{value:q.place||""})}
     ${f("الشركة / المقاول","contractor",{value:q.contractor||"",attrs:'list="ctrList2" autocomplete="off"'})}<datalist id="ctrList2">${(S.contractors||[]).map(c=>`<option value="${esc(c.name)}">`).join("")}</datalist>
@@ -8123,6 +8127,16 @@ function eqPeriodicForm(id,pre){
       else await db.collection("equipment").add({...data,active:true,insp:[],createdAt:Date.now()})},id?"اتحفظ":"اتضافت المعدة ✔");
     if(ok&&moved)toast(`اتنقل ${moved} فحص قديم للكود الجديد`);
     return ok?null:"الحفظ فشل"},id?"حفظ":"إضافة المعدة");
+  if(!root)return;
+  const list=root.querySelector("#pqList"),inp=root.querySelector("#pqType"),chosen=root.querySelector("#pqChosenT"),vb=root.querySelector("#pqView"),sr=root.querySelector("#pqSearch");
+  const draw=()=>{const nq=normName(sr.value||"");let h="",last="";
+    for(const t of periodicTypes()){if(nq&&!normName(t+" "+(INSP_ALIAS?.[t]||"")).includes(nq))continue;const k=EQ_K[inferPeriodicEquipmentKind(t)]?.ar||"";
+      if(k!==last){last=k;h+=`<div class="muted" style="font-size:12px;font-weight:700;padding:8px 4px 2px">${esc(k)}</div>`}
+      h+=`<div class="li" data-t="${esc(t)}" style="cursor:pointer;${t===inp.value?"background:var(--accent-soft)":""}"><span class="grow">${t===inp.value?"✔ ":""}${esc(t)}</span><button type="button" class="btn ghost sm" data-v="${esc(t)}" title="عرض النموذج">👁</button></div>`}
+    list.innerHTML=h||'<div class="muted" style="padding:10px">مفيش نوع بالاسم ده</div>';
+    list.querySelectorAll(".li[data-t]").forEach(el=>{const t=el.dataset.t;el.onmouseenter=()=>inspTypeHoverPreview({currentTarget:el},t);el.onmouseleave=inspTypeHidePreview;
+      el.onclick=e=>{if(e.target.closest("[data-v]")){inspTypeHidePreview();inspTemplatePreview(t);return}inp.value=t;chosen.textContent=t;vb.disabled=false;draw()}})};
+  sr.oninput=draw;vb.onclick=()=>{if(inp.value)inspTemplatePreview(inp.value)};draw();
 }
 function eqLinkPast(id){
   const q=S.equipment.find(x=>x.id===id);if(!q)return;const type=eqTypeOf(q);
@@ -8139,7 +8153,7 @@ function eqByFormHTML(){
   const sel=ui.eqType||"",qy=normName(ui.eqQ||"");
   const shown=types.filter(t=>!sel||t===sel);
   const rows=t=>act.filter(q=>eqTypeOf(q)===t).filter(q=>!qy||normName([q.code,q.place,q.contractor,t].join(" ")).includes(qy)).sort(eqSortCode);
-  const sections=shown.map(t=>{const R=rows(t);if(!R.length)return "";return `<section class="card" style="margin:12px 0"><h3 style="margin:0 0 8px">${esc(t)} <span class="muted" style="font-size:13px">(${R.length}) · ${esc(EQ_K[inferPeriodicEquipmentKind(t)]?.ar||"")}</span></h3><div class="tbl"><table><thead><tr><th></th><th>الكود</th><th>المكان</th><th>الفحوصات</th><th>آخر فحص</th><th>الحالة</th><th></th></tr></thead><tbody>${R.map(q=>{const F=eqInspectionForms(q),last=F[0],ok=eqOk(q),ph=(q.att||[]).find(a=>a.kind==="photo"&&!(a.type||"").includes("pdf")),na=(q.att||[]).length;
+  const sections=shown.map(t=>{const R=rows(t);if(!R.length)return "";return `<section class="card" style="margin:12px 0"><h3 style="margin:0 0 8px"><span onmouseenter="inspTypeHoverPreview(event,this.dataset.t)" onmouseleave="inspTypeHidePreview()" data-t="${esc(t)}" style="cursor:help;border-bottom:1px dotted var(--accent)">${esc(t)}</span> <button type="button" class="btn ghost sm" data-t="${esc(t)}" onclick="inspTemplatePreview(this.dataset.t)">👁 عرض النموذج</button> <span class="muted" style="font-size:13px">(${R.length}) · ${esc(EQ_K[inferPeriodicEquipmentKind(t)]?.ar||"")}</span></h3><div class="tbl"><table><thead><tr><th></th><th>الكود</th><th>المكان</th><th>الفحوصات</th><th>آخر فحص</th><th>الحالة</th><th></th></tr></thead><tbody>${R.map(q=>{const F=eqInspectionForms(q),last=F[0],ok=eqOk(q),ph=(q.att||[]).find(a=>a.kind==="photo"&&!(a.type||"").includes("pdf")),na=(q.att||[]).length;
     const stat=last?.rec?(last.rec.status==="fail"?'<span class="pill p-bad">غير مطابق</span>':last.rec.status==="pass"?'<span class="pill p-ok">مطابق</span>':'<span class="pill p-closed">جزئي</span>'):ok===null?'<span class="pill p-closed">لسه</span>':ok?'<span class="pill p-ok">صالح</span>':'<span class="pill p-bad">غير صالح</span>';
     return `<tr><td>${ph?`<img src="/_blob/${ph.a}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px">`:""}</td><td><span class="num">${esc(q.code||q.serial||"")}</span></td><td>${esc(q.place||"")}</td><td class="n">${F.length}</td><td class="n">${last?fmtDate(last.date):"—"}</td><td>${stat}</td>
     <td><div class="row-actions">${canWrite?`<button class="btn sm" onclick="inspPrefillOpen('${esc(t).replace(/'/g,"\\'")}','${esc(q.code||"").replace(/'/g,"\\'")}')">📝 فحص</button>`:""}<button class="btn ghost sm" onclick="eqFormsSheet('${q.id}')">📄 السجل</button><button class="btn ghost sm" onclick="attSheet('equipment','${q.id}')">📎${na?" "+na:""}</button><button class="btn ghost sm" onclick="eqActions('${q.id}','${q.kind}')">⋯</button></div></td></tr>`}).join("")}</tbody></table></div></section>`}).join("");
