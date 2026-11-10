@@ -2042,7 +2042,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.1.5";
+const APP_VER="6.1.6";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6818,9 +6818,16 @@ Object.assign(INSP_SPECS["الونش العلوي (Overhead Crane)"],{sig:{sig1:
 
 
 /* ===== فترة السجل: يومي / شهري / سنوي — تُستخدم في كل سجلات الفحص ===== */
+/* الافتراضي في كل المنظومة: يومي. الاستثناء: قوائم الأصول وصفحات الملخصات اللي مش سجلات */
+function periodDefault(ns){
+  if(ns==="eq"||ns==="eqforms")return "all";
+  if(/^pg:(dash|me|chat|follow|actions|contractors|manpower|join|equip|settings)(:|$)/.test(ns))return "all";
+  return "day";
+}
+function weekRange(d){const x=new Date((d||today())+"T00:00:00");const k=(x.getDay()+1)%7;x.setDate(x.getDate()-k);const L=z=>z.getFullYear()+"-"+pad(z.getMonth()+1)+"-"+pad(z.getDate());const a=L(x);x.setDate(x.getDate()+6);return [a,L(x)]}
 function periodSt(ns){
   if(!ui.periods)ui.periods={};
-  if(!ui.periods[ns])ui.periods[ns]={mode:"all",day:today(),month:thisMonth(),year:String(new Date().getFullYear())};
+  if(!ui.periods[ns])ui.periods[ns]={mode:periodDefault(ns),day:today(),month:thisMonth(),year:String(new Date().getFullYear())};
   return ui.periods[ns];
 }
 function periodMatch(ns,date){
@@ -6828,6 +6835,7 @@ function periodMatch(ns,date){
   if(p.mode==="all")return true;
   if(!d)return false;
   if(p.mode==="day")return d===p.day;
+  if(p.mode==="week"){const r=weekRange(p.day);return d>=r[0]&&d<=r[1]}
   if(p.mode==="month")return d.slice(0,7)===p.month;
   if(p.mode==="year")return d.slice(0,4)===p.year;
   return true;
@@ -6835,6 +6843,7 @@ function periodMatch(ns,date){
 function periodSummary(ns){
   const p=periodSt(ns);
   if(p.mode==="day")return "يوم "+fmtDate(p.day);
+  if(p.mode==="week"){const r=weekRange(p.day);return "أسبوع "+fmtDate(r[0])+" ← "+fmtDate(r[1])}
   if(p.mode==="month")return "شهر "+monthName(p.month);
   if(p.mode==="year")return "سنة "+p.year;
   return "كل السجلات المحفوظة";
@@ -6842,13 +6851,13 @@ function periodSummary(ns){
 function periodBarHTML(ns,n){
   const p=periodSt(ns);
   const chip=(m,t)=>`<button type="button" class="chipbtn" data-pmode="${m}" data-pns="${ns}" aria-pressed="${p.mode===m}">${t}</button>`;
-  const inp=p.mode==="day"?`<input type="date" data-pval="${ns}" value="${esc(p.day)}" aria-label="اختار اليوم" style="max-width:170px">`
+  const inp=(p.mode==="day"||p.mode==="week")?`<input type="date" data-pval="${ns}" value="${esc(p.day)}" aria-label="اختار اليوم" style="max-width:170px">`
     :p.mode==="month"?`<input type="month" data-pval="${ns}" value="${esc(p.month)}" aria-label="اختار الشهر" style="max-width:170px">`
     :p.mode==="year"?`<input type="number" data-pval="${ns}" value="${esc(p.year)}" min="2015" max="2100" step="1" aria-label="اختار السنة" style="max-width:120px">`:"";
   return `<div class="card" style="padding:10px 12px;margin-bottom:12px">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
       <b style="font-size:13px;white-space:nowrap">📅 فترة السجل</b>
-      <div class="chips" style="display:flex;flex-wrap:wrap;gap:6px">${chip("day","يومي")}${chip("month","شهري")}${chip("year","سنوي")}${chip("all","الكل")}</div>
+      <div class="chips" style="display:flex;flex-wrap:wrap;gap:6px">${chip("day","يومي")}${chip("week","أسبوعي")}${chip("month","شهري")}${chip("year","سنوي")}${chip("all","الكل")}</div>
       ${inp}
       <span class="muted" style="font-size:12.5px">${esc(periodSummary(ns))}${n==null?"":" · "+n+" سجل"}</span>
     </div>
@@ -6857,7 +6866,7 @@ function periodBarHTML(ns,n){
 function periodBind(ns,cb){
   document.querySelectorAll(`[data-pns="${ns}"]`).forEach(b=>b.onclick=()=>{periodSt(ns).mode=b.dataset.pmode;cb()});
   const inp=document.querySelector(`[data-pval="${ns}"]`);
-  if(inp)inp.onchange=()=>{const p=periodSt(ns),v=inp.value;if(!v)return;if(p.mode==="day")p.day=v;else if(p.mode==="month")p.month=v;else p.year=String(v).slice(0,4);cb()};
+  if(inp)inp.onchange=()=>{const p=periodSt(ns),v=inp.value;if(!v)return;if(p.mode==="day"||p.mode==="week")p.day=v;else if(p.mode==="month")p.month=v;else p.year=String(v).slice(0,4);cb()};
 }
 
 /* ===== النموذج السابق لنفس المعدة ===== */
