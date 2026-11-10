@@ -1943,6 +1943,16 @@ function sigPadSheet(title,{mine=false,saveLabel="حفظ التوقيع"}={},onS
 function attendPad(recId,i){
   const rec=S.records.find(r=>r.id===recId);if(!rec)return;
   const row=(rec.rows||[])[i]||{};const nm=row.name||"";
+  if(normName(nm)&&normName(nm)===normName(myEmpName())){
+    return mySig().then(async saved=>{if(!saved)return attendPadLive(recId,i);
+      const cur=S.records.find(r=>r.id===recId);if(!cur)return;
+      const rws=[...(cur.rows||[])];rws[i]={...(rws[i]||{}),sigImg:saved,sigAt:Date.now(),sigBy:ME.id||""};
+      if(await write(()=>upsert("records",recId,{rows:rws}),"اتوقّع ✔"))setTimeout(()=>attendSign(recId),250)})}
+  return attendPadLive(recId,i);
+}
+function attendPadLive(recId,i){
+  const rec=S.records.find(r=>r.id===recId);if(!rec)return;
+  const row=(rec.rows||[])[i]||{};const nm=row.name||"";
   return sigPadSheet(`توقيع · ${nm}`,{mine:normName(nm)===normName(myEmpName())},async img=>{
     const cur=S.records.find(r=>r.id===recId);if(!cur)return "السجل مش موجود";
     const rws=[...(cur.rows||[])];rws[i]={...(rws[i]||{}),sigImg:img,sigAt:Date.now(),sigBy:ME.id||""};
@@ -2029,7 +2039,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.8.2";
+const APP_VER="5.8.3";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5485,11 +5495,10 @@ async function signDoc(col,id,{reopen,extraPatch={}}={}){
   if(await write(()=>upsert(col,id,patch),"اتوقّع ✔")){if(col==="records"){const signed=S.records.find(r=>r.id===id);if(signed&&signed.createdBy===ME.id)await notifyRecordReview(signed)}setTimeout(()=>reopen&&reopen(),300)}
   return null;
   };
-  if(col==="records"||col==="permits"){
-    const saved=await mySig();
-    if(!saved){toast("ضيف توقيعك المحفوظ من ملفك الشخصي الأول");sigEditor();return}
-    return save(saved);
-  }
+  {const saved=await mySig();
+    /* اللي ليه توقيع محفوظ ما بيظهرلوش مربع رسم: توقيعه بينزل مباشرة */
+    if(saved)return save(saved);
+    if(col==="records"||col==="permits"){toast("ضيف توقيعك المحفوظ من ملفك الشخصي الأول");sigEditor();return}}
   return sigPadSheet(`توقيع حي · ${myEmpName()||ME.name||"المنفّذ"}`,{mine:false,saveLabel:"حفظ التوقيع"},save);
 }
 async function unsignDoc(col,id,reopen){const x=current(col,id)||S.matreq.find(r=>r.id===id);if(col==="permits"&&["open","approved","closed"].includes(x?.status)){toast("توقيع التصريح مثبت بعد الاعتماد؛ الإنهاء يكون بطلب إغلاق موثق وموافقة جميع الأطراف");return}const signs={...(x?.signs||{})};delete signs[ME.id];if(await write(()=>upsert(col,id,{signs}),"اتشال توقيعك"))setTimeout(()=>reopen&&reopen(),300)}
