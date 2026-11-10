@@ -2039,7 +2039,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="5.8.5";
+const APP_VER="5.8.6";
 const APP_BUILD="2026-11-07";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2897,8 +2897,8 @@ const ATT_KINDS={actions:[["before","صور قبل"],["after","صور بعد ا�
 const ATT_TITLE={actions:a=>"صور الإجراء",equipment:q=>"مرفقات "+(q.name||q.serial||""),contractors:c=>"مرفقات المقاول "+(c.name||""),employees:e=>"مرفقات "+(e.name||""),permits:p=>"مرفقات تصريح "+(p.number||""),records:r=>"مرفقات سجل "+(r.form||"")+" #"+(r.serial||""),leaves:l=>"مرفقات "+({perm:"إذن",mission:"تكليف",duty:"تكليف"}[l.kind]||"إجازة")+" "+empName(l.empId),ppe_moves:m=>"مرفقات إذن صرف "+empName(m.empId),office:o=>"مرفقات اجتماع "+(o.title||"")};
 const voucherHead=key=>S.moves.filter(m=>m.type==="issue"&&voucherKey(m)===key).sort((a,b)=>String(a.id).localeCompare(String(b.id)))[0];
 const PHOTO_LABEL=fid=>({"F-HSE-07-01":"صور المخالفة","F-HSE-07-03":"صور الملاحظة / المخالفة","F-HSE-03-01":"صور الحادث"}[fid]||"صور الملاحظات");
-async function photoPages(rec,title,label,sub){
-  const P=(rec.att||[]).filter(a=>a.kind==="photo"&&!(a.type||"").includes("pdf"));if(!P.length)return [];
+async function photoPages(rec,title,label,sub,kind){
+  const P=(rec.att||[]).filter(a=>a.kind===(kind||"photo")&&!(a.type||"").includes("pdf"));if(!P.length)return [];
   const imgs=[];for(const a of P){try{const r=await fetch("/_blob/"+a.a);if(!r.ok)continue;imgs.push(await createImageBitmap(await r.blob()))}catch(e){}}
   if(!imgs.length)return [];
   const W=1240,H=1754,out=[];const per=imgs.length===1?1:imgs.length===2?2:4;
@@ -4554,9 +4554,26 @@ async function printPermit(id){
   const v=ptwValues(p);const miss=[["req","طالب التصريح"],["hse","مسؤول السلامة"],["sup","مشرف التنفيذ"]].filter(([k])=>!v[k]).map(x=>x[1]);
   const draft=["requested","supok","rejected"].includes(p.status);
   const V=openViewer(`${p.number} · ${PTW_TYPES[p.type]?.ar||""}`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""}.pdf`,
-    note:p.closeRequest&&p.status!=="closed"?"طلب إغلاق معلّق · السبب: "+esc(p.closeRequest.reason||"")+" · التوقيعات المكتملة: "+Object.keys(p.closeSignatures||{}).length+" من "+(p.closeRequest.requiredRoles||[]).length:draft?"ده لسه طلب ما اتعتمدش من السلامة، التصريح بيطلع برقم بعد اعتماد مسؤول السلامة.":p.status==="closed"&&p.closedAt?(p.closeRetrospective?`إغلاق إداري لعمل سابق بتاريخ ${fmtDate(p.closedAt)}. توقيعات الأطراف تُسجل عند توقيعهم الفعلي.`:`اتقفل ${fmtDate(p.closedAt)} الساعة ${esc(p.closedTime||"—")} بواسطة ${esc(p.closeName||"مسؤول التصريح")}.`):(miss.length?`ناقص في التصريح: ${miss.join("، ")}. <button type="button" class="btn sm" onclick="pvClose();ptwForm('${p.id}')">كمّل البيانات</button>`:""),
-    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">طلب إغلاق التصريح</button>`:"")+(false?`<button class="btn danger" data-extra onclick="pvClose();ptwClosePast('${p.id}')">🕘 إغلاق عمل سابق</button>`:"")+(!draft&&(canSignPermit(p)||!!p.signs?.[ME.id])?(p.signs?.[ME.id]?((p.status==="requested"||p.status==="supok")?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn" data-extra disabled>✔ توقيعي مثبت</button>`) :`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")+(canSignPermitStage(p,"extension")?`<button class="btn sign" data-extra onclick="signPermitStage('${p.id}','extension')">✍ توقيع التمديد</button>`:"")+(canSignPermitStage(p,"close")?`<button class="btn sign" data-extra onclick="signPermitStage('${p.id}','close')">✍ موافقة وتوقيع الإغلاق</button>`:"")});
-  try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
+    note:p.closeRequest&&p.status!=="closed"?"طلب إغلاق معلّق · السبب: "+esc(p.closeRequest.reason||"")+" · التوقيعات المكتملة: "+Object.keys(p.closeSignatures||{}).length+" من "+(p.closeRequest.requiredRoles||[]).length:draft?"ده لسه طلب ما اتعتمدش من السلامة، التصريح بيطلع برقم بعد اعتماد مسؤول السلامة.":p.status==="closed"&&p.closedAt?(p.closeRetrospective?`إغلاق إداري لعمل سابق بتاريخ ${fmtDate(p.closedAt)}. توقيعات الأطراف تُسجل عند توقيعهم الفعلي.`:`اتقفل ${fmtDate(p.closedAt)} الساعة ${esc(p.closedTime||"—")} بواسطة ${esc(p.closeName||"مسؤول التصريح")}.`):(miss.length?`ناقص في التصريح: ${miss.join("، ")}. <button type="button" class="btn sm" onclick="pvClose();ptwForm('${p.id}')">كمّل البيانات</button>`:"")+((p.paperSigns||[]).length?`<div style="margin-top:6px">✍ موقّع ورقيًا: ${p.paperSigns.map(x=>esc(x.name)+(x.role?" ("+esc(x.role)+")":"")+" — "+fmtDate(new Date(x.at||Date.now()).toISOString().slice(0,10))).join("، ")}</div>`:""),
+    extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">طلب إغلاق التصريح</button>`:"")+(false?`<button class="btn danger" data-extra onclick="pvClose();ptwClosePast('${p.id}')">🕘 إغلاق عمل سابق</button>`:"")+(!draft&&p.status!=="cancelled"?`<button class="btn" data-extra onclick="pvClose();printPermitBlank('${p.id}')">🖨 نسخة للتوقيع اليدوي</button>`:"")+(!draft&&canWrite&&p.status!=="cancelled"?`<button class="btn" data-extra onclick="pvClose();paperSignForm('${p.id}')">📎 تسجيل توقيع ورقي${(p.paperSigns||[]).length?` (${p.paperSigns.length})`:""}</button>`:"")+(!draft&&(canSignPermit(p)||!!p.signs?.[ME.id])?(p.signs?.[ME.id]?((p.status==="requested"||p.status==="supok")?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn" data-extra disabled>✔ توقيعي مثبت</button>`) :`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")+(canSignPermitStage(p,"extension")?`<button class="btn sign" data-extra onclick="signPermitStage('${p.id}','extension')">✍ توقيع التمديد</button>`:"")+(canSignPermitStage(p,"close")?`<button class="btn sign" data-extra onclick="signPermitStage('${p.id}','close')">✍ موافقة وتوقيع الإغلاق</button>`:"")});
+  try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","النسخة الموقعة ورقيًا",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`,"signed"),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
+async function printPermitBlank(id){const p=S.permits.find(x=>x.id===id);if(!p){toast("التصريح مش موجود");return}
+  const V=openViewer(`${p.number} · نسخة للتوقيع اليدوي`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""} (للتوقيع).pdf`,note:"نسخة بالرقم والبيانات وبدون أي توقيع، للتوقيع اليدوي. بعد التوقيع صوّرها وارفعها من «📎 تسجيل توقيع ورقي».",extra:`<button class="btn" data-extra onclick="pvClose();printPermit('${p.id}')">↩ النسخة الإلكترونية</button>`});
+  try{V.setPages(await renderPermitPages(p,{blank:true}))}catch(e){console.error(e);V.fail("معرفتش أجهز النسخة.")}}
+function paperSignForm(id){const p=S.permits.find(x=>x.id===id);if(!p)return;
+  openSheet("تسجيل توقيع ورقي — "+(p.number||""),`<div class="form">
+   ${f("اسم المهندس / المشرف اللي وقّع ورقيًا","name",{req:true,full:true,value:""})}
+   ${f("الصفة","role",{value:"مشرف التنفيذ",opts:["مهندس الموقع","مشرف التنفيذ","مقاول الباطن","مسؤول السلامة","مدير المشروع","أخرى"].map(x=>[x,x])})}
+   ${f("ملاحظة (اختياري)","note",{full:true,value:""})}
+   <div class="field full"><label>صورة التصريح الموقّع (JPG / PNG / PDF)</label><input type="file" id="psFile" accept="image/*,application/pdf"></div></div>
+   <p class="muted" style="font-size:12.5px;margin:10px 0 0">بيتسجّل إن التصريح موقّع ورقيًا باسمك كمسجّل، وصورة الورقة بتتضاف لصفحات التصريح. مفيش توقيع بيترسم على النموذج الإلكتروني.</p>`,
+  async fd=>{const name=(fd.name||"").trim();if(!name)return "اكتب اسم الموقّع";const file=$("psFile")?.files?.[0];if(!file)return "ارفع صورة الورقة الموقّعة";if(!assetsNS)return "رفع الملفات مش متاح دلوقتي";
+   const cur=current("permits",id)||p;let up;
+   try{const b=await shrinkImage(file);const type=b.type||(file.name.toLowerCase().endsWith(".pdf")?"application/pdf":"");up=await assetsNS.upload(b,type?{type}:undefined)}catch(e){return "الرفع فشل، جرّب تاني"}
+   const at=Date.now(),att=[...(cur.att||[]),{a:up.id,kind:"signed",type:up.contentType,at,src:name}];
+   const paperSigns=[...(cur.paperSigns||[]),{name,role:fd.role||"",note:(fd.note||"").trim(),by:ME.id,byName:ME.name||"",at,a:up.id}];
+   const ok=await write(()=>upsert("permits",id,{att,paperSigns}),"اتسجّل التوقيع الورقي ✔");if(!ok)return "الحفظ فشل";
+   setTimeout(()=>printPermit(id),300);return null},"سجّل")}
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
@@ -5510,7 +5527,12 @@ function permitCloseNotesPage(p){
  g.textAlign="center";g.fillStyle="#56677c";g.font='600 18px "IBM Plex Sans Arabic",Arial,sans-serif';g.fillText("وثيقة الإغلاق — "+fmtDate(p.closedAt)+" · "+(p.closedTime||""),W/2,H-70);
  return c
 }
-async function renderPermitPages(p){const pages=await renderPermitPagesBase(p),T=p.type,F=(await loadForms())[T],vals=ptwValues(p),byUid=new Map(signsOf(p).filter(s=>!ptwAdminActor(s.uid)).map(s=>[s.uid,{...s}]));
+async function renderPermitPages(p,opts){
+  if(opts&&opts.blank){const q={...p,extended:false,extSignature:null,extensions:[],status:p.status==="closed"?"approved":p.status,closedAt:null};const pg=await renderPermitPagesBase(q);
+   const cv=pg[0];if(cv){const g=cv.getContext("2d");g.save();g.direction="rtl";g.textAlign="center";g.textBaseline="top";g.fillStyle="#5b6b7d";g.font=`700 ${Math.round(cv.width*0.0105)}px ${CREW_FONT}`;g.fillText(`نسخة للتوقيع اليدوي — ${p.number||""} — غير معتمدة إلكترونيًا`,cv.width/2,3);g.restore()}
+   return pg}
+  return renderPermitPagesFull(p)}
+async function renderPermitPagesFull(p){const pages=await renderPermitPagesBase(p),T=p.type,F=(await loadForms())[T],vals=ptwValues(p),byUid=new Map(signsOf(p).filter(s=>!ptwAdminActor(s.uid)).map(s=>[s.uid,{...s}]));
   if(p.supSignature&&p.supUidDone&&p.supName&&!ptwAdminActor(p.supUidDone))byUid.set(p.supUidDone,{...(byUid.get(p.supUidDone)||{}),uid:p.supUidDone,name:p.supName,at:p.supAt,signature:p.supSignature});
   if(p.hseSignature&&p.hseUidDone&&p.hseName&&!ptwAdminActor(p.hseUidDone))byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature});
   /* لا نطبع إلا توقيع شخص اسمه طرف فعلي في النموذج، وفي خانة دوره المطابقة. */
