@@ -2046,7 +2046,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.2.0";
+const APP_VER="6.2.2";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2383,6 +2383,7 @@ function inspectionAccessEditor(){
     const ok=await write(()=>upsert("settings","app",{inspectionAccess:{inspectors,approvers},updatedAt:Date.now()}),"اتحفظت صلاحيات الفحص والاعتماد");return ok?null:"الحفظ فشل";
   },"حفظ الصلاحيات");
 }
+function taskPreApprover(){try{const t=typeof TASK_RUN==="string"?TASK_RUN:TASK_RUN&&TASK_RUN.id;const x=t&&taskOf(t);return x&&x.reviewTo||""}catch(e){return ""}}
 function eqApproverLabel(p){const role={admin:"أدمن",hse:"مسؤول السلامة",hsesup:"مشرف السلامة"}[p.role]||"معتمد";return `${profName(p)} · ${role}`}
 function eqPendingReviews(){const out=[];if(!inspectionCanApprove())return out;for(const q of S.equipment||[])for(let index=0;index<(q.insp||[]).length;index++){const h=q.insp[index];if(h?.reviewRequired&&h.review?.status!=="approved"&&h.review?.status!=="returned"&&(!h.reviewTo||h.reviewTo===ME.id))out.push({q,h,index})}return out.sort((a,b)=>(b.h.date||"").localeCompare(a.h.date||""))}
 /* تغيير حالة المعدة بقرار موثّق — بدل ما تفضل محبوسة على نتيجة البنود */
@@ -2575,11 +2576,14 @@ async function assignEquipInspector(id){
   const includeForm=!!(formId&&formIndex?.[formId]);
   const title=(q.inspForm&&INSP_FORMS[q.inspForm]?`فحص ${q.inspForm} ${q.code||""}`:`فحص ${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""}`).trim();  const pType=q.inspForm&&INSP_FORMS[q.inspForm]?q.inspForm:"";
   const items=pType?[{kind:"insp",type:pType,code:q.code||"",eqId:id,form:"",title:"",done:false,recId:""}]:[{kind:"eq",eqId:id,form:"",title:"",done:false,recId:""},...(includeForm?[{kind:"form",form:formId,eqId:"",title:"",done:false,recId:""}]:[])];
-  openSheet("تكليف بفحص المعدة",`<div class="banner" style="margin-bottom:12px"><b>${esc(title)}</b>${q.place?` · ${esc(q.place)}`:""}<div style="font-size:13px;margin-top:4px">المهمة تفتح نموذج الفحص، وتتطلب نتيجة الفحص وصورًا وتوقيعًا إلكترونيًا.</div>${includeForm?`<div style="font-size:13px;margin-top:4px">النموذج المرفق بالمهمة: ${esc(formIndex[formId].title||formId)}</div>`:""}</div><div class="form">${f("الفاحص من فريق السلامة","assignee",{opts:pool.map(e=>[e.id,`${e.name}${e.job?" · "+e.job:""}`]),req:true,full:true})}${f("آخر موعد للفحص","due",{type:"date",value:today()})}${f("ملاحظات للمكلّف","note",{type:"textarea",full:true,attrs:'rows="3" placeholder="تعليمات أو تفاصيل إضافية للفاحص"'})}</div><p class="muted" style="font-size:12.5px">سيصل الإشعار للحساب المرتبط باسم الفاحص المختار.</p>`,async fd=>{
+  openSheet("تكليف بفحص المعدة",`<div class="banner" style="margin-bottom:12px"><b>${esc(title)}</b>${q.place?` · ${esc(q.place)}`:""}<div style="font-size:13px;margin-top:4px">المهمة تفتح نموذج الفحص، وتتطلب نتيجة الفحص وصورًا وتوقيعًا إلكترونيًا.</div>${includeForm?`<div style="font-size:13px;margin-top:4px">النموذج المرفق بالمهمة: ${esc(formIndex[formId].title||formId)}</div>`:""}</div><div class="form">${f("الفاحص من فريق السلامة","assignee",{opts:pool.map(e=>[e.id,`${e.name}${e.job?" · "+e.job:""}`]),req:true,full:true})}${f("المعتمد (اختياري)","reviewTo",{value:"",opts:[["","— يختاره الفاحص عند الحفظ —"],...inspectionApproverProfiles({excludeSelf:false}).map(p=>[p.id,eqApproverLabel(p)+(p.id===ME.id?" (أنا)":"")])],full:true})}${f("آخر موعد للفحص","due",{type:"date",value:today()})}${f("ملاحظات للمكلّف","note",{type:"textarea",full:true,attrs:'rows="3" placeholder="تعليمات أو تفاصيل إضافية للفاحص"'})}</div><p class="muted" style="font-size:12.5px">سيصل الإشعار للحساب المرتبط باسم الفاحص المختار.</p>`,async fd=>{
     if(!fd.assignee)return "اختار الفاحص";
     const worker=emp(fd.assignee);if(!worker||!pool.some(e=>e.id===worker.id))return "اختار فاحصًا من فريق السلامة";
     const note=["سجّل نتيجة الفحص، أرفق صور المعدة أثناء الفحص، ووقّع إلكترونيًا داخل النموذج.",includeForm?`أكمل النموذج الرسمي: ${formIndex[formId].title||formId}.`:"",(fd.note||"").trim()].filter(Boolean).join(" ");
-    const data={assignee:worker.id,title,items,kind:items.length>1?"multi":"eq",eqId:id,form:"",place:q.place||"",due:fd.due||today(),note,needSign:true,status:"open",createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()};let taskId="";
+    const rv=(fd.reviewTo||"").trim(),rp=rv?inspectionApproverProfiles({excludeSelf:false}).find(p=>p.id===rv):null;
+    if(rv&&!rp)return "المعتمد المختار غير متاح";
+    if(rp&&rp.id===worker.id&&(S.profiles||[]).some(p=>p.emp_id===worker.id&&p.id===rp.id))return "الفاحص ما ينفعش يكون هو المعتمد";
+    const data={assignee:worker.id,reviewTo:rp?rp.id:"",reviewToName:rp?profName(rp):"",title,items,kind:items.length>1?"multi":"eq",eqId:id,form:"",place:q.place||"",due:fd.due||today(),note,needSign:true,status:"open",createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()};let taskId="";
     const ok=await write(async()=>{const ref=await db.collection("tasks").add(data);taskId=ref.id},"اتبعت مهمة الفحص");if(!ok)return "إرسال المهمة فشل";
     const recipients=(S.profiles||[]).filter(p=>p.emp_id===worker.id&&!p.disabled).map(p=>p.id);
     if(recipients.length)await notifyUsers(recipients,`📋 فحص مطلوب: ${title}`,`${q.place?`المكان: ${q.place} · `:""}${data.due?`آخر موعد ${fmtDate(data.due)} · `:""}المهمة تشمل نموذج الفحص والصور والتوقيع الإلكتروني.`, `?go=task&id=${encodeURIComponent(taskId)}`);
@@ -2600,7 +2604,7 @@ function eqInspect(id){
       <div class="chips" id="eqInspDec">${Object.entries(INSP_DECIDE).map(([k,v])=>`<button type="button" class="chipbtn" data-eqid="${k}" aria-pressed="${k==="pass"}">${esc(v.ar)}${v.tag?" "+v.tag:""}</button>`).join("")}</div>
       <input type="hidden" name="decision" id="eqInspDecVal" value="pass">
     </div>
-    ${f("المعتمد (مشرف أو أدمن بالاسم)","reviewTo",{opts:[["","— اختار الشخص الذي سيعتمد الفحص —"],...approvers.map(p=>[p.id,eqApproverLabel(p)])],req:true,full:true})}
+    ${f("المعتمد (مشرف أو أدمن بالاسم)","reviewTo",{value:(approvers.some(p=>p.id===taskPreApprover())?taskPreApprover():""),opts:[["","— اختار الشخص الذي سيعتمد الفحص —"],...approvers.map(p=>[p.id,eqApproverLabel(p)])],req:true,full:true})}
      ${f("موعد الفحص الدوري القادم","next",{type:"date",value:addMonths(today(),1)})}${q.kind==="tower"?f("موعد الفحص الشامل حسب الشهادة","certDue",{type:"date",value:q.certDue||""}):""}${f("ملاحظات","notes",{full:true})}</div>${assetsNS?`<div class="field full" style="margin-top:10px"><label for="eqInspectionPhotos">📷 صور الفحص (حد أقصى 6 صور)</label><input type="file" id="eqInspectionPhotos" accept="image/*" multiple><div id="eqInspectionPhotoNames" class="muted" style="font-size:12.5px;margin-top:5px">اختار صورًا من الموقع أو التقطها بالكاميرا.</div></div>`:`<div class="banner" style="margin-top:10px">رفع الصور غير متاح حاليًا. حدّث الصفحة وحاول مرة أخرى.</div>`}<div class="field full" style="margin-top:10px"><label>التوقيع الحي للقائم بالفحص — مطلوب</label><div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="eqSigCanvas" width="900" height="260" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div><button type="button" class="btn sm" id="eqSigClear" style="margin-top:8px">مسح التوقيع</button><div class="muted" style="font-size:12px;margin-top:6px">وقّع بالإصبع أو بالماوس قبل حفظ الفحص.</div></div>${empDatalist2()}
     ${hist.length?`<h3 style="margin-top:16px">الفحوصات اللي فاتت</h3><div class="list">${hist.map(h=>`<div class="li"><div class="grow"><div class="t">${fmtDate(h.date)} · ${esc(h.by||"")}</div><div class="s">${K.checks.map(([k,l])=>`${l}: ${h.res?.[k]==="nok"?"غير صالح":"صالح"}`).join(" · ")}${h.notes?" · "+esc(h.notes):""}</div>${h.photos?.length?`<div style="margin-top:7px">${thumbs(h.photos.slice(0,4),48)}</div>`:""}</div>${h.sigImg?`<img src="${esc(h.sigImg)}" alt="توقيع الفاحص" title="توقيع الفاحص" style="height:36px;max-width:95px;object-fit:contain;background:#fff;border-radius:5px">`:""}</div>`).join("")}</div>`:""}`,async(fd,form)=>{
     const res={};for(const [k] of K.checks)res[k]=form.querySelector(`[name="c_${k}"]:checked`)?.value||"ok";
@@ -6991,6 +6995,7 @@ VIEWS.inspection={
       ${periodBarHTML("insp",shown.length)}
       <div class="chips" aria-label="تصفية الفحوصات" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"><button type="button" class="chipbtn" data-insp-filter="all" aria-pressed="${(ui.inspFilter||"all")==="all"}">الكل (${total})</button><button type="button" class="chipbtn" data-insp-filter="today" aria-pressed="${ui.inspFilter==="today"}">فحص النهارده (${today_n})</button><button type="button" class="chipbtn" data-insp-filter="rejected" aria-pressed="${ui.inspFilter==="rejected"}">مرفوض (${bad})</button><button type="button" class="chipbtn" data-insp-filter="pending" aria-pressed="${ui.inspFilter==="pending"}">بانتظار الاعتماد (${pendingN})</button><button type="button" class="chipbtn" data-insp-filter="duplicates" aria-pressed="${ui.inspFilter==="duplicates"}">نسخ مكررة (${dupN})</button></div>
       <div class="filters" style="margin-bottom:12px"><input type="search" id="inspSearchQ" placeholder="ابحث بنوع المعدة أو المشروع أو الفاحص أو الكود…" value="${esc(ui.inspQ||"")}" style="flex:1;min-width:220px"><span class="muted" id="inspCount">${shown.length} نتيجة</span></div>
+      <div id="inspBulk">${inspBulkBar(shown)}</div>
       <div id="inspResults">${shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("مفيش نتائج في التصفية دي","اختار تصنيف تاني أو امسح البحث لعرض سجلات أخرى.")}</div>`}</div>
     `;
     const sq=$("inspSearchQ");if(sq)sq.oninput=()=>{ui.inspQ=sq.value;refreshInspSearch()};
@@ -7004,6 +7009,7 @@ function refreshInspSearch(){
     const groups=inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||""));
   const shown=groups.filter(g=>(!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q))&&inspFilterMatch(g)&&periodMatch("insp",g.record.date));
   const results=$("inspResults");
+  const bk=$("inspBulk");if(bk)bk.innerHTML=inspBulkBar(shown);
   const countEl=$("inspCount");
   if(results)results.innerHTML=shown.length?`<div class="list">${shown.map(g=>inspRow(g.record,g.items)).join("")}</div>`:`<div class="card">${emptyState("مفيش نتائج في التصفية دي","اختار تصنيف تاني أو امسح البحث لعرض سجلات أخرى.")}</div>`;
   if(countEl)countEl.textContent=shown.length+" نتيجة";
@@ -7016,7 +7022,9 @@ function inspRow(x,copies=[x],compact=false){
   const approval=x.review?.status==="approved"?`✔ اعتمده ${esc(x.review.name||x.inspector2||"المشرف")}`:x.reviewRequired?`⏳ بانتظار ${esc(x.reviewToName||"المعتمد المختار")}`:"";
   const periodicEq=(S.equipment||[]).find(q=>q.active!==false&&[q.code,q.serial].some(v=>inspCodeKey(v)===inspCodeKey(x.code))&&inspEquipTypeOk(q,x.equipType));
   const linked=!!periodicEq&&(periodicEq.insp||[]).some(h=>h.sourceInspectionId===x.id);
+  const gids=copies.map(y=>y.id).join(",");
   return `<div class="li" style="flex-wrap:wrap">
+    ${canDelete&&!compact?`<input type="checkbox" class="inspSelBox" aria-label="تحديد للمسح" ${(ui.inspSel||{})[x.id]?"checked":""} onchange="inspSelToggle('${x.id}',this.checked,'${gids}')" style="width:20px;height:20px;flex:none">`:""}
     <div class="grow">
       <div class="t" style="display:flex;align-items:center;gap:8px">
         <span style="font-weight:700">${esc(x.equipType||"معدة")}</span>
@@ -7040,6 +7048,28 @@ function inspRow(x,copies=[x],compact=false){
   </div>`;
 }
 
+/* ===== تحديد جماعي للمسح في صفحة فحوصات المعدات ===== */
+function inspShownGroups(){
+  const q=normName(ui.inspQ||"");
+  return inspectionDailyGroups(S.inspections||[]).sort((a,b)=>(b.record.date||"").localeCompare(a.record.date||"")).filter(g=>(!q||normName([g.record.equipType,g.record.project,g.record.code,g.record.inspector1,g.record.reviewToName,g.record.inspector2,g.record.status].join(" ")).includes(q))&&inspFilterMatch(g)&&periodMatch("insp",g.record.date));
+}
+function inspBulkBar(shown){
+  if(!canDelete||!shown||!shown.length)return "";
+  const n=Object.keys(ui.inspSel||{}).length;
+  return `<div class="card" style="padding:9px 12px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center"><b style="font-size:13px">☑ تحديد جماعي</b><button type="button" class="btn sm" onclick="inspSelAll()">تحديد كل المعروض (${shown.length})</button><button type="button" class="btn ghost sm" onclick="inspSelNone()" ${n?"":"disabled"}>إلغاء التحديد</button><button type="button" class="btn sm danger" onclick="inspBulkDel()" ${n?"":"disabled"}>🗑 مسح المحدد (${n})</button></div>`;
+}
+function inspSelToggle(id,on,ids){ui.inspSel=ui.inspSel||{};if(on)ui.inspSel[id]=String(ids||id).split(",");else delete ui.inspSel[id];const bk=$("inspBulk");if(bk)bk.innerHTML=inspBulkBar(inspShownGroups())}
+function inspSelAll(){ui.inspSel={};for(const g of inspShownGroups())ui.inspSel[g.record.id]=(g.items||[g.record]).map(y=>y.id);refreshInspSearch()}
+function inspSelNone(){ui.inspSel={};refreshInspSearch()}
+function inspBulkDel(){
+  if(!canDelete){toast("مالكش صلاحية المسح");return}
+  const sel=ui.inspSel||{},ids=[...new Set(Object.values(sel).flat())];
+  if(!ids.length){toast("حدد فحوصات الأول");return}
+  confirmSheet("مسح الفحوصات المحددة",`هيتمسح ${Object.keys(sel).length} فحص (${ids.length} سجل بالنسخ المتكررة) نهائيًا ومش هيتراجع. متأكد؟`,async()=>{
+    const ok=await write(async()=>{for(const id of ids)await db.collection("inspections").doc(id).delete()},`اتمسح ${Object.keys(sel).length} فحص ✔`);
+    if(ok){ui.inspSel={};setTimeout(()=>{try{VIEWS.inspection.fill()}catch(e){}},300)}
+  },"مسح المحدد");
+}
 function inspDuplicateCopies(encoded){let ids=[];try{ids=JSON.parse(decodeURIComponent(encoded))}catch{}const items=ids.map(id=>(S.inspections||[]).find(x=>x.id===id)).filter(Boolean);if(!items.length)return;openSheet("السجلات المحفوظة المتكررة",`<div class="banner">عُرضت هذه النسخ كسجل واحد لتسهيل المتابعة. لم تُحذف أي بيانات.</div><div class="list">${items.map(x=>inspRow(x,[x],true)).join("")}</div>`,async()=>null,"إغلاق")}
 /* أصل نماذج الفحص: صفحة ثابتة فيها كل نماذج الشركة الفارغة للمعاينة والطباعة */
 function inspLibraryHTML(){
@@ -7194,7 +7224,7 @@ function inspForm(equipType,existingId){
         <input type="hidden" name="decision" id="inspDecision" value="${existing?inspDecisionOf(existing):""}">
       </div>
       ${f("مسئول السلامة القائم بالفحص","inspector1Id",{value:selfId,opts:inspectorOpts,req:true})}
-      ${f("المعتمد (مشرف أو أدمن بالاسم)","reviewTo",{value:existing?.reviewTo||"",opts:[["","— اختار الشخص الذي سيعتمد الفحص —"],...approvers.map(p=>[p.id,`${profName(p)} · ${{admin:"أدمن",hse:"مسؤول السلامة",hsesup:"مشرف السلامة"}[p.role]||"معتمد"}`])],req:true})}
+      ${f("المعتمد (مشرف أو أدمن بالاسم)","reviewTo",{value:existing?.reviewTo||(approvers.some(p=>p.id===taskPreApprover())?taskPreApprover():""),opts:[["","— اختار الشخص الذي سيعتمد الفحص —"],...approvers.map(p=>[p.id,`${profName(p)} · ${{admin:"أدمن",hse:"مسؤول السلامة",hsesup:"مشرف السلامة"}[p.role]||"معتمد"}`])],req:true})}
     </div>
     <div style="margin:10px 0 6px"><b>توقيع الفاحص (مطلوب)</b></div>
     <div style="border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;overflow:hidden"><canvas id="inspSig1Canvas" width="900" height="220" style="width:100%;height:auto;display:block;cursor:crosshair"></canvas></div>
