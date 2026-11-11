@@ -2046,7 +2046,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.1.8";
+const APP_VER="6.1.9";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5368,6 +5368,7 @@ function mrForm(id,preset){
   if(!lines.length)lines=[{}];
   const lineHTML=(l,i)=>`<tr><td><input name="ln${i}_name" list="itemList" autocomplete="off" value="${esc(l.name||"")}" placeholder="اسم الصنف أو كوده"></td><td><input class="mini" inputmode="decimal" name="ln${i}_qty" value="${esc(l.qty||"")}"></td><td><input class="mini" name="ln${i}_unit" value="${esc(l.unit||"")}" placeholder="قطعة"></td><td><input name="ln${i}_spec" value="${esc(l.spec||"")}" placeholder="المواصفات (اختياري)"></td><td><button type="button" class="btn ghost sm" data-rm="${i}" aria-label="شيل">✕</button></td></tr>`;
   openSheet(id?`تعديل طلب MR-${r.serial}`:"طلب احتياج مهمات وخامات",`<div class="form">
+    ${f("رقم الطلب (MR-)","serial",{value:String(id?r.serial:nextMR()),attrs:'inputmode="numeric" autocomplete="off" placeholder="مثلاً 5"',req:true})}
     ${f("نوع الطلب","kind",{value:r.kind,opts:Object.entries(MR_KIND)})}${f("التاريخ","date",{type:"date",value:r.date||today()})}
     ${f("نوع التوريدات","supplyType",{value:r.supplyType||"cons",opts:MR_SUPPLY})}${f("تاريخ التوريد المطلوب","needDate",{type:"date",value:r.needDate||""})}
     ${f("الموقع / مكان الاستخدام","site",{value:r.site||"",attrs:'placeholder="مثلاً: عمارة 7 / فريق السقالات"'})}${f("الأولوية","urgent",{value:r.urgent?"1":"0",opts:[["0","عادي"],["1","عاجل"]]})}
@@ -5376,9 +5377,11 @@ function mrForm(id,preset){
   async(fd,form)=>{
     const L=[];for(let i=0;i<200;i++){if(fd[`ln${i}_name`]===undefined)continue;const nm=fd[`ln${i}_name`].trim();if(!nm)continue;const it=resolveItem(nm);const q=num(fd[`ln${i}_qty`]);if(q<=0)return `اكتب كمية «${nm}»`;L.push({itemId:it?.id||"",name:it?.name||nm,code:it?.code||"",unit:(fd[`ln${i}_unit`]||it?.unit||"").trim(),spec:(fd[`ln${i}_spec`]||"").trim(),qty:q})}
     if(!L.length)return "اكتب صنف واحد على الأقل";
-    const data={kind:fd.kind,supplyType:fd.supplyType||"cons",needDate:fd.needDate||"",date:fd.date||today(),site:(fd.site||"").trim(),urgent:fd.urgent==="1",note:(fd.note||"").trim(),lines:L,updatedAt:Date.now()};
+    const sn=parseInt(String(fd.serial||"").replace(/\D/g,""),10);if(!sn||sn<1)return "اكتب رقم الطلب (أرقام فقط)";
+    if(S.matreq.some(x=>x.id!==id&&num(x.serial)===sn))return `الرقم MR-${sn} مستخدم في طلب تاني، اختار رقم مختلف`;
+    const data={serial:sn,kind:fd.kind,supplyType:fd.supplyType||"cons",needDate:fd.needDate||"",date:fd.date||today(),site:(fd.site||"").trim(),urgent:fd.urgent==="1",note:(fd.note||"").trim(),lines:L,updatedAt:Date.now()};
     if(id){const ok=await write(()=>upsert("matreq",id,data),"اتحفظ");return ok?null:"الحفظ فشل"}
-    Object.assign(data,{serial:nextMR(),status:"new",reqName:myEmpName(),reqEmpId:myEmpId()||"",createdBy:ME.id,createdAt:Date.now()});
+    Object.assign(data,{status:"new",reqName:myEmpName(),reqEmpId:myEmpId()||"",createdBy:ME.id,createdAt:Date.now()});
     const ok=await write(()=>db.collection("matreq").add(data),`اتبعت الطلب MR-${data.serial}`);
     if(ok&&!mrCanApprove())setTimeout(()=>notifySheet("بلّغ السلامة بالطلب",hseProfiles().map(s=>({name:profName(s),phone:emp(s.emp_id)?.phone})),`📦 طلب احتياج مهمات MR-${data.serial} من ${data.reqName}\n${data.lines.map(l=>`- ${l.name} × ${l.qty} ${l.unit}`).join("\n")}\n\nافتح المنظومة: ${appUrl()}`),400);
     return ok?null:"الحفظ فشل"},id?"حفظ":"إرسال الطلب");
