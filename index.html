@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 </head><body>
-<script>try{const hseTheme=localStorage.getItem("hse.theme")||"green";document.documentElement.dataset.theme=["dark","navy","light","green"].includes(hseTheme)?hseTheme:"green"}catch(e){document.documentElement.dataset.theme="green"}document.documentElement.style.colorScheme=document.documentElement.dataset.theme==="light"?"light":"dark";const themeMeta=document.querySelector('meta[name="theme-color"]');if(themeMeta)themeMeta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22"})[document.documentElement.dataset.theme]</script>
+<script>try{const hseTheme=localStorage.getItem("hse.theme")||"green";document.documentElement.dataset.theme=["dark","navy","light","green","ocean","sand"].includes(hseTheme)?hseTheme:"green"}catch(e){document.documentElement.dataset.theme="green"}document.documentElement.style.colorScheme=["light","sand"].includes(document.documentElement.dataset.theme)?"light":"dark";try{document.documentElement.dataset.fx=localStorage.getItem("hse.fx")==="flat"?"flat":"3d"}catch(e){document.documentElement.dataset.fx="3d"}const themeMeta=document.querySelector('meta[name="theme-color"]');if(themeMeta)themeMeta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8"})[document.documentElement.dataset.theme]</script>
 <style>
 html,body{margin:0}
 /* Layout: sticky header + tab rail, one working surface per tab; tables scroll inside their own box */
@@ -505,6 +505,55 @@ nav.tabs button[aria-selected="true"]{background:linear-gradient(180deg,var(--su
 .btn.ghost>svg.ic{width:18px;height:18px;stroke-width:1.8}
 h1>svg.ic,h2>svg.ic,h3>svg.ic,h4>svg.ic,span.grow>svg.ic,nav.tabs button>svg.ic{width:1.05em;height:1.05em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.15em;margin-left:.3em;opacity:.95}
 nav.tabs button>svg.ic{width:16px;height:16px;vertical-align:-.2em}
+
+/* ===== v7: نمط ثلاثي الأبعاد (html[data-fx="3d"]) + ثيمات جديدة — شكل فقط ===== */
+:root[data-theme="ocean"]{
+  --bg:#06141C;--surface:#0D2230;--sunk:#143246;--ink:#E6F4FA;--muted:#9CBBCB;--line:#244A60;
+  --accent:#2EC4D6;--accent-ink:#031A20;--accent-soft:#0F3A47;--ok:#4FD39A;--ok-soft:#103A30;--warn:#F0BF5A;--warn-soft:#3A3016;--bad:#FF8479;--bad-soft:#3E2124;--info:#7FC4F5;--info-soft:#16324A;
+  --t-hot:#FF9668;--t-cold:#79B5FF;--t-height:#F0BF5A;--t-lift:#BFA3F0;--t-conf:#4FD5C1;--t-elec:#F28EB1;--t-exc:#D4C5A6;
+  color-scheme:dark;--d-lift:0 1px 0 rgba(255,255,255,.07) inset,0 2px 5px rgba(0,0,0,.4);--d-lift-h:0 1px 0 rgba(255,255,255,.1) inset,0 8px 20px rgba(0,0,0,.4);--d-press:0 2px 5px rgba(0,0,0,.5) inset;--d-card:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px rgba(0,0,0,.35)}
+:root[data-theme="sand"]{
+  --bg:#F4EEE3;--surface:#FFFDF8;--sunk:#EAE1D0;--ink:#2A2219;--muted:#7A6B58;--line:#DCCFB8;
+  --accent:#B4531A;--accent-ink:#FFFFFF;--accent-soft:#F8E1CF;--ok:#2F7D4F;--ok-soft:#E0F0E4;--warn:#9A6200;--warn-soft:#FBEBC8;--bad:#B3261E;--bad-soft:#F9DDD9;--info:#2A6296;--info-soft:#DFEAF5;
+  color-scheme:light}
+:root[data-theme="ocean"],:root[data-theme="green"],:root[data-theme="dark"],:root[data-theme="navy"]{--sheen:linear-gradient(180deg,color-mix(in srgb,var(--surface) 93%,#fff) 0%,var(--surface) 55%)}
+:root{--edge:color-mix(in srgb,#000 24%,var(--line));--depth:0 1px 0 rgba(255,255,255,.35) inset,0 -2px 0 rgba(0,0,0,.08) inset}
+html[data-fx="3d"] body{background-image:radial-gradient(120% 60% at 50% -10%,color-mix(in srgb,var(--accent) 9%,transparent),transparent 70%);background-attachment:fixed}
+/* أزرار بارزة "كيبورد": حافة سفلية سميكة + ضغط حقيقي */
+html[data-fx="3d"] .btn:not(.ghost){border-bottom-width:3px;border-bottom-color:var(--edge);box-shadow:var(--depth),0 6px 12px -6px rgba(0,0,0,.35);transform:translateY(0);transition:transform .08s ease,box-shadow .12s ease,border-bottom-width .08s ease}
+html[data-fx="3d"] .btn.primary:not(.ghost){border-bottom-color:color-mix(in srgb,#000 38%,var(--accent))}
+html[data-fx="3d"] .btn.danger:not(.ghost){border-bottom-color:color-mix(in srgb,#000 38%,var(--bad))}
+html[data-fx="3d"] .btn.sign:not(.ghost){border-bottom-color:#0f2744}
+@media (hover:hover){html[data-fx="3d"] .btn:not(.ghost):hover:not(:disabled){transform:translateY(-2px);box-shadow:var(--depth),0 10px 18px -8px rgba(0,0,0,.45)}}
+html[data-fx="3d"] .btn:not(.ghost):active:not(:disabled){transform:translateY(2px);border-bottom-width:1px;margin-bottom:2px;box-shadow:var(--d-press)}
+/* كروت وبلاطات: طبقات عمق + حافة سفلية */
+html[data-fx="3d"] .card{border-bottom:3px solid var(--edge);box-shadow:var(--depth),0 1px 2px rgba(0,0,0,.08),0 18px 30px -18px rgba(0,0,0,.45);background-image:var(--sheen)}
+html[data-fx="3d"] .tile{border-bottom:4px solid var(--edge);box-shadow:var(--depth),0 14px 22px -14px rgba(0,0,0,.5);transform-style:preserve-3d;transition:transform .15s ease,box-shadow .2s ease}
+html[data-fx="3d"] .tile .val{text-shadow:0 2px 0 color-mix(in srgb,#000 12%,transparent),0 6px 10px rgba(0,0,0,.18)}
+html[data-fx="3d"] .tile[aria-pressed="true"]{transform:translateY(2px);border-bottom-width:2px}
+html[data-fx="3d"] .pill,html[data-fx="3d"] .chipbtn{box-shadow:var(--depth),0 2px 0 var(--edge)}
+html[data-fx="3d"] .chipbtn[aria-pressed="true"]{transform:translateY(1px);box-shadow:var(--d-press)}
+/* حقول مجوّفة */
+html[data-fx="3d"] input,html[data-fx="3d"] select,html[data-fx="3d"] textarea{box-shadow:0 2px 5px rgba(0,0,0,.14) inset,0 1px 0 rgba(255,255,255,.18)}
+html[data-fx="3d"] input:focus-visible,html[data-fx="3d"] select:focus-visible,html[data-fx="3d"] textarea:focus-visible{box-shadow:0 2px 5px rgba(0,0,0,.14) inset,0 0 0 3px var(--glow)}
+/* الهيدر والتبويبات */
+html[data-fx="3d"] header{box-shadow:0 10px 24px -14px rgba(0,0,0,.55)}
+html[data-fx="3d"] nav.tabs button[aria-selected="true"]{box-shadow:0 -3px 0 var(--accent) inset,0 8px 14px -10px rgba(0,0,0,.5)}
+html[data-fx="3d"] .mark{box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 6px 12px -4px rgba(0,0,0,.5);transform:perspective(300px) rotateX(8deg) rotateY(-8deg)}
+/* الشاشات المنزلقة: دخول بعمق */
+html[data-fx="3d"] .sheet{box-shadow:0 0 0 1px var(--line),-24px 0 60px -10px rgba(0,0,0,.55);animation:fx3dIn .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes fx3dIn{from{opacity:.4;transform:perspective(900px) translateX(-40px) rotateY(8deg)}to{opacity:1;transform:none}}
+/* شريط التنقل السفلي (موبايل): كبسولة عائمة */
+@media (max-width:760px){
+  html[data-fx="3d"] #bnav{inset:auto 10px calc(8px + env(safe-area-inset-bottom,0px)) 10px;border:1px solid var(--line);border-bottom:4px solid var(--edge);border-radius:22px;box-shadow:0 18px 30px -12px rgba(0,0,0,.6),var(--depth);background-image:var(--sheen)}
+  html[data-fx="3d"] #bnav button[aria-current="true"]{box-shadow:0 3px 0 var(--accent),0 8px 14px -6px rgba(0,0,0,.5);transform:translateY(-3px)}
+  html[data-fx="3d"] .card{box-shadow:var(--depth),0 12px 20px -14px rgba(0,0,0,.45)}
+  html[data-fx="3d"] main,html[data-fx="3d"] #app{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+}
+/* الكمبيوتر: ميل خفيف بالماوس على البلاطات */
+@media (hover:hover) and (pointer:fine){html[data-fx="3d"] .tile{will-change:transform}}
+@media (prefers-reduced-motion:reduce){html[data-fx="3d"] .sheet{animation:none}html[data-fx="3d"] .tile,html[data-fx="3d"] .mark{transform:none!important}}
+@media print{html[data-fx="3d"] *{box-shadow:none!important;transform:none!important}}
 
 /* ===== printable documents (A4) ===== */
 .dpage{display:flex;flex-direction:column;width:210mm;height:297mm;box-sizing:border-box;padding:8mm;background:#fff;color:#000;font-family:"IBM Plex Sans Arabic",Arial,sans-serif;font-size:10.5pt;line-height:1.45;direction:rtl;overflow:hidden;page-break-after:always;break-after:page}
@@ -1560,12 +1609,17 @@ async function sendInvite(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn primary" href="${href}" target="_blank" rel="noopener" style="background:#25D366;border-color:#25D366;text-decoration:none">📲 فتح واتساب وإرسال</a><button type="button" class="btn" onclick="copyText(document.getElementById('invMsg').innerText)">نسخ الرسالة</button><button type="button" class="btn ghost" onclick="newPin('${uid}')">كلمة سر جديدة</button></div>`,async()=>null,"تم")}
 async function newPin(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const pin=genPin();
   try{await SBA.fn("reset",{user_id:uid,password:pin});await savePin(uid,{pin,username:p.username});toast("اتعملت كلمة سر جديدة");setTimeout(()=>sendInvite(uid),300)}catch(e){toast(SBA.ar(e))}}
-const HSE_THEMES=[{id:"navy",name:"كحلي مؤسسي",palette:["#0B1220","#17385F","#69A9F5","#F59A23"]},{id:"light",name:"فاتح نظيف",palette:["#F3F6FA","#FFFFFF","#168A59","#F4AE30"]},{id:"green",name:"أخضر ميداني",palette:["#032F22","#06462F","#B8F23C","#E8FFB9"]},{id:"dark",name:"عالي التباين",palette:["#171C22","#303840","#F59A23","#42C77A"]}];
+const HSE_THEMES=[{id:"navy",name:"كحلي مؤسسي",palette:["#0B1220","#17385F","#69A9F5","#F59A23"]},{id:"light",name:"فاتح نظيف",palette:["#F3F6FA","#FFFFFF","#168A59","#F4AE30"]},{id:"green",name:"أخضر ميداني",palette:["#032F22","#06462F","#B8F23C","#E8FFB9"]},{id:"dark",name:"عالي التباين",palette:["#171C22","#303840","#F59A23","#42C77A"]},{id:"ocean",name:"محيطي",palette:["#06141C","#0D2230","#2EC4D6","#F0BF5A"]},{id:"sand",name:"رملي دافئ",palette:["#F4EEE3","#FFFDF8","#B4531A","#2F7D4F"]}];
 const HSE_MOBILE_LAYOUTS=[{id:"field",name:"ميداني سريع",desc:"الإجراءات والحضور أولًا"},{id:"operations",name:"مركز العمليات",desc:"التنبيهات والإجراءات حسب الأولوية"},{id:"tasks",name:"لوحة المهام",desc:"مهامك وتقدم الفحوص أولًا"}];
 function mobileLayout(){try{const id=localStorage.getItem("hse.mobileLayout");return HSE_MOBILE_LAYOUTS.some(x=>x.id===id)?id:"field"}catch(e){return "field"}}
 function setMobileLayout(layout){if(!HSE_MOBILE_LAYOUTS.some(x=>x.id===layout))return;try{localStorage.setItem("hse.mobileLayout",layout)}catch(e){};const root=$("homeDashboard");if(root)root.dataset.mobileLayout=layout;document.querySelectorAll("[data-mobile-layout-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mobileLayoutChoice===layout)))}
-function setTheme(theme){if(!HSE_THEMES.some(x=>x.id===theme))return;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme==="light"?"light":"dark";try{localStorage.setItem("hse.theme",theme)}catch(e){};const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22"})[theme];document.querySelectorAll("[data-theme-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.themeChoice===theme)))}
-function meMenuBase(){const activeTheme=document.documentElement.dataset.theme||"green",activeLayout=mobileLayout();const themePanel=`<section class="theme-setting"><b>🎨 ألوان التطبيق</b><div class="muted" style="font-size:12px;margin-top:2px">اختار الثيم المناسب؛ اختيارك محفوظ على هذا الجهاز.</div><div class="theme-options">${HSE_THEMES.map(t=>`<button type="button" class="theme-opt" data-theme-choice="${t.id}" aria-pressed="${t.id===activeTheme}" onclick="setTheme('${t.id}')"><span class="theme-swatches" aria-hidden="true">${t.palette.map(c=>`<i class="theme-dot" style="background:${c}"></i>`).join("")}</span><span>${t.name}</span></button>`).join("")}</div></section>`,layoutPanel=`<section class="theme-setting"><b>📱 تخطيط الشاشة الرئيسية للموبايل</b><div class="muted" style="font-size:12px;margin-top:2px">٣ تخطيطات مستقلة عن الثيمات الأربعة، وتعمل على شاشة الموبايل فقط.</div><div class="theme-options" style="grid-template-columns:1fr">${HSE_MOBILE_LAYOUTS.map(x=>`<button type="button" class="theme-opt" style="justify-content:flex-start;text-align:right" data-mobile-layout-choice="${x.id}" aria-pressed="${x.id===activeLayout}" onclick="setMobileLayout('${x.id}')"><span><b>${x.name}</b><small class="muted" style="display:block;font-size:11px">${x.desc}</small></span></button>`).join("")}</div></section>`;openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p>${themePanel}${layoutPanel}<div class="form" style="margin-top:14px">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
+function fxMode(){return document.documentElement.dataset.fx==="flat"?"flat":"3d"}
+function setFx(m){document.documentElement.dataset.fx=m==="flat"?"flat":"3d";try{localStorage.setItem("hse.fx",m==="flat"?"flat":"3d")}catch(e){};document.querySelectorAll("[data-fx-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.fxChoice===fxMode())))}
+(function(){if(!matchMedia("(hover:hover) and (pointer:fine)").matches||matchMedia("(prefers-reduced-motion:reduce)").matches)return;let el=null;
+document.addEventListener("pointermove",e=>{if(fxMode()!=="3d")return;const t=e.target.closest&&e.target.closest(".tile");if(el&&el!==t){el.style.transform="";el=null}if(!t||t.getAttribute("aria-pressed")==="true")return;el=t;const r=t.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;t.style.transform=`perspective(700px) rotateX(${(-y*7).toFixed(2)}deg) rotateY(${(x*7).toFixed(2)}deg) translateZ(0)`},{passive:true});
+document.addEventListener("pointerleave",()=>{if(el){el.style.transform="";el=null}},true)})();
+function setTheme(theme){if(!HSE_THEMES.some(x=>x.id===theme))return;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=["light","sand"].includes(theme)?"light":"dark";try{localStorage.setItem("hse.theme",theme)}catch(e){};const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8"})[theme];document.querySelectorAll("[data-theme-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.themeChoice===theme)))}
+function meMenuBase(){const activeTheme=document.documentElement.dataset.theme||"green",activeLayout=mobileLayout();const themePanel=`<section class="theme-setting"><b>🎨 ألوان التطبيق</b><div class="muted" style="font-size:12px;margin-top:2px">اختار الثيم المناسب؛ اختيارك محفوظ على هذا الجهاز.</div><div class="theme-options">${HSE_THEMES.map(t=>`<button type="button" class="theme-opt" data-theme-choice="${t.id}" aria-pressed="${t.id===activeTheme}" onclick="setTheme('${t.id}')"><span class="theme-swatches" aria-hidden="true">${t.palette.map(c=>`<i class="theme-dot" style="background:${c}"></i>`).join("")}</span><span>${t.name}</span></button>`).join("")}</div></section>`,fxPanel=`<section class="theme-setting"><b>🧊 نمط العرض</b><div class="muted" style="font-size:12px;margin-top:2px">ثلاثي الأبعاد (عمق وأزرار بارزة) أو مسطّح أخف.</div><div class="theme-options">${[["3d","ثلاثي الأبعاد"],["flat","مسطّح"]].map(([id,n])=>`<button type="button" class="theme-opt" data-fx-choice="${id}" aria-pressed="${id===fxMode()}" onclick="setFx('${id}')"><span>${n}</span></button>`).join("")}</div></section>`,layoutPanel=`<section class="theme-setting"><b>📱 تخطيط الشاشة الرئيسية للموبايل</b><div class="muted" style="font-size:12px;margin-top:2px">٣ تخطيطات مستقلة عن الثيمات، وتعمل على شاشة الموبايل فقط.</div><div class="theme-options" style="grid-template-columns:1fr">${HSE_MOBILE_LAYOUTS.map(x=>`<button type="button" class="theme-opt" style="justify-content:flex-start;text-align:right" data-mobile-layout-choice="${x.id}" aria-pressed="${x.id===activeLayout}" onclick="setMobileLayout('${x.id}')"><span><b>${x.name}</b><small class="muted" style="display:block;font-size:11px">${x.desc}</small></span></button>`).join("")}</div></section>`;openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p>${themePanel}${fxPanel}${layoutPanel}<div class="form" style="margin-top:14px">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
   <button type="button" class="btn danger" style="margin-top:14px" onclick="SBA.logout().then(()=>location.reload())">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
 function settleInvites(){}
 // reminders
@@ -2046,7 +2100,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.2.4";
+const APP_VER="7.0.0";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2478,7 +2532,11 @@ function eqQuickView(qid,index){
    ${res.length?`<div class="list" style="margin-top:8px">${res.map(t=>`<div class="li"><div class="grow">${t}</div></div>`).join("")}</div>`:""}
    ${h.notes?`<p style="margin:10px 0 0">${esc(Array.isArray(h.notes)?h.notes.join(" · "):h.notes)}</p>`:""}
    ${photos.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${photos.map(p=>{const id=typeof p==="string"?p:p.a;return id?`<img src="/_blob/${esc(id)}" alt="" style="width:96px;height:96px;object-fit:cover;border-radius:8px">`:""}).join("")}</div>`:""}
-   ${EQ_QUICK_FORM[q.kind]?`<p class="muted" style="font-size:12.5px;margin:10px 0 0">النموذج المقابل: ${EQ_QUICK_FORM[q.kind]}</p>`:""}`,async()=>null,"إغلاق")}
+   ${EQ_QUICK_FORM[q.kind]?`<p class="muted" style="font-size:12.5px;margin:10px 0 0">النموذج المقابل: ${EQ_QUICK_FORM[q.kind]}</p>`:""}
+   ${(()=>{const cards={ext:`<button type="button" class="btn sm primary" onclick="printExtCards(['${esc(qid)}'])">🎫 كارت الطفاية (F-HSE-10-02)</button><button type="button" class="btn sm" onclick="printExtDaily('${esc(qid)}')">🗓 كارت يومي للشهر</button><button type="button" class="btn sm" onclick="printExtList()">📋 حصر الطفايات (10-09)</button>`,firebox:`<button type="button" class="btn sm primary" onclick="printFireboxCards(['${esc(qid)}'])">🎫 كارت الصندوق (F-HSE-10-03)</button>`,emerg:`<button type="button" class="btn sm primary" onclick="printEmergList()">📋 سجل الطوارئ (F-HSE-10-01)</button>`}[q.kind];
+     return cards?`<div class="banner" style="margin-top:12px"><b>الكارت والسجل الرسمي للمعدة دي:</b><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${cards}<button type="button" class="btn ghost sm" onclick="eqFormsSheet('${esc(qid)}')">📄 كل نماذج وسجلات المعدة</button></div></div>`:""})()}
+   ${(()=>{const T=q.inspForm&&INSP_FORMS[q.inspForm]?q.inspForm:Object.keys(INSP_FORMS).find(t=>{try{return inspEquipTypeOk(q,t)}catch(e){return false}})||"";const jt=T.replace(/\\/g,"\\\\").replace(/'/g,"\\'"),jc=String(q.code||q.serial||"").replace(/'/g,"\\'");
+     return T?`<div class="banner" style="margin-top:12px"><b>ده فحص سريع</b> مسجّل بقايمة بنود عامة، مش على نموذج الشركة. نموذج الشركة بتاع النوع ده: <b>${esc(T)}</b>.<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><button type="button" class="btn sm" onclick="eqQuickFormPreview('${esc(qid)}',${index},'${jt}')">📄 عرض النموذج ببيانات الفحص</button><button type="button" class="btn ghost sm" onclick="inspTemplatePreview('${jt}')">نموذج فارغ</button>${canWrite&&inspectionCanInspect()?`<button type="button" class="btn sm primary" onclick="inspPrefillOpen('${jt}','${jc}')">📝 املأ النموذج الرسمي لنفس المعدة</button>`:""}</div></div>`:`${["ext","firebox","emerg"].includes(q.kind)?"":`<p class="muted" style="font-size:12.5px;margin:10px 0 0">مفيش نموذج شركة مسجّل لنوع المعدة ده.</p>`}`})()}`,async()=>null,"إغلاق")}
 /* ===== نماذج فحص المعدة الواحدة: كل النماذج السابقة مع فلتر الفترة ===== */
 function eqInspectionForms(q){
   if(!q)return [];
@@ -3172,6 +3230,8 @@ function kpiSources(empId,month){
   /* الفحص الواحد كان بيتعدّ مرتين: مرة من سجل الفحص المستقل ومرة من نسخته
      المرتبطة بالمعدة في الفحص الدوري. المفتاح ده بيوحّد الاتنين:
      نفس المعدة + نفس اليوم = فحص واحد. */
+  /* الطفايات متتحسبش في KPI المشرف والأوفيسر، وبتتحسب للمراقب */
+  const noExt=(S.profiles||[]).some(p=>p.emp_id===empId&&["hsesup","officer"].includes(p.role));
   const _ik=new Set();
   const inspKeyEq=(q,h)=>{const c=inspCodeKey(q.serial||q.code||"");return c&&h.date?`d:${c}:${h.date}`:(h.sourceInspectionId?`insp:${h.sourceInspectionId}`:`eq:${q.id}:${h.date||""}`)};
   const inspKeyRec=x=>{const c=inspCodeKey(x.code||"");return c&&x.date?`d:${c}:${x.date}`:`insp:${x.id}`};
@@ -3183,9 +3243,9 @@ function kpiSources(empId,month){
     if(r.form==="F-HSE-07-01")addCorrection(r,`F-HSE-07-01 · ${r.f?.desc||"مخالفة"}`,r.f?.action,"","v");
     if(r.form==="F-HSE-03-01")addCorrection(r,`F-HSE-03-01 · ${r.f?.desc||"تقرير حادث"}`,r.f?.corrective||r.f?.immediate,"","c");
     if((r.form==="F-HSE-24-02"&&((by(r,"trainer")&&signedByMe(r))||reviewedBy(r)))||(r.form==="F-HSE-24-01"&&((by(r,"lecturer")&&signedByMe(r))||reviewedBy(r))))o.tbt.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.title||r.f?.topic||"محاضرة توعية"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.trainer||r.f?.lecturer||e?.name||""),role:reviewedBy(r)?"المعتمد":"المحاضر"});}
-  for(const q of S.equipment)for(const [hi,h] of (q.insp||[]).entries())if((h.date||"").startsWith(month)&&(((h.by_id===empId||normName(h.by||"")===nm)&&sigOK(h))||(h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId)))addInsp(inspKeyEq(q,h),{type:"equipment",id:q.id,idx:hi,srcId:h.sourceInspectionId||"",date:h.date,label:`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""} · ${eqLabel(q)} · ${q.place||""}`,who:h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId?h.review.name:(h.by||e?.name||""),role:h.review?.status==="approved"&&profOf(h.review.by)?.emp_id===empId?"المعتمد":"الفاحص",status:Object.values(h.res||{}).every(v=>v!=="nok")?"صالح":"غير صالح"});
+  for(const q of S.equipment)if(!(q.kind==="ext"&&noExt))for(const [hi,h] of (q.insp||[]).entries())if((h.date||"").startsWith(month)&&(((h.by_id===empId||normName(h.by||"")===nm)&&sigOK(h))||(h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId)))addInsp(inspKeyEq(q,h),{type:"equipment",id:q.id,idx:hi,srcId:h.sourceInspectionId||"",date:h.date,label:`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""} · ${eqLabel(q)} · ${q.place||""}`,who:h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId?h.review.name:(h.by||e?.name||""),role:h.review?.status==="approved"&&profOf(h.review.by)?.emp_id===empId?"المعتمد":"الفاحص",status:Object.values(h.res||{}).every(v=>v!=="nok")?"صالح":"غير صالح"});
   for(const x of inspectionDailyGroups(S.inspections||[]).map(g=>g.record))if((x.date||"").startsWith(month)){const reviewer=x.review?.status==="approved"&&x.review.signature&&profOf(x.review.by)?.emp_id===empId;const inspector=(x.inspector1Id===empId||(!x.inspector1Id&&x.inspector1&&normName(x.inspector1)===nm))&&sigOK(x);if(inspector||reviewer)addInsp(inspKeyRec(x),{type:"form",id:x.id,date:x.date,label:`F-HSE-18-01 · ${x.equipType||"فحص معدة"} · ${x.project||x.code||""}`,who:reviewer?(x.review.name||x.inspector2||e?.name||""):(x.inspector1||e?.name||""),role:reviewer?"المعتمد":"الفاحص",status:x.status==="fail"?"غير مطابق":x.status==="pass"?"مطابق":x.status==="partial"?"جزئي":"غير مسجل"})}
-  for(const x of (S.fireext||[]))if((x.date||"").startsWith(month)){
+  for(const x of (noExt?[]:(S.fireext||[])))if((x.date||"").startsWith(month)){
     const reviewer=x.review?.status==="approved"&&x.review.signature&&profOf(x.review.by)?.emp_id===empId;
     const inspector=(x.inspectorId===empId||(x.inspector&&normName(x.inspector)===nm))&&(sigOK(x)||Object.values(x.signs||{}).some(g=>g&&g.signature)||(x.rows||[]).some(w=>w&&w.sigImg));
     if(inspector||reviewer)addInsp(`fx:${x.id}`,{type:"form",id:x.id,date:x.date,
@@ -7142,6 +7202,14 @@ window.inspTemplatePreview=async function(t){
   try{let pages=await inspOriginalPages({equipType:t,checks:{},notes_items:{}});if(!pages?.length)pages=await htmlCanvases(inspPrintHTML({equipType:t,checks:{},notes_items:{},status:"",date:"",ownership:"",project:"",code:"",dept:"",failCount:0}));V.setPages(pages);V.note("نموذج فارغ للعرض والطباعة؛ لن تُحفظ فيه أي بيانات.",true)}catch(e){console.error(e);V.fail("معرفتش أفتح النموذج الفارغ.")}
 };
 
+/* عرض نموذج الشركة بخانات الفحص السريع (التاريخ والكود والفاحص والتوقيع). بنود النموذج ما بتتعبّاش لأن الفحص السريع مسجّل ببنود عامة */
+window.eqQuickFormPreview=async function(qid,idx,t){
+  const q=(S.equipment||[]).find(x=>x.id===qid),h=q?.insp?.[idx];if(!q||!h||!INSP_FORMS[t])return;
+  const code=INSP_SPECS?.[t]?.code||"F-HSE-18-01";
+  const rec={equipType:t,code:q.code||q.serial||"",date:h.date||"",project:q.place||"",inspector1:h.by||"",sig1:h.sigImg||"",status:Object.values(h.res||{}).every(v=>v!=="nok")?"pass":"fail",checks:{},notes_items:{},note:Array.isArray(h.notes)?h.notes.join(" · "):(h.notes||""),failCount:0};
+  const V=openViewer("نموذج الفحص — "+t+" · "+rec.code,{filename:`${code} ${t} ${rec.code}.pdf`});
+  try{let pages=await inspOriginalPages(rec);if(!pages?.length)pages=await htmlCanvases(inspPrintHTML(rec));V.setPages(pages);V.note("الفحص ده اتسجّل كفحص سريع: بيانات الرأس والتوقيع متعبّية، لكن بنود النموذج ما اتسجّلتش بند بند. للفحص الكامل استخدم «املأ النموذج الرسمي».",true)}catch(e){console.error(e);V.fail("معرفتش أفتح النموذج.")}
+};
 window.inspPick=function(t){
   if(!INSP_FORMS[t])return;
   if(!inspectionCanInspect()){
