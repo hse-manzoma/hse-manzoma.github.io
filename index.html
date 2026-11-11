@@ -2046,7 +2046,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="6.1.9";
+const APP_VER="6.2.0";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5401,33 +5401,36 @@ function mrIssue(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;
       await upsert("matreq",id,{status:"issued",issuedAt:fd.date||today(),issueRef:(fd.ref||"").trim(),issueNote:(fd.note||"").trim(),issuedBy:myEmpName()})},"اتسجل ✔");return ok?null:"الحفظ فشل"},"تأكيد")}
 function mrDel(id){confirmSheet("مسح الطلب","الطلب هيتمسح نهائياً.",()=>write(()=>remove("matreq",id),"اتمسح"))}
 async function mrView(id){const r=S.matreq.find(x=>x.id===id);if(!r)return;await sigData();const E=estab();const sig=await sigBox(r.approved);const personalSig=await mySig();
-  const rows=[...(r.lines||[])];while(rows.length<12)rows.push(null);
+  const rows=[...(r.lines||[])].slice(0,12);
   const bal=l=>{try{return l&&l.itemId?balance(l.itemId):""}catch(e){return ""}};
-  const dept=esc(S.settings.deptName||"السلامة والصحة المهنية");
-  const cb=(on,t)=>`<span style="margin-inline-start:6mm;white-space:nowrap">${on?"☒":"☐"} ${t}</span>`;
-  const st=r.status,apOn=st==="approved"||st==="issued",apName=apOn?esc(r.approved?.name||r.apName||""):"";
-  const dFmt=d=>d?fmtDate(d):"&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;/";
-  const apDate=apOn&&r.apAt?fmtDate(new Date(r.apAt).toISOString().slice(0,10)):"";
+  const st=r.status,apOn=st==="approved"||st==="issued";
+  const PW=841.92,PH=595.32,K=.36;   /* الصفحة الأصلية 841.92×595.32 نقطة، والإحداثيات من رسم 200dpi */
+  const T=(x0,y0,x1,y1,h,fs=9,al="center",ex="")=>`<div style="position:absolute;left:${(x0*K/PW*100).toFixed(3)}%;top:${(y0*K/PH*100).toFixed(3)}%;width:${((x1-x0)*K/PW*100).toFixed(3)}%;height:${((y1-y0)*K/PH*100).toFixed(3)}%;display:flex;align-items:center;justify-content:${al};font-size:${fs}pt;line-height:1.05;overflow:hidden;direction:rtl;text-align:center;padding:0 .6mm;${ex}"><span style="max-width:100%;unicode-bidi:plaintext">${h}</span></div>`;
+  const tick=(x,y)=>`<div style="position:absolute;left:${(x/PW*100).toFixed(3)}%;top:${(y/PH*100).toFixed(3)}%;width:${(11/PW*100).toFixed(3)}%;height:${(13.3/PH*100).toFixed(3)}%;display:flex;align-items:center;justify-content:center;font-size:11pt;font-weight:900">✔</div>`;
+  const fit=t=>{t=String(t||"");return t.length<=16?9:t.length<=34?7.5:6.3};
+  const dp=d=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(d||""));return m?{d:m[3],m:m[2],y:m[1]}:null};
+  const rowY=[532,589,645,702,758,815,872,929,985,1042,1098,1155,1211];
+  let o="";
+  /* رأس النموذج */
+  o+=T(1622,88,1957,146,"<b>MR-"+r.serial+"</b>",11)+T(1622,146,1957,203,esc(S.settings.project||E.siteName||""),9)+T(1622,203,1957,259,esc(S.settings.projectNo||""),9)+T(1622,259,1957,316,fmtDate(r.date),9);
+  const TK={raw:[658.06,117.5],svc:[537.43,117.5],cons:[430.01,117.5],adm:[303.77,117.5]}[r.supplyType||"cons"];if(TK)o+=tick(TK[0],TK[1]);
+  o+=T(145,316,361,373,esc(S.settings.deptCode||""),9);
+  /* بنود الجدول */
+  rows.forEach((l,i)=>{const y0=rowY[i],y1=rowY[i+1];
+    o+=T(1957,y0,2095,y1,esc(l.code||""),8)+T(1745,y0,1957,y1,esc(l.name||""),fit(l.name))+T(1367,y0,1745,y1,esc(l.spec||""),fit(l.spec))+T(1250,y0,1367,y1,esc(l.unit||""),8.5)+T(934,y0,1072,y1,String(num(l.qty)),10)+T(737,y0,934,y1,String(bal(l)),9)+T(500,y0,737,y1,r.needDate?fmtDate(r.needDate):"",8.5)+T(343,y0,500,y1,esc(S.settings.deptName||""),6.8);});
+  /* الملاحظات (الجملة المطبوعة في النموذج تفضل زي ما هي) */
+  const noteTxt=[r.note?esc(r.note):"",st==="rejected"?"مرفوض: "+esc(r.rejNote||""):"",st==="issued"?"اتصرف "+fmtDate(r.issuedAt||"")+(r.issueRef?" — مستند "+esc(r.issueRef):""):""].filter(Boolean).join(" — ");
+  if(noteTxt)o+=T(150,1215,1400,1265,noteTxt,8,"flex-start");
+  /* الأسماء والتوقيعات والتواريخ: الإدارة الطالبة | مخازن الجهة الطالبة | السلامة */
   const sgR=await personSig(r,r.reqName),sgS=await personSig(r,r.issuedBy);
-  const html=`<div class="dpage land" style="padding:6mm"><style>.mrp table{width:100%;border-collapse:collapse;margin:0;font-size:8.5pt}.mrp th,.mrp td{border:1px solid #000!important;padding:.6mm 1mm;text-align:center;font-size:8.5pt;line-height:1.25}.mrp th{background:#e6e6e6!important;font-weight:700}.mrp td.r{text-align:right}.mrp .lab{background:#e6e6e6!important;font-weight:700;text-align:right;white-space:nowrap}.mrp table{flex:none}.mrp tbody.rw td{height:6.4mm;padding:0 1mm}</style>
-   <div class="mrp" style="border:1.6px solid #000;flex:1;display:flex;flex-direction:column;direction:rtl"><div style="flex:none">
-    <table style="table-layout:fixed"><tbody>
-     <tr style="height:6.5mm"><td rowspan="4" style="width:58mm"><img src="rep-logo.png" style="max-height:24mm;max-width:52mm" alt=""></td><td rowspan="4" style="font-size:13pt;font-weight:700">طلب توفير متطلبات الإدارات / المواقع</td><td style="width:50mm"><b>MR-${r.serial}</b></td><td class="lab" style="width:28mm">رقم الطلب :</td></tr>
-     <tr style="height:6.5mm"><td>${esc(S.settings.project||E.siteName||"")}</td><td class="lab">اسم المشروع:</td></tr>
-     <tr style="height:6.5mm"><td>${esc(S.settings.projectNo||"")}&nbsp;</td><td class="lab">رقم المشروع :</td></tr>
-     <tr style="height:6.5mm"><td>${fmtDate(r.date)}</td><td class="lab">التاريخ:</td></tr></tbody></table>
-    <table><tbody><tr><td class="lab" style="width:28mm">نوع التوريدات :</td><td style="text-align:right;padding:1.2mm 3mm">${MR_SUPPLY.map(([k,t])=>cb((r.supplyType||"cons")===k,t)).join("")}<span style="float:left;font-weight:700">رقم الإدارة / القسم: ${esc(S.settings.deptCode||"")}${r.urgent?" &nbsp;·&nbsp; عاجل":""}</span></td></tr></tbody></table>
-    <table style="table-layout:fixed"><thead>
-     <tr><th rowspan="2" style="width:7mm">م</th><th rowspan="2" style="width:20mm">كود الصنف</th><th rowspan="2" style="width:38mm">الصنف / الخدمة</th><th rowspan="2">المواصفات</th><th rowspan="2" style="width:13mm">الوحدة</th><th rowspan="2" style="width:19mm">رصيد مخزن الجهة الطلبة</th><th rowspan="2" style="width:15mm">الكمية المطلوبه</th><th rowspan="2" style="width:19mm">رصيد المخزون الرئيسي</th><th rowspan="2" style="width:21mm">تاريخ التوريد المطلوب</th><th colspan="2">ملاحظات</th></tr>
-     <tr><th style="width:20mm">القسم الطالب</th><th style="width:22mm">إدارة المخازن</th></tr></thead>
-     <tbody class="rw">${rows.map((l,i)=>`<tr><td><b>${i+1}</b></td><td>${l?esc(l.code||""):""}</td><td class="r">${l?esc(l.name):""}</td><td class="r">${l?esc(l.spec||""):""}</td><td>${l?esc(l.unit||""):""}</td><td></td><td>${l?num(l.qty):""}</td><td>${l?bal(l):""}</td><td>${l&&r.needDate?fmtDate(r.needDate):""}</td><td>${l?dept:""}</td><td></td></tr>`).join("")}</tbody></table>
-    <table><tbody><tr><td class="lab" style="width:28mm">ملاحظات :</td><td style="text-align:right;background:#f0f0f0">${r.note?esc(r.note):"يتم إعتماد الإدارة الهندسية إذا تتطلب الأمر لذلك"}${st==="rejected"?` — <b>مرفوض:</b> ${esc(r.rejNote||"")}`:""}${st==="issued"?` — اتصرف ${fmtDate(r.issuedAt||"")}${r.issueRef?" مستند "+esc(r.issueRef):""}`:""}</td></tr></tbody></table>
-    </div><div style="flex:1"></div><div style="flex:none"><table style="table-layout:fixed"><thead><tr><th style="width:28mm"></th><th>الإدارة الطالبة</th><th>مخازن الجهة الطالبة</th><th>إدارة السلامة والصحة المهنية</th><th>الإدارة الهندسية</th><th>مدير المشروع / الموقع</th></tr></thead><tbody>
-     <tr style="height:6.5mm"><td class="lab">الأسم :</td><td>${esc(r.reqName||"")}</td><td>${esc(r.issuedBy||"")}</td><td>${apName}</td><td></td><td></td></tr>
-     <tr style="height:13mm"><td class="lab">التوقيع :</td><td>${sgR}</td><td>${sgS}</td><td>${sig}</td><td></td><td></td></tr>
-     <tr style="height:6.5mm"><td class="lab">التاريخ :</td><td>${fmtDate(r.date)}</td><td>${r.issuedAt?fmtDate(r.issuedAt):dFmt("")}</td><td>${apDate||dFmt("")}</td><td>${dFmt("")}</td><td>${dFmt("")}</td></tr></tbody></table>
-    <table><tbody><tr style="height:6.5mm"><td style="text-align:right;padding:0 3mm"><span style="float:right">☐ البنود أعلاه لا يمكن تسليمها في الوقت المحدد</span><span style="float:left;direction:rtl">☐ الموعد البديل ( &nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</span></td></tr></tbody></table></div></div>
-   <div style="display:flex;justify-content:space-between;font:9pt 'Times New Roman',serif;direction:ltr;padding:1.5mm 4mm 0"><span>F-PUR-01-03</span><span>Issue No. (1) Date: 01/01/2021</span><span>Retention (1 Year)</span></div></div>`;
+  const COL=[[1595,1957],[1232,1595],[870,1232]];
+  const nm=[r.reqName||"",r.issuedBy||"",apOn?(r.approved?.name||r.apName||""):""],sg=[sgR,sgS,sig];
+  const ap=apOn&&r.apAt?new Date(r.apAt).toISOString().slice(0,10):"";const dts=[r.date,r.issuedAt||"",ap];
+  COL.forEach((c,i)=>{o+=T(c[0],1325,c[1],1382,esc(nm[i]),9)+T(c[0],1382,c[1],1438,sg[i]||"",9);});
+  const SL=[[648.55,625.15,574.5,704.5],[519.67,496.27,444,574],[387.53,367.49,313,444]];  /* مواضع الشرطات المطبوعة في صف التاريخ */
+  SL.forEach((c,i)=>{const p=dp(dts[i]);if(!p)return;const y0=517.7/K,y1=538.2/K;
+    o+=T((c[0]+3.5)/K,y0,(c[3]-3)/K,y1,p.d,9)+T((c[1]+3.5)/K,y0,c[0]/K,y1,p.m,9)+T((c[2]+4)/K,y0,c[1]/K,y1,p.y,9)});
+  const html=`<div class="dpage land mrs" style="position:relative;padding:0"><style>.mrs .sigimg,.mrs img{max-height:6.4mm;max-width:44mm;display:block;margin:0 auto}</style><img src="f-MR.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;max-height:none;max-width:none;margin:0">${o}</div>`;
   const V=openViewer(`طلب احتياج MR-${r.serial}`,{filename:`طلب احتياج MR-${r.serial}.pdf`,extra:(personalSig&&r.status!=="rejected"&&!r.approved?`<button class="btn sign" data-extra onclick="mrSign('${r.id}')">✍ اعتماد بتوقيعي</button>`:"")+(!isLeaderName(myEmpName())&&myNameIn([r.reqName,r.issuedBy])?(r.signs?.[ME.id]?`<button class="btn" data-extra onclick="unsignDoc('matreq','${r.id}',()=>mrView('${r.id}'))">إلغاء توقيعي</button>`:`<button class="btn sign" data-extra onclick="signDoc('matreq','${r.id}',{reopen:()=>mrView('${r.id}')})">✍ توقيعي</button>`):"")});V.setHtml(html)}
 async function mrSign(id){const r=S.matreq.find(x=>x.id===id);const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}const d={approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}};if(r.status==="new")Object.assign(d,{status:"approved",apName:myEmpName(),apAt:Date.now()});if(await write(()=>upsert("matreq",id,d),"اتعتمد ✔"))setTimeout(()=>mrView(id),300)}
 async function personSig(r,name){const s=signsOf(r).find(x=>name&&normName(x.name)===normName(name));if(!s)return "";const mine=s.signature||(s.uid===ME.id?await mySig():"");return mine?`<img class="sigimg" src="${mine}" alt="توقيع ${esc(s.name||"")}">`:""}
