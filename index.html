@@ -555,6 +555,12 @@ html[data-fx="3d"] .sheet{box-shadow:0 0 0 1px var(--line),-24px 0 60px -10px rg
 @media (prefers-reduced-motion:reduce){html[data-fx="3d"] .sheet{animation:none}html[data-fx="3d"] .tile,html[data-fx="3d"] .mark{transform:none!important}}
 @media print{html[data-fx="3d"] *{box-shadow:none!important;transform:none!important}}
 
+/* v8: قائمة المزيد */
+details.more{display:inline-block;position:relative}
+details.more>summary{list-style:none;cursor:pointer}
+details.more>summary::-webkit-details-marker{display:none}
+details.more .morebox{position:absolute;inset-inline-end:0;top:calc(100% + 6px);z-index:40;display:flex;flex-direction:column;gap:6px;min-width:150px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px -10px rgba(0,0,0,.5)}
+details.more .morebox .btn{width:100%;justify-content:flex-start}
 /* ===== printable documents (A4) ===== */
 .dpage{display:flex;flex-direction:column;width:210mm;height:297mm;box-sizing:border-box;padding:8mm;background:#fff;color:#000;font-family:"IBM Plex Sans Arabic",Arial,sans-serif;font-size:10.5pt;line-height:1.45;direction:rtl;overflow:hidden;page-break-after:always;break-after:page}
 .dpage.land{width:297mm;height:210mm}
@@ -736,6 +742,7 @@ async function write(fn, okMsg){
     else if(c==="duplicate_record"){toast("تم رفض الحفظ: السجل مطابق لسجل موجود بالفعل")}
     else if(c==="quota_exceeded"){toast("المساحة اتملت، امسح بيانات قديمة")}
     else toast("الحفظ فشل، جرّب تاني");
+    try{errLogPush(e,okMsg)}catch(x){}
     console.error(e);return false
   }
 }
@@ -1622,7 +1629,7 @@ document.addEventListener("pointermove",e=>{if(fxMode()!=="3d")return;const t=e.
 document.addEventListener("pointerleave",()=>{if(el){el.style.transform="";el=null}},true)})();
 function setTheme(theme){if(!HSE_THEMES.some(x=>x.id===theme))return;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=["light","sand"].includes(theme)?"light":"dark";try{localStorage.setItem("hse.theme",theme)}catch(e){};const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8"})[theme];document.querySelectorAll("[data-theme-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.themeChoice===theme)))}
 function meMenuBase(){const activeTheme=document.documentElement.dataset.theme||"green",activeLayout=mobileLayout();const themePanel=`<section class="theme-setting"><b>🎨 ألوان التطبيق</b><div class="muted" style="font-size:12px;margin-top:2px">اختار الثيم المناسب؛ اختيارك محفوظ على هذا الجهاز.</div><div class="theme-options">${HSE_THEMES.map(t=>`<button type="button" class="theme-opt" data-theme-choice="${t.id}" aria-pressed="${t.id===activeTheme}" onclick="setTheme('${t.id}')"><span class="theme-swatches" aria-hidden="true">${t.palette.map(c=>`<i class="theme-dot" style="background:${c}"></i>`).join("")}</span><span>${t.name}</span></button>`).join("")}</div></section>`,fxPanel=`<section class="theme-setting"><b>🧊 نمط العرض</b><div class="muted" style="font-size:12px;margin-top:2px">ثلاثي الأبعاد (عمق وأزرار بارزة) أو مسطّح أخف.</div><div class="theme-options">${[["3d","ثلاثي الأبعاد"],["flat","مسطّح"]].map(([id,n])=>`<button type="button" class="theme-opt" data-fx-choice="${id}" aria-pressed="${id===fxMode()}" onclick="setFx('${id}')"><span>${n}</span></button>`).join("")}</div></section>`,layoutPanel=`<section class="theme-setting"><b>📱 تخطيط الشاشة الرئيسية للموبايل</b><div class="muted" style="font-size:12px;margin-top:2px">٣ تخطيطات مستقلة عن الثيمات، وتعمل على شاشة الموبايل فقط.</div><div class="theme-options" style="grid-template-columns:1fr">${HSE_MOBILE_LAYOUTS.map(x=>`<button type="button" class="theme-opt" style="justify-content:flex-start;text-align:right" data-mobile-layout-choice="${x.id}" aria-pressed="${x.id===activeLayout}" onclick="setMobileLayout('${x.id}')"><span><b>${x.name}</b><small class="muted" style="display:block;font-size:11px">${x.desc}</small></span></button>`).join("")}</div></section>`;openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p>${themePanel}${fxPanel}${layoutPanel}<div class="form" style="margin-top:14px">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
-  <button type="button" class="btn danger" style="margin-top:14px" onclick="SBA.logout().then(()=>location.reload())">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
+  <button type="button" class="btn" style="margin-top:14px" onclick="errLogCopy()">📋 نسخ سجل الأخطاء</button> <button type="button" class="btn danger" style="margin-top:14px" onclick="SBA.logout().then(()=>location.reload())">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return "كلمة السر لازم ٦ على الأقل";if(fd.np!==fd.np2)return "مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error)return "مقدرتش أغيّرها";toast("اتغيرت كلمة السر");return null},"حفظ")}
 function settleInvites(){}
 // reminders
 function remindersBase(){
@@ -2102,7 +2109,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="7.0.2";
+const APP_VER="8.0.2";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -9460,6 +9467,94 @@ const WS_DEF={
     {k:"ppe",t:"المخزن",view:"ppe"}]}
 };
 const ATT_AR=(typeof ATT!=="undefined"&&ATT)?Object.fromEntries(Object.entries(ATT).map(([k,v])=>[k,Array.isArray(v)?v[0]:v])):{p:"حاضر",a:"غائب",l:"إجازة",m:"مأمورية"};
+
+/* ===================== v8: صندوق الإدارة + الحوادث + أدوات الأدمن + أزرار أقل ===================== */
+/* ---- الحوادث: تصنيف الخطورة (تلقائي + يدوي) ---- */
+const SEV={near:{ar:"حادث وشيك",cls:"p-info"},minor:{ar:"بسيط",cls:"p-warn"},major:{ar:"جسيم",cls:"p-bad"},fatal:{ar:"وفاة",cls:"p-bad"}};
+function sevAuto(r){const t=`${r?.f?.injury||""} ${r?.f?.desc||""}`;
+  if(/وفاة|توفي|متوفي|قتيل/.test(t))return "fatal";
+  if(/كسر|بتر|عجز|غيبوب|عناية|مستشفى|فقدان|حروق شديدة|انقطاع/.test(t))return "major";
+  if(/إصاب|اصاب|جرح|سحج|خدش|كدمة|حرق|تمزق|التواء/.test(t))return "minor";
+  return "near"}
+const sevOf=r=>SEV[r?.severity]?r.severity:sevAuto(r);
+const INC_DEFAULT_ROLES=["admin","hse","hsesup","mgmt"];
+const incRoles=()=>Array.isArray(S.settings?.incidentRoles)?S.settings.incidentRoles:INC_DEFAULT_ROLES;
+const incidentVisible=r=>{const role=myRole();return role==="admin"||incRoles().includes(role)||r.createdBy===ME.id};
+const canSetSev=()=>["admin","hse","hsesup"].includes(myRole());
+function wsIncidentsHTML(){
+  const L=(S.records||[]).filter(r=>r.form==="F-HSE-03-01"&&incidentVisible(r)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const yr=today().slice(0,4),cnt=k=>L.filter(r=>(r.date||"").startsWith(yr)&&sevOf(r)===k).length;
+  const tile=(k)=>`<div class="card tile${k==="fatal"||k==="major"?" alert":""}"><span class="lbl">${SEV[k].ar}</span><span class="val">${cnt(k)}</span><span class="note">سنة ${yr}</span></div>`;
+  const rows=L.slice(0,60).map(r=>{const sv=sevOf(r),manual=!!SEV[r.severity];
+    return `<div class="li"><div class="grow" style="cursor:pointer" onclick="printRecord('${esc(r.id)}')"><div class="t">${esc(r.f?.desc?String(r.f.desc).slice(0,70):"تقرير حادث")}</div><div class="s">${fmtDate(r.date)} · ${esc(r.f?.place||"")}${r.f?.victim?" · "+esc(emp(r.f.victim_id)?.name||r.f.victim):""}</div></div>
+      <span class="pill ${SEV[sv].cls}">${SEV[sv].ar}${manual?"":" ·تلقائي"}</span>
+      ${canSetSev()?`<select aria-label="تصنيف الخطورة" onchange="incSetSev('${esc(r.id)}',this.value)" style="width:auto"><option value="">تلقائي</option>${Object.entries(SEV).map(([k,v])=>`<option value="${k}"${manual&&r.severity===k?" selected":""}>${v.ar}</option>`).join("")}</select>`:""}</div>`}).join("");
+  const adminBox=myRole()==="admin"?`<section class="card" style="margin-top:14px"><h3 style="margin-top:0">🔐 مين يشوف الحوادث</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">الأدمن وكاتب التقرير بيشوفوا دايمًا. اختار الأدوار الباقية.</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,v])=>`<label class="chipbtn" style="cursor:pointer"><input type="checkbox" ${incRoles().includes(k)?"checked":""} onchange="incToggleRole('${k}',this.checked)"> ${esc(v.ar)}</label>`).join("")}</div></section>`:"";
+  return `<div class="grid g4">${["near","minor","major","fatal"].map(tile).join("")}</div>
+   <section class="card" style="margin-top:14px"><h3 style="margin-top:0">🚨 سجل الحوادث</h3>${rows?`<div class="list">${rows}</div>`:emptyState("مفيش حوادث مسجلة","أي تقرير حادث هيظهر هنا بتصنيف خطورته.")}</section>${adminBox}`}
+async function incSetSev(id,v){if(!canSetSev())return;if(await write(()=>upsert("records",id,{severity:v||null}),"اتحدّث التصنيف"))show(tab)}
+async function incToggleRole(role,on){if(myRole()!=="admin")return;const cur=new Set(incRoles());on?cur.add(role):cur.delete(role);
+  await write(()=>db.doc("settings/main").set({...S.settings,incidentRoles:[...cur],updatedAt:Date.now()}),"اتحفظت صلاحية الحوادث")}
+/* ---- صندوق الإدارة ---- */
+function wsInboxHTML(){
+  const t0=today();let late=[],ex=[];try{late=deriveActions().filter(a=>a.status!=="closed"&&a.late)}catch(e){}try{ex=expiredPermits()}catch(e){}
+  const openP=(S.permits||[]).filter(p=>p.status==="open"||p.status==="approved").length;
+  const inc30=(S.records||[]).filter(r=>r.form==="F-HSE-03-01"&&incidentVisible(r)&&(r.date||"")>=addDays(t0,-30));
+  const serious=inc30.filter(r=>["major","fatal"].includes(sevOf(r)));
+  const tile=(l,n,note,alert,go)=>`<button type="button" class="card tile${alert&&n?" alert":""}" style="cursor:pointer;text-align:right;font:inherit;color:inherit" ${go?`onclick="${go}"`:""}><span class="lbl">${l}</span><span class="val">${n}</span>${note?`<span class="note">${note}</span>`:""}</button>`;
+  let mine="";try{mine=remindersHTML()}catch(e){}
+  return `<div class="grid g4">
+    ${tile("مطلوب اعتماده منك",(S.records||[]).filter(r=>{try{return recNeedsMyReview(r)}catch(e){return false}}).length+(S.inspections||[]).filter(x=>x.reviewRequired&&x.review?.status!=="approved"&&x.reviewTo===ME.id).length,"سجلات وفحوصات",true)}
+    ${tile("إجراءات متأخرة",late.length,"عدّى ميعادها",true,"ui.actF='late';show('actions')")}
+    ${tile("تصاريح مفتوحة",openP,ex.length?ex.length+" منتهية ولسه مفتوحة":"",ex.length>0,"show('ptw')")}
+    ${tile("حوادث جسيمة (٣٠ يوم)",serious.length,inc30.length+" حادث إجمالي",true)}
+  </div>
+  <section class="card" style="margin-top:14px"><h3 style="margin-top:0">📥 المطلوب منك</h3>${mine||emptyState("مفيش مطلوب منك","كل حاجة متعالجة.")}</section>
+  <section class="card" style="margin-top:14px"><h3 style="margin-top:0">🚨 آخر الحوادث</h3>${inc30.length?`<div class="list">${inc30.slice(0,6).map(r=>{const sv=sevOf(r);return `<div class="li" style="cursor:pointer" onclick="printRecord('${esc(r.id)}')"><div class="grow"><div class="t">${esc(String(r.f?.desc||"تقرير حادث").slice(0,70))}</div><div class="s">${fmtDate(r.date)} · ${esc(r.f?.place||"")}</div></div><span class="pill ${SEV[sv].cls}">${SEV[sv].ar}</span></div>`}).join("")}</div>`:emptyState("مفيش حوادث آخر ٣٠ يوم","")}</section>`}
+/* ---- أدوات الأدمن: سجل أخطاء الحفظ + التعديل الخام ---- */
+const ERR_KEY="hse.errlog";
+function errLogGet(){try{return JSON.parse(localStorage.getItem(ERR_KEY)||"[]")}catch(e){return[]}}
+function errLogPush(e,ctx){try{const L=errLogGet();L.unshift({t:new Date().toISOString(),u:ME?.name||"",tab:typeof tab==="string"?tab:"",ctx:String(ctx||"").slice(0,80),code:e?.code||"",msg:String(e?.message||e).slice(0,300)});localStorage.setItem(ERR_KEY,JSON.stringify(L.slice(0,40)))}catch(x){}}
+window.addEventListener("unhandledrejection",ev=>errLogPush(ev.reason,"unhandled"));
+function errLogCopy(){const L=errLogGet();const txt=`HSE ${typeof APP_VER!=="undefined"?APP_VER:""} · ${ME?.name||""}\n`+L.map(x=>`${x.t} [${x.code||"-"}] ${x.tab} ${x.ctx} — ${x.msg}`).join("\n");copyText(txt)}
+function wsErrsHTML(){const L=errLogGet();
+  return `<div class="banner">سجل أخطاء الحفظ على <b>الجهاز ده</b> بس. لو موظف بيشتكي، خليه يفتح «حسابي» ويضغط «نسخ سجل الأخطاء» ويبعتلك.</div>
+  <section class="card" style="margin-top:12px"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm" onclick="errLogCopy()">📋 نسخ</button><button class="btn sm danger" onclick="try{localStorage.removeItem('${ERR_KEY}')}catch(e){};show(tab)">مسح</button></div>
+  ${L.length?`<div class="list">${L.map(x=>`<div class="li"><div class="grow"><div class="t" dir="ltr" style="text-align:right">${esc(x.code||"error")} · ${esc(x.ctx)}</div><div class="s">${esc(x.msg)}<br>${esc(x.t.replace("T"," ").slice(0,19))} · ${esc(x.u)} · ${esc(x.tab)}</div></div></div>`).join("")}</div>`:emptyState("مفيش أخطاء مسجلة","")}</section>`}
+const RAW_COLS=["records","inspections","equipment","permits","actions","employees","fireext","tasks","matreq"];
+function wsRawHTML(){const c=ui.rawCol||"records",q=(ui.rawQ||"").trim();
+  const arr=(S[c==="matreq"?"matreq":c]||[]);
+  const L=arr.filter(x=>!q||JSON.stringify(x).includes(q)).slice(0,40);
+  return `<div class="banner">⚠️ تعديل خام مباشر على البيانات — للأدمن بس. كل حفظ بيتأكد وبيتاخد منه نسخة احتياطية على الجهاز.</div>
+  <section class="card" style="margin-top:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><select onchange="ui.rawCol=this.value;ui.rawQ='';show(tab)">${RAW_COLS.map(k=>`<option ${k===c?"selected":""}>${k}</option>`).join("")}</select><input placeholder="ابحث بأي نص أو id" value="${esc(q)}" onchange="ui.rawQ=this.value;show(tab)" style="flex:1;min-width:160px"></div>
+  <div class="list" style="margin-top:10px">${L.map(x=>`<div class="li" style="cursor:pointer" onclick="rawEdit('${c}','${esc(x.id)}')"><div class="grow"><div class="t" dir="ltr" style="text-align:right">${esc(x.id)}</div><div class="s">${esc(String(x.title||x.name||x.form||x.code||x.serial||x.date||"").slice(0,70))}</div></div><span class="muted">✏️</span></div>`).join("")||emptyState("مفيش نتايج","")}</div></section>`}
+function rawEdit(col,id){const x=(S[col]||[]).find(r=>r.id===id);if(!x)return;const {id:_i,...rest}=x;
+  openSheet(`تعديل خام · ${col}`,`<p class="muted" style="margin-top:0;font-size:12.5px" dir="ltr">${esc(id)}</p><textarea id="rawTxt" dir="ltr" spellcheck="false" style="width:100%;min-height:340px;font:12px/1.5 var(--f-num)">${esc(JSON.stringify(rest,null,2))}</textarea>`,
+  async()=>{let obj;try{obj=JSON.parse($("rawTxt").value)}catch(e){return "JSON مش سليم: "+e.message}
+    if(!confirm("تأكيد الحفظ المباشر؟"))return "اتلغى";
+    try{const B=JSON.parse(localStorage.getItem("hse.rawbak")||"[]");B.unshift({t:Date.now(),col,id,data:rest});localStorage.setItem("hse.rawbak",JSON.stringify(B.slice(0,10)))}catch(e){}
+    const ok=await write(()=>db.collection(col).doc(id).set(obj),"اتحفظ التعديل الخام");return ok?null:"الحفظ فشل"},"حفظ مباشر")}
+/* ---- أزرار أقل: أي مجموعة فيها أكتر من ٣ أزرار → ٢ + قائمة ⋯ ---- */
+function collapseRowButtons(root){
+  (root||document).querySelectorAll("td,.li,.acts,.row-acts,.btns").forEach(box=>{
+    if(box.dataset.moreDone||box.closest(".sheet,#overlayRoot,form,.viewer,details.more"))return;
+    const bs=[...box.children].filter(c=>c.tagName==="BUTTON"&&c.classList.contains("btn")&&!c.dataset.keep);
+    if(bs.length<4)return;box.dataset.moreDone="1";
+    const keep=bs.slice(0,2),rest=bs.slice(2);
+    const d=document.createElement("details");d.className="more";d.innerHTML='<summary class="btn sm" aria-label="المزيد">⋯ المزيد</summary><div class="morebox"></div>';
+    const mb=d.querySelector(".morebox");rest.forEach(b=>mb.appendChild(b));box.appendChild(d)});
+}
+{let t=null;const run=()=>{t=null;try{collapseRowButtons($("app")||document)}catch(e){}};
+ new MutationObserver(()=>{if(!t)t=setTimeout(run,250)}).observe(document.body,{childList:true,subtree:true});}
+/* ---- تعريف الصفحات الجديدة ---- */
+WS_DEF.ws_inbox={ic:"📥",t:"صندوق الإدارة",s:"المطلوب منك والتنبيهات المهمة في شاشة واحدة.",subs:[
+  {k:"inbox",t:"الصندوق",lvl:"dash",html:wsInboxHTML},
+  {k:"inc",t:"الحوادث",lvl:"dash",html:wsIncidentsHTML}]};
+WS_DEF.ws_site.subs.splice(1,0,{k:"inc",t:"الحوادث",lvl:"dash",html:wsIncidentsHTML});
+WS_DEF.ws_site.subs.unshift({k:"inbox",t:"الصندوق",lvl:"*",html:wsInboxHTML});
+WS_DEF.ws_admin.subs.push({k:"errs",t:"سجل الأخطاء",lvl:"settings",html:wsErrsHTML},{k:"raw",t:"تعديل مباشر",lvl:"settings",html:wsRawHTML});
+WS_BY_PERSONA.exec.unshift("ws_inbox");
+if(!WS_BY_PERSONA.field.includes("ws_team"))WS_BY_PERSONA.field.splice(2,0,"ws_team");
 
 /* تسجيل الصفحات كـ VIEWS عشان الراوتينج والتاريخ والتصدير يشتغلوا زي أي قسم */
 for(const k of Object.keys(WS_DEF)){
