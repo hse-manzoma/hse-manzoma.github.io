@@ -731,6 +731,8 @@ async function write(fn, okMsg){
   catch(e){
     const c=e?.code;
     if(c==="invalid_argument"){canWrite=false;toast("مش مسموح لك تعدّل البيانات دي")}
+    else if(c==="permission_denied"){toast("مش مسموح لك تسجّل ده — صلاحية القسم ناقصة على حسابك، بلّغ الأدمن يفتح المنظومة مرة")}
+    else if(c==="read_only"){toast("الجلسة انتهت — سجّل خروج وادخل من جديد")}
     else if(c==="duplicate_record"){toast("تم رفض الحفظ: السجل مطابق لسجل موجود بالفعل")}
     else if(c==="quota_exceeded"){toast("المساحة اتملت، امسح بيانات قديمة")}
     else toast("الحفظ فشل، جرّب تاني");
@@ -1505,7 +1507,7 @@ function roleForm(key){const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
   openSheet(key?"تعديل الدور":"دور جديد",`<div class="form">${f("اسم الدور","ar",{value:r.ar,req:true,full:true,attrs:'placeholder="مثلاً: مراقب سلامة مقاول"'})}${tabsMatrix(r.tabs||{})}</div>`,async(fd,form)=>{
     if(!fd.ar.trim())return "اكتب اسم الدور";const tabs=readMatrix(form);if(!Object.keys(tabs).length)return "اختار قسم واحد على الأقل";
     const k=key||("r"+Date.now().toString(36));const roles={...(S.settings.roles||{}),[k]:{ar:fd.ar.trim(),tabs:withInspectionTab(tabs)}};
-    const ok=await write(()=>db.doc("settings/main").update({roles}),"اتحفظ الدور");if(ok){for(const p of (S.profiles||[]).filter(p=>p.role===k))await SB.from("profiles").update({tabs}).eq("user_id",p.id)}return ok?null:"الحفظ فشل"})}
+    const ok=await write(()=>db.doc("settings/main").update({roles}),"اتحفظ الدور");if(ok){for(const p of (S.profiles||[]).filter(p=>p.role===k))await SB.from("profiles").update({tabs:withInspectionTab(tabs)}).eq("user_id",p.id)}return ok?null:"الحفظ فشل"})}
 function roleDelete(k){const used=Object.values(S.settings.users||{}).concat(Object.values(S.settings.invites||{})).filter(u=>u.role===k).length;
   confirmSheet(BUILTIN_ROLES[k]?"رجوع الدور لأصله":"حذف الدور",used&&!BUILTIN_ROLES[k]?`فيه ${used} مستخدم على الدور ده، هيتحولوا لـ «مشاهدة الرئيسية بس» لحد ما تغيّر دورهم.`:"متأكد؟",()=>{const roles={...(S.settings.roles||{})};delete roles[k];return write(()=>db.doc("settings/main").update({roles}),"تم")},BUILTIN_ROLES[k]?"رجّعه":"احذف")}
 /* ربط حسابك انت بموظف.
@@ -2100,7 +2102,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="7.0.0";
+const APP_VER="7.0.1";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5840,13 +5842,16 @@ let _hseHistoryReady=false;
 function hseHistoryInit(){if(_hseHistoryReady)return;_hseHistoryReady=true;if(!history.state?.hseApp){if(tab!=="dash"){history.replaceState({hseApp:true,hseRoot:true,hseTab:"dash"},"",location.href);history.pushState({hseApp:true,hseRoot:false,hseTab:tab},"",location.href)}else history.pushState({hseApp:true,hseRoot:true,hseTab:"dash"},"",location.href)}}
 function hseLeavePrompt(){const leave=confirm("هل تريد حقًا الخروج من المنظومة؟\nاضغط موافق للمغادرة أو إلغاء للبقاء.");if(leave){history.back();return}history.pushState({hseApp:true,hseRoot:true,hseTab:tab},"",location.href)}
 window.addEventListener("popstate",e=>{if($("overlayRoot")?.innerHTML||$("pvRoot")){if($("pvRoot"))pvClose();if($("overlayRoot"))$("overlayRoot").innerHTML="";history.pushState({hseApp:true,hseTab:tab},"",location.href);return}if(e.state?.hseApp&&e.state.hseTab&&e.state.hseTab!==tab){showBase(e.state.hseTab);mobileNav();fabSync();window.scrollTo({top:0});return}hseLeavePrompt()});
-function show(t){const previous=tab;showBase(t);hseHistoryInit();if(tab!==previous)history.pushState({hseApp:true,hseRoot:false,hseTab:tab},"",location.href);mobileNav();fabSync();if(tab==="settings")syncRoleTabs();window.scrollTo({top:0})}
+function show(t){const previous=tab;showBase(t);hseHistoryInit();if(tab!==previous)history.pushState({hseApp:true,hseRoot:false,hseTab:tab},"",location.href);mobileNav();fabSync();syncRoleTabs();window.scrollTo({top:0})}
 let _sigTried=false;
-function applyRole(){applyRoleBase();mobileNav();if(!_sigTried&&db&&isOwner){_sigTried=true;sigData().then(()=>{if(CAN_SIGN)refresh()})}}
+function applyRole(){applyRoleBase();mobileNav();try{syncRoleTabs()}catch(e){}if(!_sigTried&&db&&isOwner){_sigTried=true;sigData().then(()=>{if(CAN_SIGN)refresh()})}}
 let _roleSynced=false;
 function syncRoleTabs(){if(_roleSynced||myAccess()?.role!=="admin"||!(S.profiles||[]).length)return;_roleSynced=true;
-  for(const p of S.profiles){if(p.role==="admin"||p.role==="custom")continue;const r=BUILTIN_ROLES[p.role];if(!r||S.settings.roles?.[p.role])continue;
-    if(JSON.stringify(p.tabs||{})!==JSON.stringify(r.tabs))SB.from("profiles").update({tabs:r.tabs}).eq("user_id",p.id).then(()=>{},()=>{})}}
+  for(const p of S.profiles){if(p.role==="admin")continue;
+    const r=p.role==="custom"?null:(S.settings.roles?.[p.role]||BUILTIN_ROLES[p.role]);
+    /* السيرفر بيحدد صلاحية كتابة الفحص من tabs.inspection — لازم تفضل مساوية لصلاحية المعدات */
+    const want=withInspectionTab(r?r.tabs:(p.tabs||{}));
+    if(JSON.stringify(p.tabs||{})!==JSON.stringify(want))SB.from("profiles").update({tabs:want}).eq("user_id",p.id).then(()=>{},()=>{})}}
 function form_role_toggle(){const s=document.querySelector('#shForm [name="role"]');if(s)s.onchange=()=>{$("cust").hidden=s.value!=="custom";const sc=document.querySelector('#shForm [name="scope"]');if(sc)sc.value=s.value==="eng"?"own":"all"}}
 const _swept=new Set();
 function notifSweep(){try{if(!NOTIFS||!NOTIFS.length||!db)return;const ids=NOTIFS.filter(x=>!x.read&&notifOpen(x)&&!_swept.has(x.id)).map(x=>x.id);ids.forEach(i=>_swept.add(i));
