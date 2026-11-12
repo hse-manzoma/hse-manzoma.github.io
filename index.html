@@ -2102,7 +2102,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="7.0.1";
+const APP_VER="7.0.2";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4339,11 +4339,13 @@ async function recordFormBase(fid,id,preset){
       if(curBtn)curBtn.innerHTML=`<img src="${img}" alt="توقيع" style="height:26px;max-width:112px;object-fit:contain">`;
       hide();toast("اتسجل التوقيع ✔");
     };
-    document.querySelectorAll("[data-rsig]").forEach(btn=>{btn.onclick=()=>{
+    document.querySelectorAll("[data-rsig]").forEach(btn=>{btn.onclick=async()=>{
       const i=+btn.dataset.rsig;
       const nameInp=document.querySelector(`[name="r${i}_${nameKey}"]`);
       const who=(nameInp&&nameInp.value||"").split(" · ")[0].trim();
       cur=i;curBtn=btn;pad.clear();
+      /* صاحب الحساب: توقيعه المحفوظ بينزل مباشرة. غيره (عامل/خلافه): بيرسم في المربع */
+      if(who&&normName(who)===normName(myEmpName())){const sv=await mySig();if(sv){rowSig[i]=sv;rowSigAt[i]=Date.now();rowSigBy[i]=ME.id||"";btn.innerHTML=`<img src="${sv}" alt="توقيع" style="height:26px;max-width:112px;object-fit:contain">`;hide();toast("نزل توقيعك المحفوظ ✔");return}}
       $("rsigWho").textContent=who?("توقيع · "+who):("توقيع الصف رقم "+(i+1));
       $("rsigMine").hidden=!(who&&normName(who)===normName(myEmpName()));
       wrap.hidden=false;
@@ -5722,7 +5724,7 @@ async function signDoc(col,id,{reopen,extraPatch={}}={}){
   {const saved=await mySig();
     /* اللي ليه توقيع محفوظ ما بيظهرلوش مربع رسم: توقيعه بينزل مباشرة */
     if(saved)return save(saved);
-    if(col==="records"||col==="permits"){toast("ضيف توقيعك المحفوظ من ملفك الشخصي الأول");sigEditor();return}}
+    if(col==="permits"){toast("ضيف توقيعك المحفوظ من ملفك الشخصي الأول");sigEditor();return}}
   return sigPadSheet(`توقيع حي · ${myEmpName()||ME.name||"المنفّذ"}`,{mine:false,saveLabel:"حفظ التوقيع"},save);
 }
 async function unsignDoc(col,id,reopen){const x=current(col,id)||S.matreq.find(r=>r.id===id);if(col==="permits"&&["open","approved","closed"].includes(x?.status)){toast("توقيع التصريح مثبت بعد الاعتماد؛ الإنهاء يكون بطلب إغلاق موثق وموافقة جميع الأطراف");return}const signs={...(x?.signs||{})};delete signs[ME.id];if(await write(()=>upsert(col,id,{signs}),"اتشال توقيعك"))setTimeout(()=>reopen&&reopen(),300)}
