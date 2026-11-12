@@ -2109,7 +2109,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.0.2";
+const APP_VER="8.0.3";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2702,7 +2702,7 @@ function eqInspect(id){
      document.getElementById("ov")?.addEventListener("change",e=>{if(e.target&&e.target.type==="radio")recalc()});
      recalc();
    }}
-  const eqSigPad=sigPadBind(root.querySelector("#eqSigCanvas"));root.querySelector("#eqSigClear").onclick=()=>eqSigPad.clear();const photoInput=root.querySelector("#eqInspectionPhotos");if(photoInput)photoInput.onchange=()=>{const L=[...photoInput.files];const box=root.querySelector("#eqInspectionPhotoNames");if(box)box.textContent=L.length?L.length>6?"اختار 6 صور أو أقل":L.map(f=>f.name).join(" · "):"اختار صورًا من الموقع أو التقطها بالكاميرا."};
+  const eqSigPad=sigPadBind(root.querySelector("#eqSigCanvas"));eqSigPad.useSaved().catch(()=>{});root.querySelector("#eqSigClear").onclick=()=>eqSigPad.clear();const photoInput=root.querySelector("#eqInspectionPhotos");if(photoInput)photoInput.onchange=()=>{const L=[...photoInput.files];const box=root.querySelector("#eqInspectionPhotoNames");if(box)box.textContent=L.length?L.length>6?"اختار 6 صور أو أقل":L.map(f=>f.name).join(" · "):"اختار صورًا من الموقع أو التقطها بالكاميرا."};
 }
 async function printPages_orig(title,make,filename){
   let pages=null;
@@ -7426,7 +7426,7 @@ function inspForm(equipType,existingId){
   // Bind signature pads
   if(root){
     try{inspDecideBind(root,checks.length)}catch(e){console.error("decide",e)}
-    window.inspSig1Pad=sigPadBind(root.querySelector("#inspSig1Canvas"));
+    window.inspSig1Pad=sigPadBind(root.querySelector("#inspSig1Canvas"));inspSig1Pad.useSaved().catch(()=>{});
     root.querySelector("#inspSig1Clear").onclick=()=>inspSig1Pad.clear();
     const pi=root.querySelector("#inspPhoto");
     if(pi)pi.onchange=()=>{
@@ -7645,7 +7645,7 @@ function fxNew(existingId){
   },"حفظ الحصر");
 
   if(root){
-    window.fxSigPad=sigPadBind(root.querySelector("#fxSigCanvas"));
+    window.fxSigPad=sigPadBind(root.querySelector("#fxSigCanvas"));window.fxSigPad.useSaved().catch(()=>{});
     root.querySelector("#fxSigClear").onclick=()=>window.fxSigPad.clear();
     root.querySelector("#fxAddBtn").onclick=()=>window.fxAddRow();
     const ff=root.querySelector("#fxFiles");
