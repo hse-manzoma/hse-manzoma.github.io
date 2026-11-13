@@ -2109,7 +2109,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.0.4";
+const APP_VER="8.1.0";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -9561,8 +9561,22 @@ WS_DEF.ws_inbox={ic:"📥",t:"صندوق الإدارة",s:"المطلوب من�
 WS_DEF.ws_site.subs.splice(1,0,{k:"inc",t:"الحوادث",lvl:"dash",html:wsIncidentsHTML});
 WS_DEF.ws_site.subs.unshift({k:"inbox",t:"الصندوق",lvl:"*",html:wsInboxHTML});
 WS_DEF.ws_admin.subs.push({k:"errs",t:"سجل الأخطاء",lvl:"settings",html:wsErrsHTML},{k:"raw",t:"تعديل مباشر",lvl:"settings",html:wsRawHTML});
-WS_BY_PERSONA.exec.unshift("ws_inbox");
-if(!WS_BY_PERSONA.field.includes("ws_team"))WS_BY_PERSONA.field.splice(2,0,"ws_team");
+/* ---- v8: دمج التكرارات — كل دور بيشوف أقل عدد صفحات، والصفحات ليها أسماء ثابتة ---- */
+{const D=WS_DEF;
+ /* المطلوب النهاردة + نماذجي = «اليوم» (صفحة نماذجي كانت شريحة واحدة لوحدها) */
+ D.ws_daily.t="اليوم";D.ws_daily.s="المطلوب منك وحضورك ونماذجك في مكان واحد.";D.ws_daily.subs.push(...D.ws_forms.subs);
+ /* التكليفات + متابعة الفريق جوه «الموقع»، وحضور الفريق اتشال من الموقع لأنه موجود في «الفريق» */
+ D.ws_site.t="الموقع";D.ws_site.s="الصندوق والتصاريح والإجراءات والتكليفات.";
+ D.ws_site.subs=D.ws_site.subs.filter(x=>x.k!=="att").concat(D.ws_assign.subs);
+ D.ws_team.t="الفريق";D.ws_records.t="السجلات";D.ws_admin.t="الضبط";
+ /* الإدارة العليا: الصندوق + اللوحة في صفحة، والسجلات + الأداء + المخزن في صفحة */
+ D.ws_inbox.subs.splice(1,0,...D.ws_exec.subs);
+ D.ws_archive.t="السجلات والأداء";D.ws_archive.s="السجلات والمؤشرات والتقارير والمخزن — مشاهدة.";
+ D.ws_archive.subs=[...D.ws_archive.subs,...D.ws_perf.subs,...D.ws_store.subs];
+ WS_BY_PERSONA.field=["ws_daily","ws_team","ws_me"];
+ WS_BY_PERSONA.lead=["ws_site","ws_team","ws_records"];
+ WS_BY_PERSONA.admin=["ws_site","ws_team","ws_records","ws_admin"];
+ WS_BY_PERSONA.exec=["ws_inbox","ws_archive"];}
 
 /* تسجيل الصفحات كـ VIEWS عشان الراوتينج والتاريخ والتصدير يشتغلوا زي أي قسم */
 for(const k of Object.keys(WS_DEF)){
