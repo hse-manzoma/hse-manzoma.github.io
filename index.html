@@ -2109,7 +2109,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.0.3";
+const APP_VER="8.0.4";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5615,10 +5615,18 @@ function printerDel(id){const p=printers().find(x=>x.id===id);confirmSheet("حذ
 {const _of=VIEWS.office.fill;VIEWS.office.fill=function(){_of.call(this);if($("offBody")){const a=document.createElement("div");a.innerHTML=meetingArchiveHTML();$("offBody").prepend(a);bindMeetingArchive();if(tabLevel("office")!=="view"){const d=document.createElement("div");d.innerHTML=printersCardHTML();$("offBody").appendChild(d)}}}}
 
 /* ---------- personal signature for every user ---------- */
-let MYSIG=null;
-async function mySig(){if(MYSIG!==null)return MYSIG;if(!db||!ME.id)return "";MYSIG="";
-  try{const s=await db.doc("private/sig_"+ME.id).get();if(s.exists)MYSIG=s.data()?.img||""}catch(e){}
-  if(!MYSIG&&isOwner){try{MYSIG=await sigSrc()}catch(e){}}return MYSIG}
+let MYSIG=null,_sigP=null,_sigUid=null;
+async function mySig(){
+  if(!db||!ME.id)return "";
+  if(_sigUid!==ME.id){MYSIG=null;_sigP=null;_sigUid=ME.id}
+  if(MYSIG)return MYSIG;
+  /* نفس الطلب لأي نداء متزامن (قبل كده النداء التاني كان بياخد "" لأن الأول لسه بيحمّل) */
+  if(_sigP)return _sigP;
+  _sigP=(async()=>{let v="",failed=false;
+    try{const s=await db.doc("private/sig_"+ME.id).get();if(s.exists)v=s.data()?.img||""}catch(e){failed=true}
+    if(!v&&isOwner){try{v=await sigSrc()}catch(e){}}
+    if(!failed||v)MYSIG=v;_sigP=null;return v})();
+  return _sigP}
 const signsOf=x=>Object.values(x?.signs||{});
 const isDateField=f=>/date|^d\d|^d[AB]/i.test(f.k)||f.type==="date"||f.auto==="date";
 function signRect(fields,nf,getR,isDate,mode){const r0=getR(nf);
