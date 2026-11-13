@@ -184,7 +184,8 @@ td.n,th.n{font-variant-numeric:tabular-nums;text-align:left;direction:ltr}
 .report-text{white-space:pre-wrap;font-size:13px;background:var(--sunk);padding:12px;border-radius:8px;max-height:280px;overflow:auto}
 @media (max-width:620px){
   .form{grid-template-columns:1fr}
-  .brand small{display:none}
+  .brand small{display:block;font-size:11px;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brand-byline{display:none}
   .tile .val{font-size:26px}
 }
 /* ===== v2: viewer, dashboard, workflow, docs, mobile ===== */
@@ -2109,7 +2110,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.1.0";
+const APP_VER="8.1.1";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
