@@ -1996,7 +1996,7 @@ function sigPadBind(c){
       const pad=8;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(c.width,x1+pad);y1=Math.min(c.height,y1+pad);
       const o=document.createElement("canvas");o.width=x1-x0;o.height=y1-y0;
       o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);
-      return o.toDataURL("image/png");
+      return sigOut(o);
     }
   };
 }
@@ -2115,7 +2115,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.2.4";
+const APP_VER="8.3.0";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5638,6 +5638,7 @@ async function mySig(){
   _sigP=(async()=>{let v="",failed=false;
     try{const s=await db.doc("private/sig_"+ME.id).get();if(s.exists)v=s.data()?.img||""}catch(e){failed=true}
     if(!v&&isOwner){try{v=await sigSrc()}catch(e){}}
+    if(v){try{v=await sigLite(v)}catch(e){}}
     if(!failed||v)MYSIG=v;_sigP=null;return v})();
   return _sigP}
 const signsOf=x=>Object.values(x?.signs||{});
@@ -8549,7 +8550,7 @@ function pgCellText(c){
   });
   return (k.innerText||k.textContent||"").replace(/\s+/g," ").trim();
 }
-function pgTableName(t,i){
+function pgTableName(t,i,full){
   let n=t,h=null,hops=0;
   while(n&&!h&&hops++<6){
     let p=n.previousElementSibling;
@@ -8557,6 +8558,7 @@ function pgTableName(t,i){
     n=n.parentElement;if(!n||n===document.body)break;
   }
   const t2=(h?h.textContent:"").replace(/\s+/g," ").trim();
+  if(full)return t2.slice(0,90);
   return (t2||("جدول "+(i+1))).replace(/[\[\]:*?\/\\]/g," ").slice(0,28).trim()||("جدول "+(i+1));
 }
 function pgTableRows(t){
@@ -8604,7 +8606,7 @@ function pgTables(){
   [...root.querySelectorAll("table")].forEach((t,i)=>{
     if(t.offsetParent===null)return;
     const rows=pgTableRows(t);
-    if(rows&&rows.length)out.push({name:pgTableName(t,out.length),rows,n:rows.length});
+    if(rows&&rows.length){let ti=pgTableName(t,out.length,true);if(ti&&tab==="kpi"&&ui.kpiMonth)ti+=" — "+monthName(ui.kpiMonth);out.push({name:pgTableName(t,out.length),title:ti,rows,n:rows.length})}
   });
   [...root.querySelectorAll(".list")].forEach(box=>{
     if(box.offsetParent===null||box.closest("table"))return;
@@ -8636,7 +8638,7 @@ function pgPdfHTML(sel,title){
     const keys=Object.keys(t.rows[0]||{}),np=Math.max(1,Math.ceil(t.rows.length/per));
     for(let i=0;i<t.rows.length;i+=per){
       const chunk=t.rows.slice(i,i+per),pi=Math.floor(i/per)+1;
-      out.push(`<div class="dpage"><div class="ttl">${esc(t.name)}</div>
+      out.push(`<div class="dpage"><div class="ttl">${esc(t.title||t.name)}</div>
         ${i===0?stamp:""}
         <table><thead><tr><th class="num" style="width:10mm">م</th>${keys.map(k=>`<th>${esc(k)}</th>`).join("")}</tr></thead>
         <tbody>${chunk.map((r,j)=>`<tr><td class="num">${i+j+1}</td>${keys.map(k=>`<td class="r">${esc(r[k]??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>
@@ -9584,7 +9586,53 @@ WS_DEF.ws_inbox={ic:"📥",t:"صندوق الإدارة",s:"المطلوب من�
   {k:"inc",t:"الحوادث",lvl:"dash",html:wsIncidentsHTML}]};
 WS_DEF.ws_site.subs.splice(1,0,{k:"inc",t:"الحوادث",lvl:"dash",html:wsIncidentsHTML});
 WS_DEF.ws_site.subs.unshift({k:"inbox",t:"الصندوق",lvl:"*",html:wsInboxHTML});
-WS_DEF.ws_admin.subs.push({k:"errs",t:"سجل الأخطاء",lvl:"settings",html:wsErrsHTML},{k:"raw",t:"تعديل مباشر",lvl:"settings",html:wsRawHTML});
+/* ===== v8.3: تخفيف التواقيع — تقليل حجم البيانات والـ Egress =====
+   التوقيع كان بيتخزّن PNG كبير (15–25KB) ويتنسخ جوه كل فحص واعتماد، فسجلات المعدات وحدها وصلت 17MB. */
+function sigOut(cv){const W=300;let o=cv;
+  if(cv.width>W){const k=W/cv.width;o=document.createElement("canvas");o.width=W;o.height=Math.max(1,Math.round(cv.height*k));const g=o.getContext("2d");g.imageSmoothingQuality="high";g.drawImage(cv,0,0,o.width,o.height)}
+  return o.toDataURL("image/png")}
+function sigLite(src){return new Promise(res=>{
+  if(!src||typeof src!=="string"||!src.startsWith("data:image/")||src.length<6000)return res(src);
+  const im=new Image();
+  im.onload=()=>{try{const c=document.createElement("canvas");c.width=im.width;c.height=im.height;c.getContext("2d").drawImage(im,0,0);const u=sigOut(c);res(u.length<src.length?u:src)}catch(e){res(src)}};
+  im.onerror=()=>res(src);im.src=src})}
+const SLIM_COLS=["equipment","inspections","records","permits","fireext"];
+async function slimWalk(o,key,st){
+  if(typeof o==="string"){
+    if(/sig/i.test(key)&&o.startsWith("data:image/")&&o.length>6000){const u=await sigLite(o);if(u.length<o.length){st.n++;st.saved+=o.length-u.length;return u}}
+    return o}
+  if(Array.isArray(o)){const out=[];for(const x of o)out.push(await slimWalk(x,key,st));return out}
+  if(o&&typeof o==="object"){const out={};for(const [k,v] of Object.entries(o))out[k]=await slimWalk(v,k,st);return out}
+  return o}
+async function slimRun(dry){
+  const box=$("slimOut");const say=t=>{if(box)box.innerHTML=t};
+  if(myRole()!=="admin"){toast("للأدمن بس");return}
+  say("بيفحص السجلات…");
+  const jobs=[],tot={n:0,saved:0};
+  try{
+    for(const col of SLIM_COLS){const k=Object.keys(COLS).find(x=>COLS[x]===col);
+      for(const r of (S[k]||[])){if(r._deleted)continue;const {id,...data}=r;const st={n:0,saved:0};
+        const nd=await slimWalk(data,"",st);
+        if(st.n){jobs.push({col,id,old:data,nd});tot.n+=st.n;tot.saved+=st.saved}}}
+  }catch(e){console.error(e);say("حصل خطأ أثناء الفحص: "+esc(e.message||e));return}
+  const mb=x=>(x/1048576).toFixed(1)+" MB";
+  if(!jobs.length){say("مفيش تواقيع كبيرة تتخفف — كل حاجة صغيرة أصلًا ✔");return}
+  if(dry){say(`هيتخفف <b>${tot.n}</b> توقيع في <b>${jobs.length}</b> سجل، والتوفير المتوقع حوالي <b>${mb(tot.saved)}</b>. دوس «تخفيف التواقيع» للتنفيذ (هينزّل نسخة احتياطية الأول).`);return}
+  say("بينزّل نسخة احتياطية…");
+  const bk={};for(const j of jobs)bk[j.col+"/"+j.id]=j.old;
+  const blob=new Blob([JSON.stringify(bk)],{type:"application/json"});
+  const saved=await pgSaveBlob(blob,`نسخة قبل تخفيف التواقيع ${today()}.json`);
+  if(saved===false){say("اتلغى — لازم النسخة الاحتياطية تتنزّل قبل التنفيذ.");return}
+  let ok=0,fail=0;
+  for(const [i,j] of jobs.entries()){
+    say(`بيكتب ${i+1} من ${jobs.length}…`);
+    if(await write(()=>upsert(j.col,j.id,j.nd)))ok++;else fail++;
+  }
+  say(`خلص ✔ اتخفف <b>${ok}</b> سجل${fail?` · <b>${fail}</b> فشل (كرر العملية)`:""} · توفير حوالي <b>${mb(tot.saved)}</b>. النسخة الاحتياطية في ملف التنزيلات.`);
+}
+function wsSlimHTML(){return `<div class="banner">التواقيع المحفوظة جوه الفحوصات والاعتمادات كانت كبيرة وبتتنسخ في كل سجل، وده بيضخّم البيانات وبيستهلك الـ Egress. الأداة دي بتصغّر حجم الصورة بس (التوقيع بيفضل واضح) وبتحفظ نسخة احتياطية قبل أي كتابة. شغّلها وقت هدوء.</div>
+  <section class="card" style="margin-top:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="slimRun(true)">🔎 فحص التوفير المتوقع</button><button class="btn primary" onclick="slimRun(false)">🗜️ تخفيف التواقيع</button></div><div id="slimOut" style="margin-top:12px;font-size:14px"></div></section>`}
+WS_DEF.ws_admin.subs.push({k:"slim",t:"تخفيف الحجم",lvl:"settings",html:wsSlimHTML},{k:"errs",t:"سجل الأخطاء",lvl:"settings",html:wsErrsHTML},{k:"raw",t:"تعديل مباشر",lvl:"settings",html:wsRawHTML});
 /* ---- v8: دمج التكرارات — كل دور بيشوف أقل عدد صفحات، والصفحات ليها أسماء ثابتة ---- */
 {const D=WS_DEF;
  /* المطلوب النهاردة + نماذجي = «اليوم» (صفحة نماذجي كانت شريحة واحدة لوحدها) */
