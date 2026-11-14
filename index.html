@@ -162,7 +162,7 @@ td.n,th.n{font-variant-numeric:tabular-nums;text-align:left;direction:ltr}
 .li .t{font-weight:600;overflow-wrap:anywhere}
 .li .s{font-size:12.5px;color:var(--muted)}
 /* sheet */
-.overlay{position:fixed;inset:0;background:rgba(10,16,14,.45);z-index:20;display:flex;justify-content:flex-start}
+.overlay{position:fixed;inset:0;background:rgba(10,16,14,.45);z-index:50;display:flex;justify-content:flex-start}
 .sheet{direction:rtl;background:var(--surface);width:min(560px,100%);height:100%;overflow-y:auto;padding:20px max(18px,env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-right,0px));box-shadow:0 0 40px rgba(0,0,0,.25);padding-top:calc(20px + env(safe-area-inset-top,0px))}
 .sheet .head{margin-bottom:18px}
 .form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -175,7 +175,7 @@ td.n,th.n{font-variant-numeric:tabular-nums;text-align:left;direction:ltr}
 .line{display:grid;grid-template-columns:1fr 90px 34px;gap:8px;align-items:end}
 .msg{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--bad-soft);color:var(--bad)}
 .msg.okm{background:var(--ok-soft);color:var(--ok)}
-.toast{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:600;z-index:30;direction:rtl}
+.toast{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:600;z-index:95;direction:rtl}
 .banner{background:var(--warn-soft);color:var(--warn);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13.5px}
 [hidden]{display:none!important}
 .grid .full{grid-column:1/-1}
@@ -924,7 +924,7 @@ function $(id){return document.getElementById(id)}
 let SHEET_FORCE=false;
 function openSheet(title,body,onSave,saveLabel="حفظ"){
   /* نماذج السجلات (محاضرة/حادث/مخالفة) بتتفتح من صفحات صلاحيتها «مشاهدة» (القوى العاملة…) — القفل لازم يتحدد بصلاحية «النماذج» مش بصفحة الخلفية */
-  const force=SHEET_FORCE;SHEET_FORCE=false;const wr=()=>!!canWrite||force;
+  const force=SHEET_FORCE;SHEET_FORCE=false;const wr=()=>!!canWrite||force||(!!BASE.write&&myRole()!=="eng"&&typeof wsBestLevel==="function"&&wsBestLevel()!=="view");
   const root=$("overlayRoot");
   root.innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <div class="head"><h2 class="grow">${esc(title)}</h2><button class="btn ghost" id="shClose" aria-label="إغلاق">✕</button></div>
@@ -2115,7 +2115,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.2.1";
+const APP_VER="8.2.3";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4718,7 +4718,7 @@ async function printRecord(id){
      ما يظهرش زرار «اعتماد بتوقيعي» تاني. */
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));
   const A=recActions(r,nameVals);          /* مصدر واحد للحقيقة: نفس الدالة بتحدد الأزرار والتنبيهات */
-  const extra=`${canWrite?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${A.approve&&personalSig?`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`:""}${A.unapprove?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:""}`;
+  const extra=`${(canWrite||(BASE.write&&tabLevel("forms")!=="view"))?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${A.approve&&personalSig?`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`:""}${A.unapprove?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:""}`;
   const ext2=extra+(A.sign?`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`:"")+(A.unsign?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:"");
   const atc=attendCol(spec);
   const atst=atc?attendStats(r,spec):null;
