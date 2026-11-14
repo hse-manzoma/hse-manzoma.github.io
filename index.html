@@ -2115,7 +2115,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.2.3";
+const APP_VER="8.2.4";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3303,17 +3303,23 @@ function kpiSourceSheet(empId,metric,month){
   openSheet(`${KPIS.find(k=>k.k===metric)?.ar||"مصادر المؤشر"} · ${e.name||""} · ${monthName(month)}`,body,async()=>null,"إغلاق");
 }
 VIEWS.kpi = {
-  shell:()=>{const own=ownScope();return `<div class="head"><h2 class="grow">${own?"مؤشراتي (KPI)":"KPIs فريق السلامة"}</h2><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
+  shell:()=>{const own=ownScope();return `<div class="head"><h2 class="grow">${own?"مؤشراتي (KPI)":"KPIs فريق السلامة"}</h2><button class="btn" id="kpiPickBtn" type="button" onclick="kpiPickPeople()">👥 اختيار الأشخاص</button><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
     <div class="card" style="margin-bottom:14px"><h3>مؤشرات مستخرجة من سجلات المنظومة</h3><p class="muted" style="margin-top:0;font-size:13px">كل رقم محسوب من نموذج أو سجل فعلي محفوظ. اضغط على الرقم لعرض مراجع السجلات التي كوّنته؛ لا توجد أرقام KPI يدوية.</p><div id="kpiSum"></div></div>`},
   bind(){$("kpiMonth").onchange=e=>{ui.kpiMonth=e.target.value||thisMonth();this.fill()}},
   fill(){
     const wait=waiting("records")||waiting("equipment")||waiting("actions");if(wait){$("kpiSum").innerHTML=wait;return}
-    const T=kpiTargets(),R=kpiSummary(ui.kpiMonth);
+    const T=kpiTargets(),R0=kpiSummary(ui.kpiMonth),pk=ui.kpiPick,R=Array.isArray(pk)?R0.filter(r=>pk.includes(r.id)):R0;
+    const pb=$("kpiPickBtn");if(pb)pb.textContent=Array.isArray(pk)?`👥 الأشخاص (${R.length} من ${R0.length})`:"👥 اختيار الأشخاص";
     $("kpiSum").innerHTML=R.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th>${KPIS.map(k=>`<th class="n">${k.ar}<br><span style="font-weight:400">هدف ${T[k.k]}</span></th>`).join("")}<th class="n">النتيجة</th></tr></thead><tbody>
-      ${R.map(r=>`<tr><td>${esc(r.name)}</td>${KPIS.map(k=>{const v=r.sums[k.k],ok=v>=T[k.k];return `<td class="n"><button class="btn ghost sm" style="${ok?"color:var(--ok);font-weight:700":""}" onclick="kpiSourceSheet('${r.id}','${k.k}','${ui.kpiMonth}')" title="عرض السجلات المرجعية">${v}</button></td>`}).join("")}<td class="n"><b>${r.score}%</b></td></tr>`).join("")}</tbody></table></div>`
+      ${R.map(r=>`<tr><td>${esc(r.name)}</td>${KPIS.map(k=>{const v=r.sums[k.k],ok=v>=T[k.k];return `<td class="n"><button class="btn ghost sm" data-xt style="${ok?"color:var(--ok);font-weight:700":""}" onclick="kpiSourceSheet('${r.id}','${k.k}','${ui.kpiMonth}')" title="عرض السجلات المرجعية">${v}</button></td>`}).join("")}<td class="n"><b>${r.score}%</b></td></tr>`).join("")}</tbody></table></div>`
       :emptyState("لا توجد سجلات أو نماذج لهذا الشهر",hseTeam().length?"تظهر المؤشرات تلقائيًا بعد حفظ النماذج أو سجلات الفحص والإجراءات.":"لازم تضيف موظفين في مجموعة «فريق السلامة» الأول.");
   }
 };
+function kpiPickPeople(){
+  const R=kpiSummary(ui.kpiMonth),pk=Array.isArray(ui.kpiPick)?ui.kpiPick:null;
+  openSheet("اختيار الأشخاص في النتيجة والتصدير",`<div class="form"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="btn sm" onclick="document.querySelectorAll('#shForm [name^=kp_]').forEach(c=>c.checked=true)">تحديد الكل</button><button type="button" class="btn sm" onclick="document.querySelectorAll('#shForm [name^=kp_]').forEach(c=>c.checked=false)">إلغاء الكل</button></div>
+    <div class="list">${R.map(r=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="kp_${esc(r.id)}" ${!pk||pk.includes(r.id)?"checked":""} style="margin-inline-end:10px"><div class="grow"><div class="t">${esc(r.name)}</div><div class="s">${r.score}%</div></div></label>`).join("")}</div></div>`,
+  async fd=>{const ids=R.filter(r=>fd["kp_"+r.id]!==undefined).map(r=>r.id);if(!ids.length)return "اختار شخص واحد على الأقل";ui.kpiPick=ids.length===R.length?null:ids;VIEWS.kpi.fill();return null},"تطبيق")}
 function kpiForm(){toast("مؤشرات KPI تُحسب تلقائيًا من السجلات والنماذج المحفوظة")}
 function kpiDel(){toast("لا تُضاف أو تُمسح أرقام KPI يدويًا؛ المؤشرات مصدرها السجلات")}
 
@@ -8532,6 +8538,7 @@ function settingsOrganize(){
    ====================================================================== */
 function pgCellText(c){
   const k=c.cloneNode(true);
+  k.querySelectorAll("button[data-xt]").forEach(b=>b.replaceWith(document.createTextNode(b.textContent.trim())));
   k.querySelectorAll("button,svg,.row-actions,[data-noexport]").forEach(e=>e.remove());
   k.querySelectorAll("input,select,textarea").forEach(e=>{
     let v="";
