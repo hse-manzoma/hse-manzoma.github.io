@@ -499,10 +499,29 @@ async function pullCol(col,force){
     /* مفيش أي تغيير من آخر مزامنة — ما بنحمّلش ولا بايت بيانات */
     if(!force&&cached.length&&meta&&meta.n===st.n&&meta.at===st.at){
       console.debug("[sync]",col,"بدون تغيير",cached.length);
-      return {rows:cached,fromCache:true};
+      return {rows:cached,fromCache:true,unchanged:true};
+    }
+    /* تحديث تزايدي: نجيب الصفوف اللي اتغيّرت بعد آخر مزامنة بس (بدل قايمة القسم كله).
+       لو العدد مطابق للسيرفر بنكتفي بيها؛ غير كده (حذف مثلًا) بنرجع للمزامنة الكاملة.
+       ومرة كل 30 دقيقة على الأقل بنعمل الكاملة للأمان (تأخّر ساعة جهاز مثلًا). */
+    if(!force&&cached.length&&meta&&meta.at&&(Date.now()-(meta.full||0))<1800000){
+      try{
+        const {data:ch,error:e2}=await sb.from("docs").select("id,data,updated_at").eq("col",col).gt("updated_at",meta.at);
+        if(!e2){
+          const keep=new Map(cached.map(r=>[r.id,r]));
+          for(const r of ch)keep.set(r.id,{id:r.id,data:r.data,u:r.updated_at||""});
+          if(keep.size===st.n){
+            const rows=[...keep.values()];
+            cacheReplaceCol(col,rows).catch(()=>{});
+            await metaSet("sync:"+col,{n:st.n,at:st.at,full:meta.full||0});
+            console.debug("[sync]",col,"تزايدي",ch.length,"إجمالي",rows.length);
+            return {rows,fromCache:false};
+          }
+        }
+      }catch(e){console.warn("[sync] تزايدي فشل — كاملة",col,e)}
     }
     const d=await syncColDelta(col,cached);
-    await metaSet("sync:"+col,{n:st.n,at:st.at});
+    await metaSet("sync:"+col,{n:st.n,at:st.at,full:Date.now()});
     console.debug("[sync]",col,"متغيّر",d.changed,"ممسوح",d.removed,"إجمالي",d.rows.length);
     return {rows:d.rows,fromCache:false};
   }catch(e){
@@ -608,7 +627,7 @@ let FORCE_NEXT=false;
 async function repull(){
   for(const col of Object.keys(subs)){
     const S=subs[col];if(!S||!S.cbs.size)continue;
-    try{const {rows}=await pullCol(col,FORCE_NEXT);S.map.clear();for(const r of rows)S.map.set(r.id,r.data);await overlayPending(col,S.map);S.fromCache=false;S.emit()}
+    try{const {rows,unchanged}=await pullCol(col,FORCE_NEXT);if(unchanged&&!FORCE_NEXT&&S.loaded&&S.map.size===rows.length){S.fromCache=false;continue}S.map.clear();for(const r of rows)S.map.set(r.id,r.data);await overlayPending(col,S.map);S.fromCache=false;S.emit()}
     catch(e){/* لسه مفيش نت */ break}
   }
 }
@@ -662,7 +681,8 @@ function badge(){clearTimeout(badgeT);badgeT=setTimeout(async()=>{
 addEventListener("online",()=>{badge();syncNow()});
 addEventListener("offline",()=>badge());
 setInterval(()=>{if(NET())outCount().then(n=>{if(n)syncNow()})},60000);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden&&NET())syncSoon(400)});
+let _hidAt=0;
+document.addEventListener("visibilitychange",()=>{if(document.hidden){_hidAt=Date.now();return}if(NET()&&(!_hidAt||Date.now()-_hidAt>60000))syncSoon(400)});
 window.SBA.pullCol=pullCol;   /* للاختبار والتشخيص */
 /* مزامنة كاملة بالإجبار — لو حد عدّل في قاعدة البيانات من برّه المنظومة */
 window.SBA.resync=async()=>{FORCE_NEXT=true;try{await repull()}finally{FORCE_NEXT=false}};
