@@ -2127,7 +2127,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.3.4";
+const APP_VER="8.3.5";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -9331,13 +9331,10 @@ function inspCodeSheet(id){
    ملاحظة أمان: مستوى الصلاحية بيتحسب لكل شريحة على حدة من tabLevel
    بتاع القسم اللي جواها، مش من الصفحة ككل. */
 
-function wsOn(){ if(window.__wsForce!==undefined)return !!window.__wsForce;
-  try{if(localStorage.getItem("hse.ws82")!=="1"){localStorage.setItem("hse.ws82","1");localStorage.setItem("hse.ws","1")}}catch(e){}
-  try{const v=localStorage.getItem("hse.ws");return v===null?true:v==="1"}catch(e){return true} }
+/* من 8.3.5: مساحات العمل هي الشكل الوحيد لكل الأدوار. القايمة القديمة اتشالت، والأقسام النادرة في زرار «⋯ المزيد» */
+function wsOn(){ if(window.__wsForce!==undefined)return !!window.__wsForce; return true }
 function wsSet(on){ try{localStorage.setItem("hse.ws",on?"1":"0")}catch(e){} window.__wsForce=undefined; }
-function wsToggle(){ const now=!wsOn(); wsSet(now);
-  const pages=wsPages(); const dest=now?(pages[0]||"dash"):"dash";
-  toast(now?"مساحات العمل":"كل الأقسام"); show(dest); }
+function wsToggle(){ try{moreSheet()}catch(e){console.error(e)} }
 
 /* ---- مين بيشوف إيه ---- */
 function wsPersona(){ const r=myRole();
@@ -9735,7 +9732,7 @@ for(const k of Object.keys(WS_DEF)){
 /* ---- الشريط العلوي ---- */
 function wsNavHTML(){ const pages=wsPages();
   return pages.map(k=>`<button type="button" data-tab="${k}" data-decorated="1" aria-selected="${k===tab}" style="display:flex;align-items:center;gap:7px"><span>${WS_DEF[k].ic}</span><span>${esc(WS_DEF[k].t)}</span></button>`).join("")
-    +`<button type="button" id="wsSwitch" data-decorated="1" onclick="wsToggle()" title="التبديل بين مساحات العمل وكل الأقسام" style="opacity:.75">⇄ كل الأقسام</button>`; }
+    +`<button type="button" id="wsSwitch" data-decorated="1" onclick="wsToggle()" title="باقي الأقسام" style="opacity:.75">⋯ المزيد</button>`; }
 let WS_CLASSIC_NAV=null, WS_NAV_MODE="0";
 function wsNavMount(){ const nav=$("tabs"); if(!nav)return;
   if(WS_CLASSIC_NAV===null)WS_CLASSIC_NAV=nav.innerHTML;
@@ -9753,7 +9750,7 @@ function wsNavMount(){ const nav=$("tabs"); if(!nav)return;
      nav.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.more!==undefined)wsToggle();else show(b.dataset.tab)})}
    const pages=wsPages();
    nav.innerHTML=pages.map(k=>`<button data-tab="${k}" aria-current="${k===tab}"><span class="ic" style="font-size:17px;line-height:1">${WS_DEF[k].ic}</span><span>${esc(WS_DEF[k].t)}</span></button>`).join("")
-     +`<button data-more aria-current="false"><span class="ic" style="font-size:17px;line-height:1">⇄</span><span>كل الأقسام</span></button>`; };}
+     +`<button data-more aria-current="false"><span class="ic" style="font-size:17px;line-height:1">⋯</span><span>المزيد</span></button>`; };}
 
 /* ---- التركيب على show ---- */
 {const _show=show;
