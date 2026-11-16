@@ -771,9 +771,9 @@ async function boot(){
   setSync("متصل","on"); online=true;
   setTimeout(startPresence,2000);
   for(const [k,p] of Object.entries(COLS)){
-    db.collection(p).onSnapshot(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refresh()},()=>setSync("الاتصال اتقطع","off"));
+    db.collection(p).onSnapshot(s=>{LIVE[k]=s.docs.map(d=>({id:d.id,...d.data()}));loaded[k]=true;merge(k);refreshSoon()},()=>setSync("الاتصال اتقطع","off"));
   }
-  db.collection("legacy").onSnapshot(s=>{const acc={};for(const d of s.docs){const x=d.data();(acc[x.kind]??=[]).push(...(x.rows||[]))}LEG=acc;legacyLoaded=true;for(const k of Object.keys(COLS))merge(k);refresh()},()=>{});
+  db.collection("legacy").onSnapshot(s=>{const acc={};for(const d of s.docs){const x=d.data();(acc[x.kind]??=[]).push(...(x.rows||[]))}LEG=acc;legacyLoaded=true;for(const k of Object.keys(COLS))merge(k);refreshSoon()},()=>{});
   db.collection("__profiles").onSnapshot(s=>{S.profiles=s.docs.map(d=>({...d.data(),id:d.id}));const me=S.profiles.find(p=>p.id===ME.id||p.user_id===ME.id);if(me){window.SBA.profile=me;if(me.disabled){location.reload()}}applyRole();if(tab==="settings")refresh()},()=>{});
   db.collection("members").onSnapshot(s=>{S.members=s.docs.map(d=>({id:d.id,...d.data()}));if(tab==="settings")refresh()},()=>{});
   db.doc("settings/main").onSnapshot(s=>{S.settings=s.exists?{...s.data()}:{};loaded.settings=true;applyRole();{const el=document.getElementById("projectName");el.textContent="HSE · "+(S.settings.project||"المشروع")+" · v"+APP_VER;el.title="نسخة المنظومة "+appVerLine()}refresh()},()=>{});
@@ -918,6 +918,18 @@ function showBase(t){
   VIEWS[tab].fill();
 }
 function refreshBase(){if(!importing)VIEWS[tab]?.fill()}
+/* تجميع إعادة الرسم: وقت الفتح بتوصل ~15 مجموعة بيانات ورا بعض وكل واحدة كانت بتعيد رسم الصفحة (رعشة).
+   دلوقتي بنستنى 250ms هدوء (وبحد أقصى 600ms)، ولو المستخدم بيكتب في حقل بنأجّل لحد ما يخلّص. */
+let _rfT=0,_rfFirst=0;
+function refreshSoon(){
+  if(!_rfFirst)_rfFirst=Date.now();
+  clearTimeout(_rfT);
+  const wait=Math.max(0,Math.min(250,600-(Date.now()-_rfFirst)));
+  _rfT=setTimeout(function go(){
+    const a=document.activeElement;
+    if(a&&a.closest&&a.closest("#main")&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|button)$/.test(a.type||"")){_rfT=setTimeout(go,1500);return}
+    _rfFirst=0;refresh()},wait)
+}
 function $(id){return document.getElementById(id)}
 
 /* ---------- sheet (side form) ---------- */
@@ -2115,7 +2127,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.3.0";
+const APP_VER="8.3.2";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4302,6 +4314,7 @@ async function recordFormBase(fid,id,preset){
     const ok=await write(async()=>{if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";rid=recordDuplicateDocId(fid,data);const ref=await db.doc("records/"+rid).get();if(ref.exists)throw Object.assign(new Error("duplicate_record"),{code:"duplicate_record"});await upsert("records",rid,data)}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}else{for(const a of uploadedPhotos)try{await assetsNS?.delete(a)}catch(e){}}
     if(ok&&rid&&fid==="F-HSE-07-01"&&myRole()!=="admin"){const admins=(S.profiles||[]).filter(p=>p.role==="admin"&&!p.disabled).map(p=>p.id);if(admins.length)notifyUsers(admins,"🚨 مخالفة جديدة للمراجعة",`${currentActor||myEmpName()} أرسل إخطار مخالفة للمراجعة والتوقيع`,`?go=rec&id=${encodeURIComponent(rid)}`)}
+    if(ok&&rid&&!id&&(fid==="F-HSE-03-01"||fid==="F-HSE-07-03"))setTimeout(()=>notifyRecordStakeholders(rid),600);
     if(ok&&rid&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t,{recId:rid})}catch(e){console.error(e)}}
     if(ok&&rid)setTimeout(()=>printRecord(rid),400);
     return ok?null:"الحفظ فشل";
@@ -6090,6 +6103,12 @@ function recActions(r,nameVals){const A={review:false,approve:false,unapprove:fa
   A.unsign=iSigned&&!approved&&canSignGroup("records",{names});
   return A}
 function pendingReviews(){return S.records.filter(r=>needsReview(r)&&canReview(r))}
+/* سجل جديد (حادث / وضع غير آمن): نبلّغ الأدمن + المراجعين + المذكورين فيه، والإشعار بيفتح السجل مباشرة */
+async function notifyRecordStakeholders(rid){const r=(S.records||[]).find(x=>x.id===rid);if(!r)return;
+  const named=new Set(recSlots(r).map(x=>normName(x.v)).filter(Boolean));
+  const ids=(S.profiles||[]).filter(p=>!p.disabled&&p.id!==ME.id&&(p.role==="admin"||recTodoFor(r,p.id)||(p.emp_id&&named.has(normName(emp(p.emp_id)?.name||"")))||(r.form==="F-HSE-03-01"&&(p.role==="hsesup"||p.role==="hse")))).map(p=>p.id);
+  if(!ids.length)return;const inc=r.form==="F-HSE-03-01";
+  await notifyUsers(ids,inc?"🚨 حادث جديد محتاج مراجعتك واعتمادك":"⚠️ وضع/تصرف غير آمن محتاج مراجعتك",`${myEmpName()}: ${String(r.f?.desc||r.rows?.find?.(x=>x?.desc)?.desc||recKindAr(r)).slice(0,90)}`,`?go=rec&id=${encodeURIComponent(rid)}`)}
 async function notifyRecordReview(r){if(!r||!needsReview(r)||isViolationRec(r))return;const reviewers=(S.profiles||[]).filter(p=>recTodoFor(r,p.id)==="review").map(p=>p.id);if(reviewers.length)await notifyUsers(reviewers,"📝 سجل موقّع ينتظر مراجعة المشرف",`${profName(profOf(r.createdBy))||"عضو الفريق"} وقّع ${r.form}؛ راجعه واعتمده بتوقيعك.`,`?go=rec&id=${encodeURIComponent(r.id)}`);else toast("اتسجل توقيعك، لكن لا يوجد حساب مراجِع مرتبط لاستقبال الإشعار")}
 async function reviewRecord(id,ok){const r=S.records.find(x=>x.id===id);if(!r)return;if(!needsReview(r)||!canReview(r)||r.createdBy===ME.id){toast("مراجعة السجل متاحة لمشرف آخر، وليس لمُصدره");return}const me=myEmpName();
   if(!ok){openSheet("رجّع النموذج للتعديل",`<div class="form">${f("الملاحظة","note",{type:"textarea",full:true,req:true})}</div>`,async fd=>{if(!fd.note.trim())return "اكتب الملاحظة";
@@ -6116,8 +6135,18 @@ function roleDuties(uid){const p=profOf(uid);const r=p?.role;const ws=weekStart(
   if(r==="sup"){const n=S.permits.filter(x=>isReq(x)&&!isSupOk(x)&&(x.supUid===uid||!x.supUid)).length;L.push({k:"ptw",t:`طلبات تصاريح مستنية اعتمادك: ${n}`,ok:n===0,go:"show('ptw')"})}
   const tk=S.tasks.filter(x=>x.status!=="done"&&p?.emp_id&&x.assignee===p.emp_id).length;if(tk)L.push({k:"task",t:`مهام مفتوحة: ${tk}`,ok:false,go:"show('dash')"});
   return L}
-{const _rm=reminders;reminders=function(){const o=_rm();const R=o.R;const mine=roleDuties(ME.id).filter(x=>!x.ok&&x.k!=="task"&&x.k!=="ptw");
-  for(const x of mine)R.push({lv:x.k==="rev"?"bad":"warn",t:x.t,go:x.go});
+/* السجلات المستنية إجراء مني (مراجعة / اعتماد / توقيع) — مصدر واحد للتنبيهات والإشعارات */
+const recKindAr=r=>(FORMS2&&FORMS2[r.form]?.title)||({"F-HSE-03-01":"تقرير حادث","F-HSE-07-01":"إخطار مخالفة","F-HSE-07-03":"ملاحظة وضع/تصرف غير آمن"}[r.form])||r.form||"سجل";
+function recActLabel(r){const A=recActions(r);const w=A.review?"مراجعة واعتماد":A.approve?"اعتماد":A.sign?"توقيع":"";if(!w)return null;
+  const what=String(r.f?.desc||r.f?.place||r.rows?.find?.(x=>x?.desc)?.desc||"").slice(0,40);
+  return {w,t:`${recKindAr(r)}${what?" — "+what:""} · مستني ${w}`,lv:A.review||/F-HSE-03-01|F-HSE-07-01/.test(r.form)?"bad":"warn"}}
+function pendingRecActions(){const out=[];for(const r of (S.records||[])){if(recApproved(r)||!r.id||!recFresh(r))continue;const L=recActLabel(r);if(L)out.push({id:r.id,t:L.t,lv:L.lv,at:r.createdAt||0})}
+  return out.sort((a,b)=>(a.lv==="bad"?0:1)-(b.lv==="bad"?0:1)||b.at-a.at)}
+{const _rm=reminders;reminders=function(){const o=_rm();const R=o.R;const mine=roleDuties(ME.id).filter(x=>!x.ok&&x.k!=="task"&&x.k!=="ptw"&&x.k!=="rev"&&x.k!=="sgn");
+  for(const x of mine)R.push({lv:"warn",t:x.t,go:x.go});
+  /* كل سجل محتاج اعتماد/مراجعة/توقيع مني بيظهر لوحده وبيفتح السجل نفسه، ويختفي أول ما يتنفذ */
+  try{const todo=pendingRecActions();todo.slice(0,10).forEach(x=>R.unshift({lv:x.lv,t:x.t,go:`printRecord('${x.id}')`}));
+    if(todo.length>10)R.unshift({lv:"warn",t:`+${todo.length-10} سجل تاني مستني إجراءك`,go:"wsFocus('revForms')"})}catch(e){}
   if(myRole()==="admin"){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>!c.requestKind&&c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"});const dr=S.leavereq.filter(c=>c.requestKind&&c.status==="new").length;if(dr)R.unshift({lv:"warn",t:`${dr} طلب إذن / مأمورية / تكليف مستني موافقتك`,go:"show('follow')"})}
   return o}}
 /* notifications: inbox table + push */
@@ -6139,7 +6168,7 @@ function notifLive(n){/* true: لسه مطلوب · false: خلص/قديم · nu
   const myEmp=myEmpId();
   try{
     if(go==="rec"){const r=(S.records||[]).find(x=>x.id===id);if(!r)return loaded.records?false:null;
-      if(/تعديل/.test(t))return !!r.reviewNote&&!recApproved(r);return recTodo(r)!==null}
+      if(/تعديل/.test(t))return !!r.reviewNote&&!recApproved(r);return recTodo(r)!==null||!!recActLabel(r)}
     if(go==="ptw"||go==="ptw-close"){const p=(S.permits||[]).find(x=>x.id===id);if(!p)return loaded.permits?false:null;
       if(p.status==="closed"||p.status==="rejected"||p.status==="cancelled")return false;
       if(endAlert||go==="ptw-close")return p.status==="open"||p.status==="approved";
@@ -6163,10 +6192,10 @@ const notifOpen=x=>notifLive(x)===false;
 function bellBadge(){const n=NOTIFS.filter(x=>!x.read&&!notifOpen(x)).length;const b=$("bellBtn");if(b)b.innerHTML=`🔔${n?`<span style="background:var(--bad);color:#fff;border-radius:999px;font-size:10.5px;padding:0 5px;margin-inline-start:3px">${n}</span>`:""}`}
 function bellPanel(){
   const rank=x=>notifOpen(x)?2:x.read?1:0;
-  const L=[...NOTIFS].sort((x,y)=>rank(x)-rank(y)||new Date(y.at)-new Date(x.at));
+  const L=NOTIFS.filter(x=>!notifOpen(x)).sort((x,y)=>rank(x)-rank(y)||new Date(y.at)-new Date(x.at));
   const live=L.filter(x=>!x.read&&!notifOpen(x)).length;
   const row=x=>{const done=notifOpen(x);return `<button type="button" class="li" data-n="${x.id}" style="width:100%;text-align:right;background:${x.read||done?"none":"var(--accent-soft)"};border:0;border-radius:8px;padding:10px;font:inherit;color:inherit;cursor:pointer;margin-bottom:4px;${done?"opacity:.55":""}"><div class="grow"><div class="t">${done?'<span class="pill p-appr" style="margin-inline-end:6px">✔ تم</span>':""}${esc(x.title)}</div><div class="s" style="white-space:pre-line">${esc(x.body||"")}</div><div class="s">${new Date(x.at).toLocaleString("ar-EG",{dateStyle:"short",timeStyle:"short"})}</div></div></button>`};
-  openSheet("🔔 الإشعارات",L.length?`<p class="muted" style="margin-top:0">${live?`مطلوب منك دلوقتي: <b>${live}</b>`:"مفيش حاجة مستنياك دلوقتي"} · الإشعارات اللي اتنفذت بتظهر «✔ تم» وما بتتحسبش.</p><div class="list">${L.map(row).join("")}</div>`:emptyState("مفيش إشعارات",""),async()=>{const ids=NOTIFS.filter(x=>!x.read).map(x=>x.id);if(ids.length){await SB.from("notif").update({read:true}).in("id",ids);NOTIFS.forEach(x=>x.read=true);bellBadge()}return null},"تعليم الكل كمقروء");
+  openSheet("🔔 الإشعارات",L.length?`<p class="muted" style="margin-top:0">${live?`مطلوب منك دلوقتي: <b>${live}</b>`:"مفيش حاجة مستنياك دلوقتي"} · الإشعار اللي تنفّذ بيختفي لوحده.</p><div class="list">${L.map(row).join("")}</div>`:emptyState("مفيش إشعارات",""),async()=>{const ids=NOTIFS.filter(x=>!x.read).map(x=>x.id);if(ids.length){await SB.from("notif").update({read:true}).in("id",ids);NOTIFS.forEach(x=>x.read=true);bellBadge()}return null},"تعليم الكل كمقروء");
   $("overlayRoot").querySelector(".list")?.addEventListener("click",async e=>{const b=e.target.closest("[data-n]");if(!b)return;const x=NOTIFS.find(n=>String(n.id)===b.dataset.n);$("overlayRoot").innerHTML="";if(x&&!x.read){x.read=true;bellBadge();SB.from("notif").update({read:true}).eq("id",x.id).then(()=>{},()=>{})}if(x?.url)goTo(x.url)})}
 async function goTo(url){let raw=String(url||"");try{if(/^https?:/i.test(raw))raw=new URL(raw).search}catch(e){}const q=new URLSearchParams(raw.split("?")[1]||""),go=q.get("go"),id=q.get("id");if(!go)return;
   const waitFor=async(list,key)=>{for(let i=0;i<30;i++){const found=(list||[]).find(x=>x.id===key);if(found)return found;await new Promise(r=>setTimeout(r,120))}return (list||[]).find(x=>x.id===key)||null};
