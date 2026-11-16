@@ -2127,7 +2127,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.3.5";
+const APP_VER="8.3.6";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4449,11 +4449,14 @@ async function sigSrc(){const s=await sigData();return s["VAC-Picture12"]||s["IV
 async function sigBox(approved){if(!approved)return "";const src=approved.signature||(approved.by===ME.id?await mySig():"");return src?`<img class="sigimg" src="${src}" alt="توقيع المعتمد">`:""}
 
 /* ---------- viewer ---------- */
-function pvClose(){$("pvRoot")?.remove();document.body.style.overflow=""}
+function pvClose(){$("pvRoot")?.remove();document.body.style.overflow="";document.body.classList.remove("pv-open")}
+/* Ctrl+P والطباعة من قايمة المتصفح وإحنا فاتحين مستند: نطبع المستند نفسه مش الشاشة بأزرارها */
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&String(e.key).toLowerCase()==="p"){const b=document.querySelector("#pvRoot [data-print]");if(b&&!b.disabled){e.preventDefault();b.click()}}});
+(function(){const st=document.createElement("style");st.textContent="@media print{body.pv-open>*:not(#pvRoot):not(script):not(style){display:none!important}body.pv-open #pvRoot{position:static!important;inset:auto!important;background:#fff!important;overflow:visible!important;height:auto!important;display:block!important}body.pv-open #pvRoot .pvbar,body.pv-open #pvRoot .pvcount,body.pv-open #pvNote{display:none!important}body.pv-open #pvBody{overflow:visible!important;height:auto!important;padding:0!important;display:block!important}body.pv-open #pvBody canvas{display:block!important;width:210mm!important;height:auto!important;max-width:none!important;margin:0!important;box-shadow:none!important;border:0!important;break-after:page;page-break-after:always}}";document.head.appendChild(st)})();
 function openViewer(title,{filename="document.pdf",note="",extra=""}={}){
   pvClose();const root=document.createElement("div");root.id="pvRoot";root.className="pvov";root.setAttribute("role","dialog");root.setAttribute("aria-modal","true");
   root.innerHTML=`<div class="pvbar"><button class="btn ghost" data-x aria-label="رجوع">✕</button><h2>${esc(title)}</h2><div style="display:flex;gap:6px;flex-wrap:wrap" id="pvAct">${extra}<button class="btn primary" data-print disabled>🖨 طباعة</button><button class="btn" data-wa disabled style="color:#128C7E">📲 واتساب</button><button class="btn" data-pdf disabled>⬇ PDF</button></div></div><div id="pvWa"></div><div id="pvPrn"></div><div id="pvNote">${note?`<div class="pvnote">${note}</div>`:""}</div><div class="pvbody" id="pvBody"><div class="empty" style="color:#fff">بيجهّز…</div></div>`;
-  document.body.appendChild(root);document.body.style.overflow="hidden";
+  document.body.appendChild(root);document.body.style.overflow="hidden";document.body.classList.add("pv-open");
   const st={pages:null,html:null,land:false};
   root.querySelector("[data-x]").onclick=pvClose;
   document.addEventListener("keydown",function k(e){if(e.key==="Escape"){pvClose();document.removeEventListener("keydown",k)}});
