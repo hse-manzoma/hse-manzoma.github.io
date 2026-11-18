@@ -1680,7 +1680,7 @@ function remindersBase(){
 function remindersHTML(){const {R,T}=reminders();const me=myEmpId();const admin=myAccess()?.role==="admin";
   const mine=T.filter(x=>x.assignee===me),others=T.filter(x=>x.assignee!==me);
   const tl=x=>{const tgt=taskTargetName(x),pr=taskProgress(x),run=pr.total>0&&x.assignee===me;
-    return `<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":x.kind==="ptw"?"📋 ":x.kind==="multi"?"🗂 ":""}${esc(x.title)}</div><div class="s">${pr.total>1?`<b>${pr.done}/${pr.total} بنود</b> · `:(tgt?esc(tgt)+" · ":"")}${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.place?esc(x.place)+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}${x.needSign!==false&&x.kind==="form"?' · <span class="muted">يلزم توقيعك</span>':""}</div></div>${run?`<button class="btn sm primary" onclick="taskRun('${x.id}')">ابدأ ←</button>`:""}${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="taskDel('${x.id}')">مسح</button>`:""}`:""}</div>`};
+    return `<div class="li"><input type="checkbox" aria-label="خلصت" onchange="taskDone('${x.id}')" style="width:18px;height:18px"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":x.kind==="ptw"?"📋 ":x.kind==="multi"?"🗂 ":""}${esc(x.title)}</div><div class="s">${pr.total>1?`<b>${pr.done}/${pr.total} بنود</b> · `:(tgt?esc(tgt)+" · ":"")}${x.assignee&&x.assignee!==me?"👤 "+esc(empName(x.assignee))+" · ":""}${x.place?esc(x.place)+" · ":""}${x.due?`الميعاد: <b style="${x.due<today()?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}${x.note?" · "+esc(x.note):""}${x.needSign!==false&&x.kind==="form"?' · <span class="muted">يلزم توقيعك</span>':""}</div></div>${run?`<button class="btn sm primary" onclick="taskRun('${x.id}')">ابدأ ←</button>`:""}${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button><button class="btn ghost sm danger" onclick="taskDel('${x.id}')">مسح</button>`:""}</div>`};
   return `<div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:8px"><h3 class="grow" style="margin:0">🔔 المطلوب ${admin?"":"منك "}النهارده</h3>${canAssignTasks()?`<button class="btn sm primary" onclick="taskAssign()">📤 ابعت مهمة</button>`:""}</div>
     ${R.length||mine.length?`<div class="list" style="margin-top:8px">${R.map(r=>`<button class="li" style="width:100%;text-align:right;font:inherit;color:inherit;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer" onclick="${r.go}"><span class="dot ${r.lv==="bad"?"off":""}" style="background:${r.lv==="bad"?"var(--bad)":"var(--warn)"}"></span><div class="grow t">${esc(r.t)}</div><span class="muted">←</span></button>`).join("")}${mine.map(tl).join("")}</div>`:`<p class="muted" style="margin:8px 0 0">مفيش حاجة متأخرة. 👍</p>`}
     ${others.length?`<h3 style="margin:14px 0 4px;font-size:14px">مهام وزعتها على الفريق (${others.length})</h3><div class="list">${others.map(tl).join("")}</div>`:""}</div>`}
@@ -1796,10 +1796,10 @@ async function taskAssign(id){
       eqId:"",form:"",place:String(fd.place||"").trim(),due:fd.due||"",note:String(fd.note||"").trim(),
       needSign:!!form.querySelector('[name="needSign"]').checked,
       status:items.every(i=>i.done)?"done":"open"};
-    const ok=await write(()=>id?upsert("tasks",id,data)
-      :db.collection("tasks").add({...data,createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()}),
+    let tkId=id||"";
+    const ok=await write(async()=>{if(id)await upsert("tasks",id,data);else{const ref=await db.collection("tasks").add({...data,createdBy:ME.id||"",createdByEmp:myEmpId()||"",createdAt:Date.now()});tkId=ref?.id||""}},
       id?"اتعدلت":"اتبعتت المهمة");
-    if(ok){const recipients=(S.profiles||[]).filter(p=>p.emp_id===who.id&&!p.disabled).map(p=>p.id);const body=[items.map(taskItemName).join("، "),data.due?`آخر ميعاد ${fmtDate(data.due)}`:"",data.place||""].filter(Boolean).join(" · ");if(recipients.length)notifyUsers(recipients,id?`📋 تحديث مهمة: ${data.title}`:`📋 مهمة جديدة: ${data.title}`,body,"?go=dash");else toast("المهمة اتحفظت، لكن حساب الموظف غير مربوط به في الإعدادات، لذلك لم يصله إشعار")}
+    if(ok){const recipients=(S.profiles||[]).filter(p=>p.emp_id===who.id&&!p.disabled).map(p=>p.id);const body=[items.map(taskItemName).join("، "),data.due?`آخر ميعاد ${fmtDate(data.due)}`:"",data.place||""].filter(Boolean).join(" · ");if(recipients.length)notifyUsers(recipients,id?`📋 تحديث مهمة: ${data.title}`:`📋 مهمة جديدة: ${data.title}`,body,tkId?"?go=task&id="+encodeURIComponent(tkId):"?go=dash");else toast("المهمة اتحفظت، لكن حساب الموظف غير مربوط به في الإعدادات، لذلك لم يصله إشعار")}
     return ok?null:"الحفظ فشل";
   },id?"حفظ":"ابعت المهمة");
   const sync=()=>{const k=root.querySelector('[name="nkind"]').value;
@@ -2136,7 +2136,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.4.6";
+const APP_VER="8.4.8";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3081,6 +3081,7 @@ function contractorForm(id){
   const c=id?contractor(id):{active:true};
   openSheet(id?"تعديل مقاول":"مقاول جديد",`<div class="form">${f("اسم المقاول / الشركة","name",{value:c.name||"",req:true,full:true})}${f("نطاق الأعمال","scope",{value:c.scope||""})}${f("المسؤول / المندوب","rep",{value:c.rep||""})}${f("الموبايل","phone",{type:"tel",value:c.phone||""})}${f("الحالة","active",{value:c.active===false?"0":"1",opts:[["1","شغال في الموقع"],["0","خلص / مشي"]]})}</div>`,
   async fd=>{if(!fd.name.trim())return "اكتب اسم المقاول";const data={name:fd.name.trim(),scope:fd.scope.trim(),rep:fd.rep.trim(),phone:fd.phone.trim(),active:fd.active==="1"};
+    {const dd=dupCheck("contractor",data,id?c:null,id);if(dd)return "تكرار: "+dd}
     const ok=await write(()=>id?upsert("contractors",id,data):db.collection("contractors").add({...data,createdAt:Date.now()}),"اتحفظ");return ok?null:"الحفظ فشل"});
 }
 /* ---------- attachments (ID cards, signed scans) ---------- */
@@ -3146,6 +3147,7 @@ function empForm(id,preset){
   async fd=>{
     if(!fd.name.trim())return "اكتب الاسم";
     const data={name:fd.name.trim(),code:fd.code.trim(),job:fd.job.trim(),group:fd.group,contractorId:fd.group==="ctr"?(fd.contractorId||""):"",nid:(fd.nid||"").trim(),phone:fd.phone.trim(),active:fd.active==="1",ptwAuth:fd.ptwAuth==="1",casual:num(fd.casual),annual:num(fd.annual)};
+    {const dd=dupCheck("employee",data,id?e:null,id);if(dd)return "تكرار: "+dd}
     const ok=await write(()=>id?upsert("employees",id,data):db.collection("employees").add({...data,createdAt:Date.now()}),"اتحفظ");
     return ok?null:"الحفظ فشل";
   });
@@ -6269,12 +6271,13 @@ async function goTo(url){let raw=String(url||"");try{if(/^https?:/i.test(raw))ra
   else if(go==="ptw-close"){show("ptw");if(id){await waitFor(S.permits,id);await ptwClose(id)}}
   else if(go==="ptw"){show("ptw");if(id){const p=await waitFor(S.permits,id);if(p)await printPermit(id);else toast("طلب التصريح غير موجود أو لم يصل لهذا الحساب")}}
   else if(go==="rec"){if(id){const r=await waitFor(S.records,id);if(r)await printRecord(id);else toast("السجل غير موجود أو لم يصل لهذا الحساب")}}
-  else if(go==="inspection"){ui.eqKind="inspect";show("equip");if(id){const x=await waitFor(S.inspections,id);if(x)setTimeout(()=>inspApprove(id),180);else toast("الفحص غير موجود أو لم يصل لهذا الحساب")}}
-  else if(go==="equip"){if(id){const x=await waitFor(S.equipment,id);if(x)ui.eqKind=x.kind}show("equip")}
+  else if(go==="inspection"){ui.eqKind="inspect";show("equip");if(id){const x=await waitFor(S.inspections,id);if(x)setTimeout(()=>{const ap=!!(x.reviewRequired&&x.review?.status!=="approved"&&x.reviewTo===ME.id&&x.inspectorUid!==ME.id);ap?inspApprove(id):inspView(id)},180);else toast("الفحص غير موجود أو لم يصل لهذا الحساب")}}
+  else if(go==="equip"){let x=null;if(id){x=await waitFor(S.equipment,id);if(x)ui.eqKind=x.kind}show("equip");if(x)setTimeout(()=>eqLastCard(id,x.kind),200)}
   else if(go==="chat"){ui.chatRoom=id||"team";show("chat")}
   else if(go==="mr"){show("matreq")}else if(go==="follow"){show("follow");const k=q.get("req"),by=q.get("by");
     if(k){for(let i=0;i<25;i++){await new Promise(r=>setTimeout(r,120));const el=[...document.querySelectorAll("[data-req-k]")].find(x=>x.dataset.reqK===k&&(!by||x.dataset.reqBy===by));
-      if(el){el.scrollIntoView({block:"center",behavior:"smooth"});el.classList.add("flash-req");setTimeout(()=>el.classList.remove("flash-req"),4000);break}}}}else if(go==="me"){show("me")}else show(go)}
+      if(el){el.scrollIntoView({block:"center",behavior:"smooth"});el.classList.add("flash-req");setTimeout(()=>el.classList.remove("flash-req"),4000);break}}}}else if(go==="me"){show("me");const rid=q.get("rid");if(rid){for(let i=0;i<25;i++){await new Promise(r=>setTimeout(r,120));const el=[...document.querySelectorAll("[data-rid]")].find(x=>x.dataset.rid===rid);
+      if(el){el.scrollIntoView({block:"center",behavior:"smooth"});el.classList.add("flash-req");setTimeout(()=>el.classList.remove("flash-req"),4000);break}}}}else show(go)}
 function playBeep(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;const ctx=playBeep._c||(playBeep._c=new AC());if(ctx.state==="suspended")ctx.resume();const t=ctx.currentTime;[0,0.18].forEach((off,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=i?1046:784;o.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.0001,t+off);g.gain.exponentialRampToValueAtTime(0.25,t+off+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+off+0.16);o.start(t+off);o.stop(t+off+0.17)})}catch(e){}}
 function startRealtime(){if(window._rtOn||!ME.id)return;window._rtOn=true;loadNotifs();
   try{SB.channel("me-"+ME.id).on("postgres_changes",{event:"INSERT",schema:"public",table:"notif",filter:`to_uid=eq.${ME.id}`},p=>{NOTIFS.unshift(p.new);bellBadge();playBeep();showReminder({title:p.new.title,body:p.new.body||"",url:p.new.url||""})}).on("postgres_changes",{event:"INSERT",schema:"public",table:"chat"},p=>onChatInsert(p.new)).subscribe()}catch(e){}
@@ -6292,25 +6295,45 @@ const EMP_F=[["name","الاسم"],["code","الكود"],["job","الوظيفة"
 const CTR_F=[["name","اسم المقاول"],["scope","نطاق الأعمال"],["rep","المسؤول"],["phone","الموبايل"],["active","الحالة"]];
 const crVal=(k,v)=>k==="group"?(GROUPS[v]||v||""):k==="contractorId"?(contractor(v)?.name||""):k==="active"?(v===false?"موقوف":"شغال"):String(v??"");
 const isAdmin=()=>myRole()==="admin";
+/* 8.4.7: منع تكرار العمال والمقاولين (إضافة / تعديل / تنفيذ طلب) */
+const dupDigits=v=>String(v||"").replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/\D/g,"");
+const dupN=v=>normName(String(v||"").replace(/[\u064B-\u065F\u0670\u0640]/g,"")).toLowerCase();
+function dupWhyEmp(a,b){const n1=dupDigits(a.nid),n2=dupDigits(b.nid);
+  if(n1.length>=8&&n1===n2)return "نفس الرقم القومي";
+  const c1=String(a.code||"").trim().toLowerCase(),c2=String(b.code||"").trim().toLowerCase();if(c1&&c1===c2)return "نفس الكود";
+  if(dupN(a.name)&&dupN(a.name)===dupN(b.name)&&(a.contractorId||"")===(b.contractorId||"")&&(a.group||"")===(b.group||""))return "نفس الاسم ونفس المقاول/المجموعة";return ""}
+function dupEmployee(a,ignoreId,ignoreReq){
+  for(const e of S.employees||[]){if(e._deleted||e.id===ignoreId)continue;const w=dupWhyEmp(a,e);if(w)return `${w} — «${e.name}» مسجّل بالفعل${e.active===false?" (موقوف، رجّعه بدل ما تضيفه تاني)":""}`}
+  for(const c of S.changereq||[]){if(c.status!=="new"||c.kind!=="employee"||c.action!=="add"||c.id===ignoreReq||!c.after)continue;const w=dupWhyEmp(a,c.after);if(w)return `${w} — في طلب إضافة مستني الموافقة لـ «${c.after.name}»`}
+  return ""}
+function dupContractor(a,ignoreId,ignoreReq){const n=dupN(a.name);if(!n)return "";
+  for(const c of S.contractors||[]){if(c._deleted||c.id===ignoreId)continue;if(dupN(c.name)===n)return `المقاول «${c.name}» مسجّل بالفعل`}
+  for(const c of S.changereq||[]){if(c.status!=="new"||c.kind!=="contractor"||c.action!=="add"||c.id===ignoreReq||!c.after)continue;if(dupN(c.after.name)===n)return `في طلب إضافة مستني الموافقة للمقاول «${c.after.name}»`}
+  return ""}
+const dupCheck=(kind,a,old,ignoreId,ignoreReq)=>{
+  if(old){const keys=kind==="employee"?["name","nid","code","contractorId","group"]:["name"];if(!keys.some(k=>String(a[k]??"").trim()!==String(old[k]??"").trim()))return ""}
+  return kind==="employee"?dupEmployee(a,ignoreId,ignoreReq):dupContractor(a,ignoreId,ignoreReq)};
 function chgReq(kind,action,targetId){
   const cur=targetId?(kind==="employee"?emp(targetId):contractor(targetId)):{};if(targetId&&!cur){toast("السجل مش موجود");return}
   const F=kind==="employee"?EMP_F:CTR_F;
   const field=([k,l])=>k==="group"?f(l,"c_group",{value:cur.group||"ctr",opts:Object.entries(GROUPS)}):k==="contractorId"?f(l,"c_contractorId",{value:cur.contractorId||"",opts:[["","—"],...S.contractors.map(c=>[c.id,c.name])]}):k==="active"?f(l,"c_active",{value:cur.active===false?"0":"1",opts:[["1","شغال"],["0","موقوف / مشي"]]}):f(l,"c_"+k,{value:cur[k]||""});
   openSheet(`طلب ${CR_ACT[action]} ${CR_KIND[kind]}${cur.name?` — ${cur.name}`:""}`,`<p class="muted" style="margin-top:0;font-size:13px">الطلب هيوصل للأدمن، ولما يوافق التعديل يتنفذ لوحده ويوصلك إشعار.</p><div class="form">${action==="del"?"":F.map(field).join("")}${f(action==="del"?"سبب الحذف":"ملاحظة / سبب الطلب","note",{type:"textarea",full:true,req:action==="del"})}</div>`,async fd=>{
     if(action==="del"&&!fd.note.trim())return "اكتب السبب";
-    let after=null;if(action!=="del"){after={};for(const [k] of F){let v=fd["c_"+k];if(k==="active")v=v!=="0";else v=(v||"").trim();after[k]=v}if(!after.name)return "اكتب الاسم"}
+    let after=null;if(action!=="del"){after={};for(const [k] of F){let v=fd["c_"+k];if(k==="active")v=v!=="0";else v=(v||"").trim();after[k]=v}if(!after.name)return "اكتب الاسم";const dd=dupCheck(kind,after,targetId?cur:null,targetId);if(dd)return "تكرار: "+dd}
     const before=targetId?Object.fromEntries(F.map(([k])=>[k,cur[k]??""])):null;
     const ok=await write(()=>db.collection("changereq").add({kind,action,targetId:targetId||"",before,after,note:(fd.note||"").trim(),status:"new",by:ME.id,byName:myEmpName(),at:Date.now()}),"اتبعت الطلب للأدمن ✔");
     if(ok)notifyUsers((S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id),"✏️ طلب تعديل بيانات",`${myEmpName()}: ${CR_ACT[action]} ${CR_KIND[kind]} ${after?.name||cur.name||""}`,"?go=follow&req=cr&by="+ME.id);
     return ok?null:"الحفظ فشل"},"إرسال الطلب")}
 async function crDecide(id,yes){const c=S.changereq.find(x=>x.id===id);if(!c)return;
-  if(!yes){openSheet("رفض الطلب",`<div class="form">${f("السبب","note",{full:true,req:true})}</div>`,async fd=>{if(!fd.note.trim())return "اكتب السبب";const ok=await write(()=>upsert("changereq",id,{status:"rejected",decNote:fd.note.trim(),decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([c.by],"❌ طلب التعديل اترفض",fd.note.trim(),"?go=me");return ok?null:"فشل"},"رفض");return}
+  if(!yes){openSheet("رفض الطلب",`<div class="form">${f("السبب","note",{full:true,req:true})}</div>`,async fd=>{if(!fd.note.trim())return "اكتب السبب";const ok=await write(()=>upsert("changereq",id,{status:"rejected",decNote:fd.note.trim(),decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([c.by],"❌ طلب التعديل اترفض",fd.note.trim(),"?go=me&rid="+encodeURIComponent(id));return ok?null:"فشل"},"رفض");return}
   const col=c.kind==="employee"?"employees":"contractors";
+  if(c.action!=="del"&&c.after){const dd=dupCheck(c.kind,c.after,c.action==="edit"?(c.kind==="employee"?emp(c.targetId):contractor(c.targetId)):null,c.targetId,c.id);
+    if(dd){openSheet("الطلب ده هيعمل تكرار",`<div class="banner" style="border-color:var(--bad,#c0392b)"><b>${esc(dd)}</b></div><p class="muted">مش هينفّذ. ارفض الطلب واكتب السبب، أو عدّل البيانات الموجودة بدل الإضافة.</p>`,async()=>null,"إغلاق");return}}
   const ok=await write(async()=>{if(c.action==="add")await db.collection(col).add({...c.after,createdAt:Date.now()});else if(c.action==="edit")await upsert(col,c.targetId,c.after);else await upsert(col,c.targetId,{active:false,removedAt:today(),removedNote:c.note});
     await upsert("changereq",id,{status:"done",decAt:Date.now(),decBy:myEmpName()})},"اتنفذ ✔");
-  if(ok)notifyUsers([c.by],"✅ طلب التعديل اتنفذ",`${CR_ACT[c.action]} ${CR_KIND[c.kind]} ${c.after?.name||c.before?.name||""}`,"?go=me")}
+  if(ok)notifyUsers([c.by],"✅ طلب التعديل اتنفذ",`${CR_ACT[c.action]} ${CR_KIND[c.kind]} ${c.after?.name||c.before?.name||""}`,"?go=me&rid="+encodeURIComponent(id))}
 function crCard(c){const F=c.kind==="employee"?EMP_F:CTR_F;const diff=c.action==="edit"?F.filter(([k])=>String(c.before?.[k]??"")!==String(c.after?.[k]??"")):[];
-  return `<div class="li" data-req-k="cr" data-req-by="${esc(c.by||"")}" style="align-items:flex-start;flex-wrap:wrap"><div class="grow" style="min-width:220px"><div class="t"><span class="pill ${c.action==="del"?"p-canc":c.action==="add"?"p-appr":"p-open"}">${CR_ACT[c.action]}</span> ${CR_KIND[c.kind]}: ${esc(c.after?.name||c.before?.name||"")}</div>
+  return `<div class="li" data-rid="${esc(c.id||"")}" data-req-k="cr" data-req-by="${esc(c.by||"")}" style="align-items:flex-start;flex-wrap:wrap"><div class="grow" style="min-width:220px"><div class="t"><span class="pill ${c.action==="del"?"p-canc":c.action==="add"?"p-appr":"p-open"}">${CR_ACT[c.action]}</span> ${CR_KIND[c.kind]}: ${esc(c.after?.name||c.before?.name||"")}</div>
     <div class="s">من ${esc(c.byName||"")} · ${new Date(c.at).toLocaleDateString("ar-EG")}${c.note?` · ${esc(c.note)}`:""}</div>
     ${diff.length?`<div class="s" style="margin-top:4px">${diff.map(([k,l])=>`${l}: <s>${esc(crVal(k,c.before?.[k]))}</s> ← <b>${esc(crVal(k,c.after?.[k]))}</b>`).join("<br>")}</div>`:""}${c.action==="add"?`<div class="s">${F.filter(([k])=>c.after?.[k]).map(([k,l])=>`${l}: ${esc(crVal(k,c.after[k]))}`).join(" · ")}</div>`:""}</div>
     ${c.status==="new"&&isAdmin()?`<div class="row-actions"><button class="btn sm ok" onclick="crDecide('${c.id}',true)">موافقة وتنفيذ</button><button class="btn ghost sm danger" onclick="crDecide('${c.id}',false)">رفض</button></div>`:`<span class="pill ${c.status==="done"?"p-appr":c.status==="rejected"?"p-canc":"p-susp"}">${c.status==="done"?"اتنفذ":c.status==="rejected"?"مرفوض":"مستني"}</span>`}</div>`}
@@ -6338,14 +6361,14 @@ function dutyReqForm(kind){const e=emp(myEmpId());if(!e){toast("حسابك مش 
     const ok=await write(()=>db.collection("leavereq").add(data),"اتبعت الطلب للمراجعة ✔");
     if(ok)notifyUsers((S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id),`📩 طلب ${title}`,`${e.name}: ${fmtDate(fd.date)}`,"?go=follow&req=du&by="+ME.id);return ok?null:"الحفظ فشل"},"إرسال الطلب")}
 async function dutyReqDecide(id,yes){const r=S.leavereq.find(x=>x.id===id&&x.requestKind);if(!r)return;
-  if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض الطلب");if(ok)notifyUsers([r.by],`❌ طلب ${DUTY_K[r.kind]} اترفض`,"","?go=me");return}
+  if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض الطلب");if(ok)notifyUsers([r.by],`❌ طلب ${DUTY_K[r.kind]} اترفض`,"","?go=me&rid="+encodeURIComponent(id));return}
   let newId=null;const ok=await write(async()=>{const data={kind:r.kind,empId:r.empId,date:r.date,createdAt:Date.now(),createdBy:r.by||"",approvedReq:id};if(r.kind==="perm"){data.from=r.from;data.to=r.to}else if(r.kind==="mission"){data.destination=r.destination;data.returnDate=r.returnDate;data.returnTime=r.returnTime;data.department=r.department;data.reason=r.reason;data.approverId="";data.approverName=""}else data.reason=r.reason||"";const ref=await db.collection("leaves").add(data);newId=ref.id;await upsert("leavereq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتوافق واتسجل الطلب ✔");
-  if(ok){notifyUsers([r.by],`✅ طلب ${DUTY_K[r.kind]} اتوافق عليه`,fmtDate(r.date),"?go=me");if(newId)setTimeout(()=>r.kind==="perm"?printPerm(newId):r.kind==="mission"?printMission(newId):printOneDuty(newId),400)}}
+  if(ok){notifyUsers([r.by],`✅ طلب ${DUTY_K[r.kind]} اتوافق عليه`,fmtDate(r.date),"?go=me&rid="+encodeURIComponent(id));if(newId)setTimeout(()=>r.kind==="perm"?printPerm(newId):r.kind==="mission"?printMission(newId):printOneDuty(newId),400)}}
 async function lvDecide(id,yes){const r=S.leavereq.find(x=>x.id===id);if(!r)return;if(r.requestKind)return dutyReqDecide(id,yes);const e=emp(r.empId);
-  if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([r.by],"❌ طلب الإجازة اترفض","","?go=me");return}
+  if(!yes){const ok=await write(()=>upsert("leavereq",id,{status:"rejected",decAt:Date.now(),decBy:myEmpName()}),"اترفض");if(ok)notifyUsers([r.by],"❌ طلب الإجازة اترفض","","?go=me&rid="+encodeURIComponent(id));return}
   const fld=r.leaveType==="casual"?"casual":r.leaveType==="annual"?"annual":null;let newId=null;
   const ok=await write(async()=>{const ref=await db.collection("leaves").add({kind:"leave",empId:r.empId,leaveType:r.leaveType,date:r.from,to:r.to,days:r.days,alt:r.alt||"",reqDate:new Date(r.at).toISOString().slice(0,10),balanceAfter:fld&&e?num(e[fld])-r.days:null,note:r.note||"",createdAt:Date.now()});newId=ref.id;if(fld&&e)await upsert("employees",r.empId,{[fld]:num(e[fld])-r.days});await upsert("leavereq",id,{status:"done",leaveId:newId,decAt:Date.now(),decBy:myEmpName()})},"اتسجلت الإجازة ✔");
-  if(ok){notifyUsers([r.by],"✅ إجازتك اتوافق عليها",`${LEAVE_T[r.leaveType]} ${r.days} يوم من ${fmtDate(r.from)}`,"?go=me");if(newId)setTimeout(()=>printLeave(newId),400)}}
+  if(ok){notifyUsers([r.by],"✅ إجازتك اتوافق عليها",`${LEAVE_T[r.leaveType]} ${r.days} يوم من ${fmtDate(r.from)}`,"?go=me&rid="+encodeURIComponent(id));if(newId)setTimeout(()=>printLeave(newId),400)}}
 /* my file */
 VIEWS.me={shell:()=>`<div class="head" style="flex-wrap:wrap"><h2 class="grow">ملفي</h2><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary keep" onclick="leaveReqForm()">+ طلب إجازة</button><button class="btn keep" onclick="dutyReqForm('perm')">+ طلب إذن ساعتين</button><button class="btn keep" onclick="dutyReqForm('mission')">+ طلب مأمورية خارجية</button><button class="btn keep" onclick="dutyReqForm('one')">+ طلب تكليف إضافي</button></div></div><div id="meBody"></div>`,
   async fill(){const p=myProfile();const e=emp(myEmpId());const uid=ME.id;const sg=await mySig();
@@ -6364,7 +6387,7 @@ VIEWS.me={shell:()=>`<div class="head" style="flex-wrap:wrap"><h2 class="grow">�
     ${duties.length?sec("المطلوب مني",`<div>${duties.map(x=>`<div class="reqrow"><span class="st ${x.ok?"done":"soon"}">${x.ok?"✔":"!"}</span><div class="grow t" style="font-size:14px">${esc(x.t)}</div><button class="btn ghost sm" onclick="${x.go}">فتح ←</button></div>`).join("")}</div>`):""}
     <div class="dgrid" style="margin-top:0">
     ${sec(`الإجازات والأذونات (${LV.length})`,LV.length?`<div class="list">${LV.slice(0,15).map(l=>`<div class="li"><div class="grow"><div class="t">${l.kind&&l.kind!=="leave"?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+(/^\d{4}-\d{2}-\d{2}/.test(l.to)?fmtDate(l.to):esc(String(l.to))):""}${l.from&&!/^\d{4}-/.test(l.from)?" · "+esc(String(l.from)):""}${l.days?" · "+num(l.days)+" يوم":""}</div></div></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
-    ${sec("طلباتي",(LR.length||DR.length||CR.length)?`<div class="list">${LR.map(r=>`<div class="li"><div class="grow"><div class="t">إجازة ${LEAVE_T[r.leaveType]||""} · ${r.days} يوم</div><div class="s">${fmtDate(r.from)} ← ${fmtDate(r.to)}</div></div><span class="pill ${r.status==="done"?"p-appr":r.status==="rejected"?"p-canc":"p-susp"}">${r.status==="done"?"اتوافق":r.status==="rejected"?"مرفوض":"مستني"}</span></div>`).join("")}${DR.map(r=>`<div class="li"><div class="grow"><div class="t">${esc(DUTY_K[r.kind]||"طلب")}</div><div class="s">${fmtDate(r.date)}${r.kind==="perm"?` · ${esc(r.from||"")} ← ${esc(r.to||"")}`:r.kind==="mission"?` · ${esc(r.destination||"")}`:r.reason?` · ${esc(r.reason)}`:""}</div></div><span class="pill ${r.status==="done"?"p-appr":r.status==="rejected"?"p-canc":"p-susp"}">${r.status==="done"?"اتوافق":r.status==="rejected"?"مرفوض":"مستني"}</span></div>`).join("")}${CR.map(crCard).join("")}</div>`:'<p class="muted">مفيش طلبات.</p>')}
+    ${sec("طلباتي",(LR.length||DR.length||CR.length)?`<div class="list">${LR.map(r=>`<div class="li" data-rid="${esc(r.id)}"><div class="grow"><div class="t">إجازة ${LEAVE_T[r.leaveType]||""} · ${r.days} يوم</div><div class="s">${fmtDate(r.from)} ← ${fmtDate(r.to)}</div></div><span class="pill ${r.status==="done"?"p-appr":r.status==="rejected"?"p-canc":"p-susp"}">${r.status==="done"?"اتوافق":r.status==="rejected"?"مرفوض":"مستني"}</span></div>`).join("")}${DR.map(r=>`<div class="li" data-rid="${esc(r.id)}"><div class="grow"><div class="t">${esc(DUTY_K[r.kind]||"طلب")}</div><div class="s">${fmtDate(r.date)}${r.kind==="perm"?` · ${esc(r.from||"")} ← ${esc(r.to||"")}`:r.kind==="mission"?` · ${esc(r.destination||"")}`:r.reason?` · ${esc(r.reason)}`:""}</div></div><span class="pill ${r.status==="done"?"p-appr":r.status==="rejected"?"p-canc":"p-susp"}">${r.status==="done"?"اتوافق":r.status==="rejected"?"مرفوض":"مستني"}</span></div>`).join("")}${CR.map(crCard).join("")}</div>`:'<p class="muted">مفيش طلبات.</p>')}
     ${sec(`التصاريح (${P.length})`,P.length?`<div class="list">${P.slice(0,12).map(x=>`<div class="li"><span class="num">${esc(x.number)}</span><div class="grow"><div class="t">${esc(x.location||"")}</div><div class="s">${PTW_TYPES[x.type]?.ar||""} · ${fmtDate(x.date)}</div></div>${statusPill(x.status)}</div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
     ${sec(`النماذج اللي حررتها (${R.length})`,R.length?`<div class="list">${R.slice(0,12).map(r=>`<div class="li"><span class="num">${esc(r.form.replace("F-HSE-",""))}</span><div class="grow"><div class="t">${esc(F2[r.form]?.title||r.form)}</div><div class="s">${fmtDate(r.date)}${r.review?" · ✔ اتعتمد":needsReview(r)?" · ⏳ مستني اعتماد":""}</div></div><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁</button></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
     ${A.length?sec(`الإجراءات التصحيحية (${A.length})`,`<div class="list">${A.slice(0,10).map(a=>`<div class="li"><div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${a.status==="closed"?"✔ اتقفل "+fmtDate(a.closedAt):"مفتوح · الميعاد "+fmtDate(a.due)}</div></div></div>`).join("")}</div>`):""}
@@ -7392,7 +7415,7 @@ async function inspApprove(id){
     const patch={review:approved,inspector2Id:approver?.emp_id||"",inspector2:myEmpName(),sig2:signature};
     if(INSP_DECIDE[dec]){patch.decision=dec;patch.status=dec==="fail"?"fail":dec==="pass"?"pass":"partial";
       if(dec!==inspDecisionOf(current))patch.decisionBy=myEmpName();}
-    const ok=await write(()=>upsert("inspections",id,patch),"اتعمد الفحص بتوقيعك");if(!ok)return "الحفظ فشل";await linkInspectionToPeriodicEquipment({...current,...patch},id);if(current.createdBy)await notifyUsers([current.createdBy],"✅ فحص المعدة اتعمد",`${myEmpName()} اعتمد فحص ${current.equipType||"المعدة"} بتوقيعه.`,`?go=inspection`);return null
+    const ok=await write(()=>upsert("inspections",id,patch),"اتعمد الفحص بتوقيعك");if(!ok)return "الحفظ فشل";await linkInspectionToPeriodicEquipment({...current,...patch},id);if(current.createdBy)await notifyUsers([current.createdBy],"✅ فحص المعدة اتعمد",`${myEmpName()} اعتمد فحص ${current.equipType||"المعدة"} بتوقيعه.`,`?go=inspection&id=${encodeURIComponent(id)}`);return null
   },"اعتماد بتوقيعي")
   {const box=document.getElementById("inspApDecide"),hid=document.getElementById("inspApDecision");
    if(box&&hid)box.querySelectorAll("[data-apdecide]").forEach(b=>b.onclick=()=>{hid.value=b.dataset.apdecide;
@@ -9529,7 +9552,7 @@ function wsAssignHTML(){
   const open=T.filter(x=>x.status!=="done"),done=T.filter(x=>x.status==="done");
   const late=open.filter(x=>x.due&&x.due<today());
   const row=x=>{const pr=taskProgress(x),tgt=taskTargetName(x);
-    return `<div class="li"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":x.kind==="ptw"?"📋 ":x.kind==="multi"?"🗂 ":""}${esc(x.title||"")}</div><div class="s">${esc(empName(x.assignee)||"—")}${pr.total>1?` · <b>${pr.done}/${pr.total}</b>`:(tgt?" · "+esc(tgt):"")}${x.due?` · الميعاد <b style="${x.due<today()&&x.status!=="done"?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}</div></div><span class="pill ${x.status==="done"?"p-ok":x.due&&x.due<today()?"p-bad":"p-open"}">${x.status==="done"?"خلص":x.due&&x.due<today()?"متأخر":"جاري"}</span>${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button>`:""}</div>`};
+    return `<div class="li"><div class="grow"><div class="t">${x.kind==="eq"?"🧯 ":x.kind==="form"?"📝 ":x.kind==="ptw"?"📋 ":x.kind==="multi"?"🗂 ":""}${esc(x.title||"")}</div><div class="s">${esc(empName(x.assignee)||"—")}${pr.total>1?` · <b>${pr.done}/${pr.total}</b>`:(tgt?" · "+esc(tgt):"")}${x.due?` · الميعاد <b style="${x.due<today()&&x.status!=="done"?"color:var(--bad)":""}">${fmtDate(x.due)}</b>`:""}</div></div><span class="pill ${x.status==="done"?"p-ok":x.due&&x.due<today()?"p-bad":"p-open"}">${x.status==="done"?"خلص":x.due&&x.due<today()?"متأخر":"جاري"}</span>${admin||x.createdBy===ME.id?`<button class="btn ghost sm" onclick="${x.kind?`taskAssign('${x.id}')`:`taskForm('${x.id}')`}">تعديل</button><button class="btn ghost sm danger" onclick="taskDel('${x.id}')">مسح</button>`:""}</div>`};
   const tile=(lbl,n,bad)=>`<div class="card tile"><span class="lbl">${lbl}</span><span class="val"${bad?' style="color:var(--bad)"':""}>${n}</span></div>`;
   return `<div class="head" style="margin-bottom:10px"><div class="grow"></div>${canAssignTasks()?`<button class="btn primary" onclick="taskAssign()">📤 كلّف بنموذج أو سجل</button>`:""}</div>
     <div class="grid g4">${tile("تكليفات جارية",open.length)}${tile("متأخرة",late.length,!!late.length)}${tile("خلصت",done.length)}${tile("الإجمالي",T.length)}</div>
