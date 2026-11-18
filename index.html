@@ -2136,7 +2136,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.4.3";
+const APP_VER="8.4.4";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -9659,10 +9659,16 @@ WS_DEF.ws_site.subs.unshift({k:"inbox",t:"الصندوق",lvl:"*",html:wsInboxHT
 function sigOut(cv){const W=300;let o=cv;
   if(cv.width>W){const k=W/cv.width;o=document.createElement("canvas");o.width=W;o.height=Math.max(1,Math.round(cv.height*k));const g=o.getContext("2d");g.imageSmoothingQuality="high";g.drawImage(cv,0,0,o.width,o.height)}
   return o.toDataURL("image/png")}
+/* 8.4.4: تخفيف التوقيع = لون حبر واحد + شفافية بـ 8 مستويات (نفس الشكل تقريبًا، حجم أقل بكتير بعد الضغط) */
+function sigInk(o){try{const g=o.getContext("2d"),d=g.getImageData(0,0,o.width,o.height),p=d.data;let r=0,gg=0,b=0,n=0;
+  for(let i=0;i<p.length;i+=4)if(p[i+3]>128){r+=p[i];gg+=p[i+1];b+=p[i+2];n++}
+  if(!n)return o;r=Math.round(r/n);gg=Math.round(gg/n);b=Math.round(b/n);const st=255/7;
+  for(let i=0;i<p.length;i+=4){const a=p[i+3];if(!a){p[i]=p[i+1]=p[i+2]=0;continue}p[i]=r;p[i+1]=gg;p[i+2]=b;p[i+3]=Math.round(Math.round(a/st)*st)}
+  g.putImageData(d,0,0);return o}catch(e){return o}}
 function sigLite(src){return new Promise(res=>{
   if(!src||typeof src!=="string"||!src.startsWith("data:image/")||src.length<6000)return res(src);
   const im=new Image();
-  im.onload=()=>{try{const c=document.createElement("canvas");c.width=im.width;c.height=im.height;c.getContext("2d").drawImage(im,0,0);const u=sigOut(c);res(u.length<src.length?u:src)}catch(e){res(src)}};
+  im.onload=()=>{try{const c=document.createElement("canvas");c.width=im.width;c.height=im.height;c.getContext("2d").drawImage(im,0,0);const u=sigOut(sigInk(c));res(u.length<src.length?u:src)}catch(e){res(src)}};
   im.onerror=()=>res(src);im.src=src})}
 const SLIM_COLS=["equipment","inspections","records","permits","fireext"];
 async function slimWalk(o,key,st){
