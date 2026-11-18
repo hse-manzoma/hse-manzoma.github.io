@@ -2136,7 +2136,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.4.4";
+const APP_VER="8.4.5";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2915,7 +2915,22 @@ const personViol=id=>S.records.filter(r=>r.form==="F-HSE-07-01"&&r.f?.emp_id===i
 const hasID=e=>(e.att||[]).some(a=>a.kind==="idFront"||a.kind==="idBack");
 const attOf=(x,kind)=>(x?.att||[]).filter(a=>a.kind===kind);
 const ctrWorkers=cid=>S.employees.filter(e=>e.contractorId===cid&&e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
-document.addEventListener("click",e=>{const v=e.target.closest("[data-view]");if(!v)return;const o=document.createElement("div");o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:12px";o.innerHTML=`<img src="${v.dataset.view}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">`;o.onclick=()=>o.remove();document.body.appendChild(o)});
+/* 8.4.5: عارض الصور بيتنقل بين كل صور نفس المرفقات (أزرار + أسهم الكيبورد + سحب) */
+document.addEventListener("click",e=>{const v=e.target.closest("[data-view]");if(!v)return;
+  const scope=v.closest("#attBody")||v.closest(".sheet")||v.parentElement||document;
+  const urls=[...new Set([...scope.querySelectorAll("[data-view]")].map(x=>x.dataset.view))];let i=Math.max(0,urls.indexOf(v.dataset.view));
+  const o=document.createElement("div");o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:12px;direction:ltr;touch-action:pan-y";
+  const nb=(t,c)=>`<button type="button" data-n="${c}" aria-label="${t}" style="position:absolute;top:50%;${c>0?"left":"right"}:10px;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:26px;line-height:1;cursor:pointer">${c>0?"‹":"›"}</button>`;
+  o.innerHTML=`<img alt="" style="max-width:100%;max-height:100%;object-fit:contain">${urls.length>1?nb("التالية",1)+nb("السابقة",-1)+'<div data-c style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,.5);padding:3px 12px;border-radius:99px;font:600 13px system-ui"></div>':""}<button type="button" data-x aria-label="إغلاق" style="position:absolute;top:10px;left:10px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:20px;cursor:pointer">✕</button>`;
+  const im=o.querySelector("img"),cn=o.querySelector("[data-c]");
+  const go=d=>{i=(i+d+urls.length)%urls.length;im.src=urls[i];if(cn)cn.textContent=(i+1)+" / "+urls.length};
+  const close=()=>{o.remove();document.removeEventListener("keydown",key,true)};
+  const key=ev=>{if(ev.key==="Escape"){ev.stopPropagation();close()}else if(urls.length>1&&(ev.key==="ArrowLeft"||ev.key==="ArrowRight")){ev.preventDefault();go(ev.key==="ArrowLeft"?1:-1)}};
+  document.addEventListener("keydown",key,true);
+  let x0=null;o.addEventListener("touchstart",t=>{x0=t.touches[0].clientX},{passive:true});
+  o.addEventListener("touchend",t=>{if(x0==null||urls.length<2)return;const dx=t.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>50)go(dx<0?1:-1)});
+  o.onclick=ev=>{const b=ev.target.closest("[data-n]");if(b){ev.stopPropagation();go(+b.dataset.n);return}close()};
+  go(0);document.body.appendChild(o)});
 function thumbs(list,size=72){return list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(a=>(a.type||"").includes("pdf")?`<a href="/_blob/${a.a}" target="_blank" rel="noopener" style="width:${size}px;height:${size}px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;text-decoration:none">PDF</a>`:`<img src="/_blob/${a.a}" data-view="/_blob/${a.a}" alt="" loading="lazy" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in">`).join("")}</div>`:""}
 function recLine(r,extra=""){return `<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}${extra}</div><div class="s">${esc(r.f?.desc||r.f?.subject||r.f?.topics||"")}</div></div>${hasSigned(r)?'<span class="pill p-appr">موقّع</span>':""}<button type="button" class="btn ghost sm" onclick="$('overlayRoot').innerHTML='';printRecord('${r.id}')">👁 عرض</button></div>`}
 function personRow(e){const nv=personViol(e.id).length+attOf(e,"violation").length,nl=personLect(e.id).length+attOf(e,"lecture").length;
