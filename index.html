@@ -368,6 +368,21 @@ table.ed input,table.ed textarea{width:100%}
   #homeAttendanceCard .tbl{max-height:360px!important}
   #homeAttendanceCard .tbl td{font-size:13px}
 }
+/* ===== 8.7.1: ضبط أبعاد الموبايل ===== */
+@media (max-width:760px){
+  .bar{flex-wrap:nowrap;gap:8px;padding-block:7px}
+  .bar>.brand{flex:1 1 auto;min-width:0}
+  .brand-copy small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+  .bar>div:last-child{flex:none;gap:2px!important}
+  .bar .sync>span:last-child{display:none}
+  .bar .sync{margin:0;padding-inline:4px}
+  .bar .btn.ghost.sm{padding:4px 6px!important;min-height:34px;min-width:34px}
+  #main .chips{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;margin-inline:calc(-1*max(14px,env(safe-area-inset-right,0px)));padding-inline:max(14px,env(safe-area-inset-right,0px));-webkit-overflow-scrolling:touch}
+  #main .chips::-webkit-scrollbar{display:none}
+  #main .chips{padding-block:4px 8px}
+  #main .chips .chipbtn{flex:none;white-space:nowrap}
+  #bnav button span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+}
 @media print{#bnav,#fab{display:none!important}}
 
 /* ======================================================================
@@ -2207,7 +2222,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.7.0";
+const APP_VER="8.7.1";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10006,7 +10021,7 @@ function wsNeedMore(){try{const al=(allowedTabsBase()||[]).filter(t=>!String(t).
   const cov=new Set();for(const pg of wsPages())for(const x of wsSubs(pg)){if(x.view)cov.add(x.view)}
   return al.some(t=>!cov.has(t))}catch(e){return true}}
 {const _wnm=wsNavMount;window.wsNavMount=function(){const r=_wnm.apply(this,arguments);try{if(wsOn()&&!wsNeedMore())$("wsSwitch")?.remove()}catch(e){}return r};
- const _mn2=window.mobileNav;window.mobileNav=function(){const r=_mn2.apply(this,arguments);try{if(wsOn()&&!wsNeedMore())$("bnav")?.querySelector("[data-more]")?.remove()}catch(e){}return r}}
+ const _mn2=window.mobileNav;window.mobileNav=function(){const r=_mn2.apply(this,arguments);try{if(wsOn()&&!wsNeedMore())$("bnav")?.querySelector("[data-more]")?.remove();const SH={ws_records:"السجلات",ws_inbox:"الصندوق",ws_archive:"السجلات"};$("bnav")?.querySelectorAll("button[data-tab]").forEach(b=>{const t=SH[b.dataset.tab];if(t){const sp=b.querySelector("span:last-child");if(sp)sp.textContent=t}})}catch(e){}return r}}
 
 
 for(const _k of Object.keys(VIEWS)){
