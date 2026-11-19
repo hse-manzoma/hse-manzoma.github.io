@@ -377,11 +377,24 @@ table.ed input,table.ed textarea{width:100%}
   .bar .sync>span:last-child{display:none}
   .bar .sync{margin:0;padding-inline:4px}
   .bar .btn.ghost.sm{padding:4px 6px!important;min-height:34px;min-width:34px}
-  #main .chips{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;margin-inline:calc(-1*max(14px,env(safe-area-inset-right,0px)));padding-inline:max(14px,env(safe-area-inset-right,0px));-webkit-overflow-scrolling:touch}
-  #main .chips::-webkit-scrollbar{display:none}
-  #main .chips{padding-block:4px 8px}
-  #main .chips .chipbtn{flex:none;white-space:nowrap}
+  #main .chips{flex-wrap:wrap!important;gap:6px!important;overflow:visible}
+  #main .chips .chipbtn{padding:6px 11px;font-size:13px;min-height:34px;white-space:normal}
   #bnav button span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+}
+/* ===== 8.7.2: لا تمرير أفقي على الموبايل — كل حاجة ظاهرة ===== */
+@media (max-width:760px){
+  #setNav{flex-wrap:wrap!important;overflow:visible!important}
+  details.sec>.in,div[style*="overflow-x:auto"]{overflow:visible!important}
+  table.ed{min-width:0!important;width:100%!important;display:block}
+  table.ed tbody{display:block}
+  table.ed thead{display:none}
+  table.ed tr{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin-bottom:10px}
+  table.ed td{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;border-top:1px solid var(--line);padding:6px 0;min-height:34px}
+  table.ed td:first-child{border-top:0}
+  table.ed td::before{content:attr(data-label);color:var(--muted);font-size:12.5px;font-weight:600;flex:none;max-width:40%}
+  table.ed td[data-label=""]::before{display:none}
+  table.ed td input,table.ed td select,table.ed td textarea{flex:1 1 auto;min-width:0;width:100%}
+  .sheet table:not(.ed):not(.pvtable){max-width:100%}
 }
 @media print{#bnav,#fab{display:none!important}}
 
@@ -2222,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.7.1";
+const APP_VER="8.7.2";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6056,7 +6069,7 @@ function installRow(){if(matchMedia("(display-mode: standalone)").matches)return
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();window._installEvt=e;if(tab==="dash")refresh()});
 async function installApp(){const e=window._installEvt;if(!e)return;e.prompt();try{await e.userChoice}catch(x){}window._installEvt=null;$("overlayRoot").innerHTML="";refresh()}
 if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
-function labelTables(){document.querySelectorAll("#main .tbl table").forEach(t=>{const hs=[...t.querySelectorAll("thead tr:first-child th")].map(th=>th.textContent.replace(/\s+/g," ").trim());if(!hs.length)return;
+function labelTables(){document.querySelectorAll("#main .tbl table,#main table.ed,#overlayRoot .tbl table,#overlayRoot table.ed").forEach(t=>{const hs=[...t.querySelectorAll("thead tr:first-child th")].map(th=>th.textContent.replace(/\s+/g," ").trim());if(!hs.length)return;
   t.querySelectorAll("tbody tr").forEach(tr=>{let i=0;for(const td of tr.children){if(!td.hasAttribute("data-label"))td.setAttribute("data-label",hs[i]||"");i+=+(td.getAttribute("colspan")||1)}})})}
 function fabSync(){let b=$("fab");const src=document.querySelector("#main .head .btn.primary:not(.keep)");if(!src||src.hidden){b?.remove();return}
   if(!b){b=document.createElement("button");b.id="fab";b.type="button";b.textContent="+";document.body.appendChild(b)}b.setAttribute("aria-label",src.textContent.trim());b.title=src.textContent.trim();b.onclick=()=>src.click()}
@@ -9857,7 +9870,7 @@ function collapseRowButtons(root){
     const d=document.createElement("details");d.className="more";d.innerHTML='<summary class="btn sm" aria-label="المزيد">⋯ المزيد</summary><div class="morebox"></div>';
     const mb=d.querySelector(".morebox");rest.forEach(b=>mb.appendChild(b));box.appendChild(d)});
 }
-{let t=null;const run=()=>{t=null;try{collapseRowButtons($("app")||document)}catch(e){}};
+{let t=null;const run=()=>{t=null;try{collapseRowButtons($("app")||document)}catch(e){}try{labelTables()}catch(e){}};
  new MutationObserver(()=>{if(!t)t=setTimeout(run,250)}).observe(document.body,{childList:true,subtree:true});}
 /* ---- تعريف الصفحات الجديدة ---- */
 WS_DEF.ws_inbox={ic:"📥",t:"صندوق الإدارة",s:"المطلوب منك والتنبيهات المهمة في شاشة واحدة.",subs:[
