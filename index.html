@@ -1137,7 +1137,7 @@ function ptwFormBase(id){
     ${f("مكان العمل","location",{value:p.location||"",full:true,req:true,attrs:'placeholder="مثلاً: عمارة 7 - الدور الأرضي"'})}
     ${f("وصف الشغل","desc",{type:"textarea",value:p.desc||"",full:true})}
     ${f("المقاول / الشركة","contractor",{value:p.contractor||"",attrs:'list="ctrList" autocomplete="off"'})}<datalist id="ctrList">${S.contractors.filter(c=>c.active!==false).map(c=>`<option value="${esc(c.name)}">`).join("")}</datalist>
-    ${f("طالب التصريح / مسؤول المنطقة","requester",{value:p.requester||"",attrs:'list="ptwAuthList"'})}<datalist id="ptwAuthList">${S.employees.filter(e=>e.ptwAuth).map(e=>`<option value="${esc(e.name)}">`).join("")}</datalist>
+    ${f("طالب التصريح / مسؤول المنطقة","requester",{value:p.requester||"",attrs:'list="ptwAuthList"'})}<datalist id="ptwAuthList">${S.employees.filter(e=>e.ptwAuth||execAcc(e.id)).map(e=>`<option value="${esc(e.name)}">`).join("")}</datalist>
     ${f("مهندس الموقع","siteEng",{value:p.siteEng||"",attrs:'list="ptwAuthList" placeholder="لو فاضي بيتكتب طالب التصريح"'})}
     ${f("مسؤول السلامة","safetyId",{value:p.safetyId||"",opts:empOpts(hseTeam(),"— من فريق السلامة —")})}
     ${f("مشرف التنفيذ / المقاول","supervisor",{value:p.supervisor||"",attrs:'list="ptwAuthList"'})}
@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.7.7";
+const APP_VER="8.8.2";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6527,7 +6527,7 @@ VIEWS.me={shell:()=>`<div class="head" style="flex-wrap:wrap"><h2 class="grow">�
       ${e?`<div class="grid g4" style="flex:1;min-width:260px"><div class="tile"><span class="lbl">رصيد العارضة</span><b class="val">${num(e.casual)}</b></div><div class="tile"><span class="lbl">رصيد الاعتيادي</span><b class="val">${num(e.annual)}</b></div><div class="tile"><span class="lbl">تصاريح شارك فيها</span><b class="val">${P.length}</b></div><div class="tile"><span class="lbl">نماذج حررها</span><b class="val">${R.length}</b></div></div>`:`<div class="banner">حسابك مش مربوط بموظف. الأدمن يربطه من الإعدادات.</div>`}</div></div>
     ${duties.length?sec("المطلوب مني",`<div>${duties.map(x=>`<div class="reqrow"><span class="st ${x.ok?"done":"soon"}">${x.ok?"✔":"!"}</span><div class="grow t" style="font-size:14px">${esc(x.t)}</div><button class="btn ghost sm" onclick="${x.go}">فتح ←</button></div>`).join("")}</div>`):""}
     <div class="dgrid" style="margin-top:0">
-    ${sec(`الإجازات والأذونات (${LV.length})`,LV.length?`<div class="list">${LV.slice(0,15).map(l=>`<div class="li"><div class="grow"><div class="t">${l.kind&&l.kind!=="leave"?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+(/^\d{4}-\d{2}-\d{2}/.test(l.to)?fmtDate(l.to):esc(String(l.to))):""}${l.from&&!/^\d{4}-/.test(l.from)?" · "+esc(String(l.from)):""}${l.days?" · "+num(l.days)+" يوم":""}</div></div></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
+    ${sec(`الإجازات والأذونات (${LV.length})`,LV.length?`<div class="list">${LV.slice(0,15).map(l=>`<div class="li" role="button" tabindex="0" style="cursor:pointer" title="افتح النموذج ومرفقاته" onclick="lvOpen('${l.id}')"><div class="grow"><div class="t">${l.kind&&l.kind!=="leave"?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}${(l.att||[]).length?` · 📎${(l.att||[]).length}`:""}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+(/^\d{4}-\d{2}-\d{2}/.test(l.to)?fmtDate(l.to):esc(String(l.to))):""}${l.from&&!/^\d{4}-/.test(l.from)?" · "+esc(String(l.from)):""}${l.days?" · "+num(l.days)+" يوم":""}</div></div></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
     ${sec("طلباتي",(LR.length||DR.length||CR.length)?`<div class="list">${LR.map(r=>`<div class="li" data-rid="${esc(r.id)}"><div class="grow"><div class="t">إجازة ${LEAVE_T[r.leaveType]||""} · ${r.days} يوم</div><div class="s">${fmtDate(r.from)} ← ${fmtDate(r.to)}</div></div><span class="pill ${r.status==="done"?"p-appr":r.status==="rejected"?"p-canc":"p-susp"}">${r.status==="done"?"اتوافق":r.status==="rejected"?"مرفوض":"مستني"}</span></div>`).join("")}${DR.map(r=>`<div class="li" data-rid="${esc(r.id)}"><div class="grow"><div class="t">${esc(DUTY_K[r.kind]||"طلب")}</div><div class="s">${fmtDate(r.date)}${r.kind==="perm"?` · ${esc(r.from||"")} ← ${esc(r.to||"")}`:r.kind==="mission"?` · ${esc(r.destination||"")}`:r.reason?` · ${esc(r.reason)}`:""}</div></div><span class="pill ${r.status==="done"?"p-appr":r.status==="rejected"?"p-canc":"p-susp"}">${r.status==="done"?"اتوافق":r.status==="rejected"?"مرفوض":"مستني"}</span></div>`).join("")}${CR.map(crCard).join("")}</div>`:'<p class="muted">مفيش طلبات.</p>')}
     ${sec(`التصاريح (${P.length})`,P.length?`<div class="list">${P.slice(0,12).map(x=>`<div class="li"><span class="num">${esc(x.number)}</span><div class="grow"><div class="t">${esc(x.location||"")}</div><div class="s">${PTW_TYPES[x.type]?.ar||""} · ${fmtDate(x.date)}</div></div>${statusPill(x.status)}</div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
     ${sec(`النماذج اللي حررتها (${R.length})`,R.length?`<div class="list">${R.slice(0,12).map(r=>`<div class="li"><span class="num">${esc(r.form.replace("F-HSE-",""))}</span><div class="grow"><div class="t">${esc(F2[r.form]?.title||r.form)}</div><div class="s">${fmtDate(r.date)}${r.review?" · ✔ اتعتمد":needsReview(r)?" · ⏳ مستني اعتماد":""}</div></div><button class="btn ghost sm" onclick="printRecord('${r.id}')">👁</button></div>`).join("")}</div>`:'<p class="muted">مفيش.</p>')}
@@ -7512,7 +7512,7 @@ function inspNew(){
 
 function inspPickRender(root,q){
   const nq=normName(q||"");
-  const hits=Object.keys(INSP_FORMS).filter(t=>!nq||normName(t+" "+(INSP_ALIAS[t]||"")+" "+(INSP_SPECS?.[t]?.code||"")).includes(nq));
+  const hits=Object.keys(INSP_FORMS).filter(t=>!inspForbidden(t)).filter(t=>!nq||normName(t+" "+(INSP_ALIAS[t]||"")+" "+(INSP_SPECS?.[t]?.code||"")).includes(nq));
   const box=root.querySelector("#inspPickList"),cnt=root.querySelector("#inspPickCount");
   if(cnt)cnt.textContent=hits.length;
   if(!box)return;
@@ -10189,6 +10189,47 @@ async function hrChainPrint(id){const r=(S.leavereq||[]).find(x=>x.id===id);if(!
 function hrMineCard(){const L=(S.leavereq||[]).filter(r=>r.chain&&r.chain.length&&(r.by===ME.id||(hrNext(r)||{}).uid===ME.id||r.chain.some(x=>x.uid===ME.id))).sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,20);if(!L.length)return "";
   return `<div class="card" id="hrChainCard" style="margin-top:12px"><h3>سلاسل الاعتماد</h3><div class="list">${L.map(r=>{const nx=hrNext(r),mine=nx&&nx.uid===ME.id;return `<div class="li"><div class="grow"><div class="t">${esc(hrKindAr(r))} — ${esc(r.empName||"")}</div><div class="s">${r.status==="rejected"?"مرفوض":nx?"مستني "+esc(nx.t)+(nx.name?" ("+esc(nx.name)+")":""):(r.chain.some(x=>x.st==="paper")?"توقيعات يدوية":"اكتملت")}</div></div><button class="btn sm${mine?" primary":""}" onclick="hrChainDecide('${r.id}')">${mine?"اعتماد":"عرض"}</button><button class="btn sm ghost" onclick="hrChainPrint('${r.id}')">🖨</button></div>`}).join("")}</div></div>`}
 {const V=VIEWS.me,_f2=V.fill;V.fill=async function(){const r=await _f2.apply(this,arguments);try{const b=$("meBody"),h=hrMineCard();if(b&&h&&!$("hrChainCard"))b.insertAdjacentHTML("afterbegin",h)}catch(e){console.error(e)}return r}}
+
+/* ===== 8.8.0: قايمة المشرف/المهندس + «اليوم» للميداني + قيود المراقب (معدات/قوى عاملة) ===== */
+function execAcc(empId){return !!empId&&(S.profiles||[]).some(p=>p.emp_id===empId&&["sup","eng"].includes(p.role)&&!p.disabled)}
+{const _sp=supProfiles;supProfiles=function(){const a=_sp.apply(this,arguments);return [...a,...(S.profiles||[]).filter(p=>p.role==="sup"&&!p.disabled&&!a.some(x=>x.id===p.id))]};
+ engProfiles=function(){const t=(S.settings.ptwTeams||{}).eng||[],a=t.map(empAccount).filter(Boolean);return [...a,...(S.profiles||[]).filter(p=>p.role==="eng"&&!p.disabled&&!a.some(x=>x.id===p.id))]}}
+/* المراقب: بيفحص كل المعدات ما عدا النقل والحركة والأوناش (اختصاص مشرف السلامة) */
+const isMonitor=()=>myAccess()?.role==="monitor";
+const EQ_MON_KINDS=["vehicle","tower"];
+const INSP_MON_RE=/ونش|الأوناش|Crane|Boom Truck|السيارة|البيك أب|الميني باص|المقطورة|الجرار|عربات|القلاب|Cement Mixer Truck|لودر|Loader|الباكهو|البلدوزر|الجريدر|الحفار|الفورك|الرافعة|البوبكات|Skid|Dumper|Trailer|Tractor|Bulldozer|Grader|Excavator|Forklift/i;
+const inspForbidden=t=>isMonitor()&&INSP_MON_RE.test(String(t||""));
+{const _es=eqSelect;eqSelect=function(k){if(isMonitor()&&EQ_MON_KINDS.includes(k)){toast("النقل والحركة والأوناش من اختصاص مشرف السلامة");return}return _es.apply(this,arguments)}
+ const _ef=eqForm;eqForm=function(kind,id){if(isMonitor()&&EQ_MON_KINDS.includes(kind)){toast("النقل والحركة والأوناش من اختصاص مشرف السلامة");return}const r=_ef.apply(this,arguments);
+   if(isMonitor())document.querySelectorAll('#shForm select[name="kind"] option,#shForm select[name="category"] option').forEach(o=>{if(EQ_MON_KINDS.includes(o.value))o.remove()});return r};
+ const V=VIEWS.equip,_vf=V.fill;V.fill=function(){if(isMonitor()&&EQ_MON_KINDS.includes(ui.eqKind))ui.eqKind="ext";const r=_vf.apply(this,arguments);
+   if(isMonitor())document.querySelectorAll('#eqBody button[onclick*="eqSelect(\'vehicle\')"],#eqBody button[onclick*="eqSelect(\'tower\')"],.eq-quick-nav button[onclick*="eqSelect(\'vehicle\')"],.eq-quick-nav button[onclick*="eqSelect(\'tower\')"]').forEach(b=>b.remove());return r}}
+/* «اليوم» للميداني: اختصارات التسجيل */
+function wsQuickHTML(){const a=allowedTabs()||[],has=t=>a.includes(t),ed=t=>has(t)&&tabLevel(t)!=="view",L=[];
+  const myE=hseTeam().some(x=>x.id===myEmpId());
+  if(myE)L.push(["✔ سجل حضورك","homeShowAttendancePrompt()",true]);
+  if(ed("forms")){L.push(["⚠️ سجل ظرف أو تصرف","recordForm('F-HSE-07-03')"],["🚑 سجل حادث","recordForm('F-HSE-03-01')"],["🎓 سجل محاضرة","recordForm('F-HSE-24-02')"])}
+  if(has("equip"))L.push(["🧯 افحص معدة","show('inspection')"]);
+  if(!L.length)return "";
+  return `<div class="card" style="margin-bottom:12px"><h3 style="margin-top:0">تسجيل سريع</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">${L.map(([t,fn,pr])=>`<button type="button" class="btn${pr?" primary":""}" style="min-height:48px;white-space:normal" onclick="${fn}">${t}</button>`).join("")}</div></div>`}
+{const sub=(WS_DEF.ws_daily.subs||[]).find(x=>x.k==="todo");if(sub){const _h=sub.html;sub.html=async function(){const h=await _h.apply(this,arguments);return (wsPersona()==="field"?wsQuickHTML():"")+h}}}
+/* القوى العاملة للمراقب: الاسم والكود بس (لإرفاقهم بالمحاضرة) — من غير بطاقات ولا مقاولين */
+{const _at3=allowedTabs;allowedTabs=function(){const b=_at3.apply(this,arguments);return b&&isMonitor()?b.filter(t=>t!=="contractors"):b};
+ const _w3=wsSubs;wsSubs=function(k){const L=_w3.apply(this,arguments);return isMonitor()?L.filter(x=>x.view!=="contractors"):L};
+ const V=VIEWS.manpower,_mf=V.fill;
+ V.fill=function(){if(!isMonitor())return _mf.apply(this,arguments);ui.personSel="";const el=$("mpBody");if(!el)return;
+   const q=normName(ui.mpQ||""),L=S.employees.filter(e=>e.active!==false).filter(e=>!q||normName((e.name||"")+" "+(e.code||"")).includes(q)).sort((a,b)=>(a.name||"").localeCompare(b.name||"","ar"));
+   el.innerHTML=`<div class="card"><div class="filters"><input type="search" id="mpMonQ" placeholder="ابحث بالاسم أو الكود" value="${esc(ui.mpQ||"")}" style="flex:1"></div><div class="muted" style="font-size:12.5px;margin:6px 0">${L.length} فرد — الاسم والكود فقط</div><div class="tbl"><table><thead><tr><th>الاسم</th><th>الكود</th></tr></thead><tbody>${L.slice(0,300).map(e=>`<tr><td>${esc(e.name||"")}</td><td class="num">${esc(e.code||"")}</td></tr>`).join("")}</tbody></table></div></div>`;
+   const i=$("mpMonQ");if(i)i.oninput=ev=>{ui.mpQ=ev.target.value;V.fill();const n=$("mpMonQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}}}}
+
+/* الفريق: الدور المقيّد («يخصني بس») بيشوف بياناته هو فقط */
+{const _ft=followTeam;followTeam=function(){const L=_ft.apply(this,arguments);return ownScope()?L.filter(p=>p.id===ME.id):L};
+ const V=VIEWS.follow,_ff=V.fill;V.fill=function(){const r=_ff.apply(this,arguments);if(ownScope()){document.querySelectorAll("#flBody .inbox,#flBody details.sec").forEach(x=>x.remove());document.querySelectorAll('.head button[onclick*="nudgeAll"]').forEach(x=>x.remove())}return r}}
+
+/* فتح سجل إجازة/إذن/مأمورية/تكليف: النموذج + مرفقاته في عارض واحد بالتقليب بينهم */
+function lvOpen(id){const l=(S.leaves||[]).find(x=>x.id===id);if(!l)return;
+  const fn=l.kind==="perm"?printPerm:l.kind==="mission"?printMission:l.kind==="one"?printOneDuty:printLeave;
+  try{fn(id)}catch(e){console.error(e);toast("معرفتش أفتح النموذج")}}
 </script>
 </body></html>
 
