@@ -1510,7 +1510,7 @@ function myMember(){return (S.members||[]).find(m=>m.id===ME.id)}
 function myProfile(){return (S.profiles||[]).find(p=>p.id===ME.id)||window.SBA?.profile||null}
 function myAccess(){const p=myProfile();if(!p||p.disabled)return null;if(p.role==="admin")return {role:"admin",tabs:allTabs("full"),scope:"all",empId:p.emp_id};
   let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{dash:"view"});return {role:p.role,tabs:tb,scope:p.scope||"all",empId:p.emp_id}}
-function allowedTabsBase(){const a=myAccess();if(!a)return null;const t=Object.keys(a.tabs).filter(x=>x!=="inspection"&&VIEWS[x]&&(x!=="settings"||a.role==="admin"));if(a.tabs.inspection&&!t.includes("equip"))t.push("equip");return t.length?t:["dash"]}
+function allowedTabsBase(){const a=myAccess();if(!a)return null;const t=Object.keys(a.tabs).filter(x=>x!=="inspection"&&VIEWS[x]&&(x!=="settings"||a.role==="admin")&&!(OWN_HIDE_ROLES.includes(a.role)&&OWN_HIDE_TABS.includes(x)));if(a.tabs.inspection&&!t.includes("equip"))t.push("equip");return t.length?t:["dash"]}
 function tabLevelBase(tb){const a=myAccess();if(!a)return "view";if(a.role==="admin")return "full";return a.tabs[tb]||(tb==="equip"?a.tabs.inspection:null)||"view"}
 function profRows(){return (S.profiles||[]).slice().sort((x,y)=>(x.role==="admin"?0:1)-(y.role==="admin"?0:1)||String(x.username).localeCompare(String(y.username)))}
 async function usersCardHTML(){
@@ -1605,7 +1605,21 @@ function userDelete(uid){const p=(S.profiles||[]).find(x=>x.id===uid);confirmShe
 function syncGroupedNav(){document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{if(b.dataset.decorated)return;const label=TAB_NAMES[b.dataset.tab]||b.textContent.trim();b.innerHTML='<span class="nav-item-icon">'+ic(b.dataset.tab)+'</span><span>'+esc(label)+'</span>';b.dataset.decorated="1"});document.querySelectorAll("#tabs .nav-group").forEach(g=>{const items=[...g.querySelectorAll("button[data-tab]")],active=items.find(b=>b.dataset.tab===tab&&!b.hidden),visible=items.some(b=>!b.hidden);g.hidden=!visible;g.open=false;const label=g.querySelector(".nav-current");if(label)label.textContent=active?(TAB_NAMES[tab]||active.textContent.trim()):""})}
 function applyRoleBase(){const al=allowedTabs();document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{b.hidden=!al||!al.includes(b.dataset.tab)});syncGroupedNav();if(booted&&loaded.settings&&(!al||!al.includes(tab)))show(tab)}
 /* 8.5.0: المشرف/المهندس التنفيذي (sup / eng) بيشوف اللي يخصه بس دايمًا (تصاريحه، نماذجه، إجراءاته)، حتى لو النطاق اتسجّل «الكل» */
-const OWN_ROLES=["sup","eng"];
+const OWN_ROLES=["sup","eng","monitor"];
+/* المخزن وطلبات المهمات مش من شغل المشرف/المهندس التنفيذي، فبتتشال من قايمته */
+const OWN_HIDE_TABS=["ppe","matreq"],OWN_HIDE_ROLES=["sup","eng"];
+/* 8.5.2: المشرف/المهندس التنفيذي يشوف القوى العاملة والمقاولين للاطلاع بس (من غير تعديل ولا طلب تعديل/حذف/إضافة) */
+const mpNoEdit=()=>OWN_HIDE_ROLES.includes(myAccess()?.role);
+/* 8.5.2: «🪪 البطاقة» = صورة واحدة: الوش فوق والضهر تحته */
+async function idCardView(id){const e=emp(id);if(!e)return;const A=e.att||[];
+  const get=async a=>{try{if(!a||(a.type||"").includes("pdf"))return null;const r=await fetch("/_blob/"+a.a);if(!r.ok)return null;return await createImageBitmap(await r.blob())}catch(x){return null}};
+  const [f,b]=await Promise.all([get(A.find(a=>a.kind==="idFront")),get(A.find(a=>a.kind==="idBack"))]);
+  const L=[f,b].filter(Boolean);if(!L.length){toast("مفيش صورة بطاقة مرفوعة (أو الملف PDF)");return}
+  const W=1000,G=16,P=20,hs=L.map(im=>Math.round(im.height*(W/im.width))),H=P*2+hs.reduce((x,y)=>x+y,0)+G*(L.length-1);
+  const cv=document.createElement("canvas");cv.width=W+P*2;cv.height=H;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,cv.width,cv.height);
+  let y=P;L.forEach((im,i)=>{g.drawImage(im,P,y,W,hs[i]);g.strokeStyle="#ccc";g.lineWidth=1;g.strokeRect(P,y,W,hs[i]);y+=hs[i]+G});
+  const url=cv.toDataURL("image/jpeg",.9);const box=document.createElement("div");box.style.display="none";box.innerHTML='<span data-view=""></span>';box.firstChild.dataset.view=url;document.body.appendChild(box);
+  box.firstChild.dataset.title="";box.firstChild.click();setTimeout(()=>box.remove(),0)}
 const ownScope=()=>{const a=myAccess();return !!a&&a.role!=="admin"&&(a.scope==="own"||OWN_ROLES.includes(a.role))};
 const myNameN=()=>{const p=myProfile();const e=p&&emp(p.emp_id||"");return normName(e?.name||p?.name||p?.username||"")};
 const actMine=a=>{if(!ownScope())return true;const me=myEmpId();if(me&&a.ownerId===me)return true;
@@ -2156,7 +2170,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.5.0";
+const APP_VER="8.5.2";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2983,7 +2997,7 @@ function thumbs(list,size=72){return list.length?`<div style="display:flex;flex-
 function recLine(r,extra=""){return `<div class="li"><span class="num">${r.serial||""}</span><div class="grow"><div class="t">${fmtDate(r.date)}${extra}</div><div class="s">${esc(r.f?.desc||r.f?.subject||r.f?.topics||"")}</div></div>${hasSigned(r)?'<span class="pill p-appr">موقّع</span>':""}<button type="button" class="btn ghost sm" onclick="$('overlayRoot').innerHTML='';printRecord('${r.id}')">👁 عرض</button></div>`}
 function personRow(e){const nv=personViol(e.id).length+attOf(e,"violation").length,nl=personLect(e.id).length+attOf(e,"lecture").length;
   return `<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,e.phone].filter(Boolean).map(esc).join(" · ")}</div></div>
-  ${hasID(e)?'<span class="pill p-appr">🪪 البطاقة</span>':'<span class="pill p-closed">مفيش بطاقة</span>'}${attOf(e,"badge").length?'<span class="pill p-appr">🏷️ كارنيه</span>':""}${nl?`<span class="pill p-open">${nl} توعية</span>`:""}${nv?`<span class="pill p-canc">${nv} مخالفة</span>`:""}
+  ${hasID(e)?`<button type="button" class="pill p-appr" style="border:0;cursor:pointer;font:inherit" title="عرض البطاقة (وش وضهر في صورة واحدة)" onclick="idCardView('${e.id}')">🪪 البطاقة</button>`:'<span class="pill p-closed">مفيش بطاقة</span>'}${attOf(e,"badge").length?'<span class="pill p-appr">🏷️ كارنيه</span>':""}${nl?`<span class="pill p-open">${nl} توعية</span>`:""}${nv?`<span class="pill p-canc">${nv} مخالفة</span>`:""}
   <div class="row-actions"><button class="btn ghost sm" onclick="personFile('${e.id}')">الملف</button><button class="btn ghost sm" onclick="empForm('${e.id}')">تعديل</button></div></div>`}
 function contractorsHTML(){
   if(ui.ctrSel&&contractor(ui.ctrSel)){const c=contractor(ui.ctrSel),W=ctrWorkers(c.id);
@@ -3097,7 +3111,7 @@ function personFileHTML(e){
 }
 function newLect(W){recordForm('F-HSE-24-02',null,{rows:W.filter(Boolean).slice(0,25).map(w=>({name:w.name,name_id:w.id,pos:w.job||""}))})}
 function newViol(id){const e=emp(id);if(e)recordForm('F-HSE-07-01',null,{f:{emp:e.name,emp_id:e.id,code:e.code||"",job:e.job||""}})}
-function contractorForm(id){
+function contractorForm(id){if(mpNoEdit()){toast("المقاولين للاطلاع فقط في حسابك");return}
   const c=id?contractor(id):{active:true};
   openSheet(id?"تعديل مقاول":"مقاول جديد",`<div class="form">${f("اسم المقاول / الشركة","name",{value:c.name||"",req:true,full:true})}${f("نطاق الأعمال","scope",{value:c.scope||""})}${f("المسؤول / المندوب","rep",{value:c.rep||""})}${f("الموبايل","phone",{type:"tel",value:c.phone||""})}${f("الحالة","active",{value:c.active===false?"0":"1",opts:[["1","شغال في الموقع"],["0","خلص / مشي"]]})}</div>`,
   async fd=>{if(!fd.name.trim())return "اكتب اسم المقاول";const data={name:fd.name.trim(),scope:fd.scope.trim(),rep:fd.rep.trim(),phone:fd.phone.trim(),active:fd.active==="1"};
@@ -3180,7 +3194,7 @@ function attSheet(col,id){
     const aid=d.dataset.del;L=L.filter(a=>a.a!==aid);if(await save()){try{await assetsNS.delete(aid)}catch(err){}toast("اتمسح");draw()}});
   draw();
 }
-function empForm(id,preset){
+function empForm(id,preset){if(mpNoEdit()){toast("القوى العاملة للاطلاع فقط في حسابك");return}
   const e=id?emp(id):{group:"hse",active:true,...(preset||{})};
   openSheet(id?"تعديل موظف":"موظف جديد",`<div class="form">
     ${f("الاسم","name",{value:e.name||"",req:true,full:true})}${f("الكود","code",{value:e.code||""})}${f("الوظيفة","job",{value:e.job||""})}
@@ -6364,7 +6378,7 @@ function dupContractor(a,ignoreId,ignoreReq){const n=dupN(a.name);if(!n)return "
 const dupCheck=(kind,a,old,ignoreId,ignoreReq)=>{
   if(old){const keys=kind==="employee"?["name","nid","code","contractorId","group"]:["name"];if(!keys.some(k=>String(a[k]??"").trim()!==String(old[k]??"").trim()))return ""}
   return kind==="employee"?dupEmployee(a,ignoreId,ignoreReq):dupContractor(a,ignoreId,ignoreReq)};
-function chgReq(kind,action,targetId){
+function chgReq(kind,action,targetId){if(mpNoEdit()){toast("القوى العاملة للاطلاع فقط في حسابك");return}
   const cur=targetId?(kind==="employee"?emp(targetId):contractor(targetId)):{};if(targetId&&!cur){toast("السجل مش موجود");return}
   const F=kind==="employee"?EMP_F:CTR_F;
   const field=([k,l])=>k==="group"?f(l,"c_group",{value:cur.group||"ctr",opts:Object.entries(GROUPS)}):k==="contractorId"?f(l,"c_contractorId",{value:cur.contractorId||"",opts:[["","—"],...S.contractors.map(c=>[c.id,c.name])]}):k==="active"?f(l,"c_active",{value:cur.active===false?"0":"1",opts:[["1","شغال"],["0","موقوف / مشي"]]}):f(l,"c_"+k,{value:cur[k]||""});
@@ -6389,10 +6403,10 @@ function crCard(c){const F=c.kind==="employee"?EMP_F:CTR_F;const diff=c.action==
     ${diff.length?`<div class="s" style="margin-top:4px">${diff.map(([k,l])=>`${l}: <s>${esc(crVal(k,c.before?.[k]))}</s> ← <b>${esc(crVal(k,c.after?.[k]))}</b>`).join("<br>")}</div>`:""}${c.action==="add"?`<div class="s">${F.filter(([k])=>c.after?.[k]).map(([k,l])=>`${l}: ${esc(crVal(k,c.after[k]))}`).join(" · ")}</div>`:""}</div>
     ${c.status==="new"&&isAdmin()?`<div class="row-actions"><button class="btn sm ok" onclick="crDecide('${c.id}',true)">موافقة وتنفيذ</button><button class="btn ghost sm danger" onclick="crDecide('${c.id}',false)">رفض</button></div>`:`<span class="pill ${c.status==="done"?"p-appr":c.status==="rejected"?"p-canc":"p-susp"}">${c.status==="done"?"اتنفذ":c.status==="rejected"?"مرفوض":"مستني"}</span>`}</div>`}
 /* view-only manpower & contractors with request buttons */
-{const _pf=personFileHTML;personFileHTML=function(e){const h=_pf(e);if(tabLevel("manpower")!=="view")return h;
+{const _pf=personFileHTML;personFileHTML=function(e){const h=_pf(e);if(mpNoEdit())return h.replace(/<button[^>]*(?:chgReq|empForm|empDel)\([^)]*\)[^>]*>[^<]*<\/button>/g,"");if(tabLevel("manpower")!=="view")return h;
   return `<div class="banner" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="grow">ملف للاطلاع. أي تعديل بيتبعت كطلب للأدمن.</span><button class="btn sm" onclick="chgReq('employee','edit','${e.id}')">✏️ اطلب تعديل</button><button class="btn sm danger" onclick="chgReq('employee','del','${e.id}')">🗑 اطلب حذف</button></div>`+h.replace(/<button class="btn" onclick="empForm\('[^']+'\)">تعديل البيانات<\/button>/,"")}}
-{const _mf=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mf.call(this);if(tabLevel("manpower")==="view"&&!ui.personSel){const F=document.querySelector("#mpBody .filters");if(F&&!$("mpReqAdd")){F.querySelectorAll("button.btn").forEach(b=>{if(/\+ شخص|لصق/.test(b.textContent))b.remove()});F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpReqAdd" onclick="chgReq('employee','add')">+ اطلب إضافة شخص</button>`)}}}}
-{const _ch=contractorsHTML;contractorsHTML=function(){const h=_ch();if(tabLevel("contractors")!=="view")return h;
+{const _mf=VIEWS.manpower.fill;VIEWS.manpower.fill=function(){_mf.call(this);if(tabLevel("manpower")==="view"&&!ui.personSel&&!mpNoEdit()){const F=document.querySelector("#mpBody .filters");if(F&&!$("mpReqAdd")){F.querySelectorAll("button.btn").forEach(b=>{if(/\+ شخص|لصق/.test(b.textContent))b.remove()});F.insertAdjacentHTML("beforeend",`<button class="btn" id="mpReqAdd" onclick="chgReq('employee','add')">+ اطلب إضافة شخص</button>`)}}}}
+{const _ch=contractorsHTML;contractorsHTML=function(){const h=_ch();if(mpNoEdit())return h.replace(/<button class="btn primary" onclick="contractorForm\(\)">\+ مقاول<\/button>/,"").replace(/<button[^>]*(?:chgReq|contractorForm|ctrDel)\([^)]*\)[^>]*>[^<]*<\/button>/g,"");if(tabLevel("contractors")!=="view")return h;
   if(ui.ctrSel&&contractor(ui.ctrSel))return `<div class="banner" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="grow">ملف المقاول للاطلاع. التعديل بطلب للأدمن.</span><button class="btn sm" onclick="chgReq('contractor','edit','${ui.ctrSel}')">✏️ اطلب تعديل</button><button class="btn sm" onclick="chgReq('employee','add')">+ اطلب إضافة عامل</button><button class="btn sm danger" onclick="chgReq('contractor','del','${ui.ctrSel}')">🗑 اطلب حذف</button></div>`+h;
   return h.replace(`<button class="btn primary" onclick="contractorForm()">+ مقاول</button>`,`<button class="btn" onclick="chgReq('contractor','add')">+ اطلب إضافة مقاول</button>`)}}
 /* leave requests from "my file" */
@@ -6460,6 +6474,7 @@ async function empRestore(id){if(await write(()=>upsert("employees",id,{active:t
 function removedSheet(){const L=S.employees.filter(e=>e.active===false).sort((a,b)=>(b.removedAt||0)-(a.removedAt||0));
   openSheet(`المحذوفين (${L.length})`,L.length?`<div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")}${e.removedAt?" · اتحذف "+new Date(e.removedAt).toLocaleDateString("ar-EG"):""}</div></div><button class="btn sm" type="button" onclick="$('overlayRoot').innerHTML='';empRestore('${e.id}')">↩ رجّعه</button>${myAccess()?.role==="admin"?`<button class="btn sm danger" type="button" onclick="$('overlayRoot').innerHTML='';empPurge('${e.id}')">مسح نهائي</button>`:""}</div>`).join("")}</div>`:'<p class="muted">مفيش.</p>',()=>{},"قفل")}
 {const _pr=personRow;personRow=function(e){const h=_pr(e);const v=tabLevel("manpower")==="view";
+  if(mpNoEdit())return h.replace(/<button class="btn ghost sm" onclick="empForm\('[^']+'\)">تعديل<\/button>/,"");
   return h.replace(/<\/div><\/div>$/,`<button class="btn ghost sm" style="color:var(--bad)" title="${v?"اطلب حذف":"حذف"}" onclick="empDel('${e.id}')">🗑${v?" اطلب حذف":" حذف"}</button></div></div>`)}}
 {const _pf2=personFileHTML;personFileHTML=function(e){const h=_pf2(e);if(tabLevel("manpower")==="view")return h;
   return h.replace(/(<button class="btn" onclick="empForm\('[^']+'\)">تعديل البيانات<\/button>)/,`$1<button class="btn danger" onclick="empDel('${e.id}')">🗑 حذف</button>`)}}
