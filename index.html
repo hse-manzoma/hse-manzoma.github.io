@@ -2207,7 +2207,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.6.3";
+const APP_VER="8.7.0";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -9920,6 +9920,30 @@ WS_DEF.ws_admin.subs.push({k:"slim",t:"تخفيف الحجم",lvl:"settings",htm
  WS_BY_PERSONA.admin=["ws_site","ws_team","ws_records","ws_admin"];
  WS_BY_PERSONA.exec=["ws_inbox","ws_archive"];}
 
+/* ===== 8.7.0: هيكل موحّد — 5 صفحات رئيسية لكل الأدوار (اليوم | العمليات | الفريق | السجلات | حسابي) =====
+   نفس الأقسام والبيانات والصلاحيات؛ بس اتنقلت الشرائح لمكانها المنطقي، والأقسام اللي كانت مخبية في «المزيد»
+   (التصاريح، المتابعة، المعدات، المخزن، طلبات المهمات) بقت جوه «العمليات». كل شريحة بتظهر بحسب صلاحية الدور زي الأول. */
+{const D=WS_DEF,pick=(pg,k)=>(D[pg]?.subs||[]).find(x=>x.k===k);
+ const LEAD=["lead","admin"];
+ const sInbox=pick("ws_site","inbox"),sOv=pick("ws_site","ov"),sInc=pick("ws_site","inc"),sPtw=pick("ws_site","ptw"),sAct=pick("ws_site","act"),sAs=pick("ws_site","as"),sFol=pick("ws_site","follow");
+ const sEq=pick("ws_records","equip"),sPpe=pick("ws_records","ppe"),sMat=pick("ws_records","matreq");
+ [sInbox,sOv,sInc,sAs].forEach(x=>{if(x)x.only=LEAD});
+ if(sInbox)sInbox.t="الصندوق";if(sOv)sOv.t="نظرة على الموقع";if(sAs)sAs.t="التكليفات";if(sAct)sAct.t="المتابعة والإجراءات التصحيحية";
+ D.ws_site.t="العمليات";D.ws_site.s="التصاريح والإجراءات والمعدات والمخزن والتكليفات — شغل الموقع كله.";
+ D.ws_site.subs=[sInbox,sOv,sInc,sPtw,sAct,sEq,sAs,sPpe,sMat].filter(Boolean);
+ D.ws_team.t="الفريق";D.ws_team.s="التيم والحضور والمتابعة والقوى العاملة والمقاولون.";
+ D.ws_team.subs=[...(sFol?[{...sFol,t:"المهام ومتابعة الفريق"}]:[]),...D.ws_team.subs];
+ D.ws_team.subs.sort((a,b)=>["team","follow","mp","ctr"].indexOf(a.k)-["team","follow","mp","ctr"].indexOf(b.k));
+ D.ws_records.t="السجلات والتقارير";D.ws_records.s="النماذج ومكتب السلامة والتقارير والمؤشرات.";
+ D.ws_records.subs=D.ws_records.subs.filter(x=>["forms","office","report","kpi"].includes(x.k));
+ D.ws_daily.s="المطلوب منك النهاردة وحضورك ونماذجك.";
+ D.ws_me.t="حسابي";D.ws_me.s="ملفك وإجازاتك والتواصل، وللأدمن: الإعدادات والصلاحيات والبيانات.";
+ D.ws_me.subs=[...D.ws_me.subs,{k:"chat",t:"التواصل",view:"chat"},...D.ws_admin.subs.map(x=>({...x,only:["admin"]}))];
+ const P=["ws_daily","ws_site","ws_team","ws_records","ws_me"];
+ WS_BY_PERSONA.field=[...P];WS_BY_PERSONA.lead=[...P];WS_BY_PERSONA.admin=[...P];WS_BY_PERSONA.exec=["ws_inbox","ws_archive","ws_me"];
+ const _wss=wsSubs;window.wsSubs=function(k){const L=_wss.apply(this,arguments),per=wsPersona();return L.filter(s=>!s.only||s.only.includes(per))};
+}
+
 /* تسجيل الصفحات كـ VIEWS عشان الراوتينج والتاريخ والتصدير يشتغلوا زي أي قسم */
 for(const k of Object.keys(WS_DEF)){
   VIEWS[k]={shell:()=>wsShellHTML(k),fill(){return wsFillBody(k)}};
@@ -9977,6 +10001,12 @@ let _wsRouted=false;
         wsNavMount(); }catch(e){console.error(e)}
    return r; };}
 try{wsNavMount()}catch(e){console.error(e)}
+/* «⋯ المزيد» بيظهر بس لو في قسم مسموح مش موجود في أي شريحة */
+function wsNeedMore(){try{const al=(allowedTabsBase()||[]).filter(t=>!String(t).startsWith("ws_")&&!["join","dash","inspection"].includes(t));
+  const cov=new Set();for(const pg of wsPages())for(const x of wsSubs(pg)){if(x.view)cov.add(x.view)}
+  return al.some(t=>!cov.has(t))}catch(e){return true}}
+{const _wnm=wsNavMount;window.wsNavMount=function(){const r=_wnm.apply(this,arguments);try{if(wsOn()&&!wsNeedMore())$("wsSwitch")?.remove()}catch(e){}return r};
+ const _mn2=window.mobileNav;window.mobileNav=function(){const r=_mn2.apply(this,arguments);try{if(wsOn()&&!wsNeedMore())$("bnav")?.querySelector("[data-more]")?.remove()}catch(e){}return r}}
 
 
 for(const _k of Object.keys(VIEWS)){
@@ -10066,6 +10096,7 @@ for(const [_pg,_k] of [["ws_site","ov"],["ws_site","inbox"],["ws_exec","ov"],["w
 {const _a=applyRole;applyRole=function(){const r=_a.apply(this,arguments);try{gsMount()}catch(e){}return r}}
 try{gsMount()}catch(e){}
 {const _sfL=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sfL.call(this);if(myRole()==="admin"&&$("setBody")&&!$("siteLocCard")){const c=document.createElement("div");c.className="card";c.id="siteLocCard";c.style.marginTop="14px";c.innerHTML=siteLocCardHTML();$("setBody").appendChild(c)}}}
+
 </script>
 </body></html>
 
