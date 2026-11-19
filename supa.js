@@ -81,6 +81,7 @@ async function cleanupOtherPushRows(){
   return true;
 }
 window.SBA.cleanupLocalPush=cleanupLocalPush;
+window.SBA.rpc=(n,a)=>sb.rpc(n,a);
 window.SBA.logout=async()=>{authLog("خروج بطلب المستخدم");window.SBA.__bye=true;await cleanupLocalPush();const {error}=await sb.auth.signOut({scope:"local"});if(error)throw error};
 /* ---------- سجل الجلسة: بيفضل محفوظ بعد الريفرش عشان نعرف ليه خرج ---------- */
 const ALOG="hse.auth.log";
