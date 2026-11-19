@@ -1536,14 +1536,19 @@ function tabsMatrix(cur){const known=new Set(TAB_GROUPS.flatMap(g=>g[1]));const 
   const G=[...TAB_GROUPS,...(rest.length?[["أخرى",rest]]:[])];
   const row=k=>`<tr><td>${TAB_NAMES[k]||k}</td><td><select name="lv_${k}"><option value="">مخفي</option>${Object.entries(LV).map(([v,n])=>`<option value="${v}" ${cur[k]===v?"selected":""}>${n}</option>`).join("")}</select></td></tr>`;
   return `<div class="field full"><label>الأقسام والصلاحية في كل قسم</label><div class="muted" style="font-size:12.5px;margin-bottom:6px">«مخفي» = القسم مش بيظهر · «مشاهدة» = يشوف بس · «إضافة وتعديل» = يسجّل ويعدّل · «+ مسح» = يمسح كمان. الصلاحية هنا هي اللي بتحدد الحفظ على السيرفر.</div>
-   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="btn ghost sm" onclick="permFill(this,'view')">الكل مشاهدة</button><button type="button" class="btn ghost sm" onclick="permFill(this,'edit')">الكل إضافة وتعديل</button><button type="button" class="btn ghost sm" onclick="permFill(this,'')">مسح الكل</button></div>
+   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="btn ghost sm" onclick="permFill(this,'view')">الكل مشاهدة</button><button type="button" class="btn ghost sm" onclick="permFill(this,'edit')">الكل إضافة وتعديل</button><button type="button" class="btn ghost sm" onclick="permFill(this,'')">مسح الكل</button><button type="button" class="btn sm" onclick="permPreset(this)" title="يعبّي الجدول بالصلاحيات الموصى بها للدور المختار">⭐ الموصى به للدور</button></div>
    <div class="tbl" style="border:0"><table><tbody>${G.map(([t,ks])=>`<tr><td colspan="2" style="background:var(--accent-soft);font-weight:700;font-size:13px">${t}</td></tr>${ks.filter(k=>TAB_NAMES[k]).map(row).join("")}`).join("")}</tbody></table></div></div>`}
+/* 8.5.0: الصلاحيات الموصى بها لكل دور (المشرف التنفيذي: يومه وتصاريحه وإجراءاته هو بس، من غير سجلات أو مخزن) */
+const ROLE_RECO={sup:{dash:"view",ptw:"edit",actions:"edit"},eng:{dash:"view",ptw:"edit",actions:"edit"}};
+function permPreset(btn){const fm=btn.closest("form")||btn.closest(".form")||document;const role=btn.dataset.role||fm.querySelector('[name="role"]')?.value||(window._roleKeyEditing||"");
+  const pr=ROLE_RECO[role]||BUILTIN_ROLES[role]?.tabs;if(!pr||role==="custom"){toast("اختار دور أساسي الأول (مش «مخصص»)");return}
+  btn.closest(".field").querySelectorAll('select[name^="lv_"]').forEach(x=>{x.value=pr[x.name.slice(3)]||""});toast("اتعبّت بالموصى به — دوس حفظ")}
 function permFill(btn,v){btn.closest(".field").querySelectorAll('select[name^="lv_"]').forEach(x=>{x.value=v})}
 /* الفحوصات على السيرفر بتتحقق من مفتاح inspection، والواجهة بتمنح equip —
    فبنعكس الصلاحية تلقائيًا عشان ميحصلش منع صامت لحفظ الفحص */
 function withInspectionTab(tabs){const o={...(tabs||{})};if(o.equip)o.inspection=o.equip;else delete o.inspection;return o}
 const readMatrix=form=>{const o={};for(const k of Object.keys(TAB_NAMES)){if(String(k).startsWith("ws_"))continue;const v=form.querySelector(`[name="lv_${k}"]`)?.value;if(v)o[k]=v}return o};
-function roleForm(key){const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
+function roleForm(key){window._roleKeyEditing=key||"";const r=key?ROLES_ALL()[key]:{ar:"",tabs:{dash:"view"}};
   openSheet(key?"تعديل الدور":"دور جديد",`<div class="form">${f("اسم الدور","ar",{value:r.ar,req:true,full:true,attrs:'placeholder="مثلاً: مراقب سلامة مقاول"'})}${tabsMatrix(r.tabs||{})}</div>`,async(fd,form)=>{
     if(!fd.ar.trim())return "اكتب اسم الدور";const tabs=readMatrix(form);if(!Object.keys(tabs).length)return "اختار قسم واحد على الأقل";
     const k=key||("r"+Date.now().toString(36));const roles={...(S.settings.roles||{}),[k]:{ar:fd.ar.trim(),tabs:withInspectionTab(tabs)}};
@@ -1599,7 +1604,16 @@ async function userToggle(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!
 function userDelete(uid){const p=(S.profiles||[]).find(x=>x.id===uid);confirmSheet("حذف المستخدم",`حساب «${p?.username||""}» هيتمسح ومش هيقدر يدخل تاني.`,async()=>{try{await SBA.fn("delete",{user_id:uid});toast("اتحذف")}catch(e){toast(SBA.ar(e))}},"احذف")}
 function syncGroupedNav(){document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{if(b.dataset.decorated)return;const label=TAB_NAMES[b.dataset.tab]||b.textContent.trim();b.innerHTML='<span class="nav-item-icon">'+ic(b.dataset.tab)+'</span><span>'+esc(label)+'</span>';b.dataset.decorated="1"});document.querySelectorAll("#tabs .nav-group").forEach(g=>{const items=[...g.querySelectorAll("button[data-tab]")],active=items.find(b=>b.dataset.tab===tab&&!b.hidden),visible=items.some(b=>!b.hidden);g.hidden=!visible;g.open=false;const label=g.querySelector(".nav-current");if(label)label.textContent=active?(TAB_NAMES[tab]||active.textContent.trim()):""})}
 function applyRoleBase(){const al=allowedTabs();document.querySelectorAll("#tabs button[data-tab]").forEach(b=>{b.hidden=!al||!al.includes(b.dataset.tab)});syncGroupedNav();if(booted&&loaded.settings&&(!al||!al.includes(tab)))show(tab)}
-const ownScope=()=>myAccess()?.scope==="own";
+/* 8.5.0: المشرف/المهندس التنفيذي (sup / eng) بيشوف اللي يخصه بس دايمًا (تصاريحه، نماذجه، إجراءاته)، حتى لو النطاق اتسجّل «الكل» */
+const OWN_ROLES=["sup","eng"];
+const ownScope=()=>{const a=myAccess();return !!a&&a.role!=="admin"&&(a.scope==="own"||OWN_ROLES.includes(a.role))};
+const myNameN=()=>{const p=myProfile();const e=p&&emp(p.emp_id||"");return normName(e?.name||p?.name||p?.username||"")};
+const actMine=a=>{if(!ownScope())return true;const me=myEmpId();if(me&&a.ownerId===me)return true;
+  const mn=myNameN();if(mn&&a.ownerName&&normName(a.ownerName).includes(mn))return true;if(a.createdBy&&a.createdBy===ME.id)return true;
+  const r=a.recId?S.records.find(x=>x.id===a.recId):null;return !!(r&&mineRec(r))};
+/* السجل نفسه: يظهر للمستخدم المقيّد لو يخصه (كاتبه/مذكور فيه/مستني توقيعه أو مراجعته) — والتعديل بيحتاج صلاحية «النماذج» إضافة وتعديل */
+const recVisible=r=>!ownScope()||mineRec(r)||(typeof recTodoFor==="function"&&!!recTodoFor(r,ME.id))||(()=>{const mn=myNameN();return !!mn&&normName(String(r.f?.resp||"")).includes(mn)})();
+const recEditable=r=>!ownScope()||(mineRec(r)&&allowedTabs().includes("forms")&&["edit","full"].includes(tabLevel("forms")));
 const mineRec=r=>{
   if(!ownScope())return true;
   if(r.createdBy===ME.id)return true;
@@ -1671,10 +1685,10 @@ function remindersBase(){
     if(mine.length)R.push({lv:mine.some(a=>a.late)?"bad":"warn",t:`عليك ${mine.length} إجراء تصحيحي مفتوح${mine.filter(a=>a.late).length?` (${mine.filter(a=>a.late).length} متأخر)`:""}`,go:"ui.actF='mine';show('actions')"});
     if(!ownScope()&&late.length)R.push({lv:"bad",t:`${late.length} إجراء تصحيحي عدّى ميعاده`,go:"ui.actF='late';show('actions')"});
     const un=A.filter(a=>!a.ownerId&&!a.ownerName);if(!ownScope()&&un.length)R.push({lv:"warn",t:`${un.length} بند محتاج تحدد له مسؤول وميعاد`,go:"ui.actF='open';show('actions')"})}
-  if(al.includes("equip")){for(const [k,v] of Object.entries(EQ_K)){const d=S.equipment.filter(q=>q.kind===k&&q.active!==false&&eqDue(q));if(d.length)R.push({lv:"warn",t:`${d.length} من ${v.ar} محتاجة فحص${v.monthly?" الشهر ده":""}`,go:`ui.eqKind='${k}';show('equip')`})}}
+  if(al.includes("equip")&&!ownScope()){for(const [k,v] of Object.entries(EQ_K)){const d=S.equipment.filter(q=>q.kind===k&&q.active!==false&&eqDue(q));if(d.length)R.push({lv:"warn",t:`${d.length} من ${v.ar} محتاجة فحص${v.monthly?" الشهر ده":""}`,go:`ui.eqKind='${k}';show('equip')`})}}
   if(al.includes("ptw")){const ex=expiredPermits();if(ex.length)R.push({lv:"bad",t:`${ex.length} تصريح وصل لموعد انتهائه ولسه مفتوح — راجع الإغلاق`,go:"closeExpired()"})}
-  if(al.includes("ppe")){const low=S.items.filter(i=>num(i.min)>0&&balance(i.id)<=num(i.min));if(low.length)R.push({lv:"warn",t:`${low.length} صنف في المخزن تحت الحد الأدنى`,go:"show('ppe')"})}
-  if(al.includes("contractors")){const w=S.employees.filter(e=>e.group==="ctr"&&e.active!==false);const noId=w.filter(e=>!hasID(e)).length,noInd=w.filter(e=>!S.records.some(r=>r.form==="F-HSE-24-01"&&(r.rows||[]).some(x=>x&&x.name_id===e.id))).length;
+  if(al.includes("ppe")&&!ownScope()){const low=S.items.filter(i=>num(i.min)>0&&balance(i.id)<=num(i.min));if(low.length)R.push({lv:"warn",t:`${low.length} صنف في المخزن تحت الحد الأدنى`,go:"show('ppe')"})}
+  if(al.includes("contractors")&&!ownScope()){const w=S.employees.filter(e=>e.group==="ctr"&&e.active!==false);const noId=w.filter(e=>!hasID(e)).length,noInd=w.filter(e=>!S.records.some(r=>r.form==="F-HSE-24-01"&&(r.rows||[]).some(x=>x&&x.name_id===e.id))).length;
     if(noId)R.push({lv:"warn",t:`${noId} عامل مقاول من غير صورة بطاقة`,go:"ui.mpG='ctr';ui.mpID='no';show('manpower')"});if(noInd)R.push({lv:"warn",t:`${noInd} عامل مقاول ما حضرش محاضرة Induction`,go:"show('contractors')"})}
   if(al.includes("team")&&hseTeam().length&&!attDoc(t0))R.push({lv:"warn",t:"حضور النهارده لسه ما اتسجلش",go:"ui.teamSub='att';show('team')"});
   {const mm=S.leaves.filter(missionNeedsMySign);
@@ -2142,7 +2156,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.4.12";
+const APP_VER="8.5.0";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2332,7 +2346,7 @@ function deriveActions(){
   const T=new Map(S.actions.map(a=>[a.id,a]));const res=[];
   for(const d of out){const tr=T.get(d.id)||{};T.delete(d.id);res.push({...d,...tr,id:d.id,derived:true})}
   for(const a of T.values())if(a.manual)res.push(a);
-  return res.map(a=>({...a,status:a.status||"open",late:(a.status||"open")!=="closed"&&a.due&&a.due<today()}));
+  return res.map(a=>({...a,status:a.status||"open",late:(a.status||"open")!=="closed"&&a.due&&a.due<today()})).filter(actMine);
 }
 const ACT_KIND_PILL={"مخالفة":"p-canc","تفتيش":"p-susp","ملاحظة":"p-open","حادث":"p-canc","معدات":"p-susp","يدوي":"p-closed"};
 function actOwner(a){return a.ownerId?empName(a.ownerId):a.ownerName||""}
@@ -4829,12 +4843,13 @@ function paperSignForm(id){const p=S.permits.find(x=>x.id===id);if(!p)return;
 async function printRecord(id){
   let r=S.records.find(x=>x.id===id);for(let i=0;!r&&i<10;i++){await new Promise(z=>setTimeout(z,200));r=S.records.find(x=>x.id===id)}
   if(!r){toast("السجل مش موجود");return}
+  if(!recVisible(r)){toast("السجل ده مش من اختصاصك");return}
   const spec=(await spec2(r.form));const personalSig=await mySig();await sigData();
   /* اعتماد واحد بس للسجل: لو اتراجع واتعتمد، أو لو انت موقّع عليه كطرف،
      ما يظهرش زرار «اعتماد بتوقيعي» تاني. */
   const nameVals=spec.fields.filter(f=>f.type==="emp"||NAME_KEY.test(f.k)).map(f=>recVal(spec,r,f.k));
   const A=recActions(r,nameVals);          /* مصدر واحد للحقيقة: نفس الدالة بتحدد الأزرار والتنبيهات */
-  const extra=`${(canWrite||(BASE.write&&tabLevel("forms")!=="view"))?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${A.approve&&personalSig?`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`:""}${A.unapprove?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:""}`;
+  const extra=`${(canWrite||(BASE.write&&tabLevel("forms")!=="view"))&&recEditable(r)?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${r.id}')">✏️ تعديل</button>`:""}${A.approve&&personalSig?`<button class="btn sign" data-extra onclick="approveRecord('${r.id}')">✍ اعتماد بتوقيعي</button>`:""}${A.unapprove?`<button class="btn" data-extra onclick="unapproveRecord('${r.id}')">إلغاء الاعتماد</button>`:""}`;
   const ext2=extra+(A.sign?`<button class="btn sign" data-extra onclick="signDoc('records','${r.id}',{reopen:()=>printRecord('${r.id}')})">✍ توقيعي</button>`:"")+(A.unsign?`<button class="btn" data-extra onclick="unsignDoc('records','${r.id}',()=>printRecord('${r.id}'))">إلغاء توقيعي</button>`:"");
   const atc=attendCol(spec);
   const atst=atc?attendStats(r,spec):null;
@@ -4952,6 +4967,7 @@ function collectRecord(spec,fid,fd,form,rec,photos){
   data.date=data.f.date||today();return data}
 function addPreviewBtn(onPreview){const sub=document.querySelector("#shForm [type=submit]");if(!sub)return;const b=document.createElement("button");b.type="button";b.className="btn";b.textContent="👁 معاينة";b.onclick=onPreview;sub.insertAdjacentElement("afterend",b)}
 async function recordForm(fid,id,preset){
+  if(id){const r0=S.records.find(r=>r.id===id);if(r0&&!recEditable(r0)){toast(recVisible(r0)?"التعديل على النموذج ده مش مسموح لحسابك":"السجل ده مش من اختصاصك");return}}
   SHEET_FORCE=!!BASE.write&&tabLevel("forms")!=="view";
   try{await recordFormBase(fid,id,preset)}finally{SHEET_FORCE=false}
   const spec=(await spec2(fid));const rec=id?S.records.find(r=>r.id===id):{f:{},rows:[],...(preset||{})};
