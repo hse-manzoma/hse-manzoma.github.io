@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.8.4";
+const APP_VER="8.8.5";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10273,6 +10273,47 @@ function reqOpen(id){const r=(S.leavereq||[]).find(x=>x.id===id);if(!r)return;
   const ch=(r.chain||[]).map((x,i)=>`<div class="li"><span class="num">${i+1}</span><div class="grow"><div class="t">${esc(x.t||"")} · ${esc(x.name||"")}</div></div><span class="pill ${x.st==="ok"?"p-appr":x.st==="rej"?"p-canc":"p-susp"}">${x.st==="ok"?"اعتمد":x.st==="rej"?"رفض":"مستني"}</span></div>`).join("");
   let lines="";try{lines=hrLines(r).map(([a,b])=>`<div class="li"><div class="grow"><div class="s">${esc(a)}</div><div class="t">${esc(String(b||"—"))}</div></div></div>`).join("")}catch(e){}
   openSheet("طلب "+(typeof hrKindAr==="function"?hrKindAr(r):"")+" · "+st,`<div class="list">${lines}</div>${ch?`<h4 style="margin:10px 0 4px">درجات الاعتماد</h4><div class="list">${ch}</div>`:""}${(r.chain||[]).length?`<div style="margin-top:10px"><button type="button" class="btn sm" onclick="hrChainPrint('${r.id}')">🖨 طباعة / تحميل</button></div>`:""}`,async()=>null,"تمام")}
+
+/* 8.8.5 — البطاقات وملف العمالة: صلاحية مشاهدة/إضافة بالدور أو بالحساب + إصلاح زر «🪪 البطاقة» مع PDF */
+function idPerm(){const a=myAccess();if(!a)return {see:false,add:false};if(a.role==="admin")return {see:true,add:true};
+ const C=S.settings?.idAccess||{},v=(C.users||{})[ME.id]||(C.roles||{})[a.role]||"",M={full:[1,1],see:[1,0],add:[0,1],none:[0,0]};
+ if(M[v])return {see:!!M[v][0],add:!!M[v][1]};
+ const mon=a.role==="monitor";return {see:!mon,add:!mon&&!mpNoEdit()&&tabLevel("manpower")!=="view"}}
+const ID_LVL=[["","حسب الصلاحية العادية"],["full","مشاهدة وإضافة"],["see","مشاهدة فقط"],["add","إضافة فقط (من غير مشاهدة)"],["none","مخفي بالكامل"]];
+{const _o=idCardView;idCardView=async function(id){
+  if(!idPerm().see){toast("عرض البطاقات مش متاح لحسابك");return}
+  const e=emp(id);if(!e)return;const A=(e.att||[]).filter(a=>a.kind==="idFront"||a.kind==="idBack");
+  const imgs=A.filter(a=>!(a.type||"").includes("pdf")),pdfs=A.filter(a=>(a.type||"").includes("pdf"));
+  if(!A.length){toast("مفيش بطاقة مرفوعة");return}
+  if(!imgs.length){attSheet("employees",id);return}
+  const get=async a=>{try{const r=await fetch("/_blob/"+a.a);if(!r.ok)return null;return await createImageBitmap(await r.blob())}catch(x){return null}};
+  const [f,b]=await Promise.all([get(imgs.find(a=>a.kind==="idFront")),get(imgs.find(a=>a.kind==="idBack"))]);const L=[f,b].filter(Boolean);
+  if(!L.length){showLightbox(imgs.map(a=>"/_blob/"+a.a));return}
+  const W=1000,G=16,P=20,hs=L.map(im=>Math.round(im.height*(W/im.width))),H=P*2+hs.reduce((x,y)=>x+y,0)+G*(L.length-1);
+  const cv=document.createElement("canvas");cv.width=W+P*2;cv.height=H;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,cv.width,cv.height);
+  let y=P;L.forEach((im,i)=>{g.drawImage(im,P,y,W,hs[i]);g.strokeStyle="#ccc";g.lineWidth=1;g.strokeRect(P,y,W,hs[i]);y+=hs[i]+G});
+  showLightbox([cv.toDataURL("image/jpeg",.9)]);if(pdfs.length)toast("فيه كمان "+pdfs.length+" ملف PDF — افتحه من «الملف» ← المرفقات")}}
+{const _pr=personRow;personRow=function(e){let h=_pr.apply(this,arguments);if(!idPerm().see)h=h.replace(/<button type="button" class="pill p-appr"[^>]*idCardView[^>]*>🪪 البطاقة<\/button>/,'<span class="pill p-appr">🪪 مرفوعة</span>');return h}}
+{const _pf=personFile;personFile=function(id){if(!idPerm().see){toast("ملف الفرد مش متاح لحسابك");return}return _pf.apply(this,arguments)}}
+{const _th=thumbs;thumbs=function(list){const L=idPerm().see?list:(list||[]).filter(a=>!(a.kind==="idFront"||a.kind==="idBack"));return _th.call(this,L,...[].slice.call(arguments,1))}}
+{const _a=attSheet;attSheet=function(col,id){const r=_a.apply(this,arguments);
+  if(col==="employees"){const P=idPerm();if(!P.see||!P.add){const b=$("attBody");if(b){
+   const lock=()=>Object.assign(document.createElement("div"),{textContent:"🔒 مرفوعة",style:"height:96px;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--muted,#667)"});
+   const fix=()=>{if(!P.add)b.querySelectorAll("label.btn.primary").forEach(x=>x.remove());
+    if(!P.see){b.querySelectorAll("img[data-view]").forEach(x=>x.replaceWith(lock()));b.querySelectorAll('a[href^="/_blob/"]').forEach(x=>x.replaceWith(lock()));b.querySelectorAll("[data-del],[data-attprint]").forEach(x=>x.remove())}};
+   fix();new MutationObserver(fix).observe(b,{childList:true,subtree:true})}}}
+  return r}}
+function idAccCardHTML(){const C=S.settings?.idAccess||{},R=C.roles||{},U=C.users||{};
+ const sel=(kind,key,v)=>`<select onchange="idAccSet('${kind}','${esc(key)}',this.value)" style="max-width:100%">${ID_LVL.map(([k,l])=>`<option value="${k}" ${(v||"")===k?"selected":""}>${l}</option>`).join("")}</select>`;
+ const roles=Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,r])=>`<div class="li"><div class="grow t">${esc(r.ar||k)}</div>${sel("roles",k,R[k])}</div>`).join("");
+ const users=(S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled).map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.username||"")}</div><div class="s">${esc(ROLES_ALL()[p.role]?.ar||p.role||"")}</div></div>${sel("users",p.id,U[p.id])}</div>`).join("");
+ return `<h3 style="margin:0 0 4px">🪪 صلاحيات البطاقات وملف العمالة</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">تحدد مين يشوف بطاقات العمالة وملف الفرد، ومين يقدر يضيف/يرفع بس من غير ما يشوف. استثناء الحساب بيغلب على الدور. الأدمن دايمًا يشوف ويضيف.</div>
+  <div style="font-weight:700;margin:6px 0 2px">حسب الدور</div><div class="list">${roles}</div>
+  <div style="font-weight:700;margin:10px 0 2px">استثناءات للحسابات</div><div class="list">${users||'<p class="muted">مفيش حسابات.</p>'}</div>`}
+async function idAccSet(kind,key,v){const C=JSON.parse(JSON.stringify(S.settings?.idAccess||{roles:{},users:{}}));C.roles=C.roles||{};C.users=C.users||{};
+ if(v)C[kind][key]=v;else delete C[kind][key];
+ await write(()=>upsert("settings","app",{idAccess:C}),"اتحفظت الصلاحية")}
+{const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.apply(this,arguments);if(myRole()==="admin"&&$("setBody")&&!$("idAccCard")){const c=document.createElement("div");c.className="card";c.id="idAccCard";c.style.marginTop="14px";c.innerHTML=idAccCardHTML();$("setBody").appendChild(c)}}}
 </script>
 </body></html>
 
