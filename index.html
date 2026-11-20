@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.8.2";
+const APP_VER="8.8.3";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5923,7 +5923,7 @@ async function renderPermitPagesFull(p){const pages=await renderPermitPagesBase(
   if(p.supSignature&&p.supUidDone&&p.supName&&!ptwAdminActor(p.supUidDone))byUid.set(p.supUidDone,{...(byUid.get(p.supUidDone)||{}),uid:p.supUidDone,name:p.supName,at:p.supAt,signature:p.supSignature});
   if(p.hseSignature&&p.hseUidDone&&p.hseName&&!ptwAdminActor(p.hseUidDone))byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature});
   /* لا نطبع إلا توقيع شخص اسمه طرف فعلي في النموذج، وفي خانة دوره المطابقة. */
-  for(const s of byUid.values())for(const role of ptwSignerRoles(p,s.name,s.role)){const cell=ptwSigCell(T,"issue",role);if(cell&&s.signature)await stampOn(pages[F.pages.length-1],cell,s.signature,{fit:.82})}
+  for(const s of byUid.values())for(const role of ptwSignerRoles(p,s.name)){const cell=ptwSigCell(T,"issue",role);if(cell&&s.signature)await stampOn(pages[F.pages.length-1],cell,s.signature,{fit:.82})}
   /* اعتماد الإغلاق يظل في مصفوفة الإغلاق المطبوعة، بجوار اسم الدور نفسه. */
   if(p.status==="closed"&&p.closedAt){await applyPermitCloseoutOfficial(p,pages);if(T!=="COLD")pages.push(permitCloseNotesPage(p))}
   return pages}
@@ -10230,6 +10230,41 @@ function wsQuickHTML(){const a=allowedTabs()||[],has=t=>a.includes(t),ed=t=>has(
 function lvOpen(id){const l=(S.leaves||[]).find(x=>x.id===id);if(!l)return;
   const fn=l.kind==="perm"?printPerm:l.kind==="mission"?printMission:l.kind==="one"?printOneDuty:printLeave;
   try{fn(id)}catch(e){console.error(e);toast("معرفتش أفتح النموذج")}}
+
+/* 8.8.3 — تصريح العمل على ارتفاع: قايمة فحص بنفس بنود النموذج الأصلي + أسماء العمال في جدول «أسماء القائمين بالعمل» (قسم 3) */
+const HEIGHT_CHECKS=(()=>{const A={pg:0,W:1076,H:1631,x:{na:443.5,no:507,yes:565.5}},B={pg:1,W:1066,H:1636,x:{na:436.5,no:500,yes:558.5}};
+ const it=(P,k,g,t,y)=>({k,g,t,y,...P});
+ return [it(A,"h1","العمال","العمال مدربون على العمل على ارتفاع؟",1028),
+  it(A,"h2.1","منطقة العمل","سطح العمل ثابت؟",1120),it(A,"h2.2","منطقة العمل","منطقة العمل خالية من مخاطر التعثر؟",1166),it(A,"h2.3","منطقة العمل","منطقة العمل خالية من العمال/الزائرين (تساقط أشياء)؟",1212),it(A,"h2.4","منطقة العمل","منطقة العمل معزولة (تساقط أشياء من أعلى)؟",1258),it(A,"h2.5","منطقة العمل","الممر لمنطقة العمل خالٍ من المخاطر؟",1304),it(A,"h2.6","منطقة العمل","الممر لمنطقة العمل مؤمَّن؟",1350),
+  it(A,"h3","حبل النجاة","حبل النجاة مفحوص ومعتمد؟",1396),
+  it(A,"h4.1","حزام الأمان","تم تدريب العمال على استخدام حزام الأمان؟",1487),it(A,"h4.2","حزام الأمان","حزام الأمان في حالة جيدة ومعتمد للاستخدام؟",1533),
+  it(B,"h5.1","المعدات","السقالات مشيدة بشكل صحيح؟",313.5),it(B,"h5.2","المعدات","يوجد سلم مناسب للسقالة؟",367),it(B,"h5.3","المعدات","تم إنشاء برج السقالة بشكل صحيح؟",421),it(B,"h5.4","المعدات","يوجد سلم مناسب ومعتمد لطبيعة العمل؟",474.5),it(B,"h5.5","المعدات","العمال مؤهلون لاستخدام المعدات الميكانيكية؟",534),
+  it(B,"h6.1","تذكير العمال","عدم التمادي الشديد للوصول للأشياء؟",647.5),it(B,"h6.2","تذكير العمال","الحفاظ على الأدوات من السقوط؟",701)]})();
+HEIGHT_CHECKS.forEach(x=>SITE_CHECKS_KEYS.push(x.k));
+function heightChecksHTML(p){const sc=p.siteChecks||{};
+ const opt=(k,v,lab)=>`<label class="chk" style="display:inline-flex;gap:3px;margin:0 2px;padding:2px 6px"><input type="radio" name="sc_${k}" value="${v}" ${sc[k]===v?"checked":""}> ${lab}</label>`;
+ let last="",h="";
+ for(const x of HEIGHT_CHECKS){if(x.g!==last){h+=`<div style="margin-top:7px;font-weight:700;font-size:12.5px;color:var(--muted,#607068)">${x.g}</div>`;last=x.g}
+  h+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px dotted var(--line)"><div class="grow" style="font-size:13px">${esc(x.t)}</div><div style="white-space:nowrap;flex-shrink:0">${opt(x.k,"yes","نعم")}${opt(x.k,"no","لا")}${opt(x.k,"na","غ.م")}</div></div>`}
+ return `<div class="field full" style="margin-top:8px"><label>قايمة الأسئلة (نموذج العمل على ارتفاع)</label>
+  <div style="border:1px solid var(--line);border-radius:10px;padding:8px 12px;max-height:320px;overflow:auto">
+  <div style="display:flex;gap:6px;margin-bottom:4px"><button type="button" class="btn sm" onclick="scAll(this,'yes')">علّم الكل نعم</button><button type="button" class="btn sm" onclick="scAll(this,'no')">الكل لا</button></div>${h}</div>
+  <small class="muted" style="font-size:12px">يملأها مشرف التنفيذ ويراجعها مسؤول السلامة. بتتطبع بعلاماتها في صفحة 1 و2.</small></div>`}
+{const _s=siteChecksHTML;siteChecksHTML=function(p){return p&&p.type==="HEIGHT"?heightChecksHTML(p):_s.apply(this,arguments)}}
+function drawHeightChecks(pages,p){const sc=p.siteChecks;if(!sc)return;
+ for(const it of HEIGHT_CHECKS){const v=sc[it.k];if(!v)continue;const cv=pages[it.pg];if(!cv)continue;const x=it.x[v];if(x==null)continue;const g=cv.getContext("2d"),W=cv.width,H=cv.height;
+  g.save();g.font="700 "+Math.round(W*0.026)+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText("✓",x/it.W*W,it.y/it.H*H);g.restore()}}
+{const _b=renderPermitPagesBase;renderPermitPagesBase=async function(p){const pages=await _b.apply(this,arguments);if(p&&p.type==="HEIGHT"){try{drawHeightChecks(pages,p)}catch(e){console.error(e)}}return pages}}
+/* أسماء العمال في جدول القسم 3 (صفحة 2): 12 خانة، أرقام فردية يمين وزوجية شمال */
+const HEIGHT_CREW={pg:1,W:1066,H:1636,rows:[1256,1310,1363,1417,1470,1524,1579],R:[742,989],L:[312,541]};
+{const _d=drawPermitCrew,_c=crewCapacity;
+ crewCapacity=function(T){return T==="HEIGHT"?12:_c.apply(this,arguments)};
+ drawPermitCrew=function(pages,p){if(!p||p.type!=="HEIGHT")return _d.apply(this,arguments);
+  const list=permitCrewList(p);if(!list.length)return;const G=HEIGHT_CREW,cv=pages[G.pg];if(!cv)return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,sx=W/G.W,sy=H/G.H;
+  g.save();g.direction="rtl";g.textBaseline="middle";g.textAlign="center";g.fillStyle="#102b4b";
+  list.slice(0,12).forEach((w,k)=>{const row=k>>1,c=k%2===0?G.R:G.L,x0=c[0]*sx+6,x1=c[1]*sx-6,cy=(G.rows[row]+G.rows[row+1])/2*sy,rh=(G.rows[row+1]-G.rows[row])*sy;
+   crewFit(g,w.name,x1-x0,Math.max(12,rh*0.4),"700");g.fillText(w.name,(x0+x1)/2,cy+1)});
+  g.restore()}}
 </script>
 </body></html>
 
