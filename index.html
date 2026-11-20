@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.8.5";
+const APP_VER="8.8.6";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4901,7 +4901,7 @@ async function printPermit(id){
   const V=openViewer(`${p.number} · ${PTW_TYPES[p.type]?.ar||""}`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""}.pdf`,
     note:p.closeRequest&&p.status!=="closed"?"طلب إغلاق معلّق · السبب: "+esc(p.closeRequest.reason||"")+" · التوقيعات المكتملة: "+Object.keys(p.closeSignatures||{}).length+" من "+(p.closeRequest.requiredRoles||[]).length:draft?"ده لسه طلب ما اتعتمدش من السلامة، التصريح بيطلع برقم بعد اعتماد مسؤول السلامة.":p.status==="closed"&&p.closedAt?(p.closeRetrospective?`إغلاق إداري لعمل سابق بتاريخ ${fmtDate(p.closedAt)}. توقيعات الأطراف تُسجل عند توقيعهم الفعلي.`:`اتقفل ${fmtDate(p.closedAt)} الساعة ${esc(p.closedTime||"—")} بواسطة ${esc(p.closeName||"مسؤول التصريح")}.`):(miss.length?`ناقص في التصريح: ${miss.join("، ")}. <button type="button" class="btn sm" onclick="pvClose();ptwForm('${p.id}')">كمّل البيانات</button>`:"")+((p.paperSigns||[]).length?`<div style="margin-top:6px">✍ موقّع ورقيًا: ${p.paperSigns.map(x=>esc(x.name)+(x.role?" ("+esc(x.role)+")":"")+" — "+fmtDate(new Date(x.at||Date.now()).toISOString().slice(0,10))).join("، ")}</div>`:""),
     extra:(canWrite&&!draft?`<button class="btn" data-extra onclick="pvClose();ptwForm('${p.id}')">✏️ تعديل</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn" data-extra onclick="pvClose();ptwExtend('${p.id}')">⏱ تمديد التصريح</button>`:"")+((p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn danger" data-extra onclick="pvClose();ptwClose('${p.id}')">طلب إغلاق التصريح</button>`:"")+(false?`<button class="btn danger" data-extra onclick="pvClose();ptwClosePast('${p.id}')">🕘 إغلاق عمل سابق</button>`:"")+(!draft&&p.status!=="cancelled"?`<button class="btn" data-extra onclick="pvClose();printPermitBlank('${p.id}')">🖨 نسخة للتوقيع اليدوي</button>`:"")+(!draft&&canWrite&&p.status!=="cancelled"?`<button class="btn" data-extra onclick="pvClose();paperSignForm('${p.id}')">📎 تسجيل توقيع ورقي${(p.paperSigns||[]).length?` (${p.paperSigns.length})`:""}</button>`:"")+(!draft&&(canSignPermit(p)||!!p.signs?.[ME.id])?(p.signs?.[ME.id]?((p.status==="requested"||p.status==="supok")?`<button class="btn" data-extra onclick="unsignDoc('permits','${p.id}',()=>printPermit('${p.id}'))">إلغاء توقيعي</button>`:`<button class="btn" data-extra disabled>✔ توقيعي مثبت</button>`) :`<button class="btn sign" data-extra onclick="signDoc('permits','${p.id}',{reopen:()=>printPermit('${p.id}')})">✍ توقيعي</button>`):"")+(canSignPermitStage(p,"extension")?`<button class="btn sign" data-extra onclick="signPermitStage('${p.id}','extension')">✍ توقيع التمديد</button>`:"")+(canSignPermitStage(p,"close")?`<button class="btn sign" data-extra onclick="signPermitStage('${p.id}','close')">✍ موافقة وتوقيع الإغلاق</button>`:"")});
-  try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","النسخة الموقعة ورقيًا",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`,"signed"),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
+  try{V.setPages([...await renderPermitPages(p),...await photoPages(p,"","النسخة الموقعة ورقيًا",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`,"signed"),...await photoPages(p,"","صور مرفقة بالتصريح",`${p.number} — ${PTW_TYPES[p.type]?.ar||""} — ${fmtDate(p.date||"")}`),...await permitIdPages(p)])}catch(e){console.error(e);V.fail("معرفتش أحمّل نموذج التصريح.")}}
 async function printPermitBlank(id){const p=S.permits.find(x=>x.id===id);if(!p){toast("التصريح مش موجود");return}
   const V=openViewer(`${p.number} · نسخة للتوقيع اليدوي`,{filename:`${p.number} ${PTW_TYPES[p.type]?.en||""} (للتوقيع).pdf`,note:"نسخة بالرقم والبيانات وبدون أي توقيع، للتوقيع اليدوي. بعد التوقيع صوّرها وارفعها من «📎 تسجيل توقيع ورقي».",extra:`<button class="btn" data-extra onclick="pvClose();printPermit('${p.id}')">↩ النسخة الإلكترونية</button>`});
   try{V.setPages(await renderPermitPages(p,{blank:true}))}catch(e){console.error(e);V.fail("معرفتش أجهز النسخة.")}}
@@ -10314,6 +10314,33 @@ async function idAccSet(kind,key,v){const C=JSON.parse(JSON.stringify(S.settings
  if(v)C[kind][key]=v;else delete C[kind][key];
  await write(()=>upsert("settings","app",{idAccess:C}),"اتحفظت الصلاحية")}
 {const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.apply(this,arguments);if(myRole()==="admin"&&$("setBody")&&!$("idAccCard")){const c=document.createElement("div");c.className="card";c.id="idAccCard";c.style.marginTop="14px";c.innerHTML=idAccCardHTML();$("setBody").appendChild(c)}}}
+
+/* 8.8.6 — ملحق بطاقات العاملين مع طباعة التصريح والمحاضرة (لمن يملك صلاحية مشاهدة البطاقات) */
+async function idPagesRender(items,heading,rec){
+  const load=async a=>{try{if(!a||(a.type||"").includes("pdf"))return null;const r=await fetch("/_blob/"+a.a);if(!r.ok)return null;return await createImageBitmap(await r.blob())}catch(e){return null}};
+  const its=[];for(const e of items){const A=e.att||[];its.push({e,f:await load(A.find(a=>a.kind==="idFront")),b:await load(A.find(a=>a.kind==="idBack"))})}
+  const PER=4,Wd=1240,H=1754,pages=[],title=rec.type?(PTW_TYPES[rec.type]?.ar||"تصريح"):((FORMS2&&FORMS2[rec.form]?.title)||rec.form),ref=rec.number||rec.serial||"";
+  for(let s=0;s<its.length;s+=PER){const cv=document.createElement("canvas");cv.width=Wd;cv.height=H;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,Wd,H);
+    g.fillStyle="#111";g.textAlign="center";g.direction="rtl";g.font="bold 40px Arial";g.fillText(heading,Wd/2,100);
+    g.font="26px Arial";g.fillText(`${title}${rec.date?" — "+fmtDate(rec.date):""}${ref?" — رقم "+ref:""}`,Wd/2,148);
+    g.strokeStyle="#999";g.lineWidth=2;g.beginPath();g.moveTo(80,176);g.lineTo(Wd-80,176);g.stroke();
+    const top=196,bh=(H-top-90)/PER,gap=24,cw=(Wd-160-gap)/2;
+    its.slice(s,s+PER).forEach((it,i)=>{const y=top+i*bh,ct=it.e.contractorId?contractor(it.e.contractorId)?.name:"";
+      g.fillStyle="#111";g.textAlign="right";g.font="bold 26px Arial";g.fillText(`${s+i+1}. ${it.e.name||""}${ct?" — "+ct:""}${it.e.nid?" — "+it.e.nid:""}`,Wd-80,y+30);
+      const ih=bh-60;[[it.f,"الوش",Wd-80-cw],[it.b,"الضهر",80]].forEach(([im,lb,x])=>{
+        if(im){const r=Math.min(cw/im.width,ih/im.height),w=im.width*r,h=im.height*r,ox=x+(cw-w)/2,oy=y+44+(ih-h)/2;g.drawImage(im,ox,oy,w,h);g.strokeStyle="#ccc";g.lineWidth=1;g.strokeRect(ox,oy,w,h)}
+        else{g.strokeStyle="#bbb";g.setLineDash([8,6]);g.lineWidth=2;g.strokeRect(x,y+44,cw,ih);g.setLineDash([]);g.fillStyle="#b00020";g.textAlign="center";g.font="22px Arial";g.fillText(`لم تُرفع صورة البطاقة (${lb})`,x+cw/2,y+44+ih/2)}})});
+    g.font="22px Arial";g.fillStyle="#666";g.textAlign="center";g.fillText(`ملحق ${s/PER+1} من ${Math.ceil(its.length/PER)}`,Wd/2,H-40);pages.push(cv)}
+  return pages}
+function lectIdPeople(rec){const seen=new Set(),out=[];
+  for(const x of rec.rows||[]){if(!x)continue;let e=x.name_id?emp(x.name_id):null;
+    if(!e&&x.name){const n=normName(x.name);e=(S.employees||[]).find(y=>y.active!==false&&normName(y.name)===n)}
+    if(!e||seen.has(e.id))continue;if(!(e.group==="ctr"||e.contractorId||(e.att||[]).some(a=>a.kind==="idFront"||a.kind==="idBack")))continue;seen.add(e.id);out.push(e)}
+  return out}
+idAppendixPages=async function(rec){if(!idPerm().see)return [];const W=lectIdPeople(rec);return W.length?idPagesRender(W,"ملحق — صور بطاقات الحاضرين",rec):[]};
+async function permitIdPages(p){try{if(!idPerm().see)return [];const seen=new Set(),W=[];
+  for(const c of (p.crew||[])){let e=c.id?emp(c.id):null;if(!e&&c.name){const n=normName(c.name);e=(S.employees||[]).find(y=>normName(y.name)===n)}if(e&&!seen.has(e.id)){seen.add(e.id);W.push(e)}}
+  return W.length?await idPagesRender(W,"ملحق — صور بطاقات العاملين بالتصريح",p):[]}catch(e){console.error("permitIdPages",e);return []}}
 </script>
 </body></html>
 
