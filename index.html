@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.8.6";
+const APP_VER="8.8.7";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10303,10 +10303,16 @@ const ID_LVL=[["","حسب الصلاحية العادية"],["full","مشاهد�
     if(!P.see){b.querySelectorAll("img[data-view]").forEach(x=>x.replaceWith(lock()));b.querySelectorAll('a[href^="/_blob/"]').forEach(x=>x.replaceWith(lock()));b.querySelectorAll("[data-del],[data-attprint]").forEach(x=>x.remove())}};
    fix();new MutationObserver(fix).observe(b,{childList:true,subtree:true})}}}
   return r}}
+function idPermFor(p){const role=p.role;if(role==="admin")return {see:true,add:true};
+ const C=S.settings?.idAccess||{},v=(C.users||{})[p.id]||(C.roles||{})[role]||"",M={full:[1,1],see:[1,0],add:[0,1],none:[0,0]};
+ if(M[v])return {see:!!M[v][0],add:!!M[v][1]};
+ let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[role]?.tabs||{});if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));
+ const lvl=tb.manpower||"view",mon=role==="monitor";return {see:!mon,add:!mon&&!OWN_HIDE_ROLES.includes(role)&&lvl!=="view"}}
+const idEff=P=>P.see&&P.add?"يشوف ويضيف":P.see?"يشوف فقط":P.add?"يضيف فقط":"لا يشوف ولا يضيف";
 function idAccCardHTML(){const C=S.settings?.idAccess||{},R=C.roles||{},U=C.users||{};
  const sel=(kind,key,v)=>`<select onchange="idAccSet('${kind}','${esc(key)}',this.value)" style="max-width:100%">${ID_LVL.map(([k,l])=>`<option value="${k}" ${(v||"")===k?"selected":""}>${l}</option>`).join("")}</select>`;
- const roles=Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,r])=>`<div class="li"><div class="grow t">${esc(r.ar||k)}</div>${sel("roles",k,R[k])}</div>`).join("");
- const users=(S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled).map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.username||"")}</div><div class="s">${esc(ROLES_ALL()[p.role]?.ar||p.role||"")}</div></div>${sel("users",p.id,U[p.id])}</div>`).join("");
+ const roles=Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,r])=>`<div class="li"><div class="grow"><div class="t">${esc(r.ar||k)}</div><div class="s">الفعلي: ${idEff(idPermFor({role:k,id:""}))}</div></div>${sel("roles",k,R[k])}</div>`).join("");
+ const users=(S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled).map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.username||"")}</div><div class="s">${esc(ROLES_ALL()[p.role]?.ar||p.role||"")} · <b>الفعلي: ${idEff(idPermFor(p))}</b></div></div>${sel("users",p.id,U[p.id])}</div>`).join("");
  return `<h3 style="margin:0 0 4px">🪪 صلاحيات البطاقات وملف العمالة</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">تحدد مين يشوف بطاقات العمالة وملف الفرد، ومين يقدر يضيف/يرفع بس من غير ما يشوف. استثناء الحساب بيغلب على الدور. الأدمن دايمًا يشوف ويضيف.</div>
   <div style="font-weight:700;margin:6px 0 2px">حسب الدور</div><div class="list">${roles}</div>
   <div style="font-weight:700;margin:10px 0 2px">استثناءات للحسابات</div><div class="list">${users||'<p class="muted">مفيش حسابات.</p>'}</div>`}
