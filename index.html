@@ -2242,7 +2242,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.20";
+const APP_VER="8.9.21";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2501,8 +2501,8 @@ function eqSetNext(id){const q=(S.equipment||[]).find(x=>x.id===id);if(!q){toast
 /* الضغط على السطر: آخر كارت موقّع للمعدة */
 function eqLastCard(id,k){const q=(S.equipment||[]).find(x=>x.id===id);if(!q)return;
   if(q.kind==="ext")return printExtCards([id]);if(q.kind==="firebox")return printFireboxCards([id]);if(q.kind==="machine"&&lastInsp(q))return printTag(id);
-  const li=lastInsp(q);if(li?.sourceInspectionId&&(S.inspections||[]).some(r=>r.id===li.sourceInspectionId))return inspView(li.sourceInspectionId);
-  {const ks=[q.code,q.serial].map(inspCodeKey).filter(Boolean),m=(S.inspections||[]).filter(r=>ks.includes(inspCodeKey(r.code))).sort((a,b)=>inspOrd(b).localeCompare(inspOrd(a)))[0];if(m)return inspView(m.id)}
+  const li=lastInsp(q);if(li?.sourceInspectionId&&(S.inspections||[]).some(r=>r.id===li.sourceInspectionId))return inspPrint(li.sourceInspectionId);
+  {const ks=[q.code,q.serial].map(inspCodeKey).filter(Boolean),m=(S.inspections||[]).filter(r=>ks.includes(inspCodeKey(r.code))).sort((a,b)=>inspOrd(b).localeCompare(inspOrd(a)))[0];if(m)return inspPrint(m.id)}
   return eqFormsSheet(id)}
 const eqDecisionOf=h=>h&&h.decision&&typeof INSP_DECIDE!=="undefined"&&INSP_DECIDE[h.decision]?h.decision:null;
 const eqOk=q=>{const L=lastInsp(q);if(!L)return null;
@@ -11036,6 +11036,21 @@ function inspNavBar(id){const x=(S.inspections||[]).find(r=>r.id===id);if(!x)ret
   let sx=null;nav.parentElement.addEventListener("touchstart",e=>{sx=e.touches[0].clientX},{passive:true});
   nav.parentElement.addEventListener("touchend",e=>{if(sx==null)return;const dx=e.changedTouches[0].clientX-sx;sx=null;if(Math.abs(dx)<90)return;if(dx>0&&newer)inspView(newer.id);else if(dx<0&&older)inspView(older.id)},{passive:true})}
 
+
+/* ===== 8.9.20: التنقل بين فحوصات المعدة جوه عارض النموذج الأصلي (الأحدث ← الأقدم) ===== */
+{const _ip2=window.inspPrint;if(typeof _ip2==="function")window.inspPrint=async function(id){
+  const r=await _ip2.apply(this,arguments);
+  try{const x=(S.inspections||[]).find(y=>y.id===id),A=$("pvAct");if(!x||!A||$("inspPvNav"))return r;const hist=inspHistory(x);if(hist.length<2)return r;
+    const i=hist.findIndex(h=>h.id===id),newer=hist[i-1],older=hist[i+1];
+    const nav=document.createElement("div");nav.id="inspPvNav";nav.style.cssText="display:flex;gap:6px;align-items:center";
+    nav.innerHTML=`<button class="btn" ${older?"":"disabled"} data-go="${older?older.id:""}" title="الفحص الأقدم">▶ الأقدم</button><span class="muted" style="min-width:92px;text-align:center;font-size:13px">فحص ${hist.length-i} / ${hist.length}<br>${fmtDate(x.date)}</span><button class="btn" ${newer?"":"disabled"} data-go="${newer?newer.id:""}" title="الفحص الأحدث">الأحدث ◀</button>`;
+    nav.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b&&b.dataset.go)inspPrint(b.dataset.go)});
+    A.prepend(nav);
+    const key=e=>{if(!$("inspPvNav")){document.removeEventListener("keydown",key);return}if(e.key==="ArrowLeft"&&newer)inspPrint(newer.id);else if(e.key==="ArrowRight"&&older)inspPrint(older.id)};
+    document.addEventListener("keydown",key);
+    const body=$("pvBody");if(body){let sx=null;body.addEventListener("touchstart",e=>{sx=e.touches[0].clientX},{passive:true});body.addEventListener("touchend",e=>{if(sx==null)return;const dx=e.changedTouches[0].clientX-sx;sx=null;if(Math.abs(dx)<110||body.classList.contains("zoom"))return;if(dx>0&&newer)inspPrint(newer.id);else if(dx<0&&older)inspPrint(older.id)},{passive:true})}
+  }catch(e){console.error(e)}
+  return r}}
 </script>
 </body></html>
 
