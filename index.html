@@ -607,6 +607,13 @@ details.more .morebox .btn{width:100%;justify-content:flex-start}
 .dpage th{background:#d9d9d9!important;font-weight:700}
 .dpage td.r{text-align:right} .dpage td.l{text-align:left;direction:ltr}
 .dpage td.num,.dpage th.num{width:9mm}
+.dpage table.pgt{font-size:9pt;border-color:#9aa8a4}
+.dpage table.pgt th,.dpage table.pgt td{border:.6pt solid #9aa8a4!important;padding:1.8mm 2mm;line-height:1.55}
+.dpage table.pgt th{background:#1f4e46!important;color:#fff!important;font-weight:700;font-size:9.5pt}
+.dpage table.pgt tbody tr:nth-child(even) td{background:#f1f5f4!important}
+.dpage table.pgt td.r{text-align:right}
+.dpage table.pgt td.c{text-align:center}
+.dpage table.pgt thead{display:table-header-group} .dpage table.pgt tr{break-inside:avoid}
 .dpage h4{margin:2.5mm 0 1mm;font-size:10.5pt;font-weight:700;text-decoration:underline}
 .dpage p{margin:1mm 0}
 .dpage .foot{margin-top:auto;display:flex;justify-content:space-between;border-top:1px solid #000;padding-top:1.5mm;font:9pt "Times New Roman",serif;direction:ltr}
@@ -2235,7 +2242,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.13";
+const APP_VER="8.9.14";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2334,11 +2341,7 @@ async function buildXlBlob(){
     "التدريب والزائرين":visitorEmps().map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","الجهة":ctr(e.contractorId)||e.org||"","الموبايل":e.phone||"","البطاقة مرفوعة":hasID(e)?"نعم":"لا"})),
     "تيم ديوتي والتكليفات":S.leaves.filter(l=>l.kind).map(l=>({"النوع":DUTY_K[l.kind]||l.kind,"الموظف":empName(l.empId),"الكود":emp(l.empId)?.code||"","التاريخ":l.date||"","وقت الخروج":l.out||l.time||"","العمل المكلف به":l.purpose||l.reason||l.note||"","المعتمد":l.approverName||(l.approverId?empName(l.approverId):""),"موقّع":hasSigned(l)?"نعم":""})),
     "إخلاء الطرف":S.employees.filter(e=>hasClearance(e)).map(e=>({"الاسم":e.name,"الكود":e.code||"","التاريخ":e.clearance?.date||"","السبب":e.clearance?.reason||"","سلّم العهدة":e.clearance?.returned?"نعم":"","ملاحظات":e.clearance?.note||""}))};
-  const wb=XLSX.utils.book_new();
-  for(const [n,rows] of Object.entries(sheets)){const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"":"مفيش بيانات"}]);ws["!cols"]=Object.keys(rows[0]||{a:1}).map(k=>({wch:Math.min(40,Math.max(10,k.length+4,...rows.slice(0,200).map(r=>String(r[k]??"").length)))}));ws["!views"]=[{RTL:true}];XLSX.utils.book_append_sheet(wb,ws,n.slice(0,31))}
-  wb.Workbook={Views:[{RTL:true}]};
-  const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
-  return new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  return xlsxPro(Object.entries(sheets).map(([n,rows])=>({name:n,rows,maxW:40})),{});
 }
 async function exportExcel(){
   const dl=await window.claude?.use?.("downloads");if(!dl){toast("التنزيل مش متاح هنا");return}
@@ -8936,8 +8939,8 @@ function pgPdfHTML(sel,title){
       const chunk=t.rows.slice(i,i+per),pi=Math.floor(i/per)+1;
       out.push(`<div class="dpage"><div class="ttl">${esc(t.title||t.name)}</div>
         ${i===0?stamp:""}
-        <table><thead><tr><th class="num" style="width:10mm">م</th>${keys.map(k=>`<th>${esc(k)}</th>`).join("")}</tr></thead>
-        <tbody>${chunk.map((r,j)=>`<tr><td class="num">${i+j+1}</td>${keys.map(k=>`<td class="r">${esc(r[k]??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>
+        <table class="pgt"><thead><tr><th class="num" style="width:10mm">م</th>${keys.map(k=>`<th>${esc(k)}</th>`).join("")}</tr></thead>
+        <tbody>${chunk.map((r,j)=>`<tr><td class="num">${i+j+1}</td>${keys.map(k=>{const v=String(r[k]??"");return `<td class="${v.length<=16?"c":"r"}">${esc(v)}</td>`}).join("")}</tr>`).join("")}</tbody></table>
         <div style="margin-top:2mm;font-size:8.5pt;text-align:center">صفحة ${pi} من ${np} · إجمالي ${t.rows.length} صف</div>
       </div>`);
     }
@@ -8952,19 +8955,9 @@ function pgExportPdf(sel,title){
 async function pgExportXlsx(sel){
   if(!sel.length){toast("مفيش جداول متحددة");return}
   toast("بيجهّز الملف…");
-  try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js")}
-  catch(e){toast("معرفتش أحمّل أداة Excel — جرّب CSV");return}
-  const wb=XLSX.utils.book_new();
-  for(const t of sel){
-    const ws=XLSX.utils.json_to_sheet(t.rows);
-    const keys=Object.keys(t.rows[0]||{});
-    ws["!cols"]=keys.map(k=>({wch:Math.min(45,Math.max(10,k.length+4,...t.rows.slice(0,300).map(r=>String(r[k]??"").length)))}));
-    ws["!views"]=[{RTL:true}];
-    XLSX.utils.book_append_sheet(wb,ws,t.name.slice(0,31));
-  }
-  wb.Workbook={Views:[{RTL:true}]};
-  const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
-  await pgSaveBlob(new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),pgFileBase()+".xlsx");
+  const stamp=_xlStamp();
+  const blob=xlsxPro(sel.map(t=>({name:t.name,title:t.name,subtitle:stamp,rows:t.rows})),{});
+  await pgSaveBlob(blob,pgFileBase()+".xlsx");
 }
 async function pgExportCsv(sel){
   if(!sel.length){toast("مفيش جداول متحددة");return}
@@ -10627,10 +10620,7 @@ async function mpExportRun(P,fmt,att){
   const base=`جدول العمالة ${today()}`;
   if(att==="none"&&fmt==="pdf"){printHTMLDoc(pgPdfHTML([{title:"جدول العمالة",rows}],"القوى العاملة"));return null}
   let tblBlob;
-  try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
-    const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(rows.map((r,i)=>({"م":i+1,...r})));ws["!cols"]=[{wch:5},{wch:34},{wch:14},{wch:28}];
-    XLSX.utils.book_append_sheet(wb,ws,"العمالة");wb.Workbook={Views:[{RTL:true}]};
-    tblBlob=new Blob([XLSX.write(wb,{bookType:"xlsx",type:"array"})],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})}
+  try{tblBlob=xlsxPro([{name:"العمالة",title:"جدول العمالة",subtitle:_xlStamp("العدد: "+rows.length),rows:rows.map((r,i)=>({"م":i+1,...r})),align:{"الاسم":"right","الوظيفة":"right"}}],{})}
   catch(e){return "معرفتش أحمّل أداة Excel"}
   if(att==="none"){await pgSaveBlob(tblBlob,base+".xlsx");return null}
   try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js")}catch(e){return "معرفتش أحمّل أداة الضغط"}
@@ -10759,10 +10749,8 @@ async function eqReportRun(fd){
   const {rows,log}=eqRegisterRows(from,to,fd.kind||"");if(!rows.length)return "مفيش معدات مطابقة";
   if(fd.out==="pdf"){const pr=rows.map(r=>({"النوع":r["النوع"],"الكود":r["الكود / المسلسل"],"الاسم":r["الاسم / الوصف"],"المكان":r["المكان"],"فحوصات الفترة":r["عدد الفحوصات في الفترة"],"آخر فحص":r["آخر فحص"],"الحالة":r["الحالة"],"الفحص الجاي":r["الفحص الجاي"],"الموقف":r["موقف الميعاد"]}));
     printHTMLDoc(pgPdfHTML([{title:`حصر المعدات — ${fmtDate(from)} إلى ${fmtDate(to)}`,rows:pr}],"المعدات"));return null}
-  try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js")}catch(e){return "معرفتش أحمّل أداة Excel"}
-  const wb=XLSX.utils.book_new(),add=(name,data,wch)=>{const ws=XLSX.utils.json_to_sheet(data.length?data:[{"":"مفيش بيانات"}]);ws["!cols"]=wch.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name)};
-  add("حصر المعدات",rows.map((r,i)=>({"م":i+1,...r})),[5,18,18,30,18,18,10,40,13,11,13,12]);add("سجل الفحوصات",log,[18,30,13,11,20,28]);wb.Workbook={Views:[{RTL:true}]};
-  await pgSaveBlob(new Blob([XLSX.write(wb,{bookType:"xlsx",type:"array"})],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),base+".xlsx");return null}
+  const per=`${fmtDate(from)} إلى ${fmtDate(to)}`;
+  await pgSaveBlob(xlsxPro([{name:"حصر المعدات",title:"حصر المعدات وتواريخ الفحص",subtitle:_xlStamp("الفترة: "+per),rows:rows.map((r,i)=>({"م":i+1,...r})),land:true},{name:"سجل الفحوصات",title:"سجل الفحوصات",subtitle:_xlStamp("الفترة: "+per),rows:log,land:true}],{}),base+".xlsx");return null}
 {const _ef=VIEWS.equip.fill;VIEWS.equip.fill=function(){_ef.apply(this,arguments);const b=$("eqBody");if(!b||$("eqRepBar"))return;
   const d=document.createElement("div");d.id="eqRepBar";d.className="filters";d.style.cssText="flex-wrap:wrap;margin:0 0 10px";d.innerHTML=`<button type="button" class="btn primary" onclick="eqReportSheet()">📊 حصر المعدات وتواريخ الفحص</button><span class="muted" style="font-size:12.5px">تنزيل Excel / PDF، أو PDF نماذج الفحص عن فترة تحددها</span>`;b.prepend(d)}}
 
@@ -10771,6 +10759,73 @@ async function eqReportRun(fd){
 function ctrWSearch(v){ui.ctrWQ=v||"";const q=normName(ui.ctrWQ),L=[...document.querySelectorAll("#ctrWList > .li")];let n=0;
   L.forEach(r=>{const ok=!q||(r.dataset.q||"").includes(q);r.hidden=!ok;if(ok)n++});
   const c=$("ctrWN");if(c)c.textContent=q?`مطابق ${n} من ${L.length}`:`${L.length} عامل`}
+
+/* ===== 8.9.14: كاتب Excel احترافي (من غير مكتبات): RTL، ترويسة منسّقة، تجميد وفلتر، عرض أعمدة محسوب، ألوان حالة، طباعة A4 ===== */
+const _XL_CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const _xlCrc=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=_XL_CRC[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0};
+function _xlZip(files){const enc=new TextEncoder(),parts=[],cen=[];let off=0;
+  const u16=n=>[n&255,(n>>8)&255],u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>>24)&255];
+  for(const [name,txt] of files){const nm=enc.encode(name),data=typeof txt==="string"?enc.encode(txt):txt,crc=_xlCrc(data);
+    const lh=new Uint8Array([0x50,0x4b,3,4,20,0,0,8,0,0,0,0,0x21,0,...u32(crc),...u32(data.length),...u32(data.length),...u16(nm.length),0,0]);
+    parts.push(lh,nm,data);
+    cen.push(new Uint8Array([0x50,0x4b,1,2,20,0,20,0,0,8,0,0,0,0,0x21,0,...u32(crc),...u32(data.length),...u32(data.length),...u16(nm.length),0,0,0,0,0,0,0,0,0,0,0,0,...u32(off)]),nm);
+    off+=lh.length+nm.length+data.length}
+  let cs=0;for(const c of cen)cs+=c.length;
+  const end=new Uint8Array([0x50,0x4b,5,6,0,0,0,0,...u16(files.length),...u16(files.length),...u32(cs),...u32(off),0,0]);
+  return new Blob([...parts,...cen,end],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})}
+const _xe=s=>String(s??"").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const _xCol=i=>{let s="";i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+const _XL_BAD=["متأخر","غير صالح","مرفوض","ناقص","لا","مفتوح متأخر"],_XL_WARN=["قريب","معلق","بانتظار","قيد المراجعة","غير محدد"],_XL_OK=["ساري","صالح","معتمد","مقفول","تم","نعم"];
+const _XL_STATUS_HEAD=["الحالة","موقف الميعاد","النتيجة","الموقف"];
+function xlsxPro(sheets,{creator="منظومة السلامة"}={}){
+  /* ---- سجل الأنماط ---- */
+  const fonts=[],fills=['<fill><patternFill patternType="none"/></fill>','<fill><patternFill patternType="gray125"/></fill>'],borders=['<border><left/><right/><top/><bottom/><diagonal/></border>'],xfs=[],xfKey=new Map();
+  const fnt=(sz,b,color)=>{const x=`<font>${b?"<b/>":""}<sz val="${sz}"/><color rgb="FF${color}"/><name val="Arial"/><family val="2"/><charset val="178"/></font>`;let i=fonts.indexOf(x);if(i<0){fonts.push(x);i=fonts.length-1}return i};
+  const fil=c=>{if(!c)return 0;const x=`<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`;let i=fills.indexOf(x);if(i<0){fills.push(x);i=fills.length-1}return i};
+  const brd=c=>{if(!c)return 0;const e=t=>`<${t} style="thin"><color rgb="FF${c}"/></${t}>`;const x=`<border>${e("left")}${e("right")}${e("top")}${e("bottom")}<diagonal/></border>`;let i=borders.indexOf(x);if(i<0){borders.push(x);i=borders.length-1}return i};
+  const xf=({sz=10,b=false,color="1F2937",fill="",border="",h="right",wrap=true,v="center",ind=0})=>{const k=[sz,b,color,fill,border,h,wrap,v,ind].join("|");if(xfKey.has(k))return xfKey.get(k);
+    const x=`<xf numFmtId="0" fontId="${fnt(sz,b,color)}" fillId="${fil(fill)}" borderId="${brd(border)}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${h}" vertical="${v}" wrapText="${wrap?1:0}"${ind?` indent="${ind}"`:""} readingOrder="2"/></xf>`;
+    xfs.push(x);xfKey.set(k,xfs.length-1);return xfs.length-1};
+  xf({});/* الافتراضي رقم 0 */
+  const HEAD="1F4E46",LINE="CBD5D1",ZEB="F3F6F5";
+  const files=[],sheetXml=[],names=[];
+  sheets.forEach((sh,si)=>{
+    const rows=sh.rows&&sh.rows.length?sh.rows:[{"":"مفيش بيانات"}],keys=sh.keys||Object.keys(rows[0]),n=keys.length,hasTitle=!!sh.title,hr=hasTitle?4:1;
+    const text=v=>v==null?"":String(v);
+    /* عرض الأعمدة */
+    const widths=keys.map(k=>{let m=Math.max(String(k).length+3,6);for(const r of rows.slice(0,400)){const lines=text(r[k]).split("\n");for(const l of lines)m=Math.max(m,l.length*1.12+2)}return Math.min(sh.maxW||46,Math.max(7,Math.ceil(m)))});
+    /* محاذاة: القصير (أكواد/تواريخ/أرقام/حالات) وسط، والطويل يمين */
+    const align=keys.map((k,i)=>{if(sh.align&&sh.align[k])return sh.align[k];let tot=0,c=0,numeric=true;for(const r of rows.slice(0,200)){const t=text(r[k]);if(!t)continue;tot+=t.length;c++;if(typeof r[k]!=="number")numeric=false}
+      return numeric||(c&&tot/c<=16&&widths[i]<=22)?"center":"right"});
+    const statusCols=new Set(keys.filter((k,i)=>(sh.status||_XL_STATUS_HEAD).includes(k)));
+    const tone=v=>{const t=text(v).trim();return _XL_BAD.includes(t)?"bad":_XL_WARN.includes(t)?"warn":_XL_OK.includes(t)?"ok":""};
+    let sd="",rowNo=0,merges=[];
+    const cell=(ci,r,val,s,num)=>{const ref=_xCol(ci)+r;return num?`<c r="${ref}" s="${s}"><v>${val}</v></c>`:val===""?`<c r="${ref}" s="${s}"/>`:`<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${_xe(val)}</t></is></c>`};
+    if(hasTitle){
+      rowNo=1;sd+=`<row r="1" ht="30" customHeight="1">${cell(0,1,sh.title,xf({sz:16,b:true,color:HEAD,h:"right",wrap:false}))}${keys.slice(1).map((_,i)=>cell(i+1,1,"",xf({}))).join("")}</row>`;merges.push(`A1:${_xCol(n-1)}1`);
+      rowNo=2;sd+=`<row r="2" ht="20" customHeight="1">${cell(0,2,sh.subtitle||"",xf({sz:10,color:"6B7280",h:"right",wrap:false}))}${keys.slice(1).map((_,i)=>cell(i+1,2,"",xf({}))).join("")}</row>`;merges.push(`A2:${_xCol(n-1)}2`);
+      sd+=`<row r="3" ht="8" customHeight="1"/>`}
+    sd+=`<row r="${hr}" ht="28" customHeight="1">${keys.map((k,i)=>cell(i,hr,k,xf({sz:10.5,b:true,color:"FFFFFF",fill:HEAD,border:HEAD,h:"center"}))).join("")}</row>`;
+    rows.forEach((r,ri)=>{const R=hr+1+ri,z=ri%2?ZEB:"";
+      sd+=`<row r="${R}">${keys.map((k,i)=>{const v=r[k],isNum=typeof v==="number"&&isFinite(v);let fill=z,color="1F2937",b=false;
+        if(statusCols.has(k)){const t=tone(v);if(t==="bad"){fill="FDE8E8";color="9B1C1C";b=true}else if(t==="warn"){fill="FEF3C7";color="92400E";b=true}else if(t==="ok"){fill="DCFCE7";color="166534";b=true}}
+        return cell(i,R,isNum?v:text(v),xf({fill,color,b,border:LINE,h:align[i]}),isNum)}).join("")}</row>`});
+    const last=hr+rows.length,sn=(sh.name||"Sheet"+(si+1)).replace(/[\[\]\*\?\/\\:]/g,"-").slice(0,31);
+    const xml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:${_xCol(n-1)}${last}"/><sheetViews><sheetView rightToLeft="1" ${si===0?'tabSelected="1" ':""}showGridLines="0" workbookViewId="0"><pane ySplit="${hr}" topLeftCell="A${hr+1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A${hr+1}" sqref="A${hr+1}"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="20" customHeight="1"/><cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${sd}</sheetData><autoFilter ref="A${hr}:${_xCol(n-1)}${last}"/>${merges.length?`<mergeCells count="${merges.length}">${merges.map(m=>`<mergeCell ref="${m}"/>`).join("")}</mergeCells>`:""}<pageMargins left="0.4" right="0.4" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="${sh.land===false?"portrait":"landscape"}" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;R${_xe(sh.footer||"منظومة السلامة")}&amp;Cصفحة &amp;P من &amp;N&amp;L&amp;D</oddFooter></headerFooter></worksheet>`;
+    sheetXml.push([`xl/worksheets/sheet${si+1}.xml`,xml]);
+    names.push({sn,hr,last,n,si});
+  });
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${fonts.length}">${fonts.join("")}</fonts><fills count="${fills.length}">${fills.join("")}</fills><borders count="${borders.length}">${borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join("")}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const q=s=>"'"+s.replace(/'/g,"''")+"'";
+  const wb=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${names.map((x,i)=>`<sheet name="${_xe(x.sn)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets><definedNames>${names.map(x=>`<definedName name="_xlnm._FilterDatabase" localSheetId="${x.si}" hidden="1">${_xe(q(x.sn))}!$A$${x.hr}:$${_xCol(x.n-1)}$${x.last}</definedName><definedName name="_xlnm.Print_Titles" localSheetId="${x.si}">${_xe(q(x.sn))}!$${x.hr}:$${x.hr}</definedName>`).join("")}</definedNames></workbook>`;
+  const rels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${names.map((x,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")}<Relationship Id="rId${names.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const ct=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${names.map((x,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`;
+  const root=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`;
+  const core=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>${_xe(creator)}</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created></cp:coreProperties>`;
+  return _xlZip([["[Content_Types].xml",ct],["_rels/.rels",root],["docProps/core.xml",core],["xl/workbook.xml",wb],["xl/_rels/workbook.xml.rels",rels],["xl/styles.xml",styles],...sheetXml])}
+const _xlProject=()=>(S.settings?.project||"").trim();
+const _xlStamp=extra=>[_xlProject(),extra,"تاريخ الطباعة: "+fmtDate(today())].filter(Boolean).join("  ·  ");
+
 </script>
 </body></html>
 
