@@ -793,7 +793,7 @@ function geoGet(ms=12000){return new Promise(res=>{if(!navigator.geolocation)ret
   navigator.geolocation.getCurrentPosition(p=>res({lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy||0),at:Date.now()}),()=>res(null),{enableHighAccuracy:true,timeout:ms,maximumAge:0})})}
 function locStatus(l){if(!l)return {k:"none",t:"بدون موقع",cls:"p-closed"};const s=siteLoc();if(!s)return {k:"set",t:"📍 موقع مسجّل",cls:"p-open"};
   const d=geoDist(l,s);if(d<=s.r)return {k:"in",d,t:"📍 داخل الموقع",cls:"p-appr"};if(d<=s.r+(l.acc||0))return {k:"near",d,t:"📍 على حدود الموقع",cls:"p-susp"};return {k:"out",d,t:`⚠ خارج الموقع (${fmtDist(d)})`,cls:"p-canc"}}
-const canSeeLoc=()=>["admin","hsesup","hse","officer","monitor"].includes(myRole());
+const canSeeLoc=()=>can("location.view");
 const locPill=(l,eid,date)=>{if(!canSeeLoc())return "";const st=locStatus(l);return `<button type="button" class="pill ${st.cls}" style="border:0;cursor:pointer;font:inherit" title="عرض الموقع على الخريطة" onclick="locShow('${eid}','${date}')">${st.t}</button>`};
 function locShow(eid,date){if(!canSeeLoc())return;const e=emp(eid),r=attDoc(date)?.records?.[eid],l=r?.loc;
   if(!l){openSheet(`موقع ${e?.name||""}`,`<p class="muted">ما اتسجلش موقع وقت تأكيد الحضور (الإذن مرفوض أو الـGPS مقفول أو الجهاز ما بيدعمش).</p>`,async()=>null,"إغلاق");return}
@@ -810,7 +810,7 @@ async function siteLocSet(){toast("بنحدد موقعك…");const l=await geoG
 function siteLocRadius(){const s=siteLoc();if(!s)return;openSheet("نصف قطر الموقع",`<div class="form">${f("نصف القطر (متر)","r",{value:s.r,full:true,attrs:'type="number" min="50" max="5000" step="10"'})}</div><p class="muted" style="font-size:13px">كل ما الموقع أكبر (مشروع ممتد) زوّد الرقم. المعتاد ٢٠٠–٥٠٠ م.</p>`,async fd=>{const r=Math.max(50,Math.min(5000,+fd.r||300));
   const ok=await write(()=>upsert("settings","app",{siteLoc:{...S.settings.siteLoc,r}}),"اتحفظ");if(ok){const c=$("siteLocCard");if(c)c.innerHTML=siteLocCardHTML()}return ok?null:"الحفظ فشل"})}
 function siteLocClear(){confirmSheet("مسح الموقع الرئيسي","هيتشال تحديد «داخل/خارج» لحد ما تحدده تاني.",async()=>{const ok=await write(()=>upsert("settings","app",{siteLoc:null}),"اتمسح");if(ok){const c=$("siteLocCard");if(c)c.innerHTML=siteLocCardHTML()}return ok},"مسح")}
-async function settingsMigrate(){if(window._setMig||!db||!loaded.settings||myRole()!=="admin")return;window._setMig=1;
+async function settingsMigrate(){if(window._setMig||!db||!loaded.settings||!can("sys.admin"))return;window._setMig=1;
   try{const r=await db.doc("settings/app").get();if(!r.exists)return;const o=r.data()||{},add={};
     for(const [k,v] of Object.entries(o)){if(["ownerMoveBackup","updatedAt"].includes(k))continue;if(S.settings[k]===undefined&&v!==undefined&&v!==null)add[k]=v}
     if(Object.keys(add).length)await db.doc("settings/main").set({...S.settings,...add,updatedAt:Date.now()})}catch(e){console.warn("settingsMigrate",e)}}
@@ -998,7 +998,7 @@ function $(id){return document.getElementById(id)}
 let SHEET_FORCE=false;
 function openSheet(title,body,onSave,saveLabel="حفظ"){
   /* نماذج السجلات (محاضرة/حادث/مخالفة) بتتفتح من صفحات صلاحيتها «مشاهدة» (القوى العاملة…) — القفل لازم يتحدد بصلاحية «النماذج» مش بصفحة الخلفية */
-  const force=SHEET_FORCE;SHEET_FORCE=false;const wr=()=>!!canWrite||force||(!!BASE.write&&myRole()!=="eng"&&typeof wsBestLevel==="function"&&wsBestLevel()!=="view");
+  const force=SHEET_FORCE;SHEET_FORCE=false;const wr=()=>!!canWrite||force||(!!BASE.write&&can("ws.write")&&typeof wsBestLevel==="function"&&wsBestLevel()!=="view");
   const root=$("overlayRoot");
   root.innerHTML=`<div class="overlay" id="ov"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <div class="head"><h2 class="grow">${esc(title)}</h2><button class="btn ghost" id="shClose" aria-label="إغلاق">✕</button></div>
@@ -1566,7 +1566,7 @@ function myMember(){return (S.members||[]).find(m=>m.id===ME.id)}
 function myProfile(){return (S.profiles||[]).find(p=>p.id===ME.id)||window.SBA?.profile||null}
 function myAccess(){const p=myProfile();if(!p||p.disabled)return null;if(p.role==="admin")return {role:"admin",tabs:allTabs("full"),scope:"all",empId:p.emp_id};
   let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{dash:"view"});return {role:p.role,tabs:tb,scope:p.scope||"all",empId:p.emp_id}}
-function allowedTabsBase(){const a=myAccess();if(!a)return null;const t=Object.keys(a.tabs).filter(x=>x!=="inspection"&&VIEWS[x]&&(x!=="settings"||a.role==="admin")&&!(OWN_HIDE_ROLES.includes(a.role)&&OWN_HIDE_TABS.includes(x)));if(a.tabs.inspection&&!t.includes("equip"))t.push("equip");return t.length?t:["dash"]}
+function allowedTabsBase(){const a=myAccess();if(!a)return null;const t=Object.keys(a.tabs).filter(x=>x!=="inspection"&&VIEWS[x]&&(x!=="settings"||a.role==="admin")&&!(!can("ppe.access")&&OWN_HIDE_TABS.includes(x)));if(a.tabs.inspection&&!t.includes("equip"))t.push("equip");return t.length?t:["dash"]}
 function tabLevelBase(tb){const a=myAccess();if(!a)return "view";if(a.role==="admin")return "full";return a.tabs[tb]||(tb==="equip"?a.tabs.inspection:null)||"view"}
 function profRows(){return (S.profiles||[]).slice().sort((x,y)=>(x.role==="admin"?0:1)-(y.role==="admin"?0:1)||String(x.username).localeCompare(String(y.username)))}
 async function usersCardHTML(){
@@ -1665,7 +1665,7 @@ const OWN_ROLES=["sup","eng","monitor"];
 /* المخزن وطلبات المهمات مش من شغل المشرف/المهندس التنفيذي، فبتتشال من قايمته */
 const OWN_HIDE_TABS=["ppe","matreq"],OWN_HIDE_ROLES=["sup","eng"];
 /* 8.5.2: المشرف/المهندس التنفيذي يشوف القوى العاملة والمقاولين للاطلاع بس (من غير تعديل ولا طلب تعديل/حذف/إضافة) */
-const mpNoEdit=()=>OWN_HIDE_ROLES.includes(myAccess()?.role);
+const mpNoEdit=()=>{const p=myProfile();return !!p&&!p.disabled&&!can("manpower.manage")};
 /* 8.5.2: «🪪 البطاقة» = صورة واحدة: الوش فوق والضهر تحته */
 async function idCardView(id){const e=emp(id);if(!e)return;const A=e.att||[];
   const get=async a=>{try{if(!a||(a.type||"").includes("pdf"))return null;const r=await fetch("/_blob/"+a.a);if(!r.ok)return null;return await createImageBitmap(await r.blob())}catch(x){return null}};
@@ -1809,7 +1809,7 @@ const taskProgress=x=>{const L=taskItems(x);return {done:L.filter(i=>i.done).len
 function taskAssignerIds(){const a=S.settings.taskAssigners;return Array.isArray(a)?a:[]}
 /* اختيار فاحص للمعدة: مسؤول السلامة ومشرف السلامة كمان، مش الأدمن وموزّعي
    المهام بس. صلاحية توزيع المهام العامة بتفضل زي ما هي. */
-function canAssignInspector(){return canAssignTasks()||REVIEWERS.includes(myRole())}
+function canAssignInspector(){return canAssignTasks()||can("records.review")}
 function canAssignTasks(){
   if(myAccess()?.role==="admin")return true;
   const me=myEmpId();if(!me)return false;
@@ -2203,7 +2203,7 @@ function canApproveGroup(g,{approverId=""}={}){
   const pol=signPol(g),me=myEmpId();
   if(pol.approve==="named")return !!me&&!!approverId&&me===approverId;
   if(pol.approve==="list")return !!me&&signListOf(g).includes(me);
-  return g==="records"?(REVIEWERS.includes(myAccess()?.role)||tabLevel("forms")==="full"):hseFinal();
+  return g==="records"?(can("records.review")||tabLevel("forms")==="full"):hseFinal();
 }
 function signPermEditor(){
   const gs=Object.entries(SIGN_GROUPS);
@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.5";
+const APP_VER="8.9.6";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2564,7 +2564,7 @@ function inspectionAccess(){return S.settings.inspectionAccess||{}}
 function inspectionInspectorEmployees(){const cfg=inspectionAccess(),ids=Array.isArray(cfg.inspectors)?cfg.inspectors:null;return hseTeam().filter(e=>(!ids||ids.includes(e.id))&&(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled))}
 function inspectionApproverProfiles({excludeSelf=true}={}){const cfg=inspectionAccess(),ids=Array.isArray(cfg.approvers)?cfg.approvers:null;return (S.profiles||[]).filter(p=>REVIEWERS.includes(p.role)&&!p.disabled&&(!excludeSelf||p.id!==ME.id)&&(!ids||ids.includes(p.id))).sort((a,b)=>profName(a).localeCompare(profName(b),"ar"))}
 function inspectionCanInspect(empId=myEmpId()){return !!canWrite&&!!empId&&inspectionInspectorEmployees().some(e=>e.id===empId)}
-function inspectionCanApprove(){return !!canWrite&&REVIEWERS.includes(myRole())&&inspectionApproverProfiles({excludeSelf:false}).some(p=>p.id===ME.id)}
+function inspectionCanApprove(){return !!canWrite&&can("records.review")&&inspectionApproverProfiles({excludeSelf:false}).some(p=>p.id===ME.id)}
 function eqApproverProfiles(){return inspectionApproverProfiles()}
 function inspectionAccessEditor(){
   if(!canDelete){toast("ضبط صلاحيات الفحص متاح لمدير المنظومة أو المحرر فقط");return}
@@ -2589,7 +2589,7 @@ function eqSetStatus(id){
   const q=(S.equipment||[]).find(x=>x.id===id);if(!q){toast("المعدة مش موجودة");return}
   const li=lastInsp(q);
   if(!li){toast("مفيش فحص مسجّل للمعدة دي — سجّل فحص الأول");return}
-  if(!(inspectionCanInspect()||inspectionCanApprove()||myRole()==="admin")){toast("تغيير الحالة للفاحص أو المعتمد أو الأدمن بس");return}
+  if(!(inspectionCanInspect()||inspectionCanApprove()||can("inspect.override"))){toast("تغيير الحالة للفاحص أو المعتمد أو الأدمن بس");return}
   const cur=eqDecisionOf(li)||(eqOk(q)===false?"fail":eqOk(q)===true?"pass":"cond");
   const bad=Object.entries(li.res||{}).filter(([,v])=>v==="nok").length;
   openSheet(`حالة ${esc(eqLabel(q))} ${esc(q.serial||q.code||"")}`,`
@@ -2898,7 +2898,7 @@ function eqActions(id,k){
 /* مسح أيام الفحص المسجّلة على الكارت */
 function eqPurgeDays(id){
   const q=(S.equipment||[]).find(x=>x.id===id);if(!q){toast("المعدة مش موجودة");return}
-  if(!(canDelete||myRole()==="admin"||inspectionCanApprove())){toast("المسح للأدمن أو المعتمد بس");return}
+  if(!(canDelete||can("inspect.override")||inspectionCanApprove())){toast("المسح للأدمن أو المعتمد بس");return}
   const list=[...(q.insp||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   if(!list.length){toast("مفيش أيام مسجّلة");return}
   const ok=v=>v==="ok"?"✔":v==="nok"?"✘":"—";
@@ -4500,7 +4500,7 @@ async function recordFormBase(fid,id,preset){
     if(TASK_RUN)data.taskId=(typeof TASK_RUN==="string"?TASK_RUN:TASK_RUN.id)||"";
     const ok=await write(async()=>{if(id)await upsert("records",id,data);else{data.serial=nextRecSerial(fid);data.createdAt=Date.now();data.createdBy=ME.id||"";rid=recordDuplicateDocId(fid,data);const ref=await db.doc("records/"+rid).get();if(ref.exists)throw Object.assign(new Error("duplicate_record"),{code:"duplicate_record"});await upsert("records",rid,data)}},"اتحفظ");
     if(ok){for(const a of removed){try{await assetsNS?.delete(a)}catch(e){}}}else{for(const a of uploadedPhotos)try{await assetsNS?.delete(a)}catch(e){}}
-    if(ok&&rid&&fid==="F-HSE-07-01"&&myRole()!=="admin"){const admins=(S.profiles||[]).filter(p=>p.role==="admin"&&!p.disabled).map(p=>p.id);if(admins.length)notifyUsers(admins,"🚨 مخالفة جديدة للمراجعة",`${currentActor||myEmpName()} أرسل إخطار مخالفة للمراجعة والتوقيع`,`?go=rec&id=${encodeURIComponent(rid)}`)}
+    if(ok&&rid&&fid==="F-HSE-07-01"&&!can("sys.admin")){const admins=(S.profiles||[]).filter(p=>p.role==="admin"&&!p.disabled).map(p=>p.id);if(admins.length)notifyUsers(admins,"🚨 مخالفة جديدة للمراجعة",`${currentActor||myEmpName()} أرسل إخطار مخالفة للمراجعة والتوقيع`,`?go=rec&id=${encodeURIComponent(rid)}`)}
     if(ok&&rid&&!id&&(fid==="F-HSE-03-01"||fid==="F-HSE-07-03"))setTimeout(()=>notifyRecordStakeholders(rid),600);
     if(ok&&rid&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t,{recId:rid})}catch(e){console.error(e)}}
     if(ok&&rid)setTimeout(()=>printRecord(rid),400);
@@ -6258,9 +6258,9 @@ const REVIEWERS=["admin","hse","hsesup"];const AUTHORS_NEED_REVIEW=["officer","m
 const LECT_ROLES=["hse","hsesup","officer"];
 const myRole=()=>myAccess()?.role||"";
 const profOf=uid=>(S.profiles||[]).find(p=>p.id===uid);
-function allowedTabs(){const b=allowedTabsBase();if(!b)return b;const out=[...b];for(const t of ["me","chat"])if(VIEWS[t]&&!out.includes(t))out.push(t);if(myRole()==="admin"||myRole()==="hsesup"){if(VIEWS.follow&&!out.includes("follow"))out.splice(1,0,"follow")}
+function allowedTabs(){const b=allowedTabsBase();if(!b)return b;const out=[...b];for(const t of ["me","chat"])if(VIEWS[t]&&!out.includes(t))out.push(t);if(can("follow.manage")){if(VIEWS.follow&&!out.includes("follow"))out.splice(1,0,"follow")}
   for(const t of ["manpower","contractors"])if(VIEWS[t]&&!out.includes(t))out.push(t);return out}
-function tabLevel(tb){if(tb==="me"||tb==="chat")return "edit";if(tb==="follow")return myRole()==="admin"||myRole()==="hsesup"?"full":"view";const a=myAccess();if(a&&a.role!=="admin"&&(tb==="manpower"||tb==="contractors")&&!a.tabs[tb])return "view";return tabLevelBase(tb)}
+function tabLevel(tb){if(tb==="me"||tb==="chat")return "edit";if(tb==="follow")return can("follow.manage")?"full":"view";const a=myAccess();if(a&&a.role!=="admin"&&(tb==="manpower"||tb==="contractors")&&!a.tabs[tb])return "view";return tabLevelBase(tb)}
 /* engineers & execution supervisors see only violations + unsafe acts/conditions among forms */
 const RESTRICT_FORMS={eng:["F-HSE-07-01","F-HSE-07-03"],sup:["F-HSE-07-01","F-HSE-07-03"]};
 {const _ff=VIEWS.forms.fill;VIEWS.forms.fill=async function(){const allow=RESTRICT_FORMS[myRole()];if(!allow)return _ff.call(this);const el=$("formsBody");if(!FORMS2)el.innerHTML='<div class="card forms-loading" role="status">⏳ جاري تجهيز قائمة النماذج…</div>';
@@ -6272,7 +6272,7 @@ const REVIEW_SIGN_FORMS=new Set(["F-HSE-07-03","F-HSE-24-01","F-HSE-24-02",...CH
 const recordAuthorSigned=r=>!!(r?.createdBy&&r.signs?.[r.createdBy]?.signature);
 const recApproved=r=>!!(r&&(r.approved||r.review?.status==="approved"));
 const needsReview=r=>{const p=profOf(r?.createdBy);return !!p&&!recApproved(r)&&!r.review&&(isViolationRec(r)?p.role!=="admin":AUTHORS_NEED_REVIEW.includes(p.role))&&(!REVIEW_SIGN_FORMS.has(r.form)||recordAuthorSigned(r))};
-const canReview=r=>(isViolationRec(r)?myRole()==="admin":REVIEWERS.includes(myRole()))&&canApproveGroup("records")
+const canReview=r=>(isViolationRec(r)?can("violation.review"):can("records.review"))&&canApproveGroup("records")
 /* نموذج مستني مراجعتي أنا: محتاج مراجعة + أنا مخوّل + مش من كتابتي */
 const recNeedsMyReview=r=>needsReview(r)&&canReview(r)&&r.createdBy!==ME.id;
 /* ===== محرك الحالة الموحّد للسجلات =====
@@ -6296,7 +6296,7 @@ function recTodoFor(r,uid){if(!r||recApproved(r))return null;const p=profOf(uid)
 const recTodo=r=>recTodoFor(r,ME.id);
 /* كل الأزرار المسموحة لي على سجل */
 function recActions(r,nameVals){const A={review:false,approve:false,unapprove:false,sign:false,unsign:false};if(!r)return A;
-  const approved=recApproved(r),iSigned=!!r.signs?.[ME.id],admin=myRole()==="admin";
+  const approved=recApproved(r),iSigned=!!r.signs?.[ME.id],admin=can("sys.admin");
   A.review=recNeedsMyReview(r);
   A.approve=!!SIG_FIELDS[r.form]&&!approved&&!needsReview(r)&&canApproveGroup("records")&&(recSlotMine(r)||recSlotOpen(r));
   A.unapprove=!!r.approved&&(r.approved.by===ME.id||admin);
@@ -6355,7 +6355,7 @@ function pendingRecActions(){const out=[];for(const r of (S.records||[])){if(rec
   /* كل سجل محتاج اعتماد/مراجعة/توقيع مني بيظهر لوحده وبيفتح السجل نفسه، ويختفي أول ما يتنفذ */
   try{const todo=pendingRecActions();todo.slice(0,10).forEach(x=>R.unshift({lv:x.lv,t:x.t,go:`printRecord('${x.id}')`}));
     if(todo.length>10)R.unshift({lv:"warn",t:`+${todo.length-10} سجل تاني مستني إجراءك`,go:"wsFocus('revForms')"})}catch(e){}
-  if(myRole()==="admin"){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>!c.requestKind&&c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"});const dr=S.leavereq.filter(c=>c.requestKind&&c.status==="new").length;if(dr)R.unshift({lv:"warn",t:`${dr} طلب إذن / مأمورية / تكليف مستني موافقتك`,go:"show('follow')"})}
+  if(can("sys.admin")){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>!c.requestKind&&c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"});const dr=S.leavereq.filter(c=>c.requestKind&&c.status==="new").length;if(dr)R.unshift({lv:"warn",t:`${dr} طلب إذن / مأمورية / تكليف مستني موافقتك`,go:"show('follow')"})}
   return o}}
 /* notifications: inbox table + push */
 let NOTIFS=[];
@@ -6435,7 +6435,7 @@ const CR_ACT={add:"إضافة",edit:"تعديل",del:"حذف"},CR_KIND={employee
 const EMP_F=[["name","الاسم"],["code","الكود"],["job","الوظيفة"],["group","المجموعة"],["contractorId","المقاول"],["nid","الرقم القومي"],["phone","الموبايل"],["active","الحالة"]];
 const CTR_F=[["name","اسم المقاول"],["scope","نطاق الأعمال"],["rep","المسؤول"],["phone","الموبايل"],["active","الحالة"]];
 const crVal=(k,v)=>k==="group"?(GROUPS[v]||v||""):k==="contractorId"?(contractor(v)?.name||""):k==="active"?(v===false?"موقوف":"شغال"):String(v??"");
-const isAdmin=()=>myRole()==="admin";
+const isAdmin=()=>can("sys.admin");
 /* 8.4.7: منع تكرار العمال والمقاولين (إضافة / تعديل / تنفيذ طلب) */
 const dupDigits=v=>String(v||"").replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/\D/g,"");
 const dupN=v=>normName(String(v||"").replace(/[\u064B-\u065F\u0670\u0640]/g,"")).toLowerCase();
@@ -7063,7 +7063,7 @@ function duplicateCleanupGroups(){const map=new Map();
   const rank=x=>{const y=x.h||x;return (y.review?.status==="approved"?100:0)+(y.approved?60:0)+(y.reviewRequired?0:10)+(y.sig1||y.sigImg?5:0)+((y.att||y.photos||[]).length||0)};
   return [...map.values()].filter(g=>g.list.length>1).map(g=>({...g,list:g.list.slice().sort((a,b)=>rank(b)-rank(a)||((a.createdAt||a.h?.createdAt||0)-(b.createdAt||b.h?.createdAt||0)))}));
 }
-function duplicateCleanupSheet(){if(myRole()!=="admin"){toast("تنظيف التكرارات متاح للأدمن فقط");return}
+function duplicateCleanupSheet(){if(!can("sys.admin")){toast("تنظيف التكرارات متاح للأدمن فقط");return}
   const groups=duplicateCleanupGroups(),extra=groups.reduce((n,g)=>n+g.list.length-1,0);window._dupCleanConfirm=null;
   const fingerprintGroups=gs=>JSON.stringify(gs.map(g=>g.kind+":"+g.list.map(x=>g.kind==="equipmentInspections"?equipmentInspectionFingerprint(x.q,x.h):g.kind==="inspections"?inspectionCleanupFingerprint(x):g.kind==="records"?recordFingerprint(x.form,x):JSON.stringify(stableValue({date:x.date,project:x.project,dept:x.dept,inspector:x.inspector,items:x.items,total:x.total,bad:x.bad,photos:x.photos,sig:x.sig}))).sort().join("|")).sort());
   openSheet(`التكرارات المطابقة (${extra})`,groups.length?`<div class="banner">تظهر هنا السجلات المتطابقة في النموذج والتاريخ والحقول والصور والتوقيعات، بما فيها فحوصات المعدات وحصر الطفايات. ستبقى نسخة واحدة، وتُزال النسخ المطابقة فقط. الاختلاف في نتيجة أو توقيع أو مرفق يمنع الحذف الآلي.</div><div class="list" style="max-height:55vh;overflow:auto;margin-top:10px">${groups.map(g=>{const sample=g.list[0],doc=sample.h||sample,asset=sample.q;const title=g.kind==="records"?esc(FORMS2?.[sample.form]?.title||sample.form):g.kind==="fireext"?"حصر طفايات":g.kind==="equipmentInspections"?esc(EQ_K[asset?.kind]?.one||"فحص معدة"):"فحص معدة";const ident=asset?(asset.serial||asset.code||asset.id):(sample.serial||sample.code||sample.id||"—");return `<div class="li"><div class="grow"><div class="t">${title} · ${fmtDate(doc.date||doc.f?.date)}</div><div class="s">${g.list.length} نسخ · ستبقى نسخة واحدة (${esc(ident)}) · ستزال ${g.list.length-1}</div></div></div>`}).join("")}</div>`:`<div class="empty"><b>لا توجد نسخ متطابقة تمامًا</b><div>لا توجد سجلات أو فحوصات متطابقة تحتاج إزالة.</div></div>`,groups.length?async()=>{
@@ -7073,7 +7073,7 @@ function duplicateCleanupSheet(){if(myRole()!=="admin"){toast("تنظيف الت
     window._dupCleanConfirm=null;if(!ok)return "تعذرت إزالة النسخ المكررة";refresh();return null
   }:null,"إزالة النسخ المتطابقة");
 }
-{const _dupSetFill=VIEWS.settings.fill;VIEWS.settings.fill=function(){_dupSetFill.call(this);if(myRole()!=="admin"||!$("setBody")||$("dupCleanupCard"))return;const c=document.createElement("div");c.id="dupCleanupCard";c.className="card";c.style.marginTop="14px";c.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">مراجعة التكرارات</h3><div class="muted" style="font-size:13px">${(()=>{const g=duplicateCleanupGroups(),n=g.reduce((a,x)=>a+x.list.length-1,0);return n?`تم العثور على ${n} نسخة مطابقة من السجلات والفحوصات.`:"لا توجد نسخ مطابقة حاليًا."})()} افحص القائمة قبل إزالة النسخ الزائدة.</div></div><button class="btn" onclick="duplicateCleanupSheet()">🧹 مراجعة وإزالة التكرار</button></div>`;$("setBody").appendChild(c)}}
+{const _dupSetFill=VIEWS.settings.fill;VIEWS.settings.fill=function(){_dupSetFill.call(this);if(!can("sys.admin")||!$("setBody")||$("dupCleanupCard"))return;const c=document.createElement("div");c.id="dupCleanupCard";c.className="card";c.style.marginTop="14px";c.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">مراجعة التكرارات</h3><div class="muted" style="font-size:13px">${(()=>{const g=duplicateCleanupGroups(),n=g.reduce((a,x)=>a+x.list.length-1,0);return n?`تم العثور على ${n} نسخة مطابقة من السجلات والفحوصات.`:"لا توجد نسخ مطابقة حاليًا."})()} افحص القائمة قبل إزالة النسخ الزائدة.</div></div><button class="btn" onclick="duplicateCleanupSheet()">🧹 مراجعة وإزالة التكرار</button></div>`;$("setBody").appendChild(c)}}
 
 /* ---------- team follow-up (admin) + team chat ---------- */
 const TEAM_ROLES=["hsesup","hse","officer","monitor","sup","eng","store"];
@@ -7082,7 +7082,7 @@ function followTeamIds(){const a=S.settings?.followTeam;return Array.isArray(a)&
 function followTeam(){const ids=followTeamIds(),all=(S.profiles||[]).filter(p=>!p.disabled);
   const L=ids?all.filter(p=>ids.includes(p.id)):all.filter(p=>TEAM_ROLES.includes(p.role));
   return L.sort((a,b)=>TEAM_ROLES.indexOf(a.role)-TEAM_ROLES.indexOf(b.role)||profName(a).localeCompare(profName(b),"ar"))}
-function followTeamEditor(){if(myRole()!=="admin"){toast("للأدمن بس");return}
+function followTeamEditor(){if(!can("sys.admin")){toast("للأدمن بس");return}
   const cur=new Set(followTeam().map(p=>p.id));
   const L=(S.profiles||[]).filter(p=>!p.disabled).sort((a,b)=>(cur.has(b.id)-cur.has(a.id))||profName(a).localeCompare(profName(b),"ar"));
   openSheet("مين في متابعة الفريق",`<p class="muted" style="margin-top:0;font-size:13px">اختار الناس اللي تظهر في صفحة متابعة الفريق (السلامة والصحة المهنية). اللي مش متعلّم عليه مش بيظهر ومش بيوصله تنبيه «نبّه بالناقص».</p>
@@ -7095,7 +7095,7 @@ function followTeamEditor(){if(myRole()!=="admin"){toast("للأدمن بس");re
     $("ftNone").onclick=()=>document.querySelectorAll('#ftList input').forEach(i=>i.checked=false);
     $("ftDef").onclick=()=>{document.querySelectorAll('#ftList input').forEach(i=>{const p=(S.profiles||[]).find(x=>x.id===i.name.slice(3));i.checked=!!p&&TEAM_ROLES.includes(p.role)})}},50)}
 function lastActivity(uid){let t=0;for(const r of S.records)if(r.createdBy===uid)t=Math.max(t,num(r.createdAt)||Date.parse(r.date||0)||0);for(const p of S.permits)for(const f of p.flow||[])if(f.by===uid)t=Math.max(t,num(f.at));return t}
-VIEWS.follow={shell:()=>`<div class="head"><h2 class="grow">متابعة الفريق</h2><div id="flPer" style="display:flex;gap:6px;align-items:center">${flPerHTML()}</div><button class="btn" onclick="nudgeAll()">🔔 نبّه كل واحد بالناقص عنده</button>${myRole()==="admin"?`<button class="btn" onclick="followTeamEditor()">👥 اختيار الفريق${followTeamIds()?` (${followTeamIds().length})`:""}</button>`:""}</div><div id="flBody"></div>`,
+VIEWS.follow={shell:()=>`<div class="head"><h2 class="grow">متابعة الفريق</h2><div id="flPer" style="display:flex;gap:6px;align-items:center">${flPerHTML()}</div><button class="btn" onclick="nudgeAll()">🔔 نبّه كل واحد بالناقص عنده</button>${can("sys.admin")?`<button class="btn" onclick="followTeamEditor()">👥 اختيار الفريق${followTeamIds()?` (${followTeamIds().length})`:""}</button>`:""}</div><div id="flBody"></div>`,
   fill(){const ws=flStart(),t0=today();const CR=S.changereq.filter(c=>c.status==="new"),LR=S.leavereq.filter(c=>!c.requestKind&&c.status==="new"),DR=S.leavereq.filter(c=>c.requestKind&&c.status==="new");
     const team=followTeam();
     const card=p=>{const D=roleDuties(p.id,flPeriod());const miss=D.filter(x=>!x.ok);const W=userRecs(p.id,ws,t0);const la=lastActivity(p.id);const PW=flPeriod()==="month"?"الشهر":"الأسبوع";
@@ -7585,8 +7585,8 @@ function inspForm(equipType,existingId){
   const checks=INSP_FORMS[equipType]||[];
   const existing=existingId?S.inspections?.find(x=>x.id===existingId):null;
   const approvers=inspReviewProfiles();if(!approvers.length){toast("لا يوجد معتمد مفوض ومختلف عن حسابك. راجع صلاحيات الفحص.");return}
-  if(existing?.review?.status==="approved"&&myRole()!=="admin"){toast("الفحص المعتمد لا يُعدّل؛ اطلب من الأدمن إعادته للمراجعة إذا لزم التصحيح");return}
-  if(existing?.reviewTo===ME.id&&existing?.inspectorUid!==ME.id&&myRole()!=="admin"){toast("المعتمد لا يحرر فحصًا محالًا إليه");return}
+  if(existing?.review?.status==="approved"&&!can("inspect.override")){toast("الفحص المعتمد لا يُعدّل؛ اطلب من الأدمن إعادته للمراجعة إذا لزم التصحيح");return}
+  if(existing?.reviewTo===ME.id&&existing?.inspectorUid!==ME.id&&!can("inspect.override")){toast("المعتمد لا يحرر فحصًا محالًا إليه");return}
   const selfId=myEmpId();if(!selfId||!inspectionCanInspect(selfId)){toast("حسابك غير مفوض للفحص. اربطه بموظف مفوض من فريق السلامة أو راجع مدير المنظومة.");return}
   const inspectorOpts=[[selfId,empName(selfId)||myEmpName()]];
 
@@ -8563,7 +8563,7 @@ async function omUndo(){
   return ok?null:"التراجع فشل";
 }
 function omSheet(){
-  if(myRole()!=="admin"){toast("نقل الملكية للأدمن بس");return}
+  if(!can("sys.admin")){toast("نقل الملكية للأدمن بس");return}
   const P=omProfiles(),und=omUndoable();
   const opts=P.map(p=>`<option value="${esc(p.id)}">${esc(omLabel(p))}</option>`).join("");
   const root=openSheet("نقل ملكية السجلات بين الحسابات",`
@@ -8727,7 +8727,7 @@ function codePrefixPlan(){
     if(to===c)continue;plan.push({col:"inspections",id:x.id,label:x.equipType||"",from:c,to})}
   return plan}
 function codePrefixSheet(){
-  if(myRole()!=="admin"){toast("الأداة دي للأدمن فقط");return}
+  if(!can("sys.admin")){toast("الأداة دي للأدمن فقط");return}
   const plan=codePrefixPlan();
   if(!plan.length){openSheet("تمييز أكواد المعدات",`<p>كل الأكواد فيها اسم الصنف بالفعل، مفيش حاجة تتغيّر ✔</p>`,async()=>null,"تمام");return}
   const eq=plan.filter(x=>x.col==="equipment").length,ins=plan.length-eq;
@@ -8735,13 +8735,13 @@ function codePrefixSheet(){
    <p><b>${eq}</b> معدة · <b>${ins}</b> نموذج فحص</p>
    <div style="max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table style="width:100%;font-size:13px"><thead><tr><th>النوع</th><th>الصنف</th><th>القديم</th><th>الجديد</th></tr></thead><tbody>${plan.slice(0,150).map(x=>`<tr><td>${x.col==="equipment"?"معدة":"فحص"}</td><td>${esc(eqShortName(x.label))}</td><td dir="ltr">${esc(x.from)}</td><td dir="ltr"><b>${esc(x.to)}</b></td></tr>`).join("")}</tbody></table></div>${plan.length>150?`<p class="muted">+ ${plan.length-150} صف تاني بنفس الطريقة</p>`:""}`,
   async()=>{const ok=await write(async()=>{for(const x of plan)await upsert(x.col,x.id,{code:x.to,codeOld:x.from})},`اتحدّث ${plan.length} كود ✔`);return ok?null:"الحفظ فشل"},"طبّق التغيير")}
-{const _cp=VIEWS.settings.fill;VIEWS.settings.fill=function(){_cp.call(this);try{const body=$("setBody");if(!body||$("codePrefixCard")||myRole()!=="admin")return;const c=document.createElement("section");c.className="card";c.id="codePrefixCard";
+{const _cp=VIEWS.settings.fill;VIEWS.settings.fill=function(){_cp.call(this);try{const body=$("setBody");if(!body||$("codePrefixCard")||!can("sys.admin"))return;const c=document.createElement("section");c.className="card";c.id="codePrefixCard";
   c.innerHTML=`<h3>تمييز أكواد المعدات باسم الصنف</h3><p class="muted" style="font-size:13px">بيكتب اسم الصنف قبل الكود القديم (زي «الصاروخ المحمول 009») في المعدات ونماذج الفحص، عشان نفس الرقم في صنفين مختلفين ما يتلخبطش. بيعرض معاينة قبل التطبيق.</p><button type="button" class="btn" onclick="codePrefixSheet()">معاينة وتطبيق</button>`;body.appendChild(c)}catch(e){console.error("codePrefixCard",e)}}}
 {const _os=VIEWS.settings.fill;VIEWS.settings.fill=function(){
   _os.call(this);
   try{
     const body=$("setBody");
-    if(!body||$("ownerMoveCard")||myRole()!=="admin")return;
+    if(!body||$("ownerMoveCard")||!can("sys.admin"))return;
     const c=document.createElement("section");
     c.className="card";c.id="ownerMoveCard";
     const und=omUndoable();
@@ -9531,7 +9531,7 @@ async function wsFocus(kind){
 }
 
 /* ===== كود المعدة: تعديل سريع من غير ما تفتح الفحص كله ===== */
-function inspCanSetCode(x){ return !!canWrite && (myRole()==="admin"||inspectionCanInspect()||(x&&x.inspectorUid===ME.id)); }
+function inspCanSetCode(x){ return !!canWrite && (can("inspect.override")||inspectionCanInspect()||(x&&x.inspectorUid===ME.id)); }
 function inspCodeSheet(id){
   const x=(S.inspections||[]).find(r=>r.id===id);
   if(!x){toast("سجل الفحص مش موجود");return}
@@ -9594,7 +9594,7 @@ function wsPages(){ const L=WS_BY_PERSONA[wsPersona()]||WS_BY_PERSONA.field;
    لو الصلاحيات لسه ما اتحمّلتش (allowedTabsBase=null) مابنفلترش،
    عشان الصفحة ماتبانش فاضية وقت التحميل. */
 function wsSubs(k){ const p=WS_DEF[k]; if(!p)return [];
-  const al=allowedTabsBase(); const admin=myRole()==="admin";
+  const al=allowedTabsBase(); const admin=can("sys.admin");
   return p.subs.filter(s=>{ const t=s.view||s.lvl; if(!t)return true;
     if(t==="settings")return admin;
     if(admin)return true; if(!al)return true;
@@ -9706,7 +9706,7 @@ function wsTeamAttAfter(){ const el=$("wsAttBody"); if(el)fillAtt(el); }
 
 /* التكليفات — كلّف بنموذج أو بسجل، وتابع حالة كل تكليف */
 function wsAssignHTML(){
-  const me=myEmpId(),admin=myRole()==="admin";
+  const me=myEmpId(),admin=can("sys.admin");
   const T=(S.tasks||[]).filter(x=>admin||x.createdBy===ME.id||x.assignee===me);
   const open=T.filter(x=>x.status!=="done"),done=T.filter(x=>x.status==="done");
   const late=open.filter(x=>x.due&&x.due<today());
@@ -9808,7 +9808,7 @@ const sevOf=r=>SEV[r?.severity]?r.severity:sevAuto(r);
 const INC_DEFAULT_ROLES=["admin","hse","hsesup","mgmt"];
 const incRoles=()=>Array.isArray(S.settings?.incidentRoles)?S.settings.incidentRoles:INC_DEFAULT_ROLES;
 const incidentVisible=r=>{const role=myRole();return role==="admin"||incRoles().includes(role)||r.createdBy===ME.id};
-const canSetSev=()=>["admin","hse","hsesup"].includes(myRole());
+const canSetSev=()=>can("incident.severity");
 function wsIncidentsHTML(){
   const L=(S.records||[]).filter(r=>r.form==="F-HSE-03-01"&&incidentVisible(r)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const yr=today().slice(0,4),cnt=k=>L.filter(r=>(r.date||"").startsWith(yr)&&sevOf(r)===k).length;
@@ -9817,11 +9817,11 @@ function wsIncidentsHTML(){
     return `<div class="li"><div class="grow" style="cursor:pointer" onclick="printRecord('${esc(r.id)}')"><div class="t">${esc(r.f?.desc?String(r.f.desc).slice(0,70):"تقرير حادث")}</div><div class="s">${fmtDate(r.date)} · ${esc(r.f?.place||"")}${r.f?.victim?" · "+esc(emp(r.f.victim_id)?.name||r.f.victim):""}</div></div>
       <span class="pill ${SEV[sv].cls}">${SEV[sv].ar}${manual?"":" ·تلقائي"}</span>
       ${canSetSev()?`<select aria-label="تصنيف الخطورة" onchange="incSetSev('${esc(r.id)}',this.value)" style="width:auto"><option value="">تلقائي</option>${Object.entries(SEV).map(([k,v])=>`<option value="${k}"${manual&&r.severity===k?" selected":""}>${v.ar}</option>`).join("")}</select>`:""}</div>`}).join("");
-  const adminBox=myRole()==="admin"?`<section class="card" style="margin-top:14px"><h3 style="margin-top:0">🔐 مين يشوف الحوادث</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">الأدمن وكاتب التقرير بيشوفوا دايمًا. اختار الأدوار الباقية.</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,v])=>`<label class="chipbtn" style="cursor:pointer"><input type="checkbox" ${incRoles().includes(k)?"checked":""} onchange="incToggleRole('${k}',this.checked)"> ${esc(v.ar)}</label>`).join("")}</div></section>`:"";
+  const adminBox=can("incident.admin")?`<section class="card" style="margin-top:14px"><h3 style="margin-top:0">🔐 مين يشوف الحوادث</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">الأدمن وكاتب التقرير بيشوفوا دايمًا. اختار الأدوار الباقية.</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,v])=>`<label class="chipbtn" style="cursor:pointer"><input type="checkbox" ${incRoles().includes(k)?"checked":""} onchange="incToggleRole('${k}',this.checked)"> ${esc(v.ar)}</label>`).join("")}</div></section>`:"";
   return `<div class="grid g4">${["near","minor","major","fatal"].map(tile).join("")}</div>
    <section class="card" style="margin-top:14px"><h3 style="margin-top:0">🚨 سجل الحوادث</h3>${rows?`<div class="list">${rows}</div>`:emptyState("مفيش حوادث مسجلة","أي تقرير حادث هيظهر هنا بتصنيف خطورته.")}</section>${adminBox}`}
 async function incSetSev(id,v){if(!canSetSev())return;if(await write(()=>upsert("records",id,{severity:v||null}),"اتحدّث التصنيف"))show(tab)}
-async function incToggleRole(role,on){if(myRole()!=="admin")return;const cur=new Set(incRoles());on?cur.add(role):cur.delete(role);
+async function incToggleRole(role,on){if(!can("incident.admin"))return;const cur=new Set(incRoles());on?cur.add(role):cur.delete(role);
   await write(()=>db.doc("settings/main").set({...S.settings,incidentRoles:[...cur],updatedAt:Date.now()}),"اتحفظت صلاحية الحوادث")}
 /* ---- صندوق الإدارة ---- */
 function wsInboxHTML(){
@@ -9906,7 +9906,7 @@ async function slimWalk(o,key,st){
   return o}
 async function slimRun(dry){
   const box=$("slimOut");const say=t=>{if(box)box.innerHTML=t};
-  if(myRole()!=="admin"){toast("للأدمن بس");return}
+  if(!can("sys.admin")){toast("للأدمن بس");return}
   say("بيفحص السجلات…");
   const jobs=[],tot={n:0,saved:0};
   try{
@@ -10062,7 +10062,7 @@ boot().catch(err=>{console.error("App connection startup failed",err);booted=tru
 
 /* ---- البحث الشامل (Ctrl+K أو زرار 🔍) ---- */
 const GS_NORM=s=>normName(s).toLowerCase().replace(/[ً-ْ]/g,"");
-function gsCan(t){try{const al=allowedTabs()||[];return al.includes(t)||al.includes("ws_records")||myRole()==="admin"}catch(e){return false}}
+function gsCan(t){try{const al=allowedTabs()||[];return al.includes(t)||al.includes("ws_records")||can("sys.admin")}catch(e){return false}}
 function gsSearch(q){const n=GS_NORM(q);if(n.length<2)return [];const hit=(...a)=>a.some(x=>GS_NORM(x).includes(n));const G=[];const add=(title,rows)=>{if(rows.length)G.push({title,rows:rows.slice(0,6),more:Math.max(0,rows.length-6)})};
   if(gsCan("forms")){add("📄 السجلات والنماذج",(S.records||[]).filter(r=>mineRec(r)&&hit(recKindAr(r),r.form,r.f?.desc,r.f?.place,r.date,fmtDate(r.date),r.createdByName,(r.rows||[]).map(x=>x?.desc).join(" "))).sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>({t:`${recKindAr(r)}${r.f?.desc?" — "+String(r.f.desc).slice(0,50):""}`,s:fmtDate(r.date),go:`gsGo("flGoRec('${esc(r.id)}')")`})))}
   if(gsCan("ptw")){add("📋 التصاريح",(S.permits||[]).filter(p=>hit(p.number,p.location,p.contractor,p.status,p.work,p.activity,fmtDate(p.date||""))).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).map(p=>({t:`تصريح ${p.number||""} — ${PTW_TYPES?.[p.type]?.ar||""}`,s:`${p.location||""} · ${fmtDate(p.date||"")}`,go:`gsGo("flGoPtw('${esc(p.id)}')")`})))}
@@ -10128,12 +10128,12 @@ for(const [_pg,_k] of [["ws_site","ov"],["ws_site","inbox"],["ws_exec","ov"],["w
 `;document.head.appendChild(st)})();
 {const _a=applyRole;applyRole=function(){const r=_a.apply(this,arguments);try{gsMount()}catch(e){}return r}}
 try{gsMount()}catch(e){}
-{const _sfL=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sfL.call(this);if(myRole()==="admin"&&$("setBody")&&!$("siteLocCard")){const c=document.createElement("div");c.className="card";c.id="siteLocCard";c.style.marginTop="14px";c.innerHTML=siteLocCardHTML();$("setBody").appendChild(c)}}}
+{const _sfL=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sfL.call(this);if(can("sys.admin")&&$("setBody")&&!$("siteLocCard")){const c=document.createElement("div");c.className="card";c.id="siteLocCard";c.style.marginTop="14px";c.innerHTML=siteLocCardHTML();$("setBody").appendChild(c)}}}
 
 
 /* ===== 8.7.4: طلبات الـHR (إجازة / إذن / مأمورية / تكليف) خاصة بفريق السلامة — مشرف ومهندس التنفيذ خارجها
    (قسم التنفيذ له سلسلة اعتماد إدارية مختلفة هتتضاف لاحقًا) ===== */
-const hrOut=()=>OWN_HIDE_ROLES.includes(myAccess()?.role);
+const hrOut=()=>{const p=myProfile();return !!p&&!p.disabled&&!can("hr.request")};
 for(const fn of ["leaveReqForm","dutyReqForm"]){const _f=window[fn];if(typeof _f==="function")window[fn]=function(){if(hrOut()){toast("طلبات الإجازات والأذونات خاصة بفريق السلامة");return}return _f.apply(this,arguments)}}
 {const V=VIEWS.me,_sh=V.shell,_fl=V.fill;
  V.shell=function(){let h=_sh.apply(this,arguments);if(hrOut())h=h.replace(/<button[^>]*onclick="(?:leaveReqForm|dutyReqForm)\([^"]*"[^>]*>[^<]*<\/button>/g,"");return h};
@@ -10143,7 +10143,7 @@ for(const fn of ["leaveReqForm","dutyReqForm"]){const _f=window[fn];if(typeof _f
    return r}}
 
 /* ===== 8.7.5: التصريح بيعدّي على المشرف/المهندس — «التصريح المباشر» للأدمن بس ===== */
-{const _pf=window.ptwForm;window.ptwForm=function(id){if(!id&&myRole()!=="admin"){toast("التصريح بيتعمل كطلب: بيوصل لمشرف/مهندس التنفيذ ومسؤول السلامة ويتفعّل بعد اعتمادهم");return ptwRequestForm()}return _pf.apply(this,arguments)}}
+{const _pf=window.ptwForm;window.ptwForm=function(id){if(!id&&!can("permit.direct")){toast("التصريح بيتعمل كطلب: بيوصل لمشرف/مهندس التنفيذ ومسؤول السلامة ويتفعّل بعد اعتمادهم");return ptwRequestForm()}return _pf.apply(this,arguments)}}
 
 /* ===== 8.7.6: سلسلة اعتماد طلبات الـHR (إجازة / إذن / مأمورية / تكليف) =====
    لكل درجة (رئيس مباشر · مدير مشروع · رئيس قطاع/منطقة · إدارة عليا) نظامين متوازيين:
@@ -10319,7 +10319,7 @@ function idAccCardHTML(){const C=S.settings?.idAccess||{},R=C.roles||{},U=C.user
 async function idAccSet(kind,key,v){const C=JSON.parse(JSON.stringify(S.settings?.idAccess||{roles:{},users:{}}));C.roles=C.roles||{};C.users=C.users||{};
  if(v)C[kind][key]=v;else delete C[kind][key];
  await write(()=>upsert("settings","app",{idAccess:C}),"اتحفظت الصلاحية")}
-{const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.apply(this,arguments);if(myRole()==="admin"&&$("setBody")&&!$("idAccCard")){const c=document.createElement("div");c.className="card";c.id="idAccCard";c.style.marginTop="14px";c.innerHTML=idAccCardHTML();$("setBody").appendChild(c)}}}
+{const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.apply(this,arguments);if(can("sys.admin")&&$("setBody")&&!$("idAccCard")){const c=document.createElement("div");c.className="card";c.id="idAccCard";c.style.marginTop="14px";c.innerHTML=idAccCardHTML();$("setBody").appendChild(c)}}}
 
 /* 8.8.6 — ملحق بطاقات العاملين مع طباعة التصريح والمحاضرة (لمن يملك صلاحية مشاهدة البطاقات) */
 async function idPagesRender(items,heading,rec){
@@ -10464,6 +10464,64 @@ function ptwCrewEdit(id){const p=S.permits.find(x=>x.id===id);if(!p)return;if(!p
  $("ceQ").oninput=e=>{const q=normName(e.target.value);document.querySelectorAll("#ceList [data-n]").forEach(l=>l.hidden=q&&!l.dataset.n.includes(q))};
  const ci=document.querySelector('#shForm [name="contractor"]')||document.querySelector('[name="contractor"]');
  if(ci)ci.addEventListener("change",()=>{$("ceList").innerHTML=list(ci.value);upd()})}
+
+/* ===== 8.9.6: نموذج الصلاحيات الموحّد =====
+   can(cap[,profile]) هي الباب الوحيد للسؤال «مين يقدر يعمل إيه».
+   الطبقات: الدور (قالب افتراضي) ← استثناء الدور ← استثناء الحساب.  الأدمن مسموح له دايمًا.
+   S.settings.permOverrides = {roles:{role:{cap:bool}}, users:{uid:{cap:bool}}}
+   «fixed» = قدرة النظام مش قابلة للتغيير (السيرفر وتبويب الإعدادات بيعتمدوا على الأدمن). */
+const _OWN_RESTRICTED=p=>!["sup","eng"].includes(p.role);
+function _idDef(p){const C=S.settings?.idAccess||{},v=(C.users||{})[p.id]||(C.roles||{})[p.role]||"",M={full:[1,1],see:[1,0],add:[0,1],none:[0,0]};
+  if(M[v])return M[v];
+  let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{});if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));
+  const mon=p.role==="monitor";return [!mon,!mon&&!["sup","eng"].includes(p.role)&&(tb.manpower||"view")!=="view"]}
+const CAPS={
+  "sys.admin":        {g:"النظام",ar:"إدارة المنظومة (الإعدادات والأدوات والمستخدمين)",fixed:1,roles:[]},
+  "inspect.override": {g:"الفحص",ar:"تعديل أو مسح أو تغيير حالة فحص معتمد",roles:[]},
+  "permit.direct":    {g:"التصاريح",ar:"إصدار تصريح مباشر من غير طلب",roles:[]},
+  "violation.review": {g:"المخالفات",ar:"مراجعة المخالفات واعتمادها",roles:[]},
+  "incident.admin":   {g:"الحوادث",ar:"تحديد مين يشوف الحوادث",roles:[]},
+  "records.review":   {g:"النماذج",ar:"مراجعة واعتماد السجلات والنماذج",roles:["hse","hsesup"]},
+  "incident.severity":{g:"الحوادث",ar:"تحديد درجة خطورة الحادث",roles:["hse","hsesup"]},
+  "location.view":    {g:"الفريق",ar:"رؤية مواقع الفريق",roles:["hsesup","hse","officer","monitor"]},
+  "follow.manage":    {g:"الفريق",ar:"متابعة الفريق (إدارة وتعديل)",roles:["hsesup"]},
+  "manpower.manage":  {g:"القوى العاملة",ar:"إضافة وتعديل العاملين",def:_OWN_RESTRICTED},
+  "hr.request":       {g:"الموارد البشرية",ar:"طلب إجازة أو إذن أو مأمورية أو تكليف",def:_OWN_RESTRICTED},
+  "ppe.access":       {g:"المخزن",ar:"مخزن مهمات الوقاية وطلباته",def:_OWN_RESTRICTED},
+  "ws.write":         {g:"النظام",ar:"الكتابة العامة في الأقسام المتاحة",def:p=>p.role!=="eng"},
+  "id.view":          {g:"القوى العاملة",ar:"مشاهدة بطاقات العاملين وملف الفرد",def:p=>!!_idDef(p)[0]},
+  "id.add":           {g:"القوى العاملة",ar:"إضافة/رفع بطاقات العاملين",def:p=>!!_idDef(p)[1]}
+};
+function _permOv(){return S.settings?.permOverrides||{}}
+function permDefault(cap,p){const d=CAPS[cap];if(!d||!p)return false;if(p.role==="admin")return true;return d.def?!!d.def(p):(d.roles||[]).includes(p.role)}
+function can(cap,p){p=p||myProfile();if(!p||p.disabled)return false;const d=CAPS[cap];if(!d)return false;if(p.role==="admin")return true;
+  if(!d.fixed){const ov=_permOv(),u=ov.users?.[p.id]?.[cap];if(u!==undefined)return !!u;const r=ov.roles?.[p.role]?.[cap];if(r!==undefined)return !!r}
+  return permDefault(cap,p)}
+async function permSave(mut){const O=JSON.parse(JSON.stringify(_permOv()));O.roles=O.roles||{};O.users=O.users||{};mut(O);
+  for(const k of ["roles","users"])for(const key of Object.keys(O[k])){if(!Object.keys(O[k][key]).length)delete O[k][key]}
+  return write(()=>upsert("settings","app",{permOverrides:O}),"اتحفظت الصلاحية")}
+function permSetRole(role,cap,on){const d=CAPS[cap];if(!d||d.fixed||role==="admin")return;
+  return permSave(O=>{const base=permDefault(cap,{role,id:""});O.roles[role]=O.roles[role]||{};if(!!on===!!base)delete O.roles[role][cap];else O.roles[role][cap]=!!on})}
+function permSetUser(uid,map){return permSave(O=>{O.users[uid]={};for(const [cap,v] of Object.entries(map)){if(v==="1")O.users[uid][cap]=true;else if(v==="0")O.users[uid][cap]=false}})}
+function permMatrixHTML(){const roles=Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin"),caps=Object.entries(CAPS).filter(([,d])=>!d.fixed).sort((x,y)=>x[1].g.localeCompare(y[1].g,"ar"));
+  const ov=_permOv();
+  const head=`<tr><th style="text-align:right">القدرة</th>${roles.map(([k,r])=>`<th style="font-size:11.5px">${esc(r.ar||k)}</th>`).join("")}</tr>`;
+  let lastG="",rows="";for(const [cap,d] of caps){if(d.g!==lastG){lastG=d.g;rows+=`<tr><td colspan="${roles.length+1}" style="background:var(--soft,#0001);font-weight:700">${esc(d.g)}</td></tr>`}
+    rows+=`<tr><td style="min-width:200px">${esc(d.ar)}</td>${roles.map(([k])=>{const on=can(cap,{role:k,id:"",tabs:null}),custom=ov.roles?.[k]?.[cap]!==undefined;
+      return `<td style="text-align:center"><input type="checkbox" ${on?"checked":""} onchange="permSetRole('${k}','${cap}',this.checked)" title="${custom?"معدّل عن الافتراضي":"افتراضي"}" style="${custom?"outline:2px solid var(--accent,#d9822b)":""}"></td>`}).join("")}</tr>`}
+  const users=(S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled).sort((a,b)=>String(a.username).localeCompare(String(b.username),"ar"));
+  const uRows=users.map(p=>{const n=Object.keys(ov.users?.[p.id]||{}).length;return `<div class="li"><div class="grow"><div class="t">${esc(p.username||"")}</div><div class="s">${esc(ROLES_ALL()[p.role]?.ar||p.role||"")}${n?` · <b>${n} استثناء</b>`:""}</div></div><button class="btn sm" onclick="permUserSheet('${esc(p.id)}')">تخصيص</button></div>`}).join("");
+  return `<h3 style="margin:0 0 4px">🧭 مصفوفة الصلاحيات الموحّدة</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">كل «مين يقدر يعمل إيه» في المنظومة بيرجع لهنا. العلامة = مسموح للدور. اللي له إطار برتقالي معدّل عن الافتراضي. الأدمن دايمًا مسموح له. التعديل هنا بيغيّر الواجهة؛ الحماية على السيرفر (قواعد الجداول) بتفضل زي ما هي.</div>
+  <div style="overflow-x:auto"><table class="tbl" style="min-width:560px">${head}${rows}</table></div>
+  <div style="font-weight:700;margin:12px 0 2px">استثناءات للحسابات</div><div class="list">${uRows||'<p class="muted">مفيش حسابات.</p>'}</div>`}
+function permUserSheet(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const U=_permOv().users?.[uid]||{};
+  const sel=cap=>{const v=U[cap]===true?"1":U[cap]===false?"0":"";return f(`${CAPS[cap].ar} <span class="muted" style="font-size:11.5px">(الافتراضي: ${permDefault(cap,p)?"مسموح":"ممنوع"})</span>`,"pc_"+cap,{value:v,opts:[["","حسب الدور"],["1","مسموح"],["0","ممنوع"]],full:true})};
+  openSheet("صلاحيات "+(p.username||""),`<div class="form">${Object.keys(CAPS).filter(c=>!CAPS[c].fixed).map(sel).join("")}</div>`,async fd=>{const m={};for(const c of Object.keys(CAPS))if(!CAPS[c].fixed)m[c]=fd["pc_"+c]||"";const ok=await permSetUser(uid,m);return ok?null:"الحفظ فشل"},"حفظ")}
+{const _pf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_pf.apply(this,arguments);if(can("sys.admin")&&$("setBody")&&!$("permMatrixCard")){const c=document.createElement("div");c.className="card";c.id="permMatrixCard";c.style.marginTop="14px";c.innerHTML=permMatrixHTML();$("setBody").appendChild(c)}}}
+/* البطاقات: نفس الواجهة القديمة لكن القرار من can() */
+idPerm=function(){return {see:can("id.view"),add:can("id.add")}};
+idPermFor=function(p){return {see:can("id.view",p),add:can("id.add",p)}};
+
 </script>
 </body></html>
 
