@@ -1778,7 +1778,8 @@ function remindersBase(){
     if(noId)R.push({lv:"warn",t:`${noId} عامل مقاول من غير صورة بطاقة`,go:"ui.mpG='ctr';ui.mpID='no';show('manpower')"});if(noInd)R.push({lv:"warn",t:`${noInd} عامل مقاول ما حضرش محاضرة Induction`,go:"show('contractors')"})}
   if(al.includes("team")&&hseTeam().length&&!attDoc(t0))R.push({lv:"warn",t:"حضور النهارده لسه ما اتسجلش",go:"ui.teamSub='att';show('team')"});
   {const mm=S.leaves.filter(missionNeedsMySign);
-   if(mm.length)R.push({lv:"warn",t:`عندك ${mm.length} مأمورية مستنية توقيعك الإلكتروني`,go:"ui.teamSub='duties';show('team')"});}
+   if(mm.length<=3)mm.forEach(l=>R.push({lv:"warn",t:`مأمورية ${l.kind==="missiong"?"مجمّعة":esc(empName(l.empId))} ${fmtDate(l.date)} مستنية توقيعك الإلكتروني`,go:l.kind==="missiong"?`printMissionGroup('${l.date}')`:`printMission('${l.id}')`}));
+   else R.push({lv:"warn",t:`عندك ${mm.length} مأمورية مستنية توقيعك الإلكتروني`,go:"ui.teamSub='duties';show('team')"});}
   if(al.includes("forms")){const d=new Date();if(d.getDate()>=20){const m=thisMonth();const did=S.records.some(r=>r.form==="F-HSE-24-02"&&(r.date||"").startsWith(m)&&mineRec(r));if(!did)R.push({lv:"warn",t:"مفيش محاضرة توعية (TBT) اتسجلت الشهر ده",go:"ui.formSel='F-HSE-24-02';show('forms')"})}}
   const T=S.tasks.filter(x=>x.status!=="done"&&(x.assignee===me||x.createdBy===ME.id||(!ownScope()&&myAccess()?.role==="admin")));
   return {R,T};
@@ -2242,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.23";
+const APP_VER="8.9.24";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4106,10 +4107,11 @@ function missionIsMyDuty(l){
 }
 function missionNeedsMySign(l){
   if(!missionIsMyDuty(l)||iSignedMission(l))return false;
+  if(typeof isLegacyAssignment==="function"&&isLegacyAssignment(l))return false;   /* سجل قديم كان تكليف إضافي مش مأمورية */
   if(missionApproved(l))return l.empId===myEmpId();
   return true;
 }
-function iSignedMission(l){return signsOf(l).some(s=>s.uid===ME.id)}
+function iSignedMission(l){return (typeof leaveSigns==="function"?leaveSigns(l):signsOf(l)).some(s=>s.uid===ME.id)}
 function missionSignedName(l,nm){const n=normName(nm);return !!n&&signsOf(l).some(s=>normName(s.name)===n)}
 async function stampMissionSigs(T,rec,vals,pages){
   const F=(await loadForms())[T];const SB=F&&F.sigBoxes;if(!SB||!SB.length)return pages;
