@@ -2242,7 +2242,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.14";
+const APP_VER="8.9.16";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10701,11 +10701,12 @@ document.addEventListener("click",ev=>{const a=ev.target.closest&&ev.target.clos
 
 /* ===== 8.9.12: حصر المعدات وتواريخ الفحص + تنزيل Excel/PDF + PDF نماذج الفحص عن فترة ===== */
 const _eqIn=(d,a,b)=>!!d&&(!a||d>=a)&&(!b||d<=b);
-function eqRegisterRows(from,to,kind){
+function eqRegisterRows(from,to,kind,sep){
+  const KS=Array.isArray(kind)?kind:(kind?[kind]:[]);sep=sep||"، ";
   const recs=(S.inspections||[]),used=new Set(),rows=[],log=[];
   const byCode=new Map();for(const x of recs){const k=inspCodeKey(x.code);if(!k)continue;(byCode.get(k)||byCode.set(k,[]).get(k)).push(x)}
   const lblRes=ok=>ok===null||ok===undefined?"":ok?"صالح":"غير صالح";
-  const eqs=S.equipment.filter(q=>q.active!==false&&(!kind||q.kind===kind)).sort((a,b)=>String(a.kind).localeCompare(String(b.kind))||String(a.serial||a.code||"").localeCompare(String(b.serial||b.code||""),"ar",{numeric:true}));
+  const eqs=S.equipment.filter(q=>q.active!==false&&(!KS.length||KS.includes(q.kind))).sort((a,b)=>String(a.kind).localeCompare(String(b.kind))||String(a.serial||a.code||"").localeCompare(String(b.serial||b.code||""),"ar",{numeric:true}));
   for(const q of eqs){
     const keys=[q.code,q.serial].map(inspCodeKey).filter(Boolean);keys.forEach(k=>used.add(k));
     const dates=new Map();
@@ -10714,31 +10715,73 @@ function eqRegisterRows(from,to,kind){
     for(const k of keys)for(const x of byCode.get(k)||[]){if(!_eqIn(x.date,from,to))continue;if(!dates.has(x.date))dates.set(x.date,{d:x.date,res:x.status==="fail"?"غير صالح":x.status?"صالح":"",by:x.inspector1||"",src:"نموذج "+(x.equipType||"")})}
     const ds=[...dates.values()].sort((a,b)=>a.d.localeCompare(b.d)),li=lastInsp(q),ok=eqOk(q),nx=eqNext(q),t=today();
     const st=!nx?"غير محدد":nx<t?"متأخر":nx<=addDays?.(t,7)?"قريب":"ساري";
-    rows.push({"النوع":EQ_K[q.kind]?.ar||q.kind,"الكود / المسلسل":q.serial||q.code||"","الاسم / الوصف":eqLabel(q),"المكان":q.place||"","المقاول":q.contractor||"","عدد الفحوصات في الفترة":ds.length,"تواريخ الفحص في الفترة":ds.map(x=>x.d).join("، "),"آخر فحص":li?.date||"","الحالة":lblRes(ok),"الفحص الجاي":nx||"","موقف الميعاد":st});
+    rows.push({"النوع":EQ_K[q.kind]?.ar||q.kind,"الكود / المسلسل":q.serial||q.code||"","الاسم / الوصف":eqLabel(q),"المكان":q.place||"","المقاول":q.contractor||"","عدد الفحوصات في الفترة":ds.length,"تواريخ الفحص في الفترة":"","آخر فحص":li?.date||"","الحالة":lblRes(ok),"الفحص الجاي":nx||"","موقف الميعاد":st,_k:keys[0]||("id"+q.id),_ds:ds.map(x=>x.d)});
     for(const x of ds)log.push({"الكود / المسلسل":q.serial||q.code||"","الاسم / الوصف":eqLabel(q),"تاريخ الفحص":x.d,"النتيجة":x.res,"القائم بالفحص":x.by,"المصدر":x.src})}
   /* فحوصات نماذج لأكواد مش مسجلة في الحصر */
-  if(!kind){const extra=new Map();for(const x of recs){const k=inspCodeKey(x.code);if(!k||used.has(k)||!_eqIn(x.date,from,to))continue;(extra.get(k)||extra.set(k,[]).get(k)).push(x)}
+  if(!KS.length){const extra=new Map();for(const x of recs){const k=inspCodeKey(x.code);if(!k||used.has(k)||!_eqIn(x.date,from,to))continue;(extra.get(k)||extra.set(k,[]).get(k)).push(x)}
     for(const [k,L] of extra){const ds=[...new Set(L.map(x=>x.date))].sort(),last=L.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];
-      rows.push({"النوع":"غير مسجلة في الحصر","الكود / المسلسل":last.code||"","الاسم / الوصف":last.equipType||"","المكان":last.project||"","المقاول":"","عدد الفحوصات في الفترة":ds.length,"تواريخ الفحص في الفترة":ds.join("، "),"آخر فحص":last.date||"","الحالة":last.status==="fail"?"غير صالح":"صالح","الفحص الجاي":"","موقف الميعاد":""});
+      rows.push({"النوع":"غير مسجلة في الحصر","الكود / المسلسل":last.code||"","الاسم / الوصف":last.equipType||"","المكان":last.project||"","المقاول":"","عدد الفحوصات في الفترة":ds.length,"تواريخ الفحص في الفترة":"","آخر فحص":last.date||"","الحالة":last.status==="fail"?"غير صالح":"صالح","الفحص الجاي":"","موقف الميعاد":"",_k:k,_ds:ds});
       for(const x of L.sort((a,b)=>(a.date||"").localeCompare(b.date||"")))log.push({"الكود / المسلسل":x.code||"","الاسم / الوصف":x.equipType||"","تاريخ الفحص":x.date,"النتيجة":x.status==="fail"?"غير صالح":"صالح","القائم بالفحص":x.inspector1||"","المصدر":"نموذج "+(x.equipType||"")})}}
-  return {rows,log}}
+  /* دمج: كود المعدة ما يتكررش — صف واحد وكل تواريخ فحصها فيه */
+  const M=new Map(),out=[];
+  for(const r of rows){const k=r._k;let t=M.get(k);
+    if(!t){t=r;t._set=new Set(r._ds);M.set(k,t);out.push(t);continue}
+    r._ds.forEach(d=>t._set.add(d));
+    for(const f of ["المكان","المقاول","الاسم / الوصف","الحالة"])if(!t[f]&&r[f])t[f]=r[f];
+    if((r["آخر فحص"]||"")>(t["آخر فحص"]||""))t["آخر فحص"]=r["آخر فحص"];
+    if((r["الفحص الجاي"]||"")>(t["الفحص الجاي"]||"")){t["الفحص الجاي"]=r["الفحص الجاي"];t["موقف الميعاد"]=r["موقف الميعاد"]}}
+  for(const t of out){const L=[...(t._set||new Set(t._ds))].sort();t._ds=L;t["عدد الفحوصات في الفترة"]=L.length;
+    t["تواريخ الفحص في الفترة"]=L.map(fmtDate).join(sep);t["آخر فحص"]=t["آخر فحص"]?fmtDate(t["آخر فحص"]):"";t["الفحص الجاي"]=t["الفحص الجاي"]?fmtDate(t["الفحص الجاي"]):"";delete t._k;delete t._ds;delete t._set}
+  const seen=new Set(),log2=log.filter(l=>{const k=inspCodeKey(l["الكود / المسلسل"])+"|"+l["تاريخ الفحص"];if(seen.has(k))return false;seen.add(k);return true});
+  log2.forEach(l=>{l["تاريخ الفحص"]=fmtDate(l["تاريخ الفحص"])});
+  return {rows:out,log:log2}}
 function eqFormRecords(from,to,type){
-  return inspectionDailyGroups(S.inspections||[]).map(g=>g.record).filter(x=>_eqIn(x.date,from,to)&&(!type||x.equipType===type)).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||String(a.equipType).localeCompare(String(b.equipType)))}
+  return inspectionDailyGroups(S.inspections||[]).map(g=>g.record).filter(x=>_eqIn(x.date,from,to)&&(!type||!type.length||[].concat(type).includes(x.equipType))).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||String(a.equipType).localeCompare(String(b.equipType)))}
+function eqChecks(id,L){return `<div id="${id}" style="display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto;padding:2px"><button type="button" class="chipbtn" onclick="document.querySelectorAll('#${id} input').forEach(i=>i.checked=true)">✔ الكل</button><button type="button" class="chipbtn" onclick="document.querySelectorAll('#${id} input').forEach(i=>i.checked=false)">✖ مسح</button>${L.map(([v,t])=>`<label class="chipbtn" style="cursor:pointer;display:inline-flex;gap:5px;align-items:center"><input type="checkbox" value="${esc(v)}" style="width:auto;margin:0">${esc(t)}</label>`).join("")}</div>`}
+const eqPicked=id=>[...document.querySelectorAll("#"+id+" input:checked")].map(i=>i.value);
 function eqReportSheet(){
   const t=today(),from0=t.slice(0,8)+"01";
   const types=[...new Set((S.inspections||[]).map(x=>x.equipType).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ar"));
   openSheet("📊 حصر المعدات وتقارير الفحص",`<div class="form">
     <div class="full muted" style="font-size:13px">اختار الفترة والمطلوب. الحصر بيشمل كل المعدات المسجلة وتواريخ فحصها في الفترة، ومعاها فحوصات النماذج لأكواد مش مسجلة.</div>
     ${f("من تاريخ","from",{type:"date",value:from0,req:true})}${f("إلى تاريخ","to",{type:"date",value:t,req:true})}
-    ${f("المطلوب","out",{value:"xlsx",full:true,opts:[["xlsx","جدول الحصر — Excel (ورقتين: الحصر + سجل الفحوصات)"],["pdf","جدول الحصر — PDF للطباعة"],["forms","نماذج الفحص — PDF (كل نموذج في الفترة)"]]})}
-    ${f("نوع المعدة (للحصر)","kind",{value:"",full:true,opts:[["","كل الأنواع"],...Object.entries(EQ_K).map(([k,v])=>[k,v.ar])]})}
-    ${f("نوع نموذج الفحص (لـ PDF النماذج)","etype",{value:"",full:true,opts:[["","كل الأنواع"],...types.map(x=>[x,x])]})}
+    ${f("المطلوب","out",{value:"xlsx",full:true,opts:[["xlsx","جدول الحصر — Excel (ورقتين: الحصر + سجل الفحوصات)"],["pdf","جدول الحصر — PDF للطباعة"],["forms","نماذج الفحص — PDF (كل نموذج في الفترة)"],["zip","تحميل جماعي ZIP — فولدر لكل معدة فيه سجلات فحصها (PDF + تواريخ)"]]})}
+    <div class="full"><label style="display:block;margin-bottom:4px">أنواع المعدات (للحصر) — اختار واحد أو أكتر، ولو ماختارتش يبقى الكل</label>${eqChecks("eqKinds",Object.entries(EQ_K).map(([k,v])=>[k,v.ar]))}</div>
+    <div class="full"><label style="display:block;margin-bottom:4px">أنواع نماذج الفحص (لـ PDF النماذج) — فاضي = الكل</label>${eqChecks("eqTypes",types.map(x=>[x,x]))}</div>
     ${f("مع صور المرفقات في PDF النماذج","att",{value:"",full:true,opts:[["","لا — النماذج بس"],["1","نعم (يبطّأ ويكبّر الملف)"]]})}
-  </div>`,async fd=>{if(fd.from>fd.to)return "تاريخ البداية بعد النهاية";return await eqReportRun(fd)},"تنزيل")}
+  </div>`,async fd=>{if(fd.from>fd.to)return "تاريخ البداية بعد النهاية";fd.kinds=eqPicked("eqKinds");fd.etypes=eqPicked("eqTypes");return await eqReportRun(fd)},"تنزيل")}
+async function eqZipRun(fd,base){
+  const from=fd.from,to=fd.to,KS=fd.kinds||[],ET=fd.etypes||[];
+  try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js")}catch(e){return "معرفتش أحمّل أداة الضغط"}
+  if(!window.JSZip)return "أداة الضغط مش متاحة";
+  const recs=eqFormRecords(from,to,ET),byK=new Map();
+  for(const x of recs){const k=inspCodeKey(x.code);if(!k)continue;(byK.get(k)||byK.set(k,[]).get(k)).push(x)}
+  const jobs=[],done=new Set();
+  for(const q of S.equipment.filter(q=>q.active!==false&&(!KS.length||KS.includes(q.kind)))){
+    const keys=[q.code,q.serial].map(inspCodeKey).filter(Boolean),L=[];keys.forEach(k=>{done.add(k);for(const x of byK.get(k)||[])if(!L.includes(x))L.push(x)});
+    const hist=(q.insp||[]).filter(h=>!(h.reviewRequired&&h.review?.status!=="approved")&&_eqIn(h.date,from,to));
+    if(!L.length&&!hist.length)continue;jobs.push({name:q.serial||q.code||eqLabel(q),label:eqLabel(q),kind:EQ_K[q.kind]?.ar||q.kind||"",L,hist})}
+  if(!KS.length)for(const [k,L] of byK)if(!done.has(k))jobs.push({name:L[0].code||k,label:L[0].equipType||"",kind:"غير مسجلة في الحصر",L,hist:[]});
+  if(!jobs.length)return "مفيش سجلات فحص للمعدات المختارة في الفترة دي";
+  if(jobs.length>60&&!confirm(`${jobs.length} معدة — ممكن ياخد وقت طويل. تكمل؟`))return "اتلغى";
+  const zip=new JSZip(),usedDir=new Set(),PER=40;let i=0;
+  for(const j of jobs){i++;toast(`بيجهّز المعدة ${i}/${jobs.length}: ${j.name}`);
+    let dir=_mpSafe(String(j.name||"معدة")),d0=dir,c=1;while(usedDir.has(dir.toLowerCase()))dir=d0+" "+(++c);usedDir.add(dir.toLowerCase());
+    const L=j.L.slice().sort((a,b)=>(a.date||"").localeCompare(b.date||"")),dates=new Map();
+    for(const h of j.hist){const r=Object.values(h.res||{});dates.set(h.date,{"التاريخ":fmtDate(h.date),"النتيجة":r.length?(r.includes("nok")?"غير صالح":"صالح"):"","القائم بالفحص":h.by||"","المصدر":"سجل المعدة"})}
+    for(const x of L)if(!dates.has(x.date))dates.set(x.date,{"التاريخ":fmtDate(x.date),"النتيجة":x.status==="fail"?"غير صالح":x.status?"صالح":"","القائم بالفحص":x.inspector1||"","المصدر":"نموذج "+(x.equipType||"")});
+    const drows=[...dates.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(e=>e[1]);
+    zip.file(`${dir}/تواريخ الفحص.xlsx`,xlsxPro([{name:"تواريخ الفحص",title:`${j.name}${j.label?" — "+j.label:""}`,subtitle:_xlStamp(`الفترة: ${fmtDate(from)} إلى ${fmtDate(to)}`),rows:drows}],{}));
+    const parts=Math.ceil(L.length/PER);
+    for(let p=0;p<parts;p++){const pages=[];
+      for(const x of L.slice(p*PER,(p+1)*PER)){try{let pg=await inspOriginalPages(x);if(!pg||!pg.length)pg=await htmlCanvases(inspPrintHTML(x));pages.push(...pg);if(fd.att)pages.push(...await inspAttachmentPages(x))}catch(e){console.error(e)}}
+      if(pages.length)zip.file(`${dir}/سجلات فحص ${_mpSafe(String(j.name))}${parts>1?` (جزء ${p+1})`:""}.pdf`,await permitPdfBlob(pages))}}
+  try{const r=eqRegisterRows(from,to,KS,"\n");zip.file("00 - حصر المعدات.xlsx",xlsxPro([{name:"حصر المعدات",title:"حصر المعدات وتواريخ الفحص",subtitle:_xlStamp(`الفترة: ${fmtDate(from)} إلى ${fmtDate(to)}`),rows:r.rows.map((x,n)=>({"م":n+1,...x})),land:true}],{}))}catch(e){console.error(e)}
+  const blob=await zip.generateAsync({type:"blob"});await pgSaveBlob(blob,`${base} (فولدر لكل معدة).zip`);return null}
 async function eqReportRun(fd){
   const from=fd.from,to=fd.to,base=`${fd.out==="forms"?"نماذج فحص المعدات":"حصر المعدات"} ${from} إلى ${to}`;
   if(fd.out==="forms"){
-    const R=eqFormRecords(from,to,fd.etype);if(!R.length)return "مفيش نماذج فحص في الفترة دي";
+    const R=eqFormRecords(from,to,fd.etypes||[]);if(!R.length)return "مفيش نماذج فحص في الفترة دي";
     if(R.length>120&&!confirm(`${R.length} نموذج — ممكن ياخد وقت طويل. تكمل؟`))return "اتلغى";
     const PER=40,parts=Math.ceil(R.length/PER);
     for(let p=0;p<parts;p++){const pages=[],chunk=R.slice(p*PER,(p+1)*PER);
@@ -10746,8 +10789,9 @@ async function eqReportRun(fd){
         try{let pg=await inspOriginalPages(x);if(!pg||!pg.length)pg=await htmlCanvases(inspPrintHTML(x));pages.push(...pg);if(fd.att)pages.push(...await inspAttachmentPages(x))}catch(e){console.error(e)}}
       if(!pages.length)continue;const blob=await permitPdfBlob(pages);await pgSaveBlob(blob,parts>1?`${base} (جزء ${p+1} من ${parts}).pdf`:`${base}.pdf`)}
     return null}
-  const {rows,log}=eqRegisterRows(from,to,fd.kind||"");if(!rows.length)return "مفيش معدات مطابقة";
-  if(fd.out==="pdf"){const pr=rows.map(r=>({"النوع":r["النوع"],"الكود":r["الكود / المسلسل"],"الاسم":r["الاسم / الوصف"],"المكان":r["المكان"],"فحوصات الفترة":r["عدد الفحوصات في الفترة"],"آخر فحص":r["آخر فحص"],"الحالة":r["الحالة"],"الفحص الجاي":r["الفحص الجاي"],"الموقف":r["موقف الميعاد"]}));
+  if(fd.out==="zip")return await eqZipRun(fd,base);
+  const {rows,log}=eqRegisterRows(from,to,fd.kinds||[],fd.out==="xlsx"?"\n":"، ");if(!rows.length)return "مفيش معدات مطابقة";
+  if(fd.out==="pdf"){const pr=rows.map(r=>({"النوع":r["النوع"],"الكود":r["الكود / المسلسل"],"الاسم":r["الاسم / الوصف"],"المكان":r["المكان"],"عدد":r["عدد الفحوصات في الفترة"],"تواريخ الفحص":r["تواريخ الفحص في الفترة"],"آخر فحص":r["آخر فحص"],"الحالة":r["الحالة"],"الفحص الجاي":r["الفحص الجاي"],"الموقف":r["موقف الميعاد"]}));
     printHTMLDoc(pgPdfHTML([{title:`حصر المعدات — ${fmtDate(from)} إلى ${fmtDate(to)}`,rows:pr}],"المعدات"));return null}
   const per=`${fmtDate(from)} إلى ${fmtDate(to)}`;
   await pgSaveBlob(xlsxPro([{name:"حصر المعدات",title:"حصر المعدات وتواريخ الفحص",subtitle:_xlStamp("الفترة: "+per),rows:rows.map((r,i)=>({"م":i+1,...r})),land:true},{name:"سجل الفحوصات",title:"سجل الفحوصات",subtitle:_xlStamp("الفترة: "+per),rows:log,land:true}],{}),base+".xlsx");return null}
