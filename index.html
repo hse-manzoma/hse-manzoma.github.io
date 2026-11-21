@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.4";
+const APP_VER="8.9.5";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2475,7 +2475,7 @@ function actionClose(id){
   $("actPh")?.addEventListener("change",async e=>{const file=e.target.files[0];if(!file)return;try{const b=await shrinkImage(file);const r=await assetsNS.upload(b,b.type?undefined:{type:"image/jpeg"});photos.push({a:r.id,kind:"after",type:r.contentType,at:Date.now()});$("actPhs").innerHTML=thumbs(photos,64)}catch(err){toast("الرفع فشل")}});
 }
 function actionReopen(id){actSave(id,{status:"open",closedAt:""})}
-function myEmpId(){const p=myProfile();return p?.emp_id||(isOwner?(S.employees.find(e=>String(e.code)==="5160")||{}).id:"")||""}
+function myEmpId(){const p=myProfile()||(S.profiles||[]).find(x=>x.user_id===ME.id);return p?.emp_id||window.SBA?.profile?.emp_id||(isOwner?(S.employees.find(e=>String(e.code)==="5160")||{}).id:"")||""}
 
 /* ---------- equipment & emergency ---------- */
 const EQ_K={vehicle:{ar:"نقل وحركة",one:"مركبة / وسيلة نقل",checks:[["st","الحالة العامة"],["brakes","الفرامل والإشارات"]],monthly:true},
@@ -6495,7 +6495,7 @@ function dutyReqForm(kind){const e=emp(myEmpId());if(!e){toast("حسابك مش 
   if(!["perm","mission","one"].includes(kind))return;
   const title=DUTY_K[kind];
   const extra=kind==="perm"?`${f("من الساعة","from",{value:"2 م",req:true})}${f("لحد الساعة","toH",{value:"4 م",req:true})}`:kind==="mission"?`${f("جهة المأمورية","destination",{full:true,req:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today(),req:true})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.deptName||S.settings.project||""})}${f("الغرض من المأمورية","reason",{full:true,req:true})}`:`${f("سبب / العمل المكلف به","reason",{full:true,req:true})}${f("وقت الخروج","outTime",{value:"",attrs:'placeholder="مثال: 5 م"'})}`;
-  openSheet(`طلب ${title}`,`<div class="form">${f("التاريخ","date",{type:"date",value:today(),req:true})}${extra}${f("ملاحظات","note",{full:true})}${hrChainHTML()}<div class="field full muted">سيظهر الطلب للمدير للمراجعة، ولن يُسجل في ملفك إلا بعد الموافقة.</div></div>`,async fd=>{
+  openSheet(`طلب ${title}`,`<div class="form">${f("التاريخ","date",{type:"date",value:today(),req:true})}${extra}${f("ملاحظات","note",{full:true})}${kind==="one"?"":hrChainHTML()}<div class="field full muted">سيظهر الطلب للمدير للمراجعة، ولن يُسجل في ملفك إلا بعد الموافقة.</div></div>`,async fd=>{
     if(kind==="mission"&&fd.returnDate<fd.date)return "تاريخ العودة قبل تاريخ المأمورية";
     const data={requestKind:kind,kind,empId:e.id,empName:e.name,date:fd.date,status:"new",by:ME.id,at:Date.now(),note:(fd.note||"").trim()};
     if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else if(kind==="mission"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.reason=(fd.reason||"").trim()}else{data.reason=(fd.reason||"").trim();data.outTime=(fd.outTime||"").trim()}
