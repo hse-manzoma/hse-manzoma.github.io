@@ -1464,7 +1464,7 @@ function fillDuties(el){
   const L=S.leaves.filter(l=>l.kind!=="leave"&&(l.date||"").startsWith(ui.dutyMonth)&&(!filterEid||l.empId===filterEid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const c={};for(const l of L)c[l.kind]=(c[l.kind]||0)+1;
   el.innerHTML=L.length?`<p class="muted" style="margin-top:0">${dutyLabel} · ${Object.entries(DUTY_K).map(([k,v])=>`${v}: ${c[k]||0}`).filter(s=>!s.endsWith(": 0")).join(" · ")||"إجمالي: "+L.length}</p><div class="tbl"><table><thead><tr><th>التاريخ</th><th>النوع</th><th>الاسم</th><th>التفاصيل</th><th></th></tr></thead><tbody>
-    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printOneDuty('${l.id}')">تكليف فردي</button>`:l.kind==="one"?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')">👁 نموذج التكليف الإضافي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>${isLegacyAssignment(l)?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')" title="السجل ده اتسجل قبل فصل المأمورية عن التكليف">تكليف إضافي</button>`:""}`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+    ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}${(()=>{const sg=signsOf(l),mine=sg.some(z=>z.uid===ME.id);return mine?' <span class="pill p-appr" title="وقّعت واعتمدت المستند ده بتوقيعك">✔ وقّعت</span>':sg.length?` <span class="pill" title="عدد التوقيعات">✔ ${sg.length} توقيع</span>`:""})()}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printOneDuty('${l.id}')">تكليف فردي</button>`:l.kind==="one"?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')">👁 نموذج التكليف الإضافي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>${isLegacyAssignment(l)?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')" title="السجل ده اتسجل قبل فصل المأمورية عن التكليف">تكليف إضافي</button>`:""}`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
   </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات"+(isYear?` في ${ui.dutyMonth}`:" في "+monthName(ui.dutyMonth)),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
 }
 function leaveForm(){
@@ -2242,7 +2242,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.18";
+const APP_VER="8.9.20";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2502,6 +2502,7 @@ function eqSetNext(id){const q=(S.equipment||[]).find(x=>x.id===id);if(!q){toast
 function eqLastCard(id,k){const q=(S.equipment||[]).find(x=>x.id===id);if(!q)return;
   if(q.kind==="ext")return printExtCards([id]);if(q.kind==="firebox")return printFireboxCards([id]);if(q.kind==="machine"&&lastInsp(q))return printTag(id);
   const li=lastInsp(q);if(li?.sourceInspectionId&&(S.inspections||[]).some(r=>r.id===li.sourceInspectionId))return inspView(li.sourceInspectionId);
+  {const ks=[q.code,q.serial].map(inspCodeKey).filter(Boolean),m=(S.inspections||[]).filter(r=>ks.includes(inspCodeKey(r.code))).sort((a,b)=>inspOrd(b).localeCompare(inspOrd(a)))[0];if(m)return inspView(m.id)}
   return eqFormsSheet(id)}
 const eqDecisionOf=h=>h&&h.decision&&typeof INSP_DECIDE!=="undefined"&&INSP_DECIDE[h.decision]?h.decision:null;
 const eqOk=q=>{const L=lastInsp(q);if(!L)return null;
@@ -6352,12 +6353,17 @@ function recActLabel(r){const A=recActions(r);const w=A.review?"مراجعة و�
   return {w,t:`${recKindAr(r)}${what?" — "+what:""} · مستني ${w}`,lv:A.review||/F-HSE-03-01|F-HSE-07-01/.test(r.form)?"bad":"warn"}}
 function pendingRecActions(){const out=[];for(const r of (S.records||[])){if(recApproved(r)||!r.id||!recFresh(r))continue;const L=recActLabel(r);if(L)out.push({id:r.id,t:L.t,lv:L.lv,at:r.createdAt||0})}
   return out.sort((a,b)=>(a.lv==="bad"?0:1)-(b.lv==="bad"?0:1)||b.at-a.at)}
+/* طلب إذن/مأمورية/تكليف لسه "جديد" بس اتسجّل له فعلاً سجل معتمد = طلب خلص (مش محتاج اعتماد تاني) */
+const hrStale=r=>!!r&&!!r.requestKind&&(S.leaves||[]).some(l=>l.approvedReq===r.id||(l.empId===r.empId&&l.kind===r.kind&&l.date===r.date&&!l.approvedReq&&(r.kind!=="mission"||!l.destination||l.destination===r.destination)));
+const hrPendingDuty=()=>(S.leavereq||[]).filter(c=>c.requestKind&&c.status==="new"&&!hrStale(c));
+let _hrHealed=new Set();
+function hrHeal(){if(!can("sys.admin"))return;for(const r of(S.leavereq||[]))if(r.requestKind&&r.status==="new"&&hrStale(r)&&!_hrHealed.has(r.id)){_hrHealed.add(r.id);upsert("leavereq",r.id,{status:"approved",decAt:Date.now(),decBy:"تلقائي (السجل متسجّل)"}).catch(()=>{})}}
 {const _rm=reminders;reminders=function(){const o=_rm();const R=o.R;const mine=roleDuties(ME.id).filter(x=>!x.ok&&x.k!=="task"&&x.k!=="ptw"&&x.k!=="rev"&&x.k!=="sgn");
   for(const x of mine)R.push({lv:"warn",t:x.t,go:x.go});
   /* كل سجل محتاج اعتماد/مراجعة/توقيع مني بيظهر لوحده وبيفتح السجل نفسه، ويختفي أول ما يتنفذ */
   try{const todo=pendingRecActions();todo.slice(0,10).forEach(x=>R.unshift({lv:x.lv,t:x.t,go:`printRecord('${x.id}')`}));
     if(todo.length>10)R.unshift({lv:"warn",t:`+${todo.length-10} سجل تاني مستني إجراءك`,go:"wsFocus('revForms')"})}catch(e){}
-  if(can("sys.admin")){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>!c.requestKind&&c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"});const dr=S.leavereq.filter(c=>c.requestKind&&c.status==="new").length;if(dr)R.unshift({lv:"warn",t:`${dr} طلب إذن / مأمورية / تكليف مستني موافقتك`,go:"show('follow')"})}
+  if(can("sys.admin")){const n=S.changereq.filter(c=>c.status==="new").length;if(n)R.unshift({lv:"warn",t:`${n} طلب تعديل بيانات مستني موافقتك`,go:"show('follow')"});const lv=S.leavereq.filter(c=>!c.requestKind&&c.status==="new").length;if(lv)R.unshift({lv:"warn",t:`${lv} طلب إجازة مستني موافقتك`,go:"show('follow')"});try{hrHeal()}catch(e){}const pd=hrPendingDuty(),byK={};pd.forEach(c=>{byK[c.kind]=(byK[c.kind]||0)+1});for(const [k,n] of Object.entries(byK))R.unshift({lv:"warn",t:`${n} طلب ${DUTY_K[k]||"تكليف"} مستني موافقتك`,go:"show('follow')"})}
   return o}}
 /* notifications: inbox table + push */
 let NOTIFS=[];
@@ -6391,8 +6397,10 @@ function notifLive(n){/* true: لسه مطلوب · false: خلص/قديم · nu
     if(go==="attendance-confirm"){const d=(new URLSearchParams(String(n.url||"").split("?")[1]||"")).get("date")||today();
       if(d!==today())return false;const rec=attDoc(d)?.records?.[myEmp];return !(rec&&(rec.s==="p"||rec.selfConfirmed))}
     if(go==="me"&&/تنبيه من متابعة/.test(t))return roleDuties(ME.id).some(x=>!x.ok)
+    if(go==="hrchain"){const rq=(new URLSearchParams(String(n.url||"").split("?")[1]||"")).get("req"),r=(S.leavereq||[]).find(x=>x.id===rq);if(!r)return typeof loaded!=="undefined"&&loaded.leavereq?false:null;
+      if(r.status!=="new"||hrStale(r))return false;const nx=hrNext(r);return !!nx&&nx.uid===ME.id}
     if(go==="follow"){
-      const lr=(S.leavereq||[]).filter(c=>c.status==="new"),cr=(S.changereq||[]).filter(c=>c.status==="new");
+      const lr=(S.leavereq||[]).filter(c=>c.status==="new"&&!hrStale(c)),cr=(S.changereq||[]).filter(c=>c.status==="new");
       if(!lr.length&&!cr.length)return false;
       const who=body.split(":")[0].trim();if(who)return lr.some(c=>(c.empName||empName(c.empId))===who)||cr.some(c=>(c.byName||c.by||"")===who||body.includes(c.after?.name||"\u0000")||body.includes(c.before?.name||"\u0000"));
       return true}
@@ -7098,7 +7106,7 @@ function followTeamEditor(){if(!can("sys.admin")){toast("للأدمن بس");ret
     $("ftDef").onclick=()=>{document.querySelectorAll('#ftList input').forEach(i=>{const p=(S.profiles||[]).find(x=>x.id===i.name.slice(3));i.checked=!!p&&TEAM_ROLES.includes(p.role)})}},50)}
 function lastActivity(uid){let t=0;for(const r of S.records)if(r.createdBy===uid)t=Math.max(t,num(r.createdAt)||Date.parse(r.date||0)||0);for(const p of S.permits)for(const f of p.flow||[])if(f.by===uid)t=Math.max(t,num(f.at));return t}
 VIEWS.follow={shell:()=>`<div class="head"><h2 class="grow">متابعة الفريق</h2><div id="flPer" style="display:flex;gap:6px;align-items:center">${flPerHTML()}</div><button class="btn" onclick="nudgeAll()">🔔 نبّه كل واحد بالناقص عنده</button>${can("sys.admin")?`<button class="btn" onclick="followTeamEditor()">👥 اختيار الفريق${followTeamIds()?` (${followTeamIds().length})`:""}</button>`:""}</div><div id="flBody"></div>`,
-  fill(){const ws=flStart(),t0=today();const CR=S.changereq.filter(c=>c.status==="new"),LR=S.leavereq.filter(c=>!c.requestKind&&c.status==="new"),DR=S.leavereq.filter(c=>c.requestKind&&c.status==="new");
+  fill(){const ws=flStart(),t0=today();const CR=S.changereq.filter(c=>c.status==="new"),LR=S.leavereq.filter(c=>!c.requestKind&&c.status==="new"),DR=hrPendingDuty();
     const team=followTeam();
     const card=p=>{const D=roleDuties(p.id,flPeriod());const miss=D.filter(x=>!x.ok);const W=userRecs(p.id,ws,t0);const la=lastActivity(p.id);const PW=flPeriod()==="month"?"الشهر":"الأسبوع";
       const apprW=S.permits.reduce((a,x)=>a+(x.flow||[]).filter(f=>f.by===p.id&&f.at>=Date.parse(ws)&&["supok","hseok","approved"].includes(f.st)).length,0);
@@ -11012,6 +11020,21 @@ async function calView(id,cid){
     const bodyEl=V.body;bodyEl.addEventListener("scroll",()=>{const top=bodyEl.getBoundingClientRect().top;let best=0,bd=1e9;pages.forEach((p,i)=>{const d=Math.abs(p.getBoundingClientRect().top-top);if(d<bd){bd=d;best=i}});cur=best;$("calPg").textContent=`${cur+1} / ${pages.length}`});
     $("calPg").textContent=`1 / ${pages.length}`;
   }catch(e){console.error(e);V.fail("معرفتش أفتح الملفات.")}}
+
+/* ===== 8.9.20: التنقل بين فحوصات المعدة (الأحدث ← الأقدم) من جوه شاشة «عرض الفحص» ===== */
+{const _iv=inspView;inspView=function(id){_iv.apply(this,arguments);try{inspNavBar(id)}catch(e){console.error(e)}}}
+function inspNavBar(id){const x=(S.inspections||[]).find(r=>r.id===id);if(!x)return;const hist=inspHistory(x);if(!hist||hist.length<2)return;
+  const form=$("shForm");if(!form||$("inspNav"))return;const i=hist.findIndex(r=>r.id===id);if(i<0)return;
+  const newer=hist[i-1],older=hist[i+1];
+  const nav=document.createElement("div");nav.id="inspNav";nav.style.cssText="display:flex;gap:8px;align-items:center;justify-content:space-between;margin:0 0 12px;position:sticky;top:0;z-index:2;background:var(--bg,#0f172a);padding:6px 0";
+  nav.innerHTML=`<button type="button" class="btn sm" ${older?"":"disabled"} data-go="${older?older.id:""}" aria-label="الفحص الأقدم">▶ الأقدم${older?" ("+fmtDate(older.date)+")":""}</button><span class="muted" style="font-size:13px;text-align:center">فحص ${hist.length-i} من ${hist.length}<br>${fmtDate(x.date)}${i===0?" · الأحدث":""}</span><button type="button" class="btn sm" ${newer?"":"disabled"} data-go="${newer?newer.id:""}" aria-label="الفحص الأحدث">${newer?"("+fmtDate(newer.date)+") ":""}الأحدث ◀</button>`;
+  nav.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b&&b.dataset.go)inspView(b.dataset.go)});
+  form.prepend(nav);
+  const key=e=>{if(!$("inspNav")){document.removeEventListener("keydown",key);return}if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+    if(e.key==="ArrowLeft"&&newer)inspView(newer.id);else if(e.key==="ArrowRight"&&older)inspView(older.id)};
+  document.addEventListener("keydown",key);
+  let sx=null;nav.parentElement.addEventListener("touchstart",e=>{sx=e.touches[0].clientX},{passive:true});
+  nav.parentElement.addEventListener("touchend",e=>{if(sx==null)return;const dx=e.changedTouches[0].clientX-sx;sx=null;if(Math.abs(dx)<90)return;if(dx>0&&newer)inspView(newer.id);else if(dx<0&&older)inspView(older.id)},{passive:true})}
 
 </script>
 </body></html>
