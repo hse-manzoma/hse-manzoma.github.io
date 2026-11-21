@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.8";
+const APP_VER="8.9.9";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10603,9 +10603,10 @@ idPermFor=function(p){return {see:can("id.view",p),add:can("id.add",p)}};
 ui.mpPick=ui.mpPick||{};
 function mpFiltered(){const q=normName(ui.mpQ||"");
   return S.employees.filter(e=>e.active!==false&&(ui.mpG==="__left"?isLeft(e):(q?true:!isLeft(e)))&&(!ui.mpG||ui.mpG==="__left"||e.group===ui.mpG)&&(!ui.mpCtr||e.contractorId===ui.mpCtr)&&(!ui.mpID||(ui.mpID==="yes")===hasID(e))&&(!q||normName(e.name+" "+(e.code||"")+" "+(e.nid||"")+" "+(e.job||"")).includes(q))).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
-const mpPicked=()=>S.employees.filter(e=>ui.mpPick[e.id]);
-function mpPick(id,on){if(on)ui.mpPick[id]=1;else delete ui.mpPick[id];mpBarRefresh()}
-function mpPickAll(on){for(const e of mpFiltered()){if(on)ui.mpPick[e.id]=1;else delete ui.mpPick[e.id]}VIEWS.manpower.list();}
+let _mpSeq=0;
+const mpPicked=()=>S.employees.filter(e=>ui.mpPick[e.id]).sort((a,b)=>ui.mpPick[a.id]-ui.mpPick[b.id]);
+function mpPick(id,on){if(on)ui.mpPick[id]=++_mpSeq;else delete ui.mpPick[id];mpBarRefresh()}
+function mpPickAll(on){for(const e of mpFiltered()){if(on){if(!ui.mpPick[e.id])ui.mpPick[e.id]=++_mpSeq}else delete ui.mpPick[e.id]}VIEWS.manpower.list();}
 function mpBarRefresh(){const b=$("mpPickBar");if(b)b.innerHTML=mpBarHTML()}
 function mpBarHTML(){const n=mpPicked().length,tot=mpFiltered().length;
   return `<button class="btn sm" onclick="mpPickAll(true)">☑ تحديد كل النتائج (${tot})</button>${n?`<button class="btn sm" onclick="mpPickAll(false)">مسح التحديد</button><button class="btn primary sm" onclick="mpExportSheet()">⬇ جدول العمالة (${n})</button>`:`<span class="muted" style="font-size:12.5px">علّم على الأشخاص عشان تنزّل جدولهم</span>`}`}
@@ -10623,7 +10624,7 @@ function mpExportSheet(){const P=mpPicked();if(!P.length){toast("حدّد أشخ
     ${idOk?"":'<div class="full muted" style="font-size:12.5px">تنزيل البطايق والملفات غير متاح لحسابك.</div>'}
   </div>`,async fd=>{const r=await mpExportRun(P,fd.fmt,idOk?fd.att:"none");return r||null},"تنزيل")}
 async function mpExportRun(P,fmt,att){
-  const rows=P.slice().sort((a,b)=>a.name.localeCompare(b.name,"ar")).map(e=>({"الاسم":e.name||"","الكود":e.code||"","الوظيفة":e.job||""}));
+  const rows=P.map(e=>({"الاسم":e.name||"","الكود":e.code||"","الوظيفة":e.job||""}));
   const base=`جدول العمالة ${today()}`;
   if(att==="none"&&fmt==="pdf"){printHTMLDoc(pgPdfHTML([{title:"جدول العمالة",rows}],"القوى العاملة"));return null}
   let tblBlob;
@@ -10640,7 +10641,7 @@ async function mpExportRun(P,fmt,att){
   const lab=Object.fromEntries(ATT_KINDS.employees||[]);let ok=0,miss=0,i=0;
   for(const e of P){i++;toast(`بيجمّع الملفات ${i}/${P.length}…`);
     const list=(e.att||[]).filter(a=>att==="all"||a.kind==="idFront"||a.kind==="idBack");if(!list.length)continue;
-    const dir=_mpSafe(`${e.name}${e.code?" - "+e.code:""}`),used={};
+    const dir=_mpSafe(`${String(i).padStart(2,"0")} - ${e.name}${e.code?" - "+e.code:""}`),used={};
     for(const a of list){try{const r=await fetch("/_blob/"+a.a);if(!r.ok)throw 0;const b=await r.blob();
       let n=_mpSafe(lab[a.kind]||a.kind||"ملف");used[n]=(used[n]||0)+1;if(used[n]>1)n+=" "+used[n];
       zip.file(`${dir}/${n}.${_mpExt(a.type||b.type)}`,b);ok++}catch(x){miss++}}}
