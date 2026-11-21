@@ -2242,7 +2242,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.16";
+const APP_VER="8.9.18";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2641,7 +2641,7 @@ VIEWS.equip={
     ${L.length?`<div class="filters" style="margin:10px 0;gap:8px"><input id="eqQ" type="search" value="${esc(ui.eqQ||"")}" placeholder="ابحث بالرقم أو المكان أو الشهر أو النوع أو السعة أو الفاحص أو الحالة" aria-label="البحث في المعدات" style="flex:1;min-width:220px"><span class="muted" id="eqSearchCount">مطابق ${searchCount} من ${L.length}</span></div>`:""}
     ${L.length?`<div class="tbl"><table><thead><tr><th>${["ext","firebox","emerg"].includes(k)?"المسلسل":"الكود / المسلسل"}</th><th>${k==="ext"?"النوع / السعة":k==="tower"?"الونش / الموديل":k==="machine"?"المعدة الميكانيكية":k==="electrical"?"المعدة الكهربية":k==="lifting"?"أداة الرفع":k==="safety"?"معدات الحماية":k==="vehicle"?"المركبة":"الاسم / النوع"}</th><th>المكان</th><th>آخر فحص</th><th>الحالة</th><th>موعد الفحص الدوري القادم</th><th></th></tr></thead><tbody>
     ${L.map(q=>{const li=lastInsp(q),ok=eqOk(q),n=eqNext(q);const ident=k==="tower"?[q.code,q.serial&&q.serial!==q.code?q.serial:""].filter(Boolean).join(" / "):q.serial||q.code||"";return `<tr data-eq-search="${esc(searchKey(q))}" ${searchMatches(q)?"":"hidden"} style="cursor:pointer" onclick="if(!event.target.closest('.row-actions,button,a'))eqLastCard('${q.id}','${k}')" title="اضغط لعرض آخر كارت موقّع"><td><span class="num">${esc(ident)}</span></td><td>${esc(eqLabel(q))}${q.contractor?`<div class="muted" style="font-size:12px">${esc(q.contractor)}</div>`:""}</td><td>${esc(q.place||"")}</td><td class="n">${k==="tower"&&q.certDate?fmtDate(q.certDate):li?fmtDate(li.date):"—"}</td><td>${ok===null?'<span class="pill p-closed">لسه</span>':ok?'<span class="pill p-appr">صالح</span>':'<span class="pill p-canc">غير صالح</span>'}</td><td class="n" style="${n&&n<=today()||!n?"color:var(--bad);font-weight:600":""}">${n?fmtDate(n):"محتاج فحص"}</td>
-      <td><div class="row-actions">${inspectionCanInspect()?(q.inspForm&&INSP_FORMS[q.inspForm]?`<button class="btn sm primary" onclick="inspPrefillOpen('${esc(q.inspForm).replace(/'/g,"\\'")}','${esc(q.code||"").replace(/'/g,"\\'")}')" title="افتح نموذج الفحص بتاع النوع ده">📝 فحص</button>`:`<button class="btn sm primary" onclick="eqInspect('${q.id}')">فحص</button>`):""}${canAssignInspector()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')" title="تكليف فاحص بالمعدة دي">📩 اختار فاحص</button>`:""}${canWrite||canAssignInspector()?`<button class="btn ghost sm" onclick="eqSetNext('${q.id}')" title="تحديد موعد الفحص القادم">📅 موعد الفحص</button>`:""}${canWrite?`<button class="btn ghost sm" onclick="${q.inspForm?`eqPeriodicForm('${q.id}')`:`eqForm('${k}','${q.id}')`}" title="تعديل بيانات المعدة">✏️ تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')" title="مسح المعدة">🗑 مسح</button>`:""}<button class="btn ghost sm" onclick="eqActions('${q.id}','${k}')" title="الحالة · النماذج · المرفقات · المزيد" aria-label="المزيد">⋯</button></div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
+      <td><div class="row-actions">${inspectionCanInspect()?(q.inspForm&&INSP_FORMS[q.inspForm]?`<button class="btn sm primary" onclick="inspPrefillOpen('${esc(q.inspForm).replace(/'/g,"\\'")}','${esc(q.code||"").replace(/'/g,"\\'")}')" title="افتح نموذج الفحص بتاع النوع ده">📝 فحص</button>`:`<button class="btn sm primary" onclick="eqInspect('${q.id}')">فحص</button>`):""}${canAssignInspector()?`<button class="btn ghost sm" onclick="assignEquipInspector('${q.id}')" title="تكليف فاحص بالمعدة دي">📩 اختار فاحص</button>`:""}${canWrite||canAssignInspector()?`<button class="btn ghost sm" onclick="eqSetNext('${q.id}')" title="تحديد موعد الفحص القادم">📅 موعد الفحص</button>`:""}${canWrite?`<button class="btn ghost sm" onclick="${q.inspForm?`eqPeriodicForm('${q.id}')`:`eqForm('${k}','${q.id}')`}" title="تعديل بيانات المعدة">✏️ تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="eqDel('${q.id}')" title="مسح المعدة">🗑 مسح</button>`:""}<button class="btn ghost sm" onclick="calSheet('${q.id}')" title="سجل المعايرات بتواريخها وشهاداتها">🧪 معايرات${(q.calib||[]).length?" ("+q.calib.length+")":""}</button><button class="btn ghost sm" onclick="eqActions('${q.id}','${k}')" title="الحالة · النماذج · المرفقات · المزيد" aria-label="المزيد">⋯</button></div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="card">${emptyState("لسه مفيش "+K.ar,"ضيف كل "+K.one+" بمكانها، وبعدين سجّل الفحص الشهري. المنظومة هتفكّرك باللي جه ميعاد فحصه.")}</div>`}
     ${k==="tower"?`<p class="muted" style="font-size:13px;margin-top:14px">سجّل موعد الفحص الشامل من الشهادة السارية، واستخدم قائمة الفحص المعتمدة من المصنع. أرفق شهادة المعايرة، تقييم المخاطر، وخطوات التركيب من زر «المرفقات» لكل ونش.</p>`:`<p class="muted" style="font-size:13px;margin-top:14px">نماذج الطوارئ التانية (الفرق المساعدة، أرقام الطوارئ، خطة التجارب، تقرير التجربة، سجل الحوادث) موجودة في «النماذج والسجلات ← الطوارئ والمعدات».</p>`}${k==="ext"?fxArchiveHTML():""}`;
     $("eqBody").querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{ui.eqKind=b.dataset.eq;ui.eqFilter="all";ui.eqQ="";refresh()});
     $("eqBody").querySelectorAll("[data-eq-filter]").forEach(b=>b.onclick=()=>{ui.eqFilter=b.dataset.eqFilter;refresh()});
@@ -10869,6 +10869,149 @@ function xlsxPro(sheets,{creator="منظومة السلامة"}={}){
   return _xlZip([["[Content_Types].xml",ct],["_rels/.rels",root],["docProps/core.xml",core],["xl/workbook.xml",wb],["xl/_rels/workbook.xml.rels",rels],["xl/styles.xml",styles],...sheetXml])}
 const _xlProject=()=>(S.settings?.project||"").trim();
 const _xlStamp=extra=>[_xlProject(),extra,"تاريخ الطباعة: "+fmtDate(today())].filter(Boolean).join("  ·  ");
+
+/* ===== 8.9.17: أعمال المستخدم — ZIP بفولدر لكل مستخدم وجواه فولدر لكل صنف (تصاريح/نماذج/فحوصات/إجازات/تكليفات) بمرفقاتها عن فترة ===== */
+const UW_CATS=[["permits","التصاريح"],["records","النماذج والسجلات"],["insp","فحوصات المعدات"],["leaves","الإجازات"],["duties","التكليفات والمأموريات والأذونات"]];
+function uwUsers(){return (S.profiles||[]).map(p=>{const e=p.emp_id?emp(p.emp_id):null,name=(e?.name||p.name||p.username||"").trim();
+  return {uid:p.user_id||p.id,pid:p.id,empId:p.emp_id||"",name,n:normName(name)}}).filter(u=>u.name).sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
+function uwOwn(U,cat,x){
+  const sameName=v=>!!v&&!!U.n&&normName(String(v))===U.n;
+  if(cat==="permits")return x.createdBy===U.uid||x.createdBy===U.pid||(U.empId&&x.safetyId===U.empId)||sameName(x.requester)||sameName(x.siteEng);
+  if(cat==="records"){if(x.createdBy===U.uid||x.createdBy===U.pid)return true;
+    if(U.empId&&Object.entries(x.f||{}).some(([k,v])=>k.endsWith("_id")&&v===U.empId))return true;
+    const f=x.f||{};return ["writer","inspector","officer","reporter","trainer","lecturer","lead"].some(k=>sameName(f[k]))}
+  if(cat==="insp")return x.createdBy===U.uid||x.createdBy===U.pid||sameName(x.inspector1)||sameName(x.inspector2)||sameName(x.inspector);
+  return !!U.empId&&x.empId===U.empId}
+async function uwRenderDoc(o){/* يلتقط اللي بيعمله printDoc من غير ما يفتح شاشة */
+  let pages=await renderForm(o.T,o.vals,o.opt||{});
+  if(o.signCol&&o.rec&&signsOf(o.rec).length){try{pages=await stampSavedSigs(o.T,o.rec,pages,o.vals)}catch(e){}}
+  if(o.sign)pages=await o.sign(pages);
+  if(o.rec)pages=[...pages,...await photoPages(o.rec,o.title,"صور مرفقة",o.title+(o.rec.date?" — "+fmtDate(o.rec.date):""))];
+  return pages}
+async function uwCapture(fn){const old=printDoc;let got=null;printDoc=async o=>{got=o};try{await fn()}finally{printDoc=old}return got?await uwRenderDoc(got):[]}
+const uwFile=s=>_mpSafe(String(s||"").replace(/\s+/g," "));
+async function uwItemPages(cat,x){
+  if(cat==="permits"){return [...await renderPermitPages(x),...await photoPages(x,"","النسخة الموقعة ورقيًا",`${x.number} — ${PTW_TYPES[x.type]?.ar||""}`,"signed"),...await photoPages(x,"","صور مرفقة بالتصريح",`${x.number} — ${PTW_TYPES[x.type]?.ar||""}`),...await permitIdPages(x),...await permitCrewSigPages(x)]}
+  if(cat==="records"){const spec=await spec2(x.form);return [...await renderGeneric(x.form,x),...await photoPages(x,spec.title)]}
+  if(cat==="insp"){let pg=await inspOriginalPages(x);if(!pg||!pg.length)pg=await htmlCanvases(inspPrintHTML(x));return pg}
+  if(cat==="leaves")return uwCapture(()=>printLeave(x.id));
+  const k=x.kind;return uwCapture(()=>k==="perm"?printPerm(x.id):k==="mission"?printMission(x.id):printOneDuty(x.id))}
+function uwItemName(cat,x){
+  if(cat==="permits")return `${x.number||x.id} ${PTW_TYPES[x.type]?.ar||""} ${x.date||""}`;
+  if(cat==="records")return `${x.form||""} ${x.date||""}${x.serial?" #"+x.serial:""}`;
+  if(cat==="insp")return `${x.equipType||"فحص"} ${x.code||""} ${x.date||""}`;
+  if(cat==="leaves")return `إجازة ${LEAVE_T[x.leaveType]||""} ${x.date||""}`;
+  return `${DUTY_K[x.kind]||"تكليف"} ${x.date||""}`}
+function uwItemRow(cat,x){
+  if(cat==="permits")return {"الرقم":x.number||"","النوع":PTW_TYPES[x.type]?.ar||"","التاريخ":fmtDate(x.date||""),"المكان":x.location||"","المقاول":x.contractor||"","الحالة":(PTW_STATUS[x.status]?.[0])||x.status||""};
+  if(cat==="records")return {"النموذج":x.form||"","التاريخ":fmtDate(x.date||""),"المسلسل":x.serial||"","معتمد":(x.approved||x.review?.status==="approved")?"نعم":""};
+  if(cat==="insp")return {"النوع":x.equipType||"","الكود":x.code||"","التاريخ":fmtDate(x.date||""),"النتيجة":x.status==="fail"?"غير صالح":x.status?"صالح":""};
+  if(cat==="leaves")return {"النوع":LEAVE_T[x.leaveType]||"","من":fmtDate(x.date||""),"إلى":fmtDate(x.to||x.date||""),"الأيام":x.days||""};
+  return {"النوع":DUTY_K[x.kind]||"","التاريخ":fmtDate(x.date||""),"الوقت":[x.from,x.to].filter(Boolean).join(" – "),"الجهة / السبب":x.destination||x.reason||""}}
+function uwCollect(U,cats,from,to){
+  const inP=d=>_eqIn(d,from,to),out={};
+  if(cats.includes("permits"))out.permits=(S.permits||[]).filter(x=>inP(x.date||x.startDate)&&uwOwn(U,"permits",x));
+  if(cats.includes("records"))out.records=(S.records||[]).filter(x=>inP(x.date)&&uwOwn(U,"records",x));
+  if(cats.includes("insp"))out.insp=inspectionDailyGroups(S.inspections||[]).map(g=>g.record).filter(x=>inP(x.date)&&uwOwn(U,"insp",x));
+  if(cats.includes("leaves"))out.leaves=(S.leaves||[]).filter(x=>!x.kind&&inP(x.date)&&uwOwn(U,"leaves",x));
+  if(cats.includes("duties"))out.duties=(S.leaves||[]).filter(x=>x.kind&&inP(x.date)&&uwOwn(U,"duties",x));
+  for(const k in out)out[k].sort((a,b)=>String(a.date||a.startDate||"").localeCompare(String(b.date||b.startDate||"")));
+  return out}
+function uwSheet(){
+  const t=today(),from0=t.slice(0,4)+"-01-01",U=uwUsers();
+  const chk=(id,L,all)=>`<div id="${id}" style="display:flex;flex-wrap:wrap;gap:6px;max-height:210px;overflow:auto;padding:2px"><button type="button" class="chipbtn" onclick="document.querySelectorAll('#${id} input').forEach(i=>i.checked=true)">✔ الكل</button><button type="button" class="chipbtn" onclick="document.querySelectorAll('#${id} input').forEach(i=>i.checked=false)">✖ مسح</button>${L.map(([v,x])=>`<label class="chipbtn" style="cursor:pointer;display:inline-flex;gap:5px;align-items:center"><input type="checkbox" value="${esc(v)}" ${all?"checked":""} style="width:auto;margin:0">${esc(x)}</label>`).join("")}</div>`;
+  openSheet("📦 تحميل أعمال المستخدمين",`<div class="form">
+    <div class="full muted" style="font-size:13px">بيطلع ملف ZIP: فولدر لكل مستخدم، وجواه فولدر لكل صنف (تصاريح، نماذج، فحوصات، إجازات، تكليفات) فيه ملفات PDF للمستندات ومرفقاتها، وملخص Excel. الفترة بتتحسب على تاريخ المستند.</div>
+    ${f("من تاريخ","from",{type:"date",value:from0,req:true})}${f("إلى تاريخ","to",{type:"date",value:t,req:true})}
+    <div class="full"><label style="display:block;margin-bottom:4px">المستخدمين (اختار واحد أو أكتر)</label>${chk("uwUsers",U.map(u=>[u.pid,u.name]),false)}</div>
+    <div class="full"><label style="display:block;margin-bottom:4px">الأصناف</label>${chk("uwCats",UW_CATS,true)}</div>
+    ${f("المرفقات الأصلية","raw",{value:"1",full:true,opts:[["1","نعم — صور وملفات المرفقات في فولدر جنب كل مستند"],["","لا — ملفات PDF بس (الصور اللي جوة المستند بتبان فيه)"]]})}
+  </div>`,async fd=>{if(fd.from>fd.to)return "تاريخ البداية بعد النهاية";
+    const ids=[...document.querySelectorAll("#uwUsers input:checked")].map(i=>i.value),cats=[...document.querySelectorAll("#uwCats input:checked")].map(i=>i.value);
+    if(!ids.length)return "اختار مستخدم واحد على الأقل";if(!cats.length)return "اختار صنف واحد على الأقل";
+    return await uwRun(ids,cats,fd.from,fd.to,!!fd.raw)},"تنزيل ZIP")}
+async function uwRun(ids,cats,from,to,raw){
+  try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js")}catch(e){return "معرفتش أحمّل أداة الضغط"}
+  if(!window.JSZip)return "أداة الضغط مش متاحة";
+  const users=uwUsers().filter(u=>ids.includes(u.pid)),plan=users.map(U=>({U,c:uwCollect(U,cats,from,to)}));
+  const total=plan.reduce((a,p)=>a+Object.values(p.c).reduce((b,l)=>b+l.length,0),0);
+  if(!total)return "مفيش مستندات للمستخدمين دول في الفترة دي";
+  if(total>150&&!confirm(`${total} مستند — التجهيز ممكن ياخد وقت طويل. تكمل؟`))return "اتلغى";
+  const zip=new JSZip(),catAr=Object.fromEntries(UW_CATS),usedU=new Set();let n=0,failed=0,files=0;
+  for(const {U,c} of plan){
+    let ud=uwFile(U.name),d0=ud,k=1;while(usedU.has(ud.toLowerCase()))ud=d0+" "+(++k);usedU.add(ud.toLowerCase());
+    const summary=[];
+    for(const cat of cats){const L=c[cat]||[];if(!L.length)continue;
+      const dir=`${ud}/${catAr[cat]}`,used=new Set();
+      summary.push({name:catAr[cat],title:catAr[cat],subtitle:_xlStamp(`${U.name} · ${fmtDate(from)} إلى ${fmtDate(to)}`),rows:L.map(x=>uwItemRow(cat,x))});
+      for(const x of L){n++;toast(`بيجهّز ${n}/${total}: ${U.name} — ${catAr[cat]}`);
+        let nm=uwFile(uwItemName(cat,x)),b0=nm,q=1;while(used.has(nm.toLowerCase()))nm=b0+" "+(++q);used.add(nm.toLowerCase());
+        try{const pages=await uwItemPages(cat,x);if(pages&&pages.length){zip.file(`${dir}/${nm}.pdf`,await permitPdfBlob(pages));files++}}catch(e){console.error(e);failed++}
+        if(raw){const A=(x.att||[]);let i=0;for(const a of A){try{const r=await fetch("/_blob/"+a.a);if(!r.ok)throw 0;const bl=await r.blob();i++;zip.file(`${dir}/${nm} - مرفقات/${i} ${uwFile(a.kind||"ملف")}.${_mpExt(a.type||bl.type)}`,bl);files++}catch(e){failed++}}}}}
+    if(summary.length)zip.file(`${ud}/ملخص ${uwFile(U.name)}.xlsx`,xlsxPro(summary,{}))}
+  if(!files){return "معرفتش أجهّز أي ملف"}
+  const blob=await zip.generateAsync({type:"blob"});
+  await pgSaveBlob(blob,`أعمال المستخدمين ${from} إلى ${to}.zip`);
+  if(failed)toast(`${failed} ملف ما اتجهّزش`);return null}
+{const _uwF=VIEWS.settings.fill;VIEWS.settings.fill=function(){_uwF.apply(this,arguments);if(!can("sys.admin")||!$("setBody")||$("uwCard"))return;
+  const c=document.createElement("div");c.className="card";c.id="uwCard";c.style.marginTop="14px";
+  c.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">📦 تحميل أعمال المستخدمين</h3><p class="muted" style="margin:0;font-size:13px">لكل مستخدم: فولدر لكل صنف (تصاريح · نماذج · فحوصات · إجازات · تكليفات) بمرفقاتها عن فترة.</p></div><button type="button" class="btn primary" onclick="uwSheet()">اختار وحمّل</button></div>';
+  $("setBody").appendChild(c)}}
+
+/* ===== 8.9.18: سجل معايرات المعدة بتواريخها (شهادات PDF/صور) + عارض بصفحات + تنزيل ===== */
+const calList=q=>(q?.calib||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+const calStatus=c=>{if(!c.next)return "";const t=today();return c.next<t?'<span class="pill p-susp">منتهية</span>':c.next<=addDays(t,30)?'<span class="pill p-open">قربت</span>':'<span class="pill p-appr">سارية</span>'};
+function calSheet(id,reopenFrom){
+  const q=S.equipment.find(x=>x.id===id);if(!q){toast("المعدة مش موجودة");return}
+  const L=calList(q),lbl=eqLabel(q)||q.serial||q.code||"";
+  openSheet("🧪 سجل المعايرات — "+lbl,`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${canWrite?`<button type="button" class="btn primary" data-calnew>+ معايرة جديدة</button>`:""}${L.length?`<button type="button" class="btn" data-calall>📖 فتح السجل كله (${L.length})</button>`:""}</div>
+    ${L.length?`<div class="list">${L.map(c=>`<div class="li" style="flex-wrap:wrap;gap:8px"><div class="grow"><div class="t">${fmtDate(c.date)} ${calStatus(c)}${c.no?` · شهادة ${esc(c.no)}`:""}</div><div class="s">${c.next?"الموعد القادم: "+fmtDate(c.next)+" · ":""}${(c.att||[]).length} ملف${c.by?" · "+esc(c.by):""}${c.note?" · "+esc(c.note):""}</div></div>
+      <button type="button" class="btn sm" data-calopen="${c.id}" ${(c.att||[]).length?"":"disabled"}>👁 فتح</button>${canWrite?`<button type="button" class="btn ghost sm" data-caledit="${c.id}">✏️ تعديل</button>`:""}${canDelete?`<button type="button" class="btn ghost sm danger" data-caldel="${c.id}">🗑</button>`:""}</div>`).join("")}</div>`:'<div class="empty">لسه مفيش معايرات متسجلة للمعدة دي.</div>'}`,async()=>null,"تم");
+  const f=$("shForm");
+  f.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    if(b.dataset.calnew!==undefined)return calForm(id);
+    if(b.dataset.calall!==undefined)return calView(id);
+    if(b.dataset.calopen)return calView(id,b.dataset.calopen);
+    if(b.dataset.caledit)return calForm(id,b.dataset.caledit);
+    if(b.dataset.caldel){if(!b.dataset.sure){b.dataset.sure="1";b.textContent="متأكد؟";setTimeout(()=>{if(b.isConnected){delete b.dataset.sure;b.textContent="🗑"}},3000);return}
+      const cid=b.dataset.caldel,c=(q.calib||[]).find(x=>x.id===cid);
+      write(()=>upsert("equipment",id,{calib:(q.calib||[]).filter(x=>x.id!==cid)}),"اتمسحت المعايرة").then(async ok=>{if(ok){for(const a of c?.att||[]){try{await assetsNS.delete(a.a)}catch(err){}}q.calib=(q.calib||[]).filter(x=>x.id!==cid);calSheet(id)}})}})}
+function calForm(id,cid){
+  const q=S.equipment.find(x=>x.id===id),c=cid?(q.calib||[]).find(x=>x.id===cid):{};let A=[...(c.att||[])];
+  openSheet((cid?"تعديل":"إضافة")+" معايرة — "+(eqLabel(q)||""),`<div class="form">${f("تاريخ المعايرة","date",{type:"date",value:c.date||today(),req:true})}${f("الموعد القادم للمعايرة","next",{type:"date",value:c.next||""})}
+    ${f("رقم الشهادة","no",{value:c.no||""})}${f("جهة المعايرة","by",{value:c.by||""})}${f("ملاحظات","note",{value:c.note||"",full:true})}
+    <div class="full"><label style="display:block;margin-bottom:4px">شهادة المعايرة (PDF أو صور — أكتر من ملف)</label><input type="file" id="calFiles" accept="application/pdf,image/*" multiple style="width:100%"><div id="calAtt" class="muted" style="margin-top:8px;font-size:13px"></div></div></div>`,
+  async fd=>{if(!fd.date)return "اكتب تاريخ المعايرة";if(fd.next&&fd.next<fd.date)return "الموعد القادم قبل تاريخ المعايرة";
+    const files=[...($("calFiles").files||[])];let bad=0;if(files.length&&!assetsNS)return "رفع الملفات مش متاح دلوقتي. حدّث الصفحة";
+    for(const fl of files){try{const b=await shrinkImage(fl);const type=b.type||(fl.name.toLowerCase().endsWith(".pdf")?"application/pdf":"");const r=await assetsNS.upload(b,type?{type}:undefined);A.push({a:r.id,kind:"calib",type:r.contentType,at:Date.now(),name:fl.name})}catch(e){bad++}}
+    if(bad&&bad===files.length&&files.length)return "رفع الملفات فشل (صور JPG/PNG أو PDF بس، أقل من 20 ميجا)";
+    const rec={id:cid||"c"+Date.now().toString(36),date:fd.date,next:fd.next||"",no:(fd.no||"").trim(),by:(fd.by||"").trim(),note:(fd.note||"").trim(),att:A,at:c.at||Date.now()};
+    const list=cid?(q.calib||[]).map(x=>x.id===cid?rec:x):[...(q.calib||[]),rec];
+    const ok=await write(()=>upsert("equipment",id,{calib:list}),"اتحفظت المعايرة");if(!ok)return "الحفظ فشل";
+    q.calib=list;setTimeout(()=>calSheet(id),150);return null});
+  const draw=()=>{const b=$("calAtt");if(!b)return;b.innerHTML=A.length?A.map((a,i)=>`<span class="pill" style="margin-inline-end:6px">${esc(a.name||((a.type||"").includes("pdf")?"PDF":"صورة")+" "+(i+1))} <a href="#" data-rm="${i}" style="color:var(--bad,#c00);text-decoration:none">✕</a></span>`).join(""):"";};
+  draw();$("calAtt")?.addEventListener("click",e=>{const r=e.target.closest("[data-rm]");if(!r)return;e.preventDefault();A.splice(+r.dataset.rm,1);draw()})}
+async function calPagesOf(c){const out=[];
+  for(const a of c.att||[]){try{const r=await fetch("/_blob/"+a.a);if(!r.ok)continue;const bl=await r.blob();
+    if(/pdf/.test(a.type||bl.type)){out.push(...await pdfToCanvases(bl,60,1100))}
+    else{const bm=await createImageBitmap(bl),cv=document.createElement("canvas"),W=1100,h=Math.round(bm.height*W/bm.width);cv.width=W;cv.height=h;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,W,h);g.drawImage(bm,0,0,W,h);out.push(cv)}}catch(e){console.error(e)}}
+  return out}
+async function calView(id,cid){
+  const q=S.equipment.find(x=>x.id===id);if(!q)return;const L=cid?calList(q).filter(c=>c.id===cid):calList(q).slice().reverse();
+  const lbl=eqLabel(q)||q.serial||q.code||"",title=cid?`معايرة ${lbl} — ${fmtDate(L[0]?.date)}`:`سجل معايرات ${lbl}`;
+  const V=openViewer(title,{filename:`${cid?"معايرة":"سجل معايرات"} ${lbl} ${cid?L[0]?.date||"":today()}.pdf`});
+  V.body.innerHTML='<div class="empty">بيجهّز الصفحات…</div>';
+  try{const pages=[],idx=[];for(const c of L){const p=await calPagesOf(c);if(p.length){idx.push({c,at:pages.length});pages.push(...p)}}
+    if(!pages.length){V.fail("مفيش ملفات مرفوعة للمعايرة دي.");return}
+    V.setPages(pages);
+    const nav=document.createElement("div");nav.style.cssText="display:flex;gap:6px;align-items:center";nav.innerHTML='<button class="btn" data-pv="-1" aria-label="الصفحة السابقة">▶ السابقة</button><span class="muted" id="calPg" style="min-width:80px;text-align:center"></span><button class="btn" data-pv="1" aria-label="الصفحة التالية">التالية ◀</button>';
+    $("pvAct").prepend(nav);
+    let cur=0;const show=i=>{cur=Math.max(0,Math.min(pages.length-1,i));pages[cur].scrollIntoView({behavior:"smooth",block:"start"});const m=[...idx].reverse().find(x=>x.at<=cur);$("calPg").textContent=`${cur+1} / ${pages.length}`;V.note(m&&!cid?`معايرة ${fmtDate(m.c.date)}${m.c.no?" · شهادة "+esc(m.c.no):""}`:"",true)};
+    nav.addEventListener("click",e=>{const b=e.target.closest("[data-pv]");if(b)show(cur+ +b.dataset.pv)});
+    document.addEventListener("keydown",function k(e){if(!$("pvRoot")){document.removeEventListener("keydown",k);return}if(e.key==="ArrowLeft")show(cur+1);if(e.key==="ArrowRight")show(cur-1)});
+    const bodyEl=V.body;bodyEl.addEventListener("scroll",()=>{const top=bodyEl.getBoundingClientRect().top;let best=0,bd=1e9;pages.forEach((p,i)=>{const d=Math.abs(p.getBoundingClientRect().top-top);if(d<bd){bd=d;best=i}});cur=best;$("calPg").textContent=`${cur+1} / ${pages.length}`});
+    $("calPg").textContent=`1 / ${pages.length}`;
+  }catch(e){console.error(e);V.fail("معرفتش أفتح الملفات.")}}
 
 </script>
 </body></html>
