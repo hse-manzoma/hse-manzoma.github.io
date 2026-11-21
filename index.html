@@ -1531,14 +1531,14 @@ function dutyForm(presetKind){
     if(!ids.length)return (kind==="duty"||kind==="missiong")?"اختار موظف واحد على الأقل":"اختار الموظف";
     let newId=null;
     const ok=await write(async()=>{for(const id of ids){const data={kind,empId:id,date:fd.date,createdAt:Date.now(),createdBy:ME.id||""};if(kind==="perm"){data.from=fd.from;data.to=fd.toH}else data.reason=(fd.reason||"").trim();
-      if(kind==="duty")data.outTime=(fd.outTime||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim();data.approverId=fd.approver||"";data.approverName=fd.approver?empName(fd.approver):""}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
+      if(kind==="duty"||kind==="one")data.outTime=(fd.outTime||"").trim();if(kind==="mission"||kind==="missiong"){data.destination=(fd.destination||"").trim();data.returnDate=fd.returnDate||fd.date;data.returnTime=(fd.returnTime||"").trim();data.department=(fd.department||"").trim();data.deptCode=(fd.deptCode||"").trim();data.approverId=fd.approver||"";data.approverName=fd.approver?empName(fd.approver):""}const ref=await db.collection("leaves").add(data);newId=ref.id}},ids.length>1?`اتسجل ${ids.length} موظف`:"اتسجل");
     if(ok){if(kind==="duty"&&ids.length>1)setTimeout(()=>printTeamDuty(fd.date),400);else if(kind==="missiong")setTimeout(()=>printMissionGroup(fd.date),400);else if(kind==="perm"&&newId)setTimeout(()=>printPerm(newId),400);else if(kind==="mission"&&newId)setTimeout(()=>printMission(newId),400);else if(newId)setTimeout(()=>printOneDuty(newId),400)}
     return ok?null:"الحفظ فشل";
   },"سجّل");
   const sync=()=>{const k=$("f_kind").value,isM=(k==="mission"||k==="missiong"),many=(k==="duty"||k==="missiong");
     $("dutyHours").hidden=k!=="perm";$("dutyReason").hidden=k==="perm";$("dutyMission").hidden=!isM;
     $("dutyMany").hidden=!many;$("dutyOne").hidden=many;
-    const dout=$("dutyOut");if(dout)dout.hidden=k!=="duty";
+    const dout=$("dutyOut");if(dout)dout.hidden=!(k==="duty"||k==="one");
     const lbl=$("dutyManyLbl");if(lbl)lbl.textContent=k==="missiong"?"الموظفين (لحد 18 في النموذج)":"الموظفين (لحد 10 في النموذج)";
     const rl=document.querySelector('label[for="f_reason"]')||$("dutyReason").querySelector("label");
     if(rl)rl.textContent=isM?"الغرض من المأمورية":(k==="one"?"السبب / العمل المكلف به":"السبب / العمل المكلفين به")};
@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.2";
+const APP_VER="8.9.3";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3634,7 +3634,7 @@ async function runImport(){
 /* ---------- official PTW print (PDF) ---------- */
 const FORM_TYPES=["COLD","HOT","HEIGHT","LIFT","CONF","EXC"];
 let FORMS=null;const imgCache={};
-async function loadForms(){if(!FORMS)FORMS=await fetch("forms.json").then(r=>{if(!r.ok)throw new Error("forms");return r.json()});return FORMS}
+async function loadForms(){if(!FORMS){FORMS=await fetch("forms.json").then(r=>{if(!r.ok)throw new Error("forms");return r.json()});const o=FORMS.ONE;if(o&&o.boxes&&!o.boxes.some(b=>b.field==="out"))o.boxes.push({page:0,x:.505,y:.413,w:.27,h:.056,field:"out",sz:11,algn:"ctr"})}return FORMS}
 /* ===== ضبط مواضع النصوص والتوقيعات =====
    forms.json ملف ثابت مرفوع مع الموقع، فالمنظومة ماتقدرش تكتب فيه.
    فأي تظبيط بيتحفظ في الإعدادات وبيتطبّق على الرسم — يعني يبان لكل المستخدمين. */
@@ -4061,7 +4061,7 @@ async function printPerm(id){
 async function printOneDuty(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
   printDoc({title:"تكليف إضافي لموظف · "+(e.name||""),T:"ONE",
-    vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",today:ymdSlash(today())},
+    vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",out:l.outTime||"",today:ymdSlash(today())},
     opt:{leader:isLeader(e)},filename:`تكليف ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printOneDuty('${l.id}')`});
 }
 /* سجل قديم اتسجل أيام ما «مأمورية» كانت بتطبع نموذج التكليف الإضافي */
