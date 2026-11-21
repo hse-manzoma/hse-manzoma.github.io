@@ -1449,7 +1449,7 @@ function fillLeaves(el){
   const totalDays=L.reduce((s,l)=>s+num(l.days),0);
   el.innerHTML=`<div class="grid g2">
     <div class="card"><h3>أرصدة الإجازات المتبقية${filterEid?` <span class="muted" style="font-weight:400;font-size:13px">· ${empName(filterEid)}</span>`:""}</h3>${team.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th class="n">عارضة</th><th class="n">اعتيادي</th></tr></thead><tbody>${team.map(e=>`<tr><td>${esc(e.name)}</td><td class="n ${num(e.casual)<=0?"stock-low":""}">${num(e.casual)}</td><td class="n ${num(e.annual)<=0?"stock-low":""}">${num(e.annual)}</td></tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:12.5px">الرصيد بيتخصم لوحده لما تسجّل إجازة. تعديل الرصيد من «الموظفين».</p>`:emptyState("مفيش فريق سلامة","")}</div>
-    <div class="card"><h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>{const calcDays=l.date&&l.to?daysBetween(l.date,l.to):num(l.days);const dispDays=calcDays||num(l.days);return`<div class="li"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num ${!num(l.days)&&dispDays?"stock-low":""}" title="${!num(l.days)&&dispDays?"الأيام محسوبة من التاريخ — اضغط تعديل لحفظها":""}">${dispDays} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button><button class="btn ghost sm" onclick="leaveEdit('${l.id}')">✏️ تعديل</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`}).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
+    <div class="card">${filterEid?`<button type="button" class="btn sm primary" style="float:left;margin-inline-start:8px" onclick="empAllDownload('${filterEid}')" title="كل إجازات وتكليفات ومأموريات وأذونات الموظف بمرفقاتها + ملفه">📦 تحميل كل ما يخص ${esc(empName(filterEid))}</button>`:""}<h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>{const calcDays=l.date&&l.to?daysBetween(l.date,l.to):num(l.days);const dispDays=calcDays||num(l.days);return`<div class="li" style="cursor:pointer" title="اضغط لعرض نموذج الإجازة ومرفقاته" onclick="if(!event.target.closest('button,a'))printLeave('${l.id}')"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num ${!num(l.days)&&dispDays?"stock-low":""}" title="${!num(l.days)&&dispDays?"الأيام محسوبة من التاريخ — اضغط تعديل لحفظها":""}">${dispDays} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button><button class="btn ghost sm" onclick="leaveEdit('${l.id}')">✏️ تعديل</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`}).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
   </div>`;
 }
 function fillDuties(el){
@@ -2242,7 +2242,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.22";
+const APP_VER="8.9.23";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10924,8 +10924,8 @@ function uwCollect(U,cats,from,to){
   if(cats.includes("permits"))out.permits=(S.permits||[]).filter(x=>inP(x.date||x.startDate)&&uwOwn(U,"permits",x));
   if(cats.includes("records"))out.records=(S.records||[]).filter(x=>inP(x.date)&&uwOwn(U,"records",x));
   if(cats.includes("insp"))out.insp=inspectionDailyGroups(S.inspections||[]).map(g=>g.record).filter(x=>inP(x.date)&&uwOwn(U,"insp",x));
-  if(cats.includes("leaves"))out.leaves=(S.leaves||[]).filter(x=>!x.kind&&inP(x.date)&&uwOwn(U,"leaves",x));
-  if(cats.includes("duties"))out.duties=(S.leaves||[]).filter(x=>x.kind&&inP(x.date)&&uwOwn(U,"duties",x));
+  if(cats.includes("leaves"))out.leaves=(S.leaves||[]).filter(x=>x.kind==="leave"&&inP(x.date)&&uwOwn(U,"leaves",x));
+  if(cats.includes("duties"))out.duties=(S.leaves||[]).filter(x=>x.kind&&x.kind!=="leave"&&inP(x.date)&&uwOwn(U,"duties",x));
   for(const k in out)out[k].sort((a,b)=>String(a.date||a.startDate||"").localeCompare(String(b.date||b.startDate||"")));
   return out}
 function uwSheet(){
@@ -10941,10 +10941,11 @@ function uwSheet(){
     const ids=[...document.querySelectorAll("#uwUsers input:checked")].map(i=>i.value),cats=[...document.querySelectorAll("#uwCats input:checked")].map(i=>i.value);
     if(!ids.length)return "اختار مستخدم واحد على الأقل";if(!cats.length)return "اختار صنف واحد على الأقل";
     return await uwRun(ids,cats,fd.from,fd.to,!!fd.raw)},"تنزيل ZIP")}
-async function uwRun(ids,cats,from,to,raw){
+async function uwRun(ids,cats,from,to,raw){return uwRunUsers(uwUsers().filter(u=>ids.includes(u.pid)),cats,from,to,raw)}
+async function uwRunUsers(users,cats,from,to,raw,zipName){
   try{await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js")}catch(e){return "معرفتش أحمّل أداة الضغط"}
   if(!window.JSZip)return "أداة الضغط مش متاحة";
-  const users=uwUsers().filter(u=>ids.includes(u.pid)),plan=users.map(U=>({U,c:uwCollect(U,cats,from,to)}));
+  const plan=users.map(U=>({U,c:uwCollect(U,cats,from,to)}));
   const total=plan.reduce((a,p)=>a+Object.values(p.c).reduce((b,l)=>b+l.length,0),0);
   if(!total)return "مفيش مستندات للمستخدمين دول في الفترة دي";
   if(total>150&&!confirm(`${total} مستند — التجهيز ممكن ياخد وقت طويل. تكمل؟`))return "اتلغى";
@@ -10959,10 +10960,11 @@ async function uwRun(ids,cats,from,to,raw){
         let nm=uwFile(uwItemName(cat,x)),b0=nm,q=1;while(used.has(nm.toLowerCase()))nm=b0+" "+(++q);used.add(nm.toLowerCase());
         try{const pages=await uwItemPages(cat,x);if(pages&&pages.length){zip.file(`${dir}/${nm}.pdf`,await permitPdfBlob(pages));files++}}catch(e){console.error(e);failed++}
         if(raw){const A=(x.att||[]);let i=0;for(const a of A){try{const r=await fetch("/_blob/"+a.a);if(!r.ok)throw 0;const bl=await r.blob();i++;zip.file(`${dir}/${nm} - مرفقات/${i} ${uwFile(a.kind||"ملف")}.${_mpExt(a.type||bl.type)}`,bl);files++}catch(e){failed++}}}}}
+    if(raw&&U.empId){const e=emp(U.empId);let i=0;for(const a of(e?.att||[])){try{const r=await fetch("/_blob/"+a.a);if(!r.ok)throw 0;const bl=await r.blob();i++;zip.file(`${ud}/ملف الموظف/${i} ${uwFile((ATT_KINDS.employees||[]).find(k=>k[0]===a.kind)?.[1]||a.kind||"ملف")}.${_mpExt(a.type||bl.type)}`,bl);files++}catch(x){failed++}}}
     if(summary.length)zip.file(`${ud}/ملخص ${uwFile(U.name)}.xlsx`,xlsxPro(summary,{}))}
   if(!files){return "معرفتش أجهّز أي ملف"}
   const blob=await zip.generateAsync({type:"blob"});
-  await pgSaveBlob(blob,`أعمال المستخدمين ${from} إلى ${to}.zip`);
+  await pgSaveBlob(blob,zipName||`أعمال المستخدمين ${from} إلى ${to}.zip`);
   if(failed)toast(`${failed} ملف ما اتجهّزش`);return null}
 {const _uwF=VIEWS.settings.fill;VIEWS.settings.fill=function(){_uwF.apply(this,arguments);if(!can("sys.admin")||!$("setBody")||$("uwCard"))return;
   const c=document.createElement("div");c.className="card";c.id="uwCard";c.style.marginTop="14px";
@@ -11054,6 +11056,21 @@ function inspNavBar(id){const x=(S.inspections||[]).find(r=>r.id===id);if(!x)ret
     const body=$("pvBody");if(body){let sx=null;body.addEventListener("touchstart",e=>{sx=e.touches[0].clientX},{passive:true});body.addEventListener("touchend",e=>{if(sx==null)return;const dx=e.changedTouches[0].clientX-sx;sx=null;if(Math.abs(dx)<110||body.classList.contains("zoom"))return;if(dx>0&&newer)inspPrint(newer.id);else if(dx<0&&older)inspPrint(older.id)},{passive:true})}
   }catch(e){console.error(e)}
   return r}}
+
+/* ===== 8.9.23: إجازات الموظف — عرض النموذج بمرفقاته (PDF وصور) + تحميل كل ما يخصه ===== */
+async function attPagesAll(rec,title){const out=[];const A=(rec.att||[]).filter(a=>a.kind!=="photo"||/pdf/.test(a.type||""));let n=0;
+  for(const a of A){try{const r=await fetch("/_blob/"+a.a);if(!r.ok)continue;const bl=await r.blob();n++;
+    if(/pdf/.test(a.type||bl.type))out.push(...await pdfToCanvases(bl,30,1100));
+    else{const bm=await createImageBitmap(bl),cv=document.createElement("canvas"),W=1100,h=Math.round(bm.height*W/bm.width);cv.width=W;cv.height=h;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,W,h);g.drawImage(bm,0,0,W,h);out.push(cv)}}catch(e){console.error(e)}}
+  return out}
+{const _pp=photoPages;photoPages=async function(rec,title,label,sub,kind){const base=await _pp.apply(this,arguments);
+  try{if(!kind&&rec&&rec.id&&(S.leaves||[]).includes(rec)&&(rec.att||[]).some(a=>a.kind!=="photo"||/pdf/.test(a.type||"")))return [...base,...await attPagesAll(rec,title)]}catch(e){console.error(e)}
+  return base}}
+function empAllDownload(eid){const e=emp(eid);if(!e){toast("الموظف مش موجود");return}
+  const m=ui.leaveMonth||String(new Date().getFullYear()),isY=m.length===4;let from,to;
+  if(isY){from=m+"-01-01";to=m+"-12-31"}else{from=m+"-01";const [y,mo]=m.split("-").map(Number);to=m+"-"+String(new Date(y,mo,0).getDate()).padStart(2,"0")}
+  confirmSheet("تحميل كل ما يخص "+e.name,`هيتجهّز ملف ZIP فيه: الإجازات، والتكليفات والمأموريات والأذونات (نماذج PDF + مرفقاتها الأصلية) عن ${isY?"سنة "+m:monthName(m)}، وجواه فولدر «ملف الموظف» بمرفقاته (البطاقة وغيرها). التجهيز ممكن ياخد وقت.`,
+    async()=>{const U={uid:"",pid:"emp:"+eid,empId:eid,name:e.name,n:normName(e.name)};const r=await uwRunUsers([U],["leaves","duties"],from,to,true,`كل ما يخص ${e.name} ${isY?m:m}.zip`);if(r)toast(r)},"حمّل ZIP")}
 </script>
 </body></html>
 
