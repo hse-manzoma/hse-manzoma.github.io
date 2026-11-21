@@ -1737,11 +1737,11 @@ ${appUrl()}
 افتح اللينك من الموبايل أو الكمبيوتر واكتبهم. تقدر تغيّر كلمة السر من زرار 👤 فوق بعد ما تدخل.`}
 async function sendInvite(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const e=emp(p.emp_id);const P=await loadPins();const pin=P[uid]?.pin;
   const msg=inviteMsg(e,p.username,pin,p.role==="admin"?"مدير المنظومة":ROLES_ALL()[p.role]?.ar||(p.role==="custom"?"مخصص":""));const ph=waPhone(e?.phone);
-  const href=`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`;
-  openSheet("إرسال بيانات الدخول",`<p style="margin-top:0">لـ <b>${esc(e?.name||p.username)}</b>${e?.phone?` على رقم <span class="num">${esc(e.phone)}</span>`:' (مفيش رقم موبايل مسجل، هتختار الشخص من واتساب)'}</p>
+  const href=waLink(e?.phone,msg);
+  openSheet("إرسال بيانات الدخول",`<div class="wa-mode" style="margin-bottom:8px">${waModeBtns()}</div><p style="margin-top:0">لـ <b>${esc(e?.name||p.username)}</b>${e?.phone?` على رقم <span class="num">${esc(e.phone)}</span>`:' (مفيش رقم موبايل مسجل، هتختار الشخص من واتساب)'}</p>
     <pre id="invMsg" style="white-space:pre-wrap;background:var(--sunk);padding:12px;border-radius:10px;font:inherit;font-size:13.5px;line-height:1.7;direction:rtl">${esc(msg)}</pre>
     ${pin?"":`<div class="banner">كلمة السر مش محفوظة. اضغط «كلمة سر جديدة» الأول.</div>`}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn primary" href="${href}" target="_blank" rel="noopener" style="background:#25D366;border-color:#25D366;text-decoration:none">📲 فتح واتساب وإرسال</a><button type="button" class="btn" onclick="copyText(document.getElementById('invMsg').innerText)">نسخ الرسالة</button><button type="button" class="btn ghost" onclick="newPin('${uid}')">كلمة سر جديدة</button></div>`,async()=>null,"تم")}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn primary" data-wa="${esc(e?.phone||"")}" data-wm="${encodeURIComponent(msg)}" href="${href}" target="_blank" rel="noopener" style="background:#25D366;border-color:#25D366;text-decoration:none">📲 فتح واتساب وإرسال</a><button type="button" class="btn" onclick="copyText(document.getElementById('invMsg').innerText)">نسخ الرسالة</button><button type="button" class="btn ghost" onclick="newPin('${uid}')">كلمة سر جديدة</button></div>`,async()=>null,"تم")}
 async function newPin(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const pin=genPin();
   try{await SBA.fn("reset",{user_id:uid,password:pin});await savePin(uid,{pin,username:p.username});toast("اتعملت كلمة سر جديدة");setTimeout(()=>sendInvite(uid),300)}catch(e){toast(SBA.ar(e))}}
 const HSE_THEMES=[{id:"navy",name:"كحلي مؤسسي",palette:["#0B1220","#17385F","#69A9F5","#F59A23"]},{id:"light",name:"فاتح نظيف",palette:["#F3F6FA","#FFFFFF","#168A59","#F4AE30"]},{id:"green",name:"أخضر ميداني",palette:["#032F22","#06462F","#B8F23C","#E8FFB9"]},{id:"dark",name:"عالي التباين",palette:["#171C22","#303840","#F59A23","#42C77A"]},{id:"ocean",name:"محيطي",palette:["#06141C","#0D2230","#2EC4D6","#F0BF5A"]},{id:"sand",name:"رملي دافئ",palette:["#F4EEE3","#FFFDF8","#B4531A","#2F7D4F"]}];
@@ -2235,7 +2235,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.10";
+const APP_VER="8.9.11";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5152,7 +5152,7 @@ function permitMsg(p,head){return `${head}
 
 افتح المنظومة: ${appUrl()}`}
 function notifySheet(title,people,msg){
-  openSheet(title,`<p style="margin-top:0">الإشعار وصلهم جوه المنظومة وعلى الموبايل. لو حابب تبعت كمان على واتساب:</p><div class="list">${people.map(x=>`<div class="li"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s num">${esc(x.phone||"مفيش رقم")}</div></div><a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none" target="_blank" rel="noopener" href="${waLink(x.phone,msg)}">📲 واتساب</a></div>`).join("")||'<p class="muted">مفيش أرقام مسجلة.</p>'}</div>`,async()=>null,"تم")}
+  openSheet(title,`<p style="margin-top:0">الإشعار وصلهم جوه المنظومة وعلى الموبايل. لو حابب تبعت كمان على واتساب:</p><div class="wa-mode" style="margin-bottom:8px">${waModeBtns()}</div><div class="list">${people.map(x=>`<div class="li"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s num">${esc(x.phone||"مفيش رقم")}</div></div><a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none" target="_blank" rel="noopener" data-wa="${esc(x.phone||"")}" data-wm="${encodeURIComponent(msg)}" href="${waLink(x.phone,msg)}">📲 واتساب</a></div>`).join("")||'<p class="muted">مفيش أرقام مسجلة.</p>'}</div>`,async()=>null,"تم")}
 const profPeople=L=>L.map(s=>({name:profName(s),phone:emp(s.emp_id)?.phone}));
 function ptwRequestForm(id){
   const p=id?S.permits.find(x=>x.id===id):{type:"COLD",date:today(),startDate:today(),risk:"med"};
@@ -5756,16 +5756,15 @@ async function waShare({getPdf,filename,title}){
     if(r==="gesture"){pvPanel(`الملف جاهز. <button class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" id="waNow">📲 ابعته دلوقتي</button>`);$("waNow").onclick=async()=>{const r2=await shareFile(file,title,msg);if(r2==="ok"||r2==="cancel")pvPanel("")};return}
     if(r==="ok"||r==="cancel"){pvPanel("");return}}
   // desktop / no file sharing: download the PDF then open WhatsApp with a ready message
-  pvPanel(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>ابعت لـ</b><input id="waTo" list="empListAll" placeholder="اسم الموظف أو رقم الموبايل" style="flex:1;min-width:200px" autocomplete="off"><button class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" id="waGo">📲 فتح واتساب</button><button class="btn ghost sm" id="waX">✕</button></div><div class="muted" style="font-size:12.5px;margin-top:6px">الملف هينزل على جهازك، وواتساب هيفتح برسالة جاهزة — اسحب الملف جوه المحادثة.</div>${empDatalist2()}`);
+  pvPanel(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>ابعت لـ</b><input id="waTo" list="empListAll" placeholder="اسم الموظف أو رقم الموبايل" style="flex:1;min-width:200px" autocomplete="off"><button class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" id="waGo">📲 فتح واتساب</button><button class="btn ghost sm" id="waX">✕</button></div><div class="muted" style="font-size:12.5px;margin-top:6px">الملف هينزل على جهازك، وواتساب هيفتح برسالة جاهزة — اسحب الملف جوه المحادثة.</div><div class="wa-mode" style="margin-top:6px">${waModeBtns()}</div>${empDatalist2()}`);
   $("waX").onclick=()=>pvPanel("");
   $("waGo").onclick=()=>{
     const v=$("waTo").value.trim();const e=resolveEmp(v);const ph=e?.phone||(/^[\d+\s-]{8,}$/.test(v)?v:"");
     const num=ph?waPhone(ph):"";
     /* على الكمبيوتر wa.me بيودّي لصفحة تحميل التطبيق — واتساب ويب بياخد send مباشرة */
-    const url=num?`https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(msg+"\n(مرفق ملف PDF)")}`
-                 :`https://web.whatsapp.com/`;
+    const url=waUrl(num,msg+"\n(مرفق ملف PDF)",waDesk()?waMode():"web");
     /* الفتح لازم يحصل جوّه الضغطة نفسها، قبل أي await، وإلا المتصفح بيمنعه */
-    const w=window.open(url,"_blank","noopener");
+    const w=/^whatsapp:/.test(url)?(waOpen(url),true):window.open(url,"_blank","noopener");
     if(!w){pvPanel(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" href="${esc(url)}" target="_blank" rel="noopener">📲 افتح واتساب</a><span class="muted" style="font-size:12.5px">المتصفح منع الفتح التلقائي — دوس الزرار ده.</span><button class="btn ghost sm" id="waX2">✕</button></div>`);
       const x=$("waX2");if(x)x.onclick=()=>pvPanel("")}
     else pvPanel(`<div class="muted" style="font-size:12.5px">واتساب اتفتح في تاب جديد${num?"":" — اختار المحادثة بنفسك"}. بينزّل الملف دلوقتي…</div>`);
@@ -10693,6 +10692,22 @@ idCardView=async function(id){
 }
 /* ملحق البطاقات في الطباعة: يدعم البطاقة PDF (أول صفحة) بدل ما تتحسب «ما اترفعتش» */
 
+
+/* ===== 8.9.11: فتح واتساب بالمتصفح (واتساب ويب) أو التطبيق — بيتحفظ اختيارك ===== */
+const waDesk=()=>!/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||"");
+const waMode=()=>{try{return localStorage.getItem("waMode")==="app"?"app":"web"}catch(e){return "web"}};
+function waUrl(phone,msg,mode){mode=mode||(waDesk()?waMode():"mobile");const n=waPhone(phone),t=encodeURIComponent(msg||"");
+  if(mode==="web")return n?`https://web.whatsapp.com/send?phone=${n}&text=${t}`:`https://web.whatsapp.com/`;
+  if(mode==="app")return `whatsapp://send?${n?`phone=${n}&`:""}text=${t}`;
+  return `https://wa.me/${n}?text=${t}`}
+waLink=function(phone,msg){return waUrl(phone,msg)};
+function waOpen(u){if(/^whatsapp:/.test(u)){const a=document.createElement("a");a.href=u;a.style.display="none";document.body.appendChild(a);a.click();a.remove();toast("بيفتح تطبيق واتساب… لو ما فتحش اختار «واتساب ويب»");return true}
+  return window.open(u,"_blank","noopener")}
+function waModeBtns(){if(!waDesk())return "";const m=waMode();
+  return `<span class="muted" style="font-size:12.5px;margin-inline-end:6px">فتح بـ:</span><button type="button" class="btn sm ${m==="web"?"primary":""}" onclick="waSetMode('web')">🌐 واتساب ويب (المتصفح)</button> <button type="button" class="btn sm ${m==="app"?"primary":""}" onclick="waSetMode('app')">💻 تطبيق واتساب</button>`}
+function waSetMode(m){try{localStorage.setItem("waMode",m)}catch(e){}document.querySelectorAll(".wa-mode").forEach(b=>b.innerHTML=waModeBtns())}
+document.addEventListener("click",ev=>{const a=ev.target.closest&&ev.target.closest("a[data-wa]");if(!a||!waDesk())return;
+  ev.preventDefault();let m="";try{m=decodeURIComponent(a.dataset.wm||"")}catch(e){}waOpen(waUrl(a.dataset.wa,m))},true);
 </script>
 </body></html>
 
