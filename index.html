@@ -1,7 +1,7 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#032F22"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="منظومة السلامة"><meta name="apple-mobile-web-app-status-bar-style" content="default"><title>منظومة السلامة HSE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=IBM+Plex+Mono:wght@500&family=Amiri:wght@400;700&family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;600;700&family=Aref+Ruqaa:wght@400;700&display=swap">
 </head><body>
 <script>try{const hseTheme=localStorage.getItem("hse.theme")||"green";document.documentElement.dataset.theme=["dark","navy","light","green","ocean","sand"].includes(hseTheme)?hseTheme:"green"}catch(e){document.documentElement.dataset.theme="green"}document.documentElement.style.colorScheme=["light","sand"].includes(document.documentElement.dataset.theme)?"light":"dark";try{document.documentElement.dataset.fx=localStorage.getItem("hse.fx")==="flat"?"flat":"3d"}catch(e){document.documentElement.dataset.fx="3d"}const themeMeta=document.querySelector('meta[name="theme-color"]');if(themeMeta)themeMeta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8"})[document.documentElement.dataset.theme]</script>
 <style>
@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.34";
+const APP_VER="8.9.35";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3728,7 +3728,9 @@ function wrapLines(x,txt,maxW){const words=String(txt).split(/\s+/);const lines=
 const FORM_W=700;                       /* وزن الخط — أتقل من 600 القديم */
 const FORM_MIN_PT=7.5;                  /* أصغر حجم مسموح بيه بالنقاط */
 const FORM_LH=1.16;                     /* ارتفاع السطر */
-const formFont=px=>`${FORM_W} ${px}px "IBM Plex Sans Arabic",Arial,sans-serif`;
+const FORM_FACES={"Amiri":"نسخ أميري (كلاسيكي احترافي)","Scheherazade New":"شهرزاد (نسخ قلم يدوي)","Noto Naskh Arabic":"نوتو نسخ (واضح للقراءة)","Aref Ruqaa":"رقعة (الأقرب لخط اليد)","IBM Plex Sans Arabic":"IBM Plex (الخط القديم)"};
+function FFACE(){let f="Amiri";try{f=localStorage.getItem("formFace")||"Amiri"}catch(e){}if(!FORM_FACES[f])f="Amiri";return `"${f}","Amiri","Noto Naskh Arabic",Arial,sans-serif`}
+const formFont=px=>`${FORM_W} ${px}px ${FFACE()}`;
 /* المقياس الحقيقي للصورة: ارتفاعها بالبكسل ÷ ارتفاع الصفحة بالنقاط */
 function formPxPerPt(W,H,pageHpt){return H/(pageHpt||(H>=W?841.89:595.28))}
 function drawBoxText(x,W,H,rect,txt,{szPt=11,pxPerPt=1,algn="ctr",lines=1,fill=false}={}){
@@ -3779,7 +3781,7 @@ function formVals(vals){
 async function renderForm(T,vals,opt={}){
   const F=tweakedForm((await loadForms())[T],T);if(!F)throw new Error("no form "+T);
   vals=formVals(vals);
-  try{await document.fonts.load('600 24px "IBM Plex Sans Arabic"')}catch(e){}
+  try{await document.fonts.load('600 24px '+FFACE())}catch(e){}
   const sig=await loadSig();const out=[];let sigMissing=false;
   for(let k=0;k<F.pages.length;k++){
     const bg=await loadImg(F.pages[k]);const W=bg.naturalWidth,H=bg.naturalHeight;
@@ -3829,7 +3831,7 @@ function ptwPartyName(p,role){const src=PTW_PRINT_LAYOUT[p.type]?.roleMap?.[role
 function ptwSignatureTime(s){if(s?.time)return s.time;if(!s?.at)return"";try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(s.at))}catch(e){return""}}
 function ptwSignatureDate(s,fallback){if(s?.date)return fmtDate(s.date);if(s?.at){try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(s.at))}catch(e){}}return fmtDate(fallback)}
 function ptwSkipRepeatedApproval(T,b,pageCount){const q=PTW_PRINT_LAYOUT[T];return !!q&&b.page===pageCount-1&&["req","site","hse","sup","pdate"].includes(b.field)&&b.y>=q.blankAfter}
-function permitTextBox(cv,b,value,{fontSize=22,bold=true}={}){if(!cv||!b||value==null||value==="")return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H,pad=Math.max(2,bw*.035);g.save();g.fillStyle="#fff";g.fillRect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.beginPath();g.rect(bx,by,bw,bh);g.clip();g.direction=/[\u0600-\u06ff]/.test(String(value))?"rtl":"ltr";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#111";let fs=Math.min(fontSize,bh*.68);while(fs>8){g.font=`${bold?600:500} ${fs}px "IBM Plex Sans Arabic",Arial,sans-serif`;if(g.measureText(String(value)).width<=bw-pad*2)break;fs-=1}g.fillText(String(value),bx+bw/2,by+bh/2,bw-pad*2);g.restore()}
+function permitTextBox(cv,b,value,{fontSize=22,bold=true}={}){if(!cv||!b||value==null||value==="")return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H,pad=Math.max(2,bw*.035);g.save();g.fillStyle="#fff";g.fillRect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.beginPath();g.rect(bx,by,bw,bh);g.clip();g.direction=/[\u0600-\u06ff]/.test(String(value))?"rtl":"ltr";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#111";let fs=Math.min(fontSize,bh*.68);while(fs>8){g.font=`${bold?600:500} ${fs}px ${FFACE()}`;if(g.measureText(String(value)).width<=bw-pad*2)break;fs-=1}g.fillText(String(value),bx+bw/2,by+bh/2,bw-pad*2);g.restore()}
 async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!=="closed")return;const F=(await loadForms())[p.type],page=F.pages.length-1,cv=pages[page],signatures=ptwStageSignMap(p,"close");if(!cv)return;
   for(const [role,s] of Object.entries(signatures)){const cell=ptwSigCell(p.type,"close",role);if(cell&&s?.signature&&!ptwAdminActor(s.uid))await stampOn(cv,cell,s.signature,{fit:.82})}
   /* الاسم والتاريخ/الوقت في صفوف نموذج الإغلاق، دون تغيير اسم مصدر التصريح. */
@@ -3845,7 +3847,7 @@ const PERMIT_CREW_GRID={
  EXC:{pg:0,w:1241,h:1754,rows:[614,656,699,741],cols:[80,188,393,489,680,770,1018]},
  LIFT:{pg:0,w:1132,h:1629,rows:[490,532,575,617],cols:[10,126,348,453,657,763,1042]}};
 const PERMIT_CREW_NOTES={COLD:{pg:2,x0:33/1155,x1:1145/1155,y0:1033/1625,y1:1363/1625},HEIGHT:{pg:2,x0:75/1076,x1:995/1076,y0:1038/1634,y1:1268/1634}};
-const CREW_FONT="'IBM Plex Sans Arabic',Arial,sans-serif";
+var CREW_FONT=FFACE();
 function permitCrewList(p){return (p&&p.crew||[]).map(c=>({name:String(c&&c.name||"").trim(),job:String(c&&c.job||"").trim(),sig:c&&c.sig||""})).filter(c=>c.name)}
 function crewFit(g,t,maxW,sz,wt){let s=sz;g.font=`${wt} ${s}px ${CREW_FONT}`;while(s>9&&g.measureText(t).width>maxW){s--;g.font=`${wt} ${s}px ${CREW_FONT}`}return s}
 function crewCapacity(T){return PERMIT_CREW_GRID[T]?9:PERMIT_CREW_NOTES[T]?21:0}
@@ -3906,7 +3908,7 @@ async function ptwExtend(id){const p=S.permits.find(x=>x.id===id);if(!p||!(p.sta
      const ok=await write(()=>upsert("permits",id,patch),"اتمدّد التصريح ✔");if(!ok)return "الحفظ فشل";Object.assign(p,patch);
      await notifyUsers(ptwStakeholders(p),"تم تمديد تصريح العمل",`${p.number||""} · المدة لحد ${fmtDate(fd.newEnd)} · ${me}`,`?go=ptw&id=${encodeURIComponent(id)}`);setTimeout(()=>printPermit(id),350);return null},isAdmin?"تأكيد التمديد":"تأكيد التمديد والتوقيع")}
 async function drawColdCloseInfo(pages,p){const c=pages[2];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
- try{await document.fonts.load('800 20px "IBM Plex Sans Arabic"')}catch(e){}
+ try{await document.fonts.load('800 20px '+FFACE())}catch(e){}
  if(p.closedAt){g.save();g.font="700 15px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText(fmtDate(p.closedAt),W*0.747,H*0.596);g.fillText(p.closedTime||"",W*0.905,H*0.596);g.restore()}
  const notes=p.closeNotesByRole||{},recs=p.closeRecommendationsByRole||{},labels={site:"مهندس التنفيذ",sup:"مشرف التنفيذ",hse:"مسؤول السلامة"},items=[];
  for(const r of ["site","sup","hse"]){if(notes[r])items.push([labels[r]+" — ملاحظة",notes[r]]);if(recs[r])items.push([labels[r]+" — توصية",recs[r]])}
@@ -3947,7 +3949,7 @@ function siteChecksHTML(p){const sc=p.siteChecks||{};
   </div><small class="muted" style="font-size:12px">يملأها مشرف التنفيذ ويراجعها مسؤول السلامة. بتتطبع بعلاماتها في صفحة 1 و2.</small></div>`;
 }
 async function drawColdExtension(pages,p){const c=pages[2];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
- try{await document.fonts.load('600 14px "IBM Plex Sans Arabic"')}catch(e){}
+ try{await document.fonts.load('600 14px '+FFACE())}catch(e){}
  const draw=(t,x,y,size)=>{if(t==null||t==="")return;g.save();g.font="600 "+size+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText(String(t),x,y);g.restore()};
  const start=fmtDate(p.extStart||p.startDate||p.date)+(p.extStartTo?" · "+p.extStartTo:"");
  const end=fmtDate(p.endDate)+(p.to?" · "+p.to:"");
@@ -3978,7 +3980,7 @@ async function renderPermitCloseoutPage(p){
   const g=c.getContext("2d"),m=W*.065,white="#fff",ink="#17231e",muted="#607068",accent="#d9480f",line="#cbd5d0",soft="#f1f4f2";
   g.fillStyle=white;g.fillRect(0,0,W,H);g.strokeStyle="#3f4b45";g.lineWidth=Math.max(2,W*.002);g.strokeRect(m*.55,m*.55,W-m*1.1,H-m*1.1);
   const draw=(t,x,y,size=20,o={})=>{if(!t)return;g.save();g.font=`${o.bold?700:500} ${size}px "IBM Plex Sans Arabic",Arial,sans-serif`;g.direction=o.dir||(/[\u0600-\u06ff]/.test(String(t))?"rtl":"ltr");g.textAlign=o.align||"right";g.textBaseline="middle";g.fillStyle=o.color||ink;g.fillText(String(t),x,y,o.maxW||W);g.restore()};
-  try{await document.fonts.load('700 28px "IBM Plex Sans Arabic"')}catch(e){}
+  try{await document.fonts.load('700 28px '+FFACE())}catch(e){}
   g.fillStyle=accent;g.fillRect(m,m,W-m*2,H*.075);draw("سجل إغلاق تصريح العمل",W-m*1.35,H*.075,34,{bold:true,color:white});
   draw("WORK PERMIT CLOSE-OUT RECORD",W-m*1.35,H*.115,16,{bold:true,color:white,dir:"ltr"});
   draw("تُثبت هذه الصفحة إيقاف العمل ومراجعة شروط الإغلاق ووقت اعتماد الإغلاق.",W-m*1.25,H*.18,19,{bold:true});
@@ -4303,7 +4305,7 @@ function recMeta(fid,r,spec){
 function fmtFieldVal(f,v){if(!v)return "";if(f.type==="date"&&/^\d{4}-\d\d-\d\d$/.test(v))return fmtDate(v);return v}
 const isLiveSigCol=c=>c&&(c.type==="sig"||c.type==="liveSig");
 async function renderGenericBase(fid,rec){
-  const spec=(await spec2(fid));try{await document.fonts.load('600 24px "IBM Plex Sans Arabic"')}catch(e){}
+  const spec=(await spec2(fid));try{await document.fonts.load('600 24px '+FFACE())}catch(e){}
   const out=[];
   for(let k=0;k<spec.pages.length;k++){
     const bg=await loadImg(spec.pages[k]);const W=bg.naturalWidth,H=bg.naturalHeight;
@@ -4618,7 +4620,7 @@ Object.assign(BUILTIN_ROLES,{
 Object.assign(PTW_STATUS,{requested:["طلب جديد","p-susp"],supok:["اعتمد المشرف","p-open"],rejected:["مرفوض","p-canc"]});
 const LEADER=()=>S.settings.leaderName||"اسلام بكر عباس";
 const isLeaderName=v=>!!v&&normName(v)===normName(LEADER());
-const DOC_FONT='<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">';
+const DOC_FONT='<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Amiri:wght@400;700&family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;600;700&family=Aref+Ruqaa:wght@400;700&display=swap">';
 const isMobile=()=>matchMedia("(max-width:760px), (pointer:coarse)").matches;
 function myEmpName(){const e=emp(myEmpId());return e?.name||window.SBA?.profile?.username||ME.name||""}
 function profName(p){const e=p&&emp(p.emp_id);return e?.name||p?.username||""}
@@ -4667,7 +4669,7 @@ function scaleDocs(body){const pages=[...body.querySelectorAll(".docs>.dpage")];
 function printCanvases(pages){
   const html=`<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:0}@page land{size:A4 landscape;margin:0}html,body{margin:0;padding:0}.p{width:210mm;height:296mm;box-sizing:border-box;padding:9mm 8mm 11mm;display:flex;align-items:center;justify-content:center;overflow:hidden;break-after:page;page-break-after:always}.p.l{page:land;width:297mm;height:209mm;padding:8mm 9mm 11mm}.p img{max-width:100%;max-height:100%;object-fit:contain}</style></head><body>${pages.map(c=>`<div class="p ${c.width>c.height?"l":""}"><img src="${c.toDataURL("image/jpeg",0.92)}"></div>`).join("")}</body></html>`;
   printFrame(html)}
-function docCSS(){return [...document.querySelectorAll("style")].map(s=>s.textContent).join("\n").split("/* ===== printable documents (A4) ===== */")[1]||""}
+function docCSS(){const c=[...document.querySelectorAll("style")].filter(s=>s.id!=="dsLayer").map(s=>s.textContent).join("\n").split("/* ===== printable documents (A4) ===== */")[1]||"";return c+"\n.dpage,.dpage *{font-family:"+FFACE()+"}"}
 function printHTMLDoc(html){printFrame(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">${DOC_FONT}<style>@page{size:A4 portrait;margin:0}@page land{size:A4 landscape;margin:0}html,body{margin:0;padding:0;background:#fff}.dpage.land{page:land}${docCSS()}</style></head><body>${html}</body></html>`)}
 function printFrame(html){const f=document.createElement("iframe");f.setAttribute("aria-hidden","true");f.style.cssText="position:fixed;left:0;bottom:0;width:1px;height:1px;border:0;opacity:0";document.body.appendChild(f);
   const d=f.contentDocument;d.open();d.write(html);d.close();
@@ -11209,6 +11211,21 @@ boot();
 window.mySignedDecorate=decorate;
 })();
 
+
+/* 8.9.35 — اختيار خط الكتابة على النماذج */
+{const _ffF=VIEWS.settings.fill;VIEWS.settings.fill=function(){_ffF.apply(this,arguments);if(!$("setBody")||$("ffCard"))return;
+  let cur="Amiri";try{cur=localStorage.getItem("formFace")||"Amiri"}catch(e){}
+  const c=document.createElement("div");c.className="card";c.id="ffCard";c.style.marginTop="14px";
+  c.innerHTML=`<h3>✍ خط الكتابة على النماذج</h3><div class="muted" style="margin-bottom:10px;font-size:13px">الخط اللي بتتكتب بيه البيانات جوه النماذج والتصاريح (على الصورة والـPDF). بيتطبق على أي نموذج تفتحه أو تطبعه بعد الاختيار.</div>
+  <div class="filters" style="padding:0;border:0;background:none"><select id="ffSel" style="flex:1 1 240px">${Object.entries(FORM_FACES).map(([k,v])=>`<option value="${k}" ${k===cur?"selected":""}>${v}</option>`).join("")}</select></div>
+  <div id="ffSample" style="margin-top:10px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;font-size:22px;line-height:1.7;direction:rtl;font-family:'${cur}',Amiri,serif">محمد أحمد علي — تصريح عمل ساخن رقم 1309 — 22/11/2026</div>`;
+  $("setBody").appendChild(c);
+  $("ffSel").onchange=e=>{const v=e.target.value;try{localStorage.setItem("formFace",v)}catch(_){}CREW_FONT=FFACE();$("ffSample").style.fontFamily=`'${v}',Amiri,serif`;toast("اتغيّر خط النماذج ✔ — افتح النموذج تاني عشان يتطبق")}
+}}
+
+/* 8.9.35 — أي كتابة على كانفس النماذج بتاخد خط النماذج المختار */
+(function(){const d=Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype,"font");if(!d||!d.set)return;
+Object.defineProperty(CanvasRenderingContext2D.prototype,"font",{configurable:true,enumerable:d.enumerable,get:d.get,set(v){if(typeof v==="string"&&v.indexOf("IBM Plex Sans Arabic")>-1&&v.indexOf("Amiri")<0){let f="Amiri";try{f=localStorage.getItem("formFace")||"Amiri"}catch(e){}if(f!=="IBM Plex Sans Arabic")v=v.replace(/["']IBM Plex Sans Arabic["'],?\s*Arial,\s*sans-serif/,FFACE())}d.set.call(this,v)}})})();
 </script>
 <style id="dsLayer">
 /* 8.9.34 — طبقة تنسيق موحّدة (DS): خطوط · مسافات · محاذاة · موبايل */
