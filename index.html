@@ -1598,10 +1598,6 @@ async function usersCardHTML(){
     <p class="muted" style="font-size:13px">كل مستخدم بيدخل باسم مستخدم وكلمة سر. لما تسجّل حد جديد المنظومة بتعمله كلمة سر وتجهزلك رسالة واتساب فيها اللينك واليوزر والباسورد. الصلاحيات بتتنفذ على السيرفر نفسه.</p>
     <div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th>الدور</th><th>الأقسام</th><th>الحالة</th><th></th></tr></thead><tbody>${rows.map(tr).join("")}</tbody></table></div></div>`;
 }
-function rolesCardHTML(){const R=ROLES_ALL();
-  return `<div class="card" style="margin-top:14px"><div style="display:flex;align-items:center;gap:10px"><h3 class="grow" style="margin:0">الأدوار والصلاحيات</h3><button class="btn" onclick="roleForm()">+ دور جديد</button></div>
-  <p class="muted" style="font-size:13px">كل دور بيحدد الأقسام اللي تظهر وإيه اللي يقدر يعمله في كل قسم: مشاهدة بس، أو إضافة وتعديل، أو كمان مسح. الأدوار الجاهزة تقدر تعدّلها، واللي تعمله بنفسك تقدر تمسحه.</p>
-  <div class="list">${Object.entries(R).map(([k,r])=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(r.ar)}${S.settings.roles?.[k]?(BUILTIN_ROLES[k]?' <span class="pill p-open">معدّل</span>':' <span class="pill p-open">دور خاص</span>'):""}</div><div class="s">${Object.entries(r.tabs||{}).filter(([t])=>t!=="inspection").map(([t,l])=>`${TAB_NAMES[t]||t} (${LV[l]||l})`).join("، ")}</div></div>${r.fixed?"":`<div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div>`}</div>`).join("")}</div></div>`}
 const TAB_GROUPS=[["عام",["dash"]],["العمليات الميدانية",["ptw","equip","actions"]],["الفريق",["team","manpower","contractors"]],["السجلات والتقارير",["forms","office","kpi","report"]],["المخزن والطلبات",["ppe","matreq"]]];
 const TAB_FIXED=["me","chat","follow"]; /* مستواها ثابت من الدور، مالهاش اختيار هنا */
 /* ملاحظة: صفحات مساحات العمل (ws_*) بتتحدد تلقائيًا من الدور ومن مستوى الأقسام دي، فمش بتظهر هنا */
@@ -1824,27 +1820,9 @@ function taskItemName(it){
   return it.title||"بند";
 }
 const taskProgress=x=>{const L=taskItems(x);return {done:L.filter(i=>i.done).length,total:L.length}};
-function taskAssignerIds(){const a=S.settings.taskAssigners;return Array.isArray(a)?a:[]}
 /* اختيار فاحص للمعدة: مسؤول السلامة ومشرف السلامة كمان، مش الأدمن وموزّعي
    المهام بس. صلاحية توزيع المهام العامة بتفضل زي ما هي. */
 function canAssignInspector(){return canAssignTasks()||can("records.review")}
-function canAssignTasks(){
-  if(myAccess()?.role==="admin")return true;
-  const me=myEmpId();if(!me)return false;
-  const ids=taskAssignerIds();
-  if(ids.length)return ids.includes(me);
-  return isLeader(emp(me));
-}
-function taskAssignerPool(){const ids=taskAssignerIds();
-  const L=ids.length?ids.map(id=>emp(id)).filter(Boolean):S.employees.filter(e=>e.active!==false);
-  return L.slice().sort((a,b)=>a.name.localeCompare(b.name,"ar"))}
-function taskAssignersEditor(){
-  const cur=taskAssignerIds();
-  openSheet("مين يقدر يوزّع مهام",`<p class="muted" style="margin-top:0;font-size:13px">اختار الناس اللي ليهم حق يبعتوا نماذج كمهام للفريق. لو سبتها فاضية، المدير والتيم ليدر بس هما اللي يقدروا.</p>
-    <div class="list">${S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar")).map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="as_${e.id}" ${cur.includes(e.id)?"checked":""} style="width:18px;height:18px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?" · "+esc(e.code):""}</div></div></label>`).join("")}</div>`,
-    async(fd,form)=>{const ids=[...form.querySelectorAll('input[name^="as_"]:checked')].map(i=>i.name.slice(3));
-      const ok=await write(()=>upsert("settings","app",{taskAssigners:ids}),"اتحفظت الصلاحية");return ok?null:"الحفظ فشل"},"حفظ");
-}
 let TASK_RUN=null;   /* المهمة اللي بتتنفّذ دلوقتي */
 const taskOf=id=>S.tasks.find(t=>t.id===id);
 function taskTargetName(x){
@@ -2193,67 +2171,16 @@ const SIGN_DEF={
   leave:{sign:"write",approve:"role"},
   attend:{sign:"write",approve:"role"}
 };
-const SIGN_OPTS=[["write","أي حد عنده صلاحية كتابة"],["named","اللي اسمه مكتوب في النموذج بس"],["owner","صاحب المستند أو اللي اسمه مكتوب فيه"],["list","قائمة محددة بالأسماء"]];
-const APPROVE_OPTS=[["role","مدير المنظومة ومسؤولي السلامة"],["list","قائمة محددة بالأسماء"],["named","المعتمد المحدد على المستند نفسه"]];
-function signPol(g){const p=(S.settings.signPerm||{})[g]||{};return {...(SIGN_DEF[g]||{sign:"write",approve:"role"}),...p}}
-function signListOf(g){
-  if(g==="mission")return missionApproverIds();           /* المأموريات ليها قائمتها من زمان */
-  const a=signPol(g).list;return Array.isArray(a)?a:[]
-}
 /* صلاحية الكتابة على مجموعة توقيع = من مستوى المستخدم على قسمها هي، مش من الصفحة اللي واقف عليها.
    قبل كده كانت بتتحسب من canWrite/tab الحاليين، فنفس الشخص كان يشوف «اعتماد» في صفحة وما يشوفوش في التانية،
    والتنبيهات (اللي بتتحسب من الرئيسية) تختلف عن الأزرار (اللي بتتحسب من النماذج). */
 const GROUP_TAB={records:"forms",ptw:"ptw"};
 function groupWritable(g){if(myAccess()?.role==="admin")return true;const tb=GROUP_TAB[g];if(!tb)return !!canWrite;return !!BASE.write&&tabLevel(tb)!=="view"}
 function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.role)||tabLevel("forms")==="full")}
-function canSignGroup(g,{names=[],ownerId=""}={}){
-  if(myAccess()?.role==="admin")return true;
-  if(!groupWritable(g))return false;
-  const pol=signPol(g),me=myEmpId();
-  if(pol.sign==="list")return !!me&&signListOf(g).includes(me);
-  if(pol.sign==="named")return myNameIn(names);
-  if(pol.sign==="owner")return (!!me&&!!ownerId&&me===ownerId)||myNameIn(names);
-  return true;
-}
-function canApproveGroup(g,{approverId=""}={}){
-  if(myAccess()?.role==="admin")return true;
-  if(!groupWritable(g))return false;                        /* الثغرة القديمة: حساب مشاهدة كان بيعتمد */
-  const pol=signPol(g),me=myEmpId();
-  if(pol.approve==="named")return !!me&&!!approverId&&me===approverId;
-  if(pol.approve==="list")return !!me&&signListOf(g).includes(me);
-  return g==="records"?(can("records.review")||tabLevel("forms")==="full"):hseFinal();
-}
-function signPermEditor(){
-  const gs=Object.entries(SIGN_GROUPS);
-  const emps=S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
-  const body=gs.map(([g,ar])=>{const pol=signPol(g),list=signListOf(g);
-    return `<div class="card" style="margin-bottom:12px">
-      <h3 style="margin:0 0 8px">${esc(ar)}</h3>
-      <div class="form">
-        ${f("مين يقدر يوقّع","sg_"+g,{opts:SIGN_OPTS,value:pol.sign})}
-        ${f("مين يقدر يعتمد","ap_"+g,{opts:APPROVE_OPTS,value:pol.approve})}
-      </div>
-      <details style="margin-top:8px" ${list.length?"open":""}><summary class="muted" style="cursor:pointer;font-size:13px">القائمة المحددة (${list.length})${g==="mission"?" — نفس قائمة معتمدي المأموريات":""}</summary>
-        <div class="list" style="max-height:240px;overflow:auto;margin-top:6px">${emps.map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="L_${g}_${e.id}" ${list.includes(e.id)?"checked":""} style="width:17px;height:17px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?" · "+esc(e.code):""}</div></div></label>`).join("")}</div>
-      </details></div>`}).join("");
-  openSheet("صلاحيات التوقيع والاعتماد",
-    `<p class="muted" style="margin-top:0;font-size:13px">مدير المنظومة دايمًا يقدر يوقّع ويعتمد. وأي صلاحية هنا محتاجة كمان إن حساب الشخص يكون عنده <b>صلاحية كتابة</b> على القسم.</p>${body}`,
-    async(fd,form)=>{
-      const cur={...(S.settings.signPerm||{})};const patch={};
-      for(const [g] of gs){
-        const list=[...form.querySelectorAll(`input[name^="L_${g}_"]:checked`)].map(i=>i.name.slice(("L_"+g+"_").length));
-        cur[g]={sign:fd["sg_"+g]||SIGN_DEF[g].sign,approve:fd["ap_"+g]||SIGN_DEF[g].approve,list};
-        if(g==="mission")patch.missionApprovers=list;        /* القائمة الأصلية تفضل هي المرجع */
-      }
-      patch.signPerm=cur;
-      const ok=await write(()=>upsert("settings","app",patch),"اتحفظت الصلاحيات");
-      return ok?null:"الحفظ فشل";
-    },"حفظ الصلاحيات");
-}
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.47";
+const APP_VER="8.9.48";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2575,27 +2502,9 @@ function syncInspectionsToPeriodicEquipment(){
     if(ok){setTimeout(()=>VIEWS.inspection.fill(),120);toast(`اكتمل الربط: ${linked} فحص · ${created} أصل جديد${noCode?` · تعذر ربط ${noCode} سجل بلا كود` : ""}`)}return ok?null:"تعذر إكمال ربط الفحوصات";
   },"ربط الفحوصات");
 }
-function inspectionAccess(){return S.settings.inspectionAccess||{}}
-function inspectionInspectorEmployees(){const cfg=inspectionAccess(),ids=Array.isArray(cfg.inspectors)?cfg.inspectors:null;return hseTeam().filter(e=>(!ids||ids.includes(e.id))&&(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled))}
-function inspectionApproverProfiles({excludeSelf=true}={}){const cfg=inspectionAccess(),ids=Array.isArray(cfg.approvers)?cfg.approvers:null;return (S.profiles||[]).filter(p=>REVIEWERS.includes(p.role)&&!p.disabled&&(!excludeSelf||p.id!==ME.id)&&(!ids||ids.includes(p.id))).sort((a,b)=>profName(a).localeCompare(profName(b),"ar"))}
 function inspectionCanInspect(empId=myEmpId()){return !!canWrite&&!!empId&&inspectionInspectorEmployees().some(e=>e.id===empId)}
 function inspectionCanApprove(){return !!canWrite&&can("records.review")&&inspectionApproverProfiles({excludeSelf:false}).some(p=>p.id===ME.id)}
 function eqApproverProfiles(){return inspectionApproverProfiles()}
-function inspectionAccessEditor(){
-  if(!canDelete){toast("ضبط صلاحيات الفحص متاح لمدير المنظومة أو المحرر فقط");return}
-  const inspectors=hseTeam().filter(e=>(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled)).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
-  const approvers=(S.profiles||[]).filter(p=>REVIEWERS.includes(p.role)&&!p.disabled).sort((a,b)=>profName(a).localeCompare(profName(b,"ar")));const cfg=inspectionAccess();
-  const selectedInspectors=Array.isArray(cfg.inspectors)?cfg.inspectors:inspectors.map(e=>e.id);
-  const selectedApprovers=Array.isArray(cfg.approvers)?cfg.approvers:approvers.map(p=>p.id);
-  const body=`<p class="muted" style="margin-top:0">حدد الحسابات المسموح لها بإجراء الفحص، والحسابات المسموح لها بالاعتماد. يجب أن يكون لكل شخص حساب مرتبط بموظف؛ الفاحص يوقّع من حسابه، والمعتمد المختار وحده يعتمد. لا يمكن اعتماد الفحص من حساب الفاحص نفسه.</p><h3>المسموح لهم بالفحص</h3><div class="list" style="max-height:230px;overflow:auto">${inspectors.map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="inspI_${e.id}" ${selectedInspectors.includes(e.id)?"checked":""}><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?" · "+esc(e.code):""}</div></div></label>`).join("")||'<div class="banner">لا يوجد أفراد سلامة مرتبطون بحسابات فعالة.</div>'}</div><h3 style="margin-top:14px">المسموح لهم بالاعتماد</h3><div class="list" style="max-height:230px;overflow:auto">${approvers.map(p=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="inspA_${p.id}" ${selectedApprovers.includes(p.id)?"checked":""}><div class="grow"><div class="t">${esc(profName(p))}</div><div class="s">${esc(({admin:"أدمن",hse:"مسؤول السلامة",hsesup:"مشرف السلامة"})[p.role]||p.role)}</div></div></label>`).join("")||'<div class="banner">لا يوجد حسابات فعالة بدور أدمن أو مسؤول/مشرف سلامة.</div>'}</div>`;
-  openSheet("صلاحيات فحص المعدات واعتمادها",body,async(fd,form)=>{
-    const inspectors=[...form.querySelectorAll('input[name^="inspI_"]:checked')].map(x=>x.name.slice(6));
-    const approvers=[...form.querySelectorAll('input[name^="inspA_"]:checked')].map(x=>x.name.slice(6));
-    if(!inspectors.length)return "حدد شخصًا واحدًا على الأقل للفحص";
-    if(!approvers.length)return "حدد شخصًا واحدًا على الأقل للاعتماد";
-    const ok=await write(()=>upsert("settings","app",{inspectionAccess:{inspectors,approvers},updatedAt:Date.now()}),"اتحفظت صلاحيات الفحص والاعتماد");return ok?null:"الحفظ فشل";
-  },"حفظ الصلاحيات");
-}
 function taskPreApprover(){try{const t=typeof TASK_RUN==="string"?TASK_RUN:TASK_RUN&&TASK_RUN.id;const x=t&&taskOf(t);return x&&x.reviewTo||""}catch(e){return ""}}
 function eqApproverLabel(p){const role={admin:"أدمن",hse:"مسؤول السلامة",hsesup:"مشرف السلامة"}[p.role]||"معتمد";return `${profName(p)} · ${role}`}
 function eqPendingReviews(){const out=[];if(!inspectionCanApprove())return out;for(const q of S.equipment||[])for(let index=0;index<(q.insp||[]).length;index++){const h=q.insp[index];if(h?.reviewRequired&&h.review?.status!=="approved"&&h.review?.status!=="returned"&&(!h.reviewTo||h.reviewTo===ME.id))out.push({q,h,index})}return out.sort((a,b)=>(b.h.date||"").localeCompare(a.h.date||""))}
@@ -3692,17 +3601,10 @@ VIEWS.settings = {
     if($("impBtn"))$("impBtn").onclick=runImport;
     if(isOwner)mountExcelImportCard();
     {const ex=document.createElement("div");ex.className="card";ex.style.marginTop="14px";ex.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">تصدير Excel وGoogle Sheets</h3><div class="muted" style="font-size:13px">نزّل ملف Excel الذي يحتوي على كل البيانات. لاستيراده في Sheets: افتح «ملف ← استيراد ← تحميل». لا تُرسل البيانات تلقائيًا إلى Google.</div></div><button class="btn primary" onclick="exportExcel()">تنزيل ملف لـ Google Sheets</button><a class="btn" href="https://sheets.google.com" target="_blank" rel="noopener">فتح Google Sheets</a></div>`;$("setBody").prepend(ex);const xm=document.createElement("div");xm.className="card";xm.id="xlMirrorCard";xm.style.marginTop="14px";ex.after(xm);xlMirrorRender();
-      const tk=document.createElement("div");tk.className="card";tk.style.marginTop="14px";
-      tk.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">صلاحية توزيع المهام</h3><div class="muted" style="font-size:13px">${(()=>{const n=taskAssignerIds().length;return n?`${n} شخص ليهم حق يبعتوا نماذج كمهام للفريق.`:"المدير والتيم ليدر بس هما اللي يقدروا يوزّعوا مهام دلوقتي."})()}</div></div><button class="btn primary" onclick="taskAssignersEditor()">تحديد المسؤولين</button></div>`;
-      xm.after(tk);
-      const sp=document.createElement("div");sp.className="card";sp.style.marginTop="14px";
-      sp.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">صلاحيات التوقيع والاعتماد</h3><div class="muted" style="font-size:13px">${Object.entries(SIGN_GROUPS).map(([g,ar])=>`${ar}: ${(SIGN_OPTS.find(o=>o[0]===signPol(g).sign)||["","?"])[1]}`).join(" · ")}</div></div><button class="btn primary" onclick="signPermEditor()">ضبط الصلاحيات</button></div>`;
-      tk.after(sp);
-      const ip=document.createElement("div");ip.className="card";ip.style.marginTop="14px";ip.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0 0 4px">صلاحيات فحص المعدات واعتمادها</h3><div class="muted" style="font-size:13px">${inspectionInspectorEmployees().length} مخول للفحص · ${inspectionApproverProfiles({excludeSelf:false}).length} مخول للاعتماد</div></div><button class="btn primary" onclick="inspectionAccessEditor()">تحديد المخولين</button></div>`;sp.after(ip);
       const vc=document.createElement("div");vc.className="card";vc.id="verCard";vc.style.marginTop="14px";
-      ip.after(vc);verCardRender();checkAppUpdate(false)}
+      xm.after(vc);verCardRender();checkAppUpdate(false)}
     if(isOwner){const im=document.createElement("div");im.className="card";im.style.marginTop="14px";im.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">استيراد بيانات المنظومة القديمة</h3><div class="muted" style="font-size:13px">ملف النقل (migration.json) من نسخة Claude.</div></div><label class="btn" style="cursor:pointer">اختار الملف<input type="file" id="migFile" accept="application/json,.json" style="display:none"></label></div><div id="migMsg" class="muted" style="font-size:13px;margin-top:6px"></div>`;$("setBody").appendChild(im);$("migFile").onchange=e=>runMigration(e.target.files[0])}
-    if(isOwner||BASE.del){settleInvites();const box=document.createElement("div");box.style.marginBottom="18px";$("setBody").prepend(box);usersCardHTML().then(h=>{box.innerHTML=h+rolesCardHTML()+'<h3 style="margin:22px 0 8px">إعدادات المشروع</h3>'})}
+    if(isOwner||BASE.del){settleInvites();const box=document.createElement("div");box.style.marginBottom="18px";$("setBody").prepend(box);usersCardHTML().then(h=>{box.innerHTML=h+'<h3 style="margin:22px 0 8px">إعدادات المشروع</h3>'})}
     $("setForm").onsubmit=async e=>{
       e.preventDefault();const fd=Object.fromEntries(new FormData(e.target).entries());
       const serials={},targets={};for(const k of Object.keys(PTW_TYPES))serials[k]=num(fd["ser_"+k])||1;for(const k of KPIS)targets[k.k]=num(fd["tg_"+k.k]);
@@ -4172,7 +4074,6 @@ function isLegacyAssignment(l){return l&&l.kind==="mission"&&!l.destination&&!l.
 /* ---------- mission e-signature ---------- */
 const isMissionKind=k=>k==="mission"||k==="missiong";
 function missionApproverId(l){return l?.approverId||""}
-function missionApproverIds(){const a=S.settings.missionApprovers;return Array.isArray(a)?a:[]}
 function isMissionApprover(empId){return !!empId&&missionApproverIds().includes(empId)}
 function missionApproverPool(){const ids=missionApproverIds();
   const L=ids.length?ids.map(id=>emp(id)).filter(Boolean):S.employees.filter(e=>e.active!==false);
@@ -5223,21 +5124,6 @@ function ptwTeamsEditor(){const T=S.settings.ptwTeams||{};
 }
 {const _sfT=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sfT.call(this);if(canDelete&&!$("ptwTeamsCard")){const c=document.createElement("div");c.className="card";c.id="ptwTeamsCard";c.style.marginTop="14px";c.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">فرق التصاريح</h3><div class="muted" style="font-size:13px">حدّد مسؤولي السلامة ومشرفي التنفيذ ومهندسي التنفيذ من القوى العاملة، عشان يظهروا في قوايم اختيار التصريح.</div></div><button class="btn primary" type="button" onclick="ptwTeamsEditor()">تعديل الفرق</button></div>';$("setBody").appendChild(c)}}}
 
-function missionApproversEditor(){
- const cur=new Set(missionApproverIds());
- const pool=S.employees.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
- openSheet("صلاحية اعتماد المأموريات",`<p class="muted" style="margin-top:0;font-size:13px">اختار مين من القوى العاملة له حق اعتماد وتوقيع المأموريات. دول بس اللي هيظهروا في خانة «المعتمد» وقت تسجيل المأمورية، وهم بس اللي يقدروا يدوسوا «اعتماد وتوقيع» بتوقيعهم المحفوظ. اللي مكتوب جنبه «محتاج حساب» لازم تعمله حساب من «المستخدمين» عشان يقدر يوقّع.</p>
-  <div class="field full"><label>أصحاب صلاحية الاعتماد <span class="muted" style="font-weight:400">(${cur.size} متحدد)</span></label>
-  <input type="search" id="maSrch" placeholder="ابحث بالاسم أو الكود" autocomplete="off">
-  <div id="maList" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-top:4px">${pool.map(e=>{
-    const acc=(S.profiles||[]).some(p=>p.emp_id===e.id&&!p.disabled);const sg=!!e.id;
-    return `<label class="chk" data-n="${esc(normName(e.name+" "+(e.code||"")))}"><input type="checkbox" name="ma" value="${e.id}" ${cur.has(e.id)?"checked":""}> ${esc(e.name)} <span class="muted" style="font-size:12px">${esc(e.job||"")}</span> ${acc?'<span class="pill p-appr" style="font-size:11px">له حساب</span>':'<span class="pill p-closed" style="font-size:11px">محتاج حساب</span>'}</label>`}).join("")}</div></div>`,
-  async(fd,form)=>{const missionApprovers=[...form.querySelectorAll('input[name="ma"]:checked')].map(i=>i.value);
-    return (await write(()=>db.doc("settings/main").set({...S.settings,missionApprovers,updatedAt:Date.now()}),"اتحفظت صلاحية الاعتماد"))?null:"الحفظ فشل"},"حفظ الصلاحية");
- setTimeout(()=>{const inp=$("maSrch");if(inp)inp.oninput=e=>{const q=normName(e.target.value);
-   document.querySelectorAll('#maList [data-n]').forEach(l=>l.hidden=q&&!l.dataset.n.includes(q))}},60);
-}
-{const _sfM=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sfM.call(this);if(canDelete&&!$("missionApprCard")){const c=document.createElement("div");c.className="card";c.id="missionApprCard";c.style.marginTop="14px";c.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">صلاحية اعتماد المأموريات</h3><div class="muted" style="font-size:13px">حدّد مين له حق اعتماد وتوقيع نماذج المأمورية (الفردي والمجمع) بتوقيعه المحفوظ.</div></div><button class="btn primary" type="button" onclick="missionApproversEditor()">تعديل الصلاحية</button></div>';$("setBody").appendChild(c)}}}
 
 function pendingForMe(){const R=ptwRole();const out={sup:[],final:[],mine:[]};
   for(const p of S.permits){const rq=isReq(p);
@@ -6394,10 +6280,6 @@ const recSlotMine=r=>slotMineOf(r,myEmpName());
 /* الاعتماد على خانة فاضية مسموح بس لو كل الخانات فاضية؛ لو فيها اسم حد تاني الاعتماد من حقه هو */
 const recSlotOpen=r=>{const sl=recSlots(r).filter(x=>SIG_AUTOFILL(r.form,x.k));return sl.length>0&&sl.every(x=>!x.v)};
 const recFresh=r=>{const d=r?.date;if(!d)return true;return (Date.now()-new Date(d+"T00:00:00").getTime())<60*864e5};
-function recCanApproveUid(p){if(!p||p.disabled)return false;if(p.role==="admin")return true;const pol=signPol("records");
-  const tabs=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{});const lv=tabs.forms||"view";if(lv==="view")return false;
-  if(pol.approve==="list")return !!p.emp_id&&signListOf("records").includes(p.emp_id);if(pol.approve==="named")return false;
-  return REVIEWERS.includes(p.role)||lv==="full"}
 /* المطلوب من مستخدم معيّن على سجل: "review" | "sign" | null */
 function recTodoFor(r,uid){if(!r||recApproved(r))return null;const p=profOf(uid);if(!p||p.disabled)return null;
   if(needsReview(r)&&r.createdBy!==uid&&(isViolationRec(r)?p.role==="admin":REVIEWERS.includes(p.role))&&recCanApproveUid(p))return "review";
@@ -10397,11 +10279,7 @@ function reqOpen(id){const r=(S.leavereq||[]).find(x=>x.id===id);if(!r)return;
   openSheet("طلب "+(typeof hrKindAr==="function"?hrKindAr(r):"")+" · "+st,`<div class="list">${lines}</div>${ch?`<h4 style="margin:10px 0 4px">درجات الاعتماد</h4><div class="list">${ch}</div>`:""}${(r.chain||[]).length?`<div style="margin-top:10px"><button type="button" class="btn sm" onclick="hrChainPrint('${r.id}')">🖨 طباعة / تحميل</button></div>`:""}`,async()=>null,"تمام")}
 
 /* 8.8.5 — البطاقات وملف العمالة: صلاحية مشاهدة/إضافة بالدور أو بالحساب + إصلاح زر «🪪 البطاقة» مع PDF */
-function idPerm(){const a=myAccess();if(!a)return {see:false,add:false};if(a.role==="admin")return {see:true,add:true};
- const C=S.settings?.idAccess||{},v=(C.users||{})[ME.id]||(C.roles||{})[a.role]||"",M={full:[1,1],see:[1,0],add:[0,1],none:[0,0]};
- if(M[v])return {see:!!M[v][0],add:!!M[v][1]};
- const mon=a.role==="monitor";return {see:!mon,add:!mon&&!mpNoEdit()&&tabLevel("manpower")!=="view"}}
-const ID_LVL=[["","حسب الصلاحية العادية"],["full","مشاهدة وإضافة"],["see","مشاهدة فقط"],["add","إضافة فقط (من غير مشاهدة)"],["none","مخفي بالكامل"]];
+function idPerm(){return {see:can("id.view"),add:can("id.add")}}
 {const _o=idCardView;idCardView=async function(id){
   if(!idPerm().see){toast("عرض البطاقات مش متاح لحسابك");return}
   const e=emp(id);if(!e)return;const A=(e.att||[]).filter(a=>a.kind==="idFront"||a.kind==="idBack");
@@ -10425,23 +10303,7 @@ const ID_LVL=[["","حسب الصلاحية العادية"],["full","مشاهد�
     if(!P.see){b.querySelectorAll("img[data-view]").forEach(x=>x.replaceWith(lock()));b.querySelectorAll('a[href^="/_blob/"]').forEach(x=>x.replaceWith(lock()));b.querySelectorAll("[data-del],[data-attprint]").forEach(x=>x.remove())}};
    fix();new MutationObserver(fix).observe(b,{childList:true,subtree:true})}}}
   return r}}
-function idPermFor(p){const role=p.role;if(role==="admin")return {see:true,add:true};
- const C=S.settings?.idAccess||{},v=(C.users||{})[p.id]||(C.roles||{})[role]||"",M={full:[1,1],see:[1,0],add:[0,1],none:[0,0]};
- if(M[v])return {see:!!M[v][0],add:!!M[v][1]};
- let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[role]?.tabs||{});if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));
- const lvl=tb.manpower||"view",mon=role==="monitor";return {see:!mon,add:!mon&&!OWN_HIDE_ROLES.includes(role)&&lvl!=="view"}}
-const idEff=P=>P.see&&P.add?"يشوف ويضيف":P.see?"يشوف فقط":P.add?"يضيف فقط":"لا يشوف ولا يضيف";
-function idAccCardHTML(){const C=S.settings?.idAccess||{},R=C.roles||{},U=C.users||{};
- const sel=(kind,key,v)=>`<select onchange="idAccSet('${kind}','${esc(key)}',this.value)" style="max-width:100%">${ID_LVL.map(([k,l])=>`<option value="${k}" ${(v||"")===k?"selected":""}>${l}</option>`).join("")}</select>`;
- const roles=Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,r])=>`<div class="li"><div class="grow"><div class="t">${esc(r.ar||k)}</div><div class="s">الفعلي: ${idEff(idPermFor({role:k,id:""}))}</div></div>${sel("roles",k,R[k])}</div>`).join("");
- const users=(S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled).map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.username||"")}</div><div class="s">${esc(ROLES_ALL()[p.role]?.ar||p.role||"")} · <b>الفعلي: ${idEff(idPermFor(p))}</b></div></div>${sel("users",p.id,U[p.id])}</div>`).join("");
- return `<h3 style="margin:0 0 4px">🪪 صلاحيات البطاقات وملف العمالة</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">تحدد مين يشوف بطاقات العمالة وملف الفرد، ومين يقدر يضيف/يرفع بس من غير ما يشوف. استثناء الحساب بيغلب على الدور. الأدمن دايمًا يشوف ويضيف.</div>
-  <div style="font-weight:700;margin:6px 0 2px">حسب الدور</div><div class="list">${roles}</div>
-  <div style="font-weight:700;margin:10px 0 2px">استثناءات للحسابات</div><div class="list">${users||'<p class="muted">مفيش حسابات.</p>'}</div>`}
-async function idAccSet(kind,key,v){const C=JSON.parse(JSON.stringify(S.settings?.idAccess||{roles:{},users:{}}));C.roles=C.roles||{};C.users=C.users||{};
- if(v)C[kind][key]=v;else delete C[kind][key];
- await write(()=>upsert("settings","app",{idAccess:C}),"اتحفظت الصلاحية")}
-{const _sf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_sf.apply(this,arguments);if(can("sys.admin")&&$("setBody")&&!$("idAccCard")){const c=document.createElement("div");c.className="card";c.id="idAccCard";c.style.marginTop="14px";c.innerHTML=idAccCardHTML();$("setBody").appendChild(c)}}}
+function idPermFor(p){return {see:can("id.view",p),add:can("id.add",p)}}
 
 /* 8.8.6 — ملحق بطاقات العاملين مع طباعة التصريح والمحاضرة (لمن يملك صلاحية مشاهدة البطاقات) */
 async function idPagesRender(items,heading,rec){
@@ -10593,10 +10455,6 @@ function ptwCrewEdit(id){const p=S.permits.find(x=>x.id===id);if(!p)return;if(!p
    S.settings.permOverrides = {roles:{role:{cap:bool}}, users:{uid:{cap:bool}}}
    «fixed» = قدرة النظام مش قابلة للتغيير (السيرفر وتبويب الإعدادات بيعتمدوا على الأدمن). */
 const _OWN_RESTRICTED=p=>!["sup","eng"].includes(p.role);
-function _idDef(p){const C=S.settings?.idAccess||{},v=(C.users||{})[p.id]||(C.roles||{})[p.role]||"",M={full:[1,1],see:[1,0],add:[0,1],none:[0,0]};
-  if(M[v])return M[v];
-  let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{});if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));
-  const mon=p.role==="monitor";return [!mon,!mon&&!["sup","eng"].includes(p.role)&&(tb.manpower||"view")!=="view"]}
 const CAPS={
   "sys.admin":        {g:"النظام",ar:"إدارة المنظومة (الإعدادات والأدوات والمستخدمين)",fixed:1,roles:[]},
   "inspect.override": {g:"الفحص",ar:"تعديل أو مسح أو تغيير حالة فحص معتمد",roles:[]},
@@ -10614,14 +10472,10 @@ const CAPS={
   "id.view":          {g:"القوى العاملة",ar:"مشاهدة بطاقات العاملين وملف الفرد",def:p=>!!_idDef(p)[0]},
   "id.add":           {g:"القوى العاملة",ar:"إضافة/رفع بطاقات العاملين",def:p=>!!_idDef(p)[1]}
 };
-function _permOv(){return S.settings?.permOverrides||{}}
 function permDefault(cap,p){const d=CAPS[cap];if(!d||!p)return false;if(p.role==="admin")return true;return d.def?!!d.def(p):(d.roles||[]).includes(p.role)}
 function can(cap,p){p=p||myProfile();if(!p||p.disabled)return false;const d=CAPS[cap];if(!d)return false;if(p.role==="admin")return true;
   if(!d.fixed){const ov=_permOv(),u=ov.users?.[p.id]?.[cap];if(u!==undefined)return !!u;const r=ov.roles?.[p.role]?.[cap];if(r!==undefined)return !!r}
   return permDefault(cap,p)}
-async function permSave(mut){const O=JSON.parse(JSON.stringify(_permOv()));O.roles=O.roles||{};O.users=O.users||{};mut(O);
-  for(const k of ["roles","users"])for(const key of Object.keys(O[k])){if(!Object.keys(O[k][key]).length)delete O[k][key]}
-  return write(()=>upsert("settings","app",{permOverrides:O}),"اتحفظت الصلاحية")}
 function permSetRole(role,cap,on){const d=CAPS[cap];if(!d||d.fixed||role==="admin")return;
   return permSave(O=>{const base=permDefault(cap,{role,id:""});O.roles[role]=O.roles[role]||{};if(!!on===!!base)delete O.roles[role][cap];else O.roles[role][cap]=!!on})}
 function permSetUser(uid,map){return permSave(O=>{O.users[uid]={};for(const [cap,v] of Object.entries(map)){if(v==="1")O.users[uid][cap]=true;else if(v==="0")O.users[uid][cap]=false}})}
@@ -10681,44 +10535,19 @@ function permBodyHTML(){
     dr+=`<tr><td class="pm-c1">${esc(d.ar)}</td>${roles.map(([k])=>{const s=_pmState(k,cap);return `<td class="${s.changed?"pm-ch":""}" title="${s.changed?"معدّل — الافتراضي: "+(s.def?"مسموح":"ممنوع"):"افتراضي"}">${_pmSwitch(s.on,`permSetRole('${k}','${cap}',this.checked)`)}</td>`}).join("")}</tr>`}
   return `<div class="pm-desk"><div class="pm-wrap"><table class="pm-tb">${dh}<tbody>${dr||`<tr><td colspan="${roles.length+1}" class="muted">مفيش نتائج.</td></tr>`}</tbody></table></div></div>
   <div class="pm-mob"><div class="pm-chips">${chips}</div><div class="muted" style="font-size:12.5px">${esc(ROLES_ALL()[_pm.role]?.ar||_pm.role)}: مسموح له ${on} من ${_pmCaps().length} قدرة</div>${mob}</div>`}
-function permUsersHTML(){const ov=_permOv(),q=_pm.q.trim();
-  const users=(S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled&&(!q||String(p.username||"").includes(q)||(ROLES_ALL()[p.role]?.ar||"").includes(q))).sort((a,b)=>String(a.username).localeCompare(String(b.username),"ar"));
-  const caps=_pmCaps();
-  return users.length?`<div class="list">${users.map(p=>{const n=Object.keys(ov.users?.[p.id]||{}).length,allowed=caps.filter(([c])=>can(c,p)).length;
-    return `<div class="li"><div class="grow"><div class="t">${esc(p.username||"")}</div><div class="s">${esc(ROLES_ALL()[p.role]?.ar||p.role||"")} · مسموح ${allowed}/${caps.length}${n?` · <b>${n} استثناء</b>`:""}</div></div><button class="btn sm" onclick="permUserSheet('${esc(p.id)}')">تخصيص</button></div>`}).join("")}</div>`:'<p class="muted" style="margin:12px 0">مفيش حسابات.</p>'}
-function permMatrixHTML(){
-  return `<h3 style="margin:0 0 4px">🧭 مصفوفة الصلاحيات</h3><div class="muted" style="font-size:12.5px">مكان واحد لكل «مين يقدر يعمل إيه». الأدمن دايمًا مسموح له. التعديل بيغيّر الواجهة فورًا؛ حماية السيرفر زي ما هي.</div>
-  <div class="pm-top"><div class="pm-seg"><button class="${_pm.view==="role"?"on":""}" onclick="_pm.view='role';permRefresh(1)">حسب الدور</button><button class="${_pm.view==="user"?"on":""}" onclick="_pm.view='user';permRefresh(1)">حسب الحساب</button></div>
-  <input class="pm-q" id="pmQ" type="search" placeholder="🔎 ابحث في الصلاحيات أو الحسابات" value="${esc(_pm.q)}" oninput="_pm.q=this.value;permRefresh()">
-  ${_pm.view==="role"?`<label class="pm-chk"><input type="checkbox" ${_pm.mod?"checked":""} onchange="_pm.mod=this.checked;permRefresh()"> المعدّل فقط</label>`:""}
-  ${_pm.view==="role"&&Object.keys(_permOv().roles||{}).length?`<button class="btn sm" onclick="permResetAll()">↺ كله للافتراضي</button>`:""}</div>
-  <div id="pmBody">${permBodyHTML()}</div>`}
 function permRefresh(full){const c=$("permMatrixCard");if(!c)return;try{c.style.setProperty("--pm-bg",getComputedStyle(c).backgroundColor)}catch(e){}if(full){c.innerHTML=permMatrixHTML();return}
   const b=$("pmBody");if(b)b.innerHTML=permBodyHTML()}
-{const _sv=permSave;permSave=async function(){const ok=await _sv.apply(this,arguments);permRefresh(1);return ok}}
 function permResetCap(role,cap){return permSave(O=>{if(O.roles[role]){delete O.roles[role][cap]}})}
 function permResetAll(){if(!confirm("إرجاع كل استثناءات الأدوار للوضع الافتراضي؟ (استثناءات الحسابات تفضل)"))return;return permSave(O=>{O.roles={}})}
 function permUserSheet(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const U=_permOv().users?.[uid]||{};
   const row=cap=>{const v=U[cap]===true?"1":U[cap]===false?"0":"",eff=can(cap,p);
-    return `<div class="pm-row" style="border-bottom:1px solid var(--line,#8883);padding:10px 0"><div style="flex:1;min-width:0"><div>${esc(CAPS[cap].ar)}</div><div class="muted" style="font-size:12px">الدور: ${permDefault(cap,p)?"مسموح":"ممنوع"} · الفعلي الآن: <b>${eff?"مسموح":"ممنوع"}</b></div></div>
+    return `<div class="pm-row" style="border-bottom:1px solid var(--line,#8883);padding:10px 0"><div style="flex:1;min-width:0"><div>${esc(CAPS[cap].ar)}</div><div class="muted" style="font-size:12px">الدور: ${permDefault(cap,p)?"مسموح":"ممنوع"} · الفعلي الآن: <b>${eff?"مسموح":"ممنوع"}</b> (${permWhy(cap,p)})</div></div>
       <select name="pc_${cap}" style="min-width:104px"><option value="" ${v===""?"selected":""}>حسب الدور</option><option value="1" ${v==="1"?"selected":""}>مسموح</option><option value="0" ${v==="0"?"selected":""}>ممنوع</option></select></div>`};
   openSheet("صلاحيات "+(p.username||""),`<div class="form"><div class="full">${_pmCaps().map(([c])=>row(c)).join("")}</div></div>`,async fd=>{const m={};for(const [c] of _pmCaps())m[c]=fd["pc_"+c]||"";const ok=await permSetUser(uid,m);return ok?null:"الحفظ فشل"},"حفظ")}
-/* ---- إخفاء نظام الصلاحيات القديم داخل صندوق مطوي (البيانات والمنطق باقيين، الواجهة بس اتخبّت) ---- */
-const _LEG_T=["الأدوار والصلاحيات","صلاحية توزيع المهام","صلاحيات التوقيع والاعتماد","صلاحيات فحص المعدات واعتمادها","صلاحيات البطاقات وملف العمالة"];
-function legacyPermHide(){const b=$("setBody");if(!b)return;
-  const cards=[...b.querySelectorAll(".card")].filter(c=>!c.closest("#legacyPermBox")&&c.id!=="permMatrixCard"&&!c.parentElement.closest(".card")&&(()=>{const h=c.querySelector("h3");return !!h&&_LEG_T.some(t=>h.textContent.includes(t))})());
-  if(!cards.length)return;let box=$("legacyPermBox");
-  if(!box){box=document.createElement("details");box.id="legacyPermBox";box.className="card";box.style.marginTop="14px";
-    box.innerHTML='<summary style="cursor:pointer;font-weight:700">🗄 الصلاحيات القديمة (مخفية)</summary><div class="muted" style="font-size:12.5px;margin:6px 0 10px">متخبّية بعد المصفوفة الجديدة. إعداداتها لسه سارية (الأدوار ومستويات الأقسام، توزيع المهام، التوقيع والاعتماد، فحص المعدات، البطاقات)، وتقدر تعدّلها من هنا لو احتجت.</div><div class="lp-body"></div>';b.appendChild(box)}
-  const body=box.querySelector(".lp-body");cards.forEach(c=>body.appendChild(c))}
-let _legT=null,_legMo=null;
 {const _pf=VIEWS.settings.fill;VIEWS.settings.fill=function(){_pf.apply(this,arguments);const b=$("setBody");if(!b||!can("sys.admin"))return;
   if(!$("permMatrixCard")){const c=document.createElement("div");c.className="card";c.id="permMatrixCard";c.style.marginTop="14px";c.innerHTML=permMatrixHTML();b.prepend(c);try{c.style.setProperty("--pm-bg",getComputedStyle(c).backgroundColor)}catch(e){}}
-  try{_legMo&&_legMo.disconnect();_legMo=new MutationObserver(()=>{clearTimeout(_legT);_legT=setTimeout(legacyPermHide,60)});_legMo.observe(b,{childList:true,subtree:true})}catch(e){}
-  legacyPermHide();setTimeout(legacyPermHide,400);setTimeout(legacyPermHide,1500)}}
+}}
 /* البطاقات: نفس الواجهة القديمة لكن القرار من can() */
-idPerm=function(){return {see:can("id.view"),add:can("id.add")}};
-idPermFor=function(p){return {see:can("id.view",p),add:can("id.add",p)}};
 
 
 /* ===== 8.9.8: تنزيل جدول العمالة المحددة (اسم/كود/وظيفة) + بطايق أو ملفات كاملة اختياريًا ===== */
@@ -11506,6 +11335,149 @@ document.addEventListener("toggle",e=>{const d=e.target;if(!d||!d.classList||!d.
   m.style.width=w+"px";m.style.top=(r.bottom+6)+"px";m.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+"px"},true);
 document.addEventListener("click",e=>{document.querySelectorAll(".pvmore[open]").forEach(d=>{if(!d.contains(e.target)||e.target.closest(".pvmenu button"))d.open=false})},true);
 
+/* ===== 8.9.48 — نظام صلاحيات واحد =====
+   المصدر الوحيد: CAPS + settings.permOverrides (roles / users / rules) + مستويات الأقسام للدور.
+   ما كانش موجود قبل كده وبقى هنا: بطاقات العاملين، توزيع المهام، فحص المعدات (يفحص / يعتمد)، اعتماد المأموريات، التوقيع والاعتماد.
+   قبل «الترحيل» (permOverrides.v !== 2) الإعدادات القديمة بتتقرا افتراضيًا بنفس السلوك القديم بالظبط (permDerive)، وبعده بتتمسح. */
+const PM_SIGN_RULES=[["write","أي حد عنده صلاحية كتابة"],["named","المذكور اسمه في النموذج فقط"],["owner","صاحب المستند أو المذكور فيه"]];
+const PM_APPROVE_RULES=[["role","حسب القدرة «اعتماد» فوق"],["named","المعتمد المحدد على المستند نفسه"]];
+function pmTab(p,t){let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{});if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));return tb[t]||"view"}
+Object.assign(CAPS,{
+  "tasks.assign":{g:"المهام",ar:"توزيع النماذج كمهام على الفريق",def:p=>isLeader(emp(p.emp_id))},
+  "inspect.do":{g:"فحص المعدات",ar:"إجراء فحص المعدات والتوقيع عليه",def:p=>!!p.emp_id&&hseTeam().some(e=>e.id===p.emp_id)},
+  "inspect.approve":{g:"فحص المعدات",ar:"اعتماد فحص المعدات",def:p=>REVIEWERS.includes(p.role)}});
+for(const [g,ar] of Object.entries(SIGN_GROUPS)){
+  CAPS["sign."+g]={g:"التوقيع والاعتماد",ar:"التوقيع على: "+ar,def:()=>true};
+  CAPS["approve."+g]={g:"التوقيع والاعتماد",ar:"اعتماد: "+ar,def:g==="records"?p=>can("records.review",p)||pmTab(p,"forms")==="full":p=>HSE_FINAL_ROLES.includes(p.role)||pmTab(p,"forms")==="full"}}
+function permAllRoles(){return [...new Set([...Object.keys(ROLES_ALL()),...TEAM_ROLES,...(S.profiles||[]).map(p=>p.role),"custom"])].filter(r=>r&&r!=="admin")}
+/* ---- ترجمة الإعدادات القديمة لاستثناءات (نفس سلوكها القديم بالظبط) ---- */
+function permDerive(s){const R={},U={},RU={},setR=(r,c,v)=>{(R[r]=R[r]||{})[c]=!!v},setU=(u,c,v)=>{(U[u]=U[u]||{})[c]=!!v};
+  const all=S.profiles||[],non=all.filter(p=>p.role!=="admin"),roles=permAllRoles();
+  const M={full:[1,1],see:[1,0],add:[0,1],none:[0,0]},C=s.idAccess||{};
+  for(const [r,v] of Object.entries(C.roles||{}))if(M[v]){setR(r,"id.view",M[v][0]);setR(r,"id.add",M[v][1])}
+  for(const [u,v] of Object.entries(C.users||{}))if(M[v]){setU(u,"id.view",M[v][0]);setU(u,"id.add",M[v][1])}
+  const ta=Array.isArray(s.taskAssigners)?s.taskAssigners:[];
+  if(ta.length)for(const p of non)setU(p.id,"tasks.assign",ta.includes(p.emp_id));
+  const ia=s.inspectionAccess||{};
+  if(Array.isArray(ia.inspectors)){const team=new Set(hseTeam().map(e=>e.id));for(const p of all)if(p.emp_id&&team.has(p.emp_id))setU(p.id,"inspect.do",ia.inspectors.includes(p.emp_id))}
+  if(Array.isArray(ia.approvers))for(const p of all)if(REVIEWERS.includes(p.role))setU(p.id,"inspect.approve",ia.approvers.includes(p.id));
+  for(const g of Object.keys(SIGN_GROUPS)){
+    const pol={...(SIGN_DEF[g]||{sign:"write",approve:"role"}),...((s.signPerm||{})[g]||{})};
+    const list=g==="mission"?(Array.isArray(s.missionApprovers)?s.missionApprovers:[]):(Array.isArray(pol.list)?pol.list:[]);
+    const rule=RU[g]={};
+    if(pol.sign==="list"){for(const r of roles)setR(r,"sign."+g,false);for(const p of non)if(p.emp_id&&list.includes(p.emp_id))setU(p.id,"sign."+g,true);rule.sign="write"}
+    else rule.sign=pol.sign;
+    if(pol.approve==="list"){for(const r of roles)setR(r,"approve."+g,false);for(const p of non)if(p.emp_id&&list.includes(p.emp_id))setU(p.id,"approve."+g,true);rule.approve="role"}
+    else rule.approve=pol.approve}
+  return {roles:R,users:U,rules:RU}}
+function permMerge(st,dv){const out={roles:{},users:{},rules:{}},prof=id=>(S.profiles||[]).find(p=>p.id===id);
+  for(const r of new Set([...Object.keys(dv.roles),...Object.keys(st.roles||{})]))out.roles[r]={...(dv.roles[r]||{}),...((st.roles||{})[r]||{})};
+  for(const u of new Set([...Object.keys(dv.users),...Object.keys(st.users||{})])){const o={...((st.users||{})[u]||{})},p=prof(u);
+    for(const [c,v] of Object.entries(dv.users[u]||{})){if(o[c]!==undefined)continue;if(p&&(st.roles||{})[p.role]?.[c]!==undefined)continue;o[c]=v}
+    out.users[u]=o}
+  for(const g of new Set([...Object.keys(dv.rules),...Object.keys(st.rules||{})]))out.rules[g]={...(dv.rules[g]||{}),...((st.rules||{})[g]||{})};
+  return out}
+let _pmC={k:null,v:null};
+function permBump(){_pmC.k=null}
+function _permStored(){return S.settings?.permOverrides||{}}
+function _permOv(){const s=S.settings||{},key=[s.permOverrides,s.idAccess,s.taskAssigners,s.inspectionAccess,s.signPerm,s.missionApprovers,s.roles,S.profiles,(S.profiles||[]).length,(S.employees||[]).length];
+  if(_pmC.k&&_pmC.k.every((x,i)=>x===key[i]))return _pmC.v;
+  const st=_permStored(),v=st.v===2?st:permMerge(st,permDerive(s));_pmC={k:key,v};return v}
+function _permDef(cap,p){const d=CAPS[cap];return !!(d&&(d.def?d.def(p):(d.roles||[]).includes(p.role)))}
+/* نفس can() لكن من غير «الأدمن مسموح دايمًا» — لقوايم الفاحصين والمعتمدين */
+function permRaw(cap,p){const d=CAPS[cap];if(!d||!p)return false;if(!d.fixed){const ov=_permOv(),u=ov.users?.[p.id]?.[cap];if(u!==undefined)return !!u;const r=ov.roles?.[p.role]?.[cap];if(r!==undefined)return !!r}return _permDef(cap,p)}
+function permWhy(cap,p){const ov=_permOv();if(ov.users?.[p.id]?.[cap]!==undefined)return "استثناء على الحساب";if(ov.roles?.[p.role]?.[cap]!==undefined)return "استثناء على الدور";return "افتراضي"}
+async function permSave(mut){const O=JSON.parse(JSON.stringify(_permStored()));O.roles=O.roles||{};O.users=O.users||{};O.rules=O.rules||{};mut(O);
+  for(const k of ["roles","users","rules"])for(const key of Object.keys(O[k])){if(!Object.keys(O[k][key]).length)delete O[k][key]}
+  const ok=await write(()=>upsert("settings","app",{permOverrides:O}),"اتحفظت الصلاحية");permBump();permRefresh(1);return ok}
+function permRuleSet(g,k,v){return permSave(O=>{O.rules[g]=O.rules[g]||{};O.rules[g][k]=v})}
+function signRule(g){const R=(_permOv().rules||{})[g]||{},D=SIGN_DEF[g]||{};return {sign:R.sign||(D.sign==="list"?"write":D.sign)||"write",approve:R.approve||(D.approve==="named"?"named":"role")}}
+/* ---- القرارات القديمة، دلوقتي فوق can() ---- */
+function canAssignTasks(){if(myAccess()?.role==="admin")return true;if(!myEmpId())return false;return can("tasks.assign")}
+function inspectionInspectorEmployees(){const P=S.profiles||[];return hseTeam().filter(e=>P.some(p=>p.emp_id===e.id&&!p.disabled&&permRaw("inspect.do",p)))}
+function inspectionApproverProfiles({excludeSelf=true}={}){return (S.profiles||[]).filter(p=>!p.disabled&&(!excludeSelf||p.id!==ME.id)&&permRaw("inspect.approve",p)).sort((a,b)=>profName(a).localeCompare(profName(b),"ar"))}
+function canSignGroup(g,{names=[],ownerId=""}={}){
+  if(myAccess()?.role==="admin")return true;
+  if(!groupWritable(g))return false;
+  if(myProfile()&&!can("sign."+g))return false;
+  const r=signRule(g).sign,me=myEmpId();
+  if(r==="named")return myNameIn(names);
+  if(r==="owner")return (!!me&&!!ownerId&&me===ownerId)||myNameIn(names);
+  return true}
+function canApproveGroup(g,{approverId=""}={}){
+  if(myAccess()?.role==="admin")return true;
+  if(!groupWritable(g))return false;
+  if(signRule(g).approve==="named"){const me=myEmpId();return !!me&&!!approverId&&me===approverId}
+  return can("approve."+g)}
+function recCanApproveUid(p){if(!p||p.disabled)return false;if(p.role==="admin")return true;if(pmTab(p,"forms")==="view")return false;if(signRule("records").approve==="named")return false;return can("approve.records",p)}
+function missionApproverIds(){return [...new Set((S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled&&p.emp_id&&permRaw("approve.mission",p)).map(p=>p.emp_id))]}
+/* ---- أقسام الدور (المستوى لكل قسم) — نفس التخزين والحماية على السيرفر ---- */
+function pmRoleTabs(r){let t=ROLES_ALL()[r]?.tabs||{};if(Array.isArray(t))t=Object.fromEntries(t.map(k=>[k,"edit"]));const o={...t};delete o.inspection;return o}
+async function permSetTab(role,tab,lv){const cur=pmRoleTabs(role);if(lv)cur[tab]=lv;else delete cur[tab];
+  if(!Object.keys(cur).length){toast("لازم قسم واحد على الأقل للدور");permRefresh(1);return}
+  const tabs=withInspectionTab(cur),roles={...(S.settings.roles||{}),[role]:{ar:ROLES_ALL()[role]?.ar||role,tabs}};
+  const ok=await write(()=>db.doc("settings/main").update({roles}),"اتحفظ");
+  if(ok){for(const p of (S.profiles||[]).filter(p=>p.role===role))try{await SB.from("profiles").update({tabs}).eq("user_id",p.id)}catch(e){}}
+  permBump();permRefresh(1)}
+function pmStale(){return (S.profiles||[]).filter(p=>p.role!=="admin"&&p.role!=="custom"&&ROLES_ALL()[p.role]).map(p=>{const want=withInspectionTab(pmRoleTabs(p.role)),have=p.tabs||{},diff=[...new Set([...Object.keys(want),...Object.keys(have)])].filter(k=>(want[k]||"")!==(have[k]||""));return diff.length?{p,want,have,diff}:null}).filter(Boolean)}
+function pmTabsGroups(){const known=new Set(TAB_GROUPS.flatMap(g=>g[1])),rest=Object.keys(TAB_NAMES).filter(k=>k!=="settings"&&k!=="inspection"&&!String(k).startsWith("ws_")&&!known.has(k)&&!TAB_FIXED.includes(k));return [...TAB_GROUPS,...(rest.length?[["أخرى",rest]]:[])]}
+function permTabsHTML(){const roles=_pmRoles(),q=_pm.q.trim(),G=pmTabsGroups().map(([t,ks])=>[t,ks.filter(k=>TAB_NAMES[k]&&(!q||TAB_NAMES[k].includes(q)||t.includes(q)))]).filter(g=>g[1].length);
+  if(!roles.length)return '<p class="muted">مفيش أدوار.</p>';if(!roles.some(r=>r[0]===_pm.role))_pm.role=roles[0][0];
+  const sel=(r,k)=>{const v=pmRoleTabs(r)[k]||"";return `<select class="pm-sel" onchange="permSetTab('${r}','${k}',this.value)"><option value="">مخفي</option>${Object.entries(LV).map(([x,n])=>`<option value="${x}" ${v===x?"selected":""}>${n}</option>`).join("")}</select>`};
+  let dr="";for(const [t,ks] of G){dr+=`<tr class="pm-gr"><td colspan="${roles.length+1}">${t}</td></tr>`;for(const k of ks)dr+=`<tr><td class="pm-c1">${esc(TAB_NAMES[k])}</td>${roles.map(([r])=>`<td>${sel(r,k)}</td>`).join("")}</tr>`}
+  let mob="";for(const [t,ks] of G){mob+=`<div class="pm-g">${t}</div>`;for(const k of ks)mob+=`<div class="pm-row"><div class="pm-t">${esc(TAB_NAMES[k])}</div>${sel(_pm.role,k)}</div>`}
+  const chips=roles.map(([k,r])=>`<button class="pm-chip ${k===_pm.role?"on":""}" onclick="_pm.role='${k}';permRefresh()">${esc(r.ar||k)}</button>`).join("");
+  const mgr=`<details style="margin-top:12px"><summary class="muted" style="cursor:pointer;font-size:13px">إدارة الأدوار (إضافة · تسمية · حذف)</summary><div class="list" style="margin-top:6px">${roles.map(([k,r])=>`<div class="li"><div class="grow"><div class="t">${esc(r.ar||k)}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div></div>`).join("")}</div><button class="btn sm" style="margin-top:8px" onclick="roleForm()">+ دور جديد</button></details>`;
+  return `<div class="muted" style="font-size:12.5px;margin-bottom:6px">«مخفي» = القسم مش بيظهر · «مشاهدة» = يشوف بس · «إضافة وتعديل» = يسجّل ويعدّل · «+ مسح» = يمسح كمان. المستوى هنا هو اللي بيتحدد بيه الحفظ على السيرفر.</div>
+  <div class="pm-desk"><div class="pm-wrap"><table class="pm-tb"><thead><tr><th class="pm-c1">القسم</th>${roles.map(([k,r])=>`<th>${esc(r.ar||k)}</th>`).join("")}</tr></thead><tbody>${dr||`<tr><td colspan="${roles.length+1}" class="muted">مفيش نتائج.</td></tr>`}</tbody></table></div></div>
+  <div class="pm-mob"><div class="pm-chips">${chips}</div>${mob}</div>${mgr}`}
+function permRulesHTML(){return `<div class="pm-g" style="margin-top:16px">قواعد التوقيع والاعتماد (على المستند نفسه)</div><div class="muted" style="font-size:12.5px;margin-bottom:6px">القدرة فوق بتحدد مين مسموح له، والقاعدة هنا بتحدد هل لازم يكون هو المذكور في المستند.</div>${Object.entries(SIGN_GROUPS).map(([g,ar])=>{const R=signRule(g);
+  return `<div class="pm-row" style="flex-wrap:wrap"><div class="pm-t"><b>${esc(ar)}</b></div><label class="muted" style="font-size:12px">التوقيع <select class="pm-sel" onchange="permRuleSet('${g}','sign',this.value)">${PM_SIGN_RULES.map(([v,l])=>`<option value="${v}" ${R.sign===v?"selected":""}>${l}</option>`).join("")}</select></label><label class="muted" style="font-size:12px">الاعتماد <select class="pm-sel" onchange="permRuleSet('${g}','approve',this.value)">${PM_APPROVE_RULES.map(([v,l])=>`<option value="${v}" ${R.approve===v?"selected":""}>${l}</option>`).join("")}</select></label></div>`}).join("")}`}
+{const _b=permBodyHTML;permBodyHTML=function(){if(_pm.view==="tabs")return permTabsHTML();return _b.apply(this,arguments)+(_pm.view==="role"?permRulesHTML():"")}}
+function permUsersHTML(){const ov=_permOv(),q=_pm.q.trim(),stale=new Set(pmStale().map(x=>x.p.id));
+  const users=(S.profiles||[]).filter(p=>p.role!=="admin"&&!p.disabled&&(!q||String(p.username||"").includes(q)||profName(p).includes(q)||(ROLES_ALL()[p.role]?.ar||"").includes(q))).sort((a,b)=>profName(a).localeCompare(profName(b),"ar"));
+  const caps=_pmCaps();
+  return users.length?`<div class="list">${users.map(p=>{const n=Object.keys(ov.users?.[p.id]||{}).length,allowed=caps.filter(([c])=>can(c,p)).length;
+    return `<div class="li"><div class="grow"><div class="t">${esc(profName(p))}</div><div class="s">${esc(ROLES_ALL()[p.role]?.ar||(p.role==="custom"?"مخصص":p.role)||"")} · مسموح ${allowed}/${caps.length}${n?` · <b>${n} استثناء</b>`:""}${stale.has(p.id)?' · <span style="color:var(--warn)">⚠ أقسام الحساب مختلفة عن الدور</span>':""}</div></div><button class="btn sm" onclick="permUserSheet('${esc(p.id)}')">القدرات</button><button class="btn ghost sm" onclick="userForm('${esc(p.id)}')">الدور والأقسام</button></div>`}).join("")}</div>`:'<p class="muted" style="margin:12px 0">مفيش حسابات.</p>'}
+function permMatrixHTML(){const mig=_permStored().v!==2;
+  return `<h3 style="margin:0 0 4px">🧭 الصلاحيات</h3><div class="muted" style="font-size:12.5px">مكان واحد لكل «مين يقدر يعمل إيه»: الأقسام لكل دور، والقدرات، والحسابات. الأدمن دايمًا مسموح له. التعديل بيغيّر الواجهة فورًا؛ حماية السيرفر على الأقسام (مستوى الكتابة) زي ما هي.</div>
+  ${mig?`<div class="banner" style="margin:10px 0"><b>فيه إعدادات صلاحيات قديمة لسه شغالة.</b> رحّلها للمصفوفة واتمسحها عشان يبقى فيه مصدر واحد. <button class="btn sm primary" onclick="permMigrateOpen()">ابدأ الترحيل</button></div>`:""}
+  <div class="pm-top"><div class="pm-seg"><button class="${_pm.view==="tabs"?"on":""}" onclick="_pm.view='tabs';permRefresh(1)">الأقسام</button><button class="${_pm.view==="role"?"on":""}" onclick="_pm.view='role';permRefresh(1)">القدرات</button><button class="${_pm.view==="user"?"on":""}" onclick="_pm.view='user';permRefresh(1)">الحسابات</button></div>
+  <input class="pm-q" id="pmQ" type="search" placeholder="🔎 ابحث" value="${esc(_pm.q)}" oninput="_pm.q=this.value;permRefresh()">
+  ${_pm.view==="role"?`<label class="pm-chk"><input type="checkbox" ${_pm.mod?"checked":""} onchange="_pm.mod=this.checked;permRefresh()"> المعدّل فقط</label>`:""}
+  ${_pm.view==="role"&&Object.keys(_permStored().roles||{}).length?`<button class="btn sm" onclick="permResetAll()">↺ كله للافتراضي</button>`:""}</div>
+  <div id="pmBody">${permBodyHTML()}</div>`}
+_pm.view="tabs";
+/* ---- الترحيل: القديم → المصفوفة، وبعدها مسح القديم ---- */
+function permMigrateOpen(){const dv=permDerive(S.settings||{}),cnt={};
+  for(const o of [...Object.values(dv.roles),...Object.values(dv.users)])for(const c of Object.keys(o))cnt[c]=(cnt[c]||0)+1;
+  const stale=pmStale(),lost=new Set();const s=S.settings||{},acc=new Set((S.profiles||[]).map(p=>p.emp_id).filter(Boolean));
+  const lists=[...(Array.isArray(s.taskAssigners)?s.taskAssigners:[]),...(Array.isArray(s.missionApprovers)?s.missionApprovers:[]),...Object.values(s.signPerm||{}).flatMap(x=>Array.isArray(x.list)?x.list:[]),...(Array.isArray(s.inspectionAccess?.inspectors)?s.inspectionAccess.inspectors:[])];
+  lists.forEach(id=>{if(id&&!acc.has(id))lost.add(id)});
+  const capRows=Object.entries(cnt).map(([c,n])=>`<li>${esc(CAPS[c]?.ar||c)}: ${n} استثناء</li>`).join("")||"<li>مفيش استثناءات قديمة تتنقل (هتتمسح الإعدادات الفاضية بس).</li>";
+  const stRows=stale.map(x=>`<li><b>${esc(profName(x.p))}</b> (${esc(ROLES_ALL()[x.p.role]?.ar||x.p.role)}): ${x.diff.filter(k=>k!=="inspection").map(k=>`${esc(TAB_NAMES[k]||k)} — الحساب «${esc(LV[x.have[k]]||"مخفي")}» والدور «${esc(LV[x.want[k]]||"مخفي")}»`).join("، ")}</li>`).join("");
+  openSheet("ترحيل الصلاحيات القديمة",`<p style="margin-top:0">هيتنقل للمصفوفة بنفس النتيجة الفعلية لكل مستخدم، وبعدها الإعدادات القديمة (البطاقات، توزيع المهام، فحص المعدات، اعتماد المأموريات، التوقيع والاعتماد) <b>بتتمسح</b>. بيتأكد قبل المسح إن النتيجة متطابقة، ولو اختلفت بيوقف من غير ما يمسح.</p>
+   <div class="card" style="padding:10px 14px"><b>اللي هيتنقل</b><ul style="margin:6px 0 0;padding-inline-start:20px">${capRows}</ul></div>
+   ${lost.size?`<div class="banner" style="margin-top:10px">${lost.size} اسم في القوايم القديمة مالهمش حساب دخول، فمش هيتنقلوا (ما كانوش يقدروا يتصرفوا من غير حساب): ${[...lost].map(id=>esc(emp(id)?.name||id)).join("، ")}</div>`:""}
+   ${stale.length?`<div class="card" style="padding:10px 14px;margin-top:10px"><b>⚠ حسابات أقسامها مختلفة عن دورها (صلاحية مخفية)</b><ul style="margin:6px 0 0;padding-inline-start:20px;font-size:13px">${stRows}</ul><label class="chk" style="margin-top:8px"><input type="checkbox" name="sync" checked> وحّد أقسام الحسابات دي على أقسام الدور (بيتطبق على السيرفر كمان)</label></div>`:""}`,
+   async fd=>{const r=await permMigrateRun(!!fd.sync&&stale.length>0);return r},"رحّل وامسح القديم")}
+async function permMigrateRun(sync){
+  const P=S.profiles||[],caps=Object.keys(CAPS).filter(c=>!CAPS[c].fixed);
+  const snap=()=>{const m={};for(const p of P)for(const c of caps)m[p.id+"|"+c]=permRaw(c,p)?1:0;for(const g of Object.keys(SIGN_GROUPS)){const r=signRule(g);m["rule|"+g]=r.sign+"/"+r.approve}return JSON.stringify(m)};
+  const before=snap(),st=_permStored(),eff=_permOv(),newOv={roles:eff.roles||{},users:eff.users||{},rules:eff.rules||{},v:2};
+  const old=S.settings.permOverrides;
+  if(!await write(()=>upsert("settings","app",{permOverrides:newOv}),"اتنقلت الصلاحيات"))return "الحفظ فشل";
+  S.settings={...S.settings,permOverrides:newOv};permBump();
+  if(snap()!==before){S.settings={...S.settings,permOverrides:old};permBump();await write(()=>upsert("settings","app",{permOverrides:old||null}),"رجوع");return "النتيجة اختلفت بعد النقل فاتوقف من غير مسح. ابعتلي المشكلة."}
+  const nul={idAccess:null,taskAssigners:null,inspectionAccess:null,signPerm:null,missionApprovers:null};
+  if(!await write(()=>upsert("settings","app",nul),"اتمسح القديم"))return "اتنقلت الصلاحيات لكن مسح القديم فشل";
+  S.settings={...S.settings,...nul};permBump();
+  if(sync)for(const x of pmStale()){try{await SB.from("profiles").update({tabs:x.want}).eq("user_id",x.p.id);x.p.tabs=x.want}catch(e){}}
+  permBump();permRefresh(1);return null}
+/* بطاقات العاملين: القرار من can() بس */
+function _idDef(p){let tb=p.tabs&&Object.keys(p.tabs).length?p.tabs:(ROLES_ALL()[p.role]?.tabs||{});if(Array.isArray(tb))tb=Object.fromEntries(tb.map(k=>[k,"edit"]));
+  const mon=p.role==="monitor";return [!mon,!mon&&!["sup","eng"].includes(p.role)&&(tb.manpower||"view")!=="view"]}
+
 </script>
 <style id="dsLayer">
 /* 8.9.34 — طبقة تنسيق موحّدة (DS): خطوط · مسافات · محاذاة · موبايل */
@@ -11642,6 +11614,10 @@ nav.tabs button,nav.tabs summary{font-size:var(--fs-sm);padding:10px 12px}
 .pvmenu .btn{display:flex;width:100%;justify-content:flex-start;margin:0;text-align:start}
 .pp-main{font-weight:800}
 @media(max-width:620px){.pp-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.pp-body{max-height:46vh}.pvbar #pvAct{width:100%}.pvbar #pvAct>.btn,.pvbar #pvAct>.pvmore{flex:1 1 auto}.pvbar #pvAct .pvmore>summary{width:100%;justify-content:center}}
+
+/* 8.9.48 — صلاحيات موحّدة */
+#permMatrixCard .pm-sel{max-width:150px;min-height:36px;border-radius:8px;border:1px solid var(--line,#8886);background:transparent;color:inherit;font:inherit;font-size:12.5px;padding:2px 6px}
+#permMatrixCard .pm-tb .pm-sel{max-width:118px}
 </style>
 </body></html>
 
