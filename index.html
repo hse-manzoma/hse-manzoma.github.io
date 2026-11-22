@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.24";
+const APP_VER="8.9.25";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5291,7 +5291,7 @@ VIEWS.ptw={
       ${pg.rows.map(p=>`<tr><td><span class="num">${esc(p.number)}</span></td><td>${typeChip(p.type)}</td><td class="n"><div>${fmtDate(p.startDate||p.date)}</div><div class="muted" style="font-size:11px">${p.from?`${esc(p.from)} – ${esc(p.to||"")}`:""}${p.closedAt?` · إغلاق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}</div></td>
       <td style="min-width:180px"><div>${esc(p.location||"—")}</div><div class="muted" style="font-size:12.5px">${esc((p.desc||"").slice(0,80))}</div></td>
       <td>${esc(p.contractor||"")}</td><td>${esc(p.safetyId?empName(p.safetyId):(p.safetyName||""))}</td><td>${statusPill(p.status)}</td>
-      <td><div class="row-actions">${FORM_TYPES.includes(p.type)&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')">👁 عرض</button>`:""}${(p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn ghost sm danger" onclick="ptwClose('${p.id}')">✔ إغلاق</button>`:""}${ptwDraft(p)?"":attBtn("permits",p.id,p)}${R.final||p.createdBy===ME.id&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="${ptwDraft(p)?`ptwRequestForm('${p.id}')`:`ptwForm('${p.id}')`}">تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+      <td><div class="row-actions">${FORM_TYPES.includes(p.type)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')" title="${ptwDraft(p)?"طباعة الطلب قبل الاعتماد (نسخة مسودة)":"عرض التصريح"}">${ptwDraft(p)?"🖨 طباعة":"👁 عرض"}</button>`:""}${(p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn ghost sm danger" onclick="ptwClose('${p.id}')">✔ إغلاق</button>`:""}${ptwDraft(p)?"":attBtn("permits",p.id,p)}${R.final||p.createdBy===ME.id&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="${ptwDraft(p)?`ptwRequestForm('${p.id}')`:`ptwForm('${p.id}')`}">تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
       </tbody></table></div>${pg.btn}<p class="muted" style="font-size:12.5px">${L.length} تصريح</p>`;
   }
 };
