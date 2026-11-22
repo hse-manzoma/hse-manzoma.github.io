@@ -2180,7 +2180,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.49";
+const APP_VER="8.9.50";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3849,7 +3849,7 @@ var CREW_FONT=FFACE();
 function permitCrewList(p){return (p&&p.crew||[]).map(c=>({name:String(c&&c.name||"").trim(),job:String(c&&c.job||"").trim(),sig:c&&c.sig||""})).filter(c=>c.name)}
 function crewFit(g,t,maxW,sz,wt){let s=sz;g.font=`${wt} ${s}px ${CREW_FONT}`;while(s>9&&g.measureText(t).width>maxW){s--;g.font=`${wt} ${s}px ${CREW_FONT}`}return s}
 function crewCapacity(T){return PERMIT_CREW_GRID[T]?9:PERMIT_CREW_NOTES[T]?21:0}
-function crewNotesLayout(T,W,H,n){const B=PERMIT_CREW_NOTES[T];if(!B||!n)return null;n=Math.min(n,21);const blocks=n<=3?1:n<=6?2:3,rows=Math.ceil(n/blocks),rh=Math.min(H*0.0225,(B.y1-B.y0)*H/(rows+2.4)),th=(rows+2)*rh;return {B,blocks,rows,rh,th,top:B.y1*H-th-5}}
+function crewNotesLayout(T,W,H,n){const B=PERMIT_CREW_NOTES[T];if(!B||!n)return null;n=Math.min(n,21);const blocks=n<=3?1:n<=6?2:3,rows=Math.ceil(n/blocks),mb=H*0.018,rh=Math.min(H*0.0225,((B.y1-B.y0)*H-mb)/(rows+2.4)),th=(rows+2)*rh;return {B,blocks,rows,rh,th,top:B.y1*H-th-mb}}
 function drawPermitCrew(pages,p){
  const T=p.type,list=permitCrewList(p);if(!list.length)return;
  const G=PERMIT_CREW_GRID[T];
