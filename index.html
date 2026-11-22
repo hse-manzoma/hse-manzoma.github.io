@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.35";
+const APP_VER="8.9.37";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2475,7 +2475,7 @@ function actionClose(id){
   const a=actById(id);if(!a)return;let photos=[...(a.att||[])];
   openSheet("إغلاق الإجراء",`<p style="margin-top:0"><b>${esc(a.title)}</b></p><div class="form">${f("تاريخ الإغلاق","closedAt",{type:"date",value:today()})}${f("اللي اتعمل","closeNote",{type:"textarea",full:true,attrs:'placeholder="مثلاً: تم تركيب درابزين وتغطية الفتحة"'})}
     <div class="full">${assetsNS?`<label class="btn sm" style="cursor:pointer">📷 صورة بعد الإصلاح<input type="file" id="actPh" accept="image/*" style="display:none"></label>`:""}<div id="actPhs" style="margin-top:8px">${thumbs(photos,64)}</div></div></div>`,async fd=>{
-    return (await actSave(id,{status:"closed",closedAt:fd.closedAt||today(),closeNote:(fd.closeNote||"").trim(),closedBy:myEmpId()||"",att:photos}))?null:"الحفظ فشل"},"إغلاق");
+    return (await actSave(id,{status:"closed",closedAt:fd.closedAt||today(),closeNote:(fd.closeNote||"").trim(),closedBy:myEmpId()||"",closedUid:ME.id||"",closedByName:myEmpName()||"",att:photos}))?null:"الحفظ فشل"},"إغلاق");
   $("actPh")?.addEventListener("change",async e=>{const file=e.target.files[0];if(!file)return;try{const b=await shrinkImage(file);const r=await assetsNS.upload(b,b.type?undefined:{type:"image/jpeg"});photos.push({a:r.id,kind:"after",type:r.contentType,at:Date.now()});$("actPhs").innerHTML=thumbs(photos,64)}catch(err){toast("الرفع فشل")}});
 }
 function actionReopen(id){actSave(id,{status:"open",closedAt:""})}
@@ -3473,7 +3473,7 @@ function kpiSources(empId,month){
       role:reviewer?"المعتمد":"الفاحص",
       status:num(x.bad)>0?`${num(x.bad)} غير صالحة`:"كلها صالحة"});
   }
-  for(const a of S.actions)if(a.status==="closed"&&(a.closedAt||"").startsWith(month)&&a.closedBy===empId){let key=`action:${a.id}`;if(a.recId){const part=a.id.slice(a.recId.length+1);key=`record:${a.recId}:${part==="c"?"c":part==="v"?"v":part}`}if(!o.corrective.some(x=>x.id===key))o.corrective.push({type:"action",id:a.id,date:a.closedAt,label:a.title||a.closeNote||"إجراء تصحيحي مغلق",who:a.closedByName||e?.name||""})}
+  for(const a of S.actions)if(a.status==="closed"&&(a.closedAt||"").startsWith(month)&&(a.closedBy===empId||(a.closedUid&&profOf(a.closedUid)?.emp_id===empId))){let key=`action:${a.id}`;if(a.recId){const part=a.id.slice(a.recId.length+1);key=`record:${a.recId}:${part==="c"?"c":part==="v"?"v":part}`}if(!o.corrective.some(x=>x.id===key))o.corrective.push({type:"action",id:a.id,date:a.closedAt,label:a.title||a.closeNote||"إجراء تصحيحي مغلق",who:a.closedByName||e?.name||""})}
   for(const k of Object.keys(o))o[k].sort((a,b)=>(b.date||"").localeCompare(a.date||""));return o;
 }
 function kpiAuto(empId,month){const R=kpiSources(empId,month),o={};for(const k of KPIS)o[k.k]=R[k.k]?.length||0;return o}
@@ -3501,13 +3501,98 @@ function kpiOpenSource(type,id,idx){
   toast("السجل ده اتمسح أو مش موجود");
 }
 function kpiOpenEquip(id){const q=(S.equipment||[]).find(x=>x.id===id);if(!q){toast("المعدة مش موجودة");return}ui.eqKind=q.kind||"ext";ui.eqFilter="all";ui.eqQ=String(q.serial||q.code||q.name||"");show("equip")}
+
+/* 8.9.36 — زرار «فتح النموذج» للإجراء التصحيحي في مصادر KPI + توضيح سبب الاحتساب */
+function kpiActSrc(id){
+  id=String(id||"");const a=(S.actions||[]).find(x=>x.id===id)||{};
+  let rid=a.recId||"";
+  if(!rid){const m=id.match(/^(.+)_(c|v|\d+|_?\d+)$/);if(m&&(S.records||[]).some(r=>r.id===m[1]))rid=m[1]}
+  if(rid&&(S.records||[]).some(r=>r.id===rid))return {k:"form",id:rid};
+  const e=id.match(/^eq_(.+)_(\d{4}-\d{2}-\d{2})$/);
+  if(e){const q=(S.equipment||[]).find(x=>x.id===e[1]);if(q){const idx=(q.insp||[]).findIndex(h=>h.date===e[2]);return {k:"eq",id:q.id,idx:idx<0?-1:idx,date:e[2]}}}
+  return null;
+}
+function kpiActBtns(s){
+  const src=kpiActSrc(s.id),a=(S.actions||[]).find(x=>x.id===s.id)||{};
+  const why=`<div class="s" style="color:var(--info);margin-top:4px;max-width:260px">اتحسبت له لأنه هو اللي قفل الإجراء ${a.closedAt?`بتاريخ ${fmtDate(a.closedAt)}`:""}</div>`;
+  const b=[];
+  if(src&&src.k==="form")b.push(`<button class="btn sm primary" onclick="kpiOpenSource('form','${esc(src.id)}',-1)">👁 فتح النموذج</button>`);
+  if(src&&src.k==="eq")b.push(`<button class="btn sm primary" onclick="kpiOpenSource('equipment','${esc(src.id)}',${src.idx})">👁 فتح الفحص</button><button class="btn ghost sm" onclick="kpiOpenEquip('${esc(src.id)}')">فتح المعدة</button>`);
+  b.push(`<button class="btn ghost sm" onclick="ui.actF='closed';show('actions')">فتح الإجراء</button>`);
+  return `<div style="display:flex;flex-direction:column;gap:6px;align-items:stretch">${b.join("")}</div>`;
+}
+/* 8.9.37 — تدقيق KPI: إيه اللي بتعمله ومش محسوب ليك وليه */
+function kpiAuditRows(empId,month){
+  const e=emp(empId)||{},nm=normName(e.name||"#"),R=kpiSources(empId,month),cnt=new Set(),G={};
+  for(const k of Object.keys(R))for(const s of R[k]){cnt.add(String(s.id));if(s.type==="equipment")cnt.add(s.id+":"+s.idx)}
+  const meProf=id=>!!id&&profOf(id)?.emp_id===empId,inM=d=>(d||"").startsWith(month);
+  const sigMine=r=>{for(const s of Object.values(r.signs||{}))if(s&&s.signature&&(s.uid===empId||meProf(s.uid)))return true;for(const w of (r.rows||[]))if(w&&w.sigImg&&(w.sigBy===empId||meProf(w.sigBy)))return true;return false};
+  const sigAny=h=>!!(h&&(h.sigImg||h.sig_img||h.sig1||h.signature));
+  const noExt=(S.profiles||[]).some(p=>p.emp_id===empId&&["hsesup","officer"].includes(p.role));
+  const add=(reason,row)=>{(G[reason]||(G[reason]=[])).push(row)};
+  const FM={"F-HSE-07-03":["reporter"],"F-HSE-07-01":["writer","officer"],"F-HSE-24-02":["trainer"],"F-HSE-24-01":["lecturer"],"F-HSE-03-01":["writer","officer","reporter"]};
+  for(const c of CHECKLIST_FORMS)FM[c]=["officer"];
+  for(const r of (S.records||[])){
+    if(!inM(r.date)||!FM[r.form]||cnt.has(String(r.id)))continue;
+    const inv=FM[r.form].some(k=>r.f?.[k+"_id"]===empId||(r.f?.[k]&&normName(r.f[k])===nm))||meProf(r.createdBy);
+    if(!inv)continue;
+    const mine=sigMine(r)||(sigAny(r)&&meProf(r.createdBy));
+    let why="";
+    if(!mine)why="النموذج مفيهوش توقيعك إنت (الاحتساب بيشترط توقيعك بنفسك)";
+    else if((r.form==="F-HSE-07-01"||r.form==="F-HSE-03-01")&&!String(r.f?.action||r.f?.corrective||r.f?.immediate||"").trim())why="مفيهوش نص إجراء تصحيحي";
+    else if(r.form==="F-HSE-07-03"&&!(r.rows||[]).some(x=>x?.kind==="USC"))why="مفيهوش صف «ظرف غير آمن»";
+    else why="موقّع بس اسمك/دورك في خانات النموذج مش مطابق لشرط الاحتساب";
+    add(why,{t:`${r.form} · ${r.f?.desc||r.f?.place||r.f?.title||""}`,d:r.date,open:`printRecord('${esc(r.id)}')`});
+  }
+  const insp=(x,key,openFn,label,sigOk,idv)=>{if(cnt.has(key))return;
+    add(sigOk?"اتحسب مرة واحدة بس: نفس المعدة في نفس اليوم (تكرار)":"الفحص مفيهوش توقيعك",{t:label,d:x.date,open:openFn})};
+  for(const x of (S.inspections||[])){
+    if(!inM(x.date))continue;if(!(x.inspector1Id===empId||(!x.inspector1Id&&x.inspector1&&normName(x.inspector1)===nm)))continue;
+    insp(x,String(x.id),`inspView('${esc(x.id)}')`,`فحص ${x.equipType||"معدة"} · ${x.code||x.project||""}`,sigAny(x));
+  }
+  for(const q of (S.equipment||[]))for(const [hi,h] of (q.insp||[]).entries()){
+    if(!inM(h.date)||!(h.by_id===empId||(h.by&&normName(h.by)===nm)))continue;
+    if(q.kind==="ext"&&noExt){add("الطفايات مش بتتحسب لدورك (مشرف/أوفيسر)",{t:`فحص ${q.serial||q.code||q.name||""}`,d:h.date,open:`kpiOpenEquip('${esc(q.id)}')`});continue}
+    const srcDone=(S.inspections||[]).some(x=>cnt.has(String(x.id))&&inspCodeKey(x.code)===inspCodeKey(q.serial||q.code||"")&&x.date===h.date);
+    if(cnt.has(q.id+":"+hi)||srcDone)continue;
+    add(sigAny(h)?"اتحسب مرة واحدة بس: نفس المعدة في نفس اليوم (تكرار)":"الفحص مفيهوش توقيعك",{t:`فحص ${q.serial||q.code||q.name||""}`,d:h.date,open:`kpiOpenEquip('${esc(q.id)}')`});
+  }
+  for(const x of (S.fireext||[])){
+    if(!inM(x.date)||cnt.has("fx:"+x.id)||cnt.has(String(x.id)))continue;
+    if(!(x.inspectorId===empId||(x.inspector&&normName(x.inspector)===nm)))continue;
+    add(noExt?"الطفايات مش بتتحسب لدورك (مشرف/أوفيسر)":"حصر الطفايات مفيهوش توقيعك",{t:`حصر طفايات ${x.project||""}`,d:x.date,open:`fxView('${esc(x.id)}')`});
+  }
+  for(const a of (S.actions||[])){
+    const mineOwn=a.ownerId===empId;if(!mineOwn&&a.closedBy!==empId)continue;
+    if(cnt.has(String(a.id)))continue;
+    if(a.status==="closed"){
+      if(a.closedBy===empId&&!inM(a.closedAt))add("اتقفل بإسمك بس في شهر تاني",{t:a.title||a.closeNote||a.id,d:a.closedAt,open:`ui.actF='closed';show('actions')`});
+      else if(mineOwn&&!a.closedBy)add("اتقفل من غير ما يتسجل مين قفله (مش بيتحسب لحد)",{t:a.title||a.closeNote||a.id,d:a.closedAt,open:`ui.actF='closed';show('actions')`});
+      else if(mineOwn&&a.closedBy!==empId&&inM(a.closedAt))add("إجراء إنت مسؤول عنه واتقفل بواسطة حد غيرك",{t:a.title||a.closeNote||a.id,d:a.closedAt,open:`ui.actF='closed';show('actions')`});
+    }else if(mineOwn&&(a.due||"").startsWith(month))add("إجراء إنت مسؤول عنه لسه مش مقفول",{t:a.title||a.id,d:a.due,open:`ui.actF='open';show('actions')`});
+  }
+  return {G,counted:Object.fromEntries(KPIS.map(k=>[k.ar,R[k.k].length]))};
+}
+function kpiAuditHTML(empId,month){
+  const {G,counted}=kpiAuditRows(empId,month),keys=Object.keys(G);
+  const sum=Object.entries(counted).map(([k,v])=>`${k}: <b>${v}</b>`).join(" · ");
+  if(!keys.length)return `<div class="card" style="margin-top:10px"><div class="s">المحسوب: ${sum}</div><p class="muted" style="margin:8px 0 0">مفيش سجلات مرتبطة بإسمه الشهر ده ومش محسوبة. لو في شغل ناقص فعلاً يبقى مش مسجّل باسمه في النموذج نفسه (خانة الكاتب/الفاحص) — افتح النموذج وشوف الاسم المكتوب.</p></div>`;
+  return `<div class="card" style="margin-top:10px"><div class="s">المحسوب: ${sum}</div></div>`+keys.map(k=>`<div class="card" style="margin-top:10px"><h3 style="color:var(--warn)">⚠ ${esc(k)} (${G[k].length})</h3><div class="list">${G[k].slice(0,60).map(r=>`<div class="li"><div class="grow"><div class="t">${esc(r.t)}</div><div class="s">${fmtDate(r.d)}</div></div><button class="btn ghost sm" onclick="${r.open}">👁 فتح</button></div>`).join("")}${G[k].length>60?`<div class="s muted">… و${G[k].length-60} كمان</div>`:""}</div></div>`).join("");
+}
+function kpiAudit(){
+  const month=ui.kpiMonth,team=hseTeam();
+  openSheet(`🔎 تدقيق KPI · ${monthName(month)}`,`<div class="field"><label for="kaSel">الشخص</label><select id="kaSel"><option value="">— اختار —</option>${team.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("")}</select></div><div class="muted" style="font-size:12.5px;margin-top:6px">بيعرض كل سجل مرتبط بالشخص ومش محسوب في المؤشرات، وسبب كل واحد.</div><div id="kaOut"></div>`,async()=>null,"إغلاق");
+  setTimeout(()=>{const s=$("kaSel");if(!s)return;const me=myEmpId();if(me&&team.some(t=>t.id===me)){s.value=me;$("kaOut").innerHTML=kpiAuditHTML(me,month)}
+    s.onchange=()=>{$("kaOut").innerHTML=s.value?kpiAuditHTML(s.value,month):""}},60);
+}
+
 function kpiSourceSheet(empId,metric,month){
   const sources=kpiSources(empId,month)[metric]||[],e=emp(empId)||{};
-  const body=sources.length?`<div class="list">${sources.map(s=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(s.label)}</div><div class="s">${fmtDate(s.date)} · ${esc(s.who||e.name||"")}${s.role?` · ${esc(s.role)}`:""}${s.status?` · ${esc(s.status)}`:""} · مرجع ${esc(s.id)}${s.part?` · البند ${s.part}`:""}</div></div>${s.type==="action"?`<button class="btn ghost sm" onclick="ui.actF='closed';show('actions')">فتح الإجراء</button>`:`<div style="display:flex;flex-direction:column;gap:6px"><button class="btn sm primary" onclick="kpiOpenSource('${esc(s.type)}','${esc(s.id)}',${s.idx??-1})">👁 عرض ${s.type==="equipment"?"الفحص":"النموذج"}</button>${s.type==="equipment"?`<button class="btn ghost sm" onclick="kpiOpenEquip('${esc(s.id)}')">فتح المعدة</button>`:""}</div>`}</div>`).join("")}</div>`:'<p class="muted">لا توجد سجلات مطابقة لهذا المؤشر في الشهر المحدد.</p>';
+  const body=sources.length?`<div class="list">${sources.map(s=>`<div class="li" style="align-items:flex-start"><div class="grow"><div class="t">${esc(s.label)}</div><div class="s">${fmtDate(s.date)} · ${esc(s.who||e.name||"")}${s.role?` · ${esc(s.role)}`:""}${s.status?` · ${esc(s.status)}`:""} · مرجع ${esc(s.id)}${s.type==="action"?` <span style="color:var(--info)">· اتحسب لأنه قفل الإجراء</span>`:""}${s.part?` · البند ${s.part}`:""}</div></div>${s.type==="action"?kpiActBtns(s):`<div style="display:flex;flex-direction:column;gap:6px"><button class="btn sm primary" onclick="kpiOpenSource('${esc(s.type)}','${esc(s.id)}',${s.idx??-1})">👁 عرض ${s.type==="equipment"?"الفحص":"النموذج"}</button>${s.type==="equipment"?`<button class="btn ghost sm" onclick="kpiOpenEquip('${esc(s.id)}')">فتح المعدة</button>`:""}</div>`}</div>`).join("")}</div>`:'<p class="muted">لا توجد سجلات مطابقة لهذا المؤشر في الشهر المحدد.</p>';
   openSheet(`${KPIS.find(k=>k.k===metric)?.ar||"مصادر المؤشر"} · ${e.name||""} · ${monthName(month)}`,body,async()=>null,"إغلاق");
 }
 VIEWS.kpi = {
-  shell:()=>{const own=ownScope();return `<div class="head"><h2 class="grow">${own?"مؤشراتي (KPI)":"KPIs فريق السلامة"}</h2><button class="btn" id="kpiPickBtn" type="button" onclick="kpiPickPeople()">👥 اختيار الأشخاص</button><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
+  shell:()=>{const own=ownScope();return `<div class="head"><h2 class="grow">${own?"مؤشراتي (KPI)":"KPIs فريق السلامة"}</h2><button class="btn" id="kpiPickBtn" type="button" onclick="kpiPickPeople()">👥 اختيار الأشخاص</button><button class="btn" type="button" onclick="kpiAudit()" title="إيه اللي مش محسوب وليه">🔎 تدقيق</button><input type="month" id="kpiMonth" value="${ui.kpiMonth}" aria-label="الشهر"></div>
     <div class="card" style="margin-bottom:14px"><h3>مؤشرات مستخرجة من سجلات المنظومة</h3><p class="muted" style="margin-top:0;font-size:13px">كل رقم محسوب من نموذج أو سجل فعلي محفوظ. اضغط على الرقم لعرض مراجع السجلات التي كوّنته؛ لا توجد أرقام KPI يدوية.</p><div id="kpiSum"></div></div>`},
   bind(){$("kpiMonth").onchange=e=>{ui.kpiMonth=e.target.value||thisMonth();this.fill()}},
   fill(){
