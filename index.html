@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.31";
+const APP_VER="8.9.32";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11118,6 +11118,38 @@ const ft=document.querySelector(".brand-footer");
 if(ft){const b=document.createElement("button");b.type="button";b.className="btn ghost sm";b.style.cssText="margin-inline-start:auto";b.textContent=simple()?"🧩 الواجهة المبسطة: شغّالة":"🧩 الواجهة المبسطة: واقفة";b.title="تجميع أزرار الصفوف في قايمة «⋯ المزيد»";
   b.onclick=()=>{try{localStorage.setItem("simpleUI",simple()?"0":"1")}catch(e){}location.reload()};ft.appendChild(b)}
 run();window.raCompact=compact;
+})();
+
+/* ===== 8.9.32: فترة سجل واحدة لكل المنظومة (شريط واحد فوق) بدل شرايط مكررة في كل قسم ===== */
+(function(){
+const G=()=>ui.gp||(ui.gp={mode:null,day:today(),month:thisMonth(),year:String(new Date().getFullYear())});
+periodSt=function(ns){if(!ui.periods)ui.periods={};
+  if(!ui.periods[ns]){const g=G();ui.periods[ns]={mode:g.mode||periodDefault(ns),day:g.day,month:g.month,year:g.year}}
+  return ui.periods[ns]};
+const propagate=()=>{const g=G();for(const ns of Object.keys(ui.periods||{})){const p=ui.periods[ns];p.mode=g.mode||periodDefault(ns);p.day=g.day;p.month=g.month;p.year=g.year}};
+/* الشرايط الداخلية بقت سطر ملخص بس (الفترة + عدد السجلات)؛ الاستثناء: نافذة «المعدات حسب النموذج» لأنها جوه شاشة منبثقة */
+const _pb=periodBarHTML;
+periodBarHTML=function(ns,n){if(ns==="eqforms")return _pb(ns,n);
+  return `<div class="muted" style="font-size:12.5px;margin:0 0 10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">📅 <b>${esc(periodSummary(ns))}</b>${n==null?"":` · ${n} سجل`}<span style="opacity:.8">— تغيّر الفترة من الشريط اللي فوق</span></div>`};
+const HIDE=["dash","chat","me","settings"];
+const bar=document.createElement("div");bar.id="gpBar";bar.className="wrap";bar.style.cssText="padding-top:10px;padding-bottom:0";
+const mainEl=document.getElementById("main");mainEl.parentNode.insertBefore(bar,mainEl);
+function render(){
+  if(HIDE.includes(tab)){bar.innerHTML="";return}
+  const g=G(),m=g.mode,chip=(k,t)=>`<button type="button" class="chipbtn" data-g="${k}" aria-pressed="${m===k}">${t}</button>`;
+  const inp=(m==="month")?`<input type="month" data-gv="month" value="${esc(g.month)}" aria-label="اختار الشهر" style="max-width:170px">`
+    :(m==="year")?`<input type="number" data-gv="year" value="${esc(g.year)}" min="2015" max="2100" step="1" aria-label="اختار السنة" style="max-width:110px">`
+    :(m==="all")?"":`<input type="date" data-gv="day" value="${m?esc(g.day):""}" aria-label="ابحث بيوم محدد" title="ابحث بيوم محدد" style="max-width:170px">`;
+  const sum=m===null?"كل صفحة بفترتها المعتادة":m==="day"?"يوم "+fmtDate(g.day):m==="week"?"أسبوع "+fmtDate(weekRange(g.day)[0])+" ← "+fmtDate(weekRange(g.day)[1]):m==="month"?"شهر "+monthName(g.month):m==="year"?"سنة "+g.year:"كل السجلات";
+  bar.innerHTML=`<div class="card" style="padding:8px 12px;margin:0"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px"><b style="font-size:13px;white-space:nowrap">📅 فترة السجل</b><div style="display:flex;flex-wrap:wrap;gap:6px">${chip("day","يومي")}${chip("week","أسبوعي")}${chip("month","شهري")}${chip("year","سنوي")}${chip("all","الكل")}</div>${inp}${m!==null?`<button type="button" class="btn ghost sm" data-g="auto" title="رجّع كل صفحة لفترتها المعتادة">↺ تلقائي</button>`:""}<span class="muted" style="font-size:12.5px">${esc(sum)} · بتتطبق على كل السجلات والنماذج والإجراءات</span></div></div>`}
+bar.addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(!b)return;const k=b.dataset.g,g=G();
+  if(k==="auto")g.mode=null;else{g.mode=k;if(k==="day"||k==="week"){/* يفضل اليوم المختار */}}
+  propagate();render();refresh()});
+bar.addEventListener("change",e=>{const i=e.target.closest("[data-gv]");if(!i||!i.value)return;const g=G(),v=i.value,f=i.dataset.gv;
+  if(f==="day"){g.day=v;if(!g.mode||g.mode==="all"||g.mode==="month"||g.mode==="year")g.mode="day"}else if(f==="month")g.month=v;else g.year=String(v).slice(0,4);
+  propagate();render();refresh()});
+let to=0;new MutationObserver(()=>{clearTimeout(to);to=setTimeout(render,30)}).observe(mainEl,{childList:true});
+render();
 })();
 
 </script>
