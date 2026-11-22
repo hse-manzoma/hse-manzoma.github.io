@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.39";
+const APP_VER="8.9.41";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -9905,14 +9905,17 @@ const canSetSev=()=>can("incident.severity");
 function wsIncidentsHTML(){
   const L=(S.records||[]).filter(r=>r.form==="F-HSE-03-01"&&incidentVisible(r)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const yr=today().slice(0,4),cnt=k=>L.filter(r=>(r.date||"").startsWith(yr)&&sevOf(r)===k).length;
-  const tile=(k)=>`<div class="card tile${k==="fatal"||k==="major"?" alert":""}"><span class="lbl">${SEV[k].ar}</span><span class="val">${cnt(k)}</span><span class="note">سنة ${yr}</span></div>`;
-  const rows=L.slice(0,60).map(r=>{const sv=sevOf(r),manual=!!SEV[r.severity];
+  const sel=SEV[ui.incSev]?ui.incSev:"",on=k=>sel===k;
+  const tile=(k)=>`<button type="button" class="card tile eq-filter-tile${k==="fatal"||k==="major"?" alert":""}" aria-pressed="${on(k)}" onclick="incFilter('${k}')" title="اضغط لعرض ${SEV[k].ar} بس تحت"><span class="lbl">${SEV[k].ar}</span><span class="val">${cnt(k)}</span><span class="note">سنة ${yr}${on(k)?" · ✔ معروض تحت":""}</span></button>`;
+  const LF=sel?L.filter(r=>(r.date||"").startsWith(yr)&&sevOf(r)===sel):L;
+  const rows=LF.slice(0,60).map(r=>{const sv=sevOf(r),manual=!!SEV[r.severity];
     return `<div class="li"><div class="grow" style="cursor:pointer" onclick="printRecord('${esc(r.id)}')"><div class="t">${esc(r.f?.desc?String(r.f.desc).slice(0,70):"تقرير حادث")}</div><div class="s">${fmtDate(r.date)} · ${esc(r.f?.place||"")}${r.f?.victim?" · "+esc(emp(r.f.victim_id)?.name||r.f.victim):""}</div></div>
       <span class="pill ${SEV[sv].cls}">${SEV[sv].ar}${manual?"":" ·تلقائي"}</span>
       ${canSetSev()?`<select aria-label="تصنيف الخطورة" onchange="incSetSev('${esc(r.id)}',this.value)" style="width:auto"><option value="">تلقائي</option>${Object.entries(SEV).map(([k,v])=>`<option value="${k}"${manual&&r.severity===k?" selected":""}>${v.ar}</option>`).join("")}</select>`:""}</div>`}).join("");
   const adminBox=can("incident.admin")?`<section class="card" style="margin-top:14px"><h3 style="margin-top:0">🔐 مين يشوف الحوادث</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">الأدمن وكاتب التقرير بيشوفوا دايمًا. اختار الأدوار الباقية.</div><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(ROLES_ALL()).filter(([k])=>k!=="admin").map(([k,v])=>`<label class="chipbtn" style="cursor:pointer"><input type="checkbox" ${incRoles().includes(k)?"checked":""} onchange="incToggleRole('${k}',this.checked)"> ${esc(v.ar)}</label>`).join("")}</div></section>`:"";
   return `<div class="grid g4">${["near","minor","major","fatal"].map(tile).join("")}</div>
-   <section class="card" style="margin-top:14px"><h3 style="margin-top:0">🚨 سجل الحوادث</h3>${rows?`<div class="list">${rows}</div>`:emptyState("مفيش حوادث مسجلة","أي تقرير حادث هيظهر هنا بتصنيف خطورته.")}</section>${adminBox}`}
+   <section class="card" style="margin-top:14px"><h3 id="incListTop" style="margin-top:0">🚨 سجل الحوادث</h3>${sel?`<div class="filters" style="margin-bottom:10px"><span>معروض: <b>${SEV[sel].ar}</b> · سنة ${yr} (${LF.length})</span><button class="btn ghost sm" onclick="incFilter('')">✕ إلغاء الفلتر</button></div>`:""}${rows?`<div class="list">${rows}</div>`:emptyState("مفيش حوادث مسجلة","أي تقرير حادث هيظهر هنا بتصنيف خطورته.")}</section>${adminBox}`}
+function incFilter(k){ui.incSev=(ui.incSev===k||!k)?"":k;show(tab);setTimeout(()=>{const el=document.getElementById("incListTop");if(el&&ui.incSev)el.scrollIntoView({behavior:"smooth",block:"start"})},80)}
 async function incSetSev(id,v){if(!canSetSev())return;if(await write(()=>upsert("records",id,{severity:v||null}),"اتحدّث التصنيف"))show(tab)}
 async function incToggleRole(role,on){if(!can("incident.admin"))return;const cur=new Set(incRoles());on?cur.add(role):cur.delete(role);
   await write(()=>db.doc("settings/main").set({...S.settings,incidentRoles:[...cur],updatedAt:Date.now()}),"اتحفظت صلاحية الحوادث")}
@@ -11327,9 +11330,12 @@ function siblingsOf(L){
   let i=all.indexOf(L.el);if(i<0)i=all.findIndex(x=>x.getAttribute("onclick")===L.oc);
   return {all,i};
 }
+let pending=null;
 function attach(h){
-  const L=last;if(!L||Date.now()-L.t>6000||/^insp/.test(L.fn)||!h||!h.root)return;
-  const {all,i}=siblingsOf(L);if(all.length<2||i<0)return;
+  let all,i;
+  if(pending){({all,i}=pending);pending=null}
+  else{const L=last;if(!L||Date.now()-L.t>6000||/^insp/.test(L.fn)||!h||!h.root)return;({all,i}=siblingsOf(L))}
+  if(!h||!h.root||!all||all.length<2||i<0)return;
   const root=h.root,bar=root.querySelector(".pvbar"),act=root.querySelector("#pvAct");if(!bar||bar.querySelector(".pvnav"))return;
   const go=d=>{const t=all[i+d];if(!t){toast(d>0?"ده آخر سجل في القايمة":"ده أول سجل في القايمة");return}if(!t.isConnected){toast("القايمة اتحدّثت — اقفل وافتح تاني");return}t.click()};
   const nav=document.createElement("div");nav.className="pvnav";
@@ -11344,6 +11350,27 @@ function attach(h){
   if(body){body.addEventListener("touchstart",e=>{sx=e.touches.length===1?e.touches[0].clientX:null},{passive:true});
     body.addEventListener("touchend",e=>{if(sx==null||body.classList.contains("zoom"))return;const dx=(e.changedTouches[0].clientX-sx);sx=null;if(Math.abs(dx)>90)go(dx<0?1:-1)},{passive:true})}
 }
+/* مرفقات /_blob/ كانت بتتفتح في تبويب متصفح لوحدها — بقت تتفتح هنا وتتنقّل بالسابق/التالي */
+const isBlobA=a=>a&&a.tagName==="A"&&/\/_blob\//.test(a.getAttribute("href")||"");
+async function openBlobA(a,all,i){
+  const href=a.getAttribute("href"),row=a.closest(".li,tr,article"),ttl=(row&&row.querySelector(".t,td"))?.textContent.trim().replace(/\s+/g," ")||"",lb=lab(a);
+  pending=all.length>1?{all,i}:null;
+  const h=openViewer((ttl?ttl.slice(0,60)+" · ":"")+lb);
+  if(!h||!h.root){pending=null;window.open(href,"_blank","noopener");return}
+  h.body.innerHTML='<div class="msg" style="max-width:520px;margin:30px auto;text-align:center">بيحمّل المرفق…</div>';
+  try{
+    const r=await fetch(href);if(!r.ok)throw 0;const bl=await r.blob();let pages;
+    if(/pdf/i.test(bl.type||"")||/\.pdf/i.test(href)||/pdf/i.test(lb)){const o=await pdfToCanvases(bl,40,1100);pages=o.pages||o}
+    else{const bm=await createImageBitmap(bl),sc=Math.min(1,1800/Math.max(bm.width,bm.height)),c=document.createElement("canvas");c.width=Math.round(bm.width*sc);c.height=Math.round(bm.height*sc);c.getContext("2d").drawImage(bm,0,0,c.width,c.height);pages=[c]}
+    if(!pages||!pages.length)throw 0;h.setPages(pages);
+  }catch(e){h.fail("معرفتش أفتح المرفق ده هنا.")}
+}
+document.addEventListener("click",e=>{
+  const a=e.target&&e.target.closest&&e.target.closest("a");if(!isBlobA(a)||e.defaultPrevented||e.ctrlKey||e.metaKey||e.shiftKey||a.closest("#pvRoot"))return;
+  e.preventDefault();e.stopPropagation();
+  const box=a.closest(".list,table,.tbl")||document.getElementById("main"),all=[...box.querySelectorAll("a")].filter(x=>isBlobA(x)&&x.offsetParent!==null),i=all.indexOf(a);
+  openBlobA(a,all,i<0?0:i);
+},true);
 const _ov=openViewer;
 openViewer=function(){const h=_ov.apply(this,arguments);try{attach(h)}catch(e){}return h};
 const st=document.createElement("style");st.textContent=".pvnav{display:flex;align-items:center;gap:6px;flex:none}.pvnav .pvpos{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:44px;text-align:center}.pvnav .btn[disabled]{opacity:.4}@media(max-width:620px){.pvnav .btn{padding:0 10px}.pvnav{order:3;width:100%;justify-content:space-between}}";
