@@ -1097,7 +1097,7 @@ VIEWS.dash = {
 
 /* ---------- PTW ---------- */
 VIEWS.ptw = {
-  shell:()=>`<div class="head"><h2 class="grow">تصاريح العمل PTW</h2><button class="btn primary" id="newPtw">+ تصريح جديد</button></div>
+  shell:()=>`<div class="head"><h2 class="grow">تصاريح العمل PTW</h2><button class="btn primary keep" id="newPtw">+ تصريح جديد</button></div>
     <div class="filters">
       <input type="search" id="ptwQ" placeholder="ابحث برقم التصريح، المكان، المقاول…" value="${esc(ui.ptwQ)}">
       <select id="ptwType"><option value="">كل الأنواع</option>${Object.entries(PTW_TYPES).map(([k,v])=>`<option value="${k}" ${ui.ptwType===k?"selected":""}>${v.ar}</option>`).join("")}</select>
@@ -2247,7 +2247,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.44";
+const APP_VER="8.9.45";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5350,7 +5350,7 @@ function flowCard(p,actions){return `<div class="li" style="align-items:flex-sta
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
   <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${actions}</div></div>`}
 VIEWS.ptw={
-  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${R.role==="admin"?`<button class="btn primary" id="newPtw">+ تصريح مباشر</button>`:`<button class="btn primary" id="newReq">+ طلب تصريح</button>`}</div>
+  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${(()=>{const dir=R.role==="admin"||can("permit.direct");return (dir?`<button class="btn primary keep" id="newPtw">+ تصريح مباشر</button>`:"")+(R.role!=="admin"?`<button class="btn ${dir?"":"primary "}keep" id="newReq">+ طلب تصريح</button>`:"")})()}</div>
     <div id="ptwFlow"></div>
     <div class="filters">
       <input type="search" id="ptwQ" placeholder="ابحث برقم التصريح، المكان، المقاول…" value="${esc(ui.ptwQ)}">
@@ -11492,6 +11492,9 @@ nav.tabs button,nav.tabs summary{font-size:var(--fs-sm);padding:10px 12px}
 .eqC{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .eqD{position:absolute;top:6px;inset-inline-start:6px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font-size:11.5px;font-weight:700;display:grid;place-items:center}
 @media(max-width:620px){.eqIcons{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.eqIcon{min-height:88px;padding:10px 4px}.eqI{font-size:26px}.eqN{font-size:11.5px}}
+
+/* 8.9.44 — أزرار التصريح ظاهرة على الموبايل (مش مخفية ورا زرار +) */
+@media(max-width:760px){#newPtw,#newReq{display:inline-flex!important;flex:1 1 150px;justify-content:center}}
 </style>
 </body></html>
 
