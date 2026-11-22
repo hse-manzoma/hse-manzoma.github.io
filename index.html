@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.25";
+const APP_VER="8.9.26";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11073,6 +11073,12 @@ function empAllDownload(eid){const e=emp(eid);if(!e){toast("الموظف مش م
   if(isY){from=m+"-01-01";to=m+"-12-31"}else{from=m+"-01";const [y,mo]=m.split("-").map(Number);to=m+"-"+String(new Date(y,mo,0).getDate()).padStart(2,"0")}
   confirmSheet("تحميل كل ما يخص "+e.name,`هيتجهّز ملف ZIP فيه: الإجازات، والتكليفات والمأموريات والأذونات (نماذج PDF + مرفقاتها الأصلية) عن ${isY?"سنة "+m:monthName(m)}، وجواه فولدر «ملف الموظف» بمرفقاته (البطاقة وغيرها). التجهيز ممكن ياخد وقت.`,
     async()=>{const U={uid:"",pid:"emp:"+eid,empId:eid,name:e.name,n:normName(e.name)};const r=await uwRunUsers([U],["leaves","duties"],from,to,true,`كل ما يخص ${e.name} ${isY?m:m}.zip`);if(r)toast(r)},"حمّل ZIP")}
+
+/* ===== 8.9.26: طباعة طلب التصريح قبل الاعتماد — أسماء الأطراف (مشرف/مهندس التنفيذ، مسؤول السلامة) من الأطراف المختارة في الطلب؛ الوقت والتوقيع فاضيين للاستكمال إلكترونيًا ===== */
+{const _pv=ptwValues;ptwValues=function(p){const v=_pv(p);
+  try{if(p&&ptwDraft(p)){const nm=uid=>{if(!uid)return "";const pr=(S.profiles||[]).find(x=>x.id===uid||x.user_id===uid);return pr?profName(pr):""};
+    if(!v.sup)v.sup=nm(p.supUid);if(!v.hse)v.hse=nm(p.hseUid);const en=nm(p.engUid);if(en&&(!p.siteEng||v.site===v.req))v.site=en}}catch(e){}
+  return v}}
 </script>
 </body></html>
 
