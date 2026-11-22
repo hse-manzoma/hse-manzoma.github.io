@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.29";
+const APP_VER="8.9.30";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4647,8 +4647,8 @@ function openViewer(title,{filename="document.pdf",note="",extra=""}={}){
   const body=root.querySelector("#pvBody");
   body.addEventListener("click",e=>{if(e.target.tagName==="CANVAS")body.classList.toggle("zoom")});
   root.querySelector("[data-print]").onclick=async()=>{
-    if(st.pages){if(isMobile()){const w=window.open("","_blank");try{const b=await permitPdfBlob(st.pages);const u=URL.createObjectURL(b);if(w)w.location=u;else location.href=u}catch(e){w?.close();toast("معرفتش أجهز الطباعة")}}else printCanvases(st.pages)}
-    else if(st.html){if(isMobile()){const w=window.open("","_blank");try{const b=await htmlPdf(st.html);const u=URL.createObjectURL(b);if(w)w.location=u;else location.href=u}catch(e){w?.close();printHTMLDoc(st.html)}}else printHTMLDoc(st.html)}};
+    if(st.pages){if(isMobile())await mobilePrintPdf(()=>getPdf(),filename,title);else printCanvases(st.pages)}
+    else if(st.html){if(isMobile())await mobilePrintPdf(()=>getPdf(),filename,title,()=>printHTMLDoc(st.html));else printHTMLDoc(st.html)}};
   root.querySelector("[data-pdf]").onclick=async e=>{const b=e.currentTarget;b.disabled=true;const t=b.textContent;b.textContent="بيجهز…";
     try{const blob=await getPdf();const dl=await window.claude?.use?.("downloads");await dl.save({filename,data:blob});toast("اتنزل الملف")}catch(err){console.error(err);toast("معرفتش أعمل PDF")}b.disabled=false;b.textContent=t};
   const enable=()=>{root.querySelectorAll("[data-print],[data-pdf],[data-wa]").forEach(b=>b.disabled=false);st.pdf=null;if(isMobile())setTimeout(()=>getPdf().catch(()=>{}),400);printerHint(root,{getPdf,filename,title})};
@@ -11083,6 +11083,12 @@ let _ptwBF=false;
 function ptwBackfill(){if(_ptwBF||!can("sys.admin")||!(S.permits||[]).length)return;_ptwBF=true;
   try{const L=(S.permits||[]).filter(x=>["requested","supok"].includes(x.status)&&!x.serial).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)||String(a.id).localeCompare(String(b.id)));
     for(const x of L){const sr=nextSerial(x.type);x.serial=sr;x.number=`${x.type}-${sr}`;upsert("permits",x.id,{serial:sr,number:x.number}).catch(()=>{})}}catch(e){console.error(e)}}
+/* طباعة على الموبايل: مشاركة الملف (منها «طباعة» / «حفظ»)، وإلا نفتحه في تبويب جديد بلينك عادي — ومش بنحوّل صفحة المنظومة نفسها لصفحة PDF أبدًا */
+async function mobilePrintPdf(getPdf,filename,title,fallback){
+  let b;try{toast("بيجهّز الملف…");b=await getPdf()}catch(e){console.error(e);if(fallback)return fallback();toast("معرفتش أجهز الطباعة");return}
+  const file=new File([b],filename||"document.pdf",{type:"application/pdf"});
+  const r=await shareFile(file,title||"",""); if(r==="ok"||r==="cancel")return;
+  const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";a.download=filename||"document.pdf";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),120000);toast("الملف اتنزّل — افتحه من التنزيلات واطبعه")}
 /* ===== 8.9.26: طباعة طلب التصريح قبل الاعتماد — أسماء الأطراف (مشرف/مهندس التنفيذ، مسؤول السلامة) من الأطراف المختارة في الطلب؛ الوقت والتوقيع فاضيين للاستكمال إلكترونيًا ===== */
 {const _pv=ptwValues;ptwValues=function(p){const v=_pv(p);
   try{if(p&&ptwDraft(p)){const nm=uid=>{if(!uid)return "";const pr=(S.profiles||[]).find(x=>x.id===uid||x.user_id===uid);return pr?profName(pr):""};
