@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.32";
+const APP_VER="8.9.34";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11152,7 +11152,146 @@ let to=0;new MutationObserver(()=>{clearTimeout(to);to=setTimeout(render,30)}).o
 render();
 })();
 
+/* 8.9.33 — علامة «✔ وقّعت» موحّدة على أي سجل موقّع منك في كل الشاشات */
+(function(){
+const COLS=["records","permits","leaves","inspections"];
+const cache=new WeakMap();
+function walk(o,uid,d){
+  if(!o||typeof o!=="object"||d>5)return false;
+  if(Array.isArray(o)){for(const x of o)if(walk(x,uid,d+1))return true;return false}
+  const by=o.uid===uid||o.by===uid||o.sigBy===uid||o.signedBy===uid;
+  if(by&&(o.signature||o.sigImg||o.signed||o.status==="approved"))return true;
+  for(const k in o){const v=o[k];if(v&&typeof v==="object"&&walk(v,uid,d+1))return true}
+  return false;
+}
+function iSigned(rec,col){
+  const uid=ME&&ME.id;if(!uid||!rec)return false;
+  let c=cache.get(rec);if(c&&c.u===uid&&c.t===(rec._v||0)&&c.s===JSON.stringify(rec.signs||0).length&&c.n!==undefined&&c.k===col&&c.sig===(rec.signs?Object.keys(rec.signs).length:0)&&c.rev===(rec.review&&rec.review.status||""))return c.v;
+  let v=false;
+  try{
+    if(col==="leaves"&&typeof leaveSigns==="function")v=leaveSigns(rec).some(s=>s.uid===uid);
+    if(!v)v=walk({signs:rec.signs,review:rec.review,signatures:rec.signatures,closeSignatures:rec.closeSignatures,extensions:rec.extensions,rows:rec.rows,flow:null,approved:rec.approved,closeSignature:rec.closeSignature,closeUid:rec.closeUid},uid,0)||(rec.signature&&(rec.signedUid===uid||rec.uid===uid));
+  }catch(e){}
+  cache.set(rec,{u:uid,t:rec._v||0,s:JSON.stringify(rec.signs||0).length,n:1,k:col,sig:rec.signs?Object.keys(rec.signs).length:0,rev:rec.review&&rec.review.status||"",v});
+  return v;
+}
+function signedIds(){
+  const set=new Set();
+  for(const col of COLS)for(const r of (S[col]||[]))if(r&&r.id&&iSigned(r,col))set.add(String(r.id));
+  return set;
+}
+const BADGE='<span class="pill p-appr" data-ms="1" style="margin-inline-start:6px" title="وقّعت واعتمدت السجل ده بتوقيعك">✔ وقّعت</span>';
+let busy=false,tm=0;
+function decorate(){
+  if(busy)return;const m=document.getElementById("main");if(!m||!ME||!ME.id)return;
+  busy=true;
+  try{
+    const ids=signedIds();if(!ids.size)return;
+    for(const el of m.querySelectorAll("[onclick]")){
+      const a=el.getAttribute("onclick")||"";let hit=false;
+      const re=/['"]([^'"]{5,})['"]/g;let t;
+      while((t=re.exec(a))){for(const p of t[1].split(",")){if(ids.has(p)){hit=true;break}}if(hit)break}
+      if(!hit)continue;
+      const box=el.closest("tr,.li,.card,.item")||el.parentElement;if(!box||box.querySelector("[data-ms]"))continue;
+      if(/وقّعت/.test(box.textContent||""))continue;
+      const host=box.querySelector(".t")||box.querySelector("td:nth-child(2)")||box.querySelector("td")||box;
+      host.insertAdjacentHTML("beforeend",BADGE);
+    }
+  }catch(e){}finally{busy=false}
+}
+const sched=()=>{clearTimeout(tm);tm=setTimeout(decorate,60)};
+function boot(){
+  const m=document.getElementById("main");if(!m)return setTimeout(boot,300);
+  new MutationObserver(ms=>{if(busy)return;if(ms.every(x=>[...x.addedNodes].every(n=>n.nodeType===1&&n.querySelector&&0)&&x.addedNodes.length===0))return;sched()}).observe(m,{childList:true,subtree:true});
+  sched();
+}
+boot();
+window.mySignedDecorate=decorate;
+})();
+
 </script>
+<style id="dsLayer">
+/* 8.9.34 — طبقة تنسيق موحّدة (DS): خطوط · مسافات · محاذاة · موبايل */
+:root{
+  --fs-xs:12px;--fs-sm:13px;--fs-md:14.5px;--fs-lg:16.5px;--fs-xl:21px;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;
+  --ctl-h:40px;--ctl-h-sm:32px;--rad:12px;
+}
+body{font-size:var(--fs-md);line-height:1.6;font-feature-settings:"tnum" 1;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,select,textarea,.btn,.chipbtn,.pill{font-family:var(--f-body)}
+h1,h2,h3,h4{font-family:var(--f-display);line-height:1.35;color:var(--ink)}
+h2{font-size:var(--fs-xl);font-weight:700;display:flex;align-items:center;gap:var(--sp-2)}
+h2::before{content:"";width:4px;height:1.05em;border-radius:3px;background:var(--accent);flex:none}
+h3{font-size:var(--fs-lg);font-weight:600;margin:0 0 var(--sp-3)}
+main{padding-block:var(--sp-5) 64px}
+/* رأس الصفحة وشريط الأدوات: صف واحد متراصف */
+.head{gap:var(--sp-3);margin-bottom:var(--sp-4);min-height:var(--ctl-h)}
+.head>.btn,.head .btn{align-self:center}
+.filters{gap:var(--sp-2);margin-bottom:var(--sp-4);align-items:center;padding:var(--sp-3);background:var(--surface);border:1px solid var(--line);border-radius:var(--rad)}
+.filters:empty{display:none}
+.sub{gap:var(--sp-2);margin-bottom:var(--sp-4)}
+/* عناصر التحكم: ارتفاع واحد */
+.btn,input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]),select{min-height:var(--ctl-h)}
+.btn{padding:0 var(--sp-4);line-height:1.2;justify-content:center;font-size:var(--fs-md);font-weight:600;border-radius:var(--rad)}
+.btn.sm{min-height:var(--ctl-h-sm);padding:0 var(--sp-3);font-size:var(--fs-sm)}
+.btn.ghost{padding:0 var(--sp-3);min-height:var(--ctl-h-sm)}
+.btn.ghost:hover{background:var(--sunk)}
+input,select,textarea{border-radius:var(--rad);padding:var(--sp-2) var(--sp-3);font-size:var(--fs-md)}
+textarea{line-height:1.6}
+.chipbtn{min-height:34px;display:inline-flex;align-items:center;padding:0 var(--sp-3);font-size:var(--fs-sm)}
+.pill{font-size:var(--fs-xs);line-height:1.7;padding:1px 10px}
+/* البطاقات والشبكات */
+.card{padding:var(--sp-4) 18px;border-radius:14px}
+.card>h3:first-child,.card>.head:first-child{margin-top:0}
+.grid{gap:var(--sp-4)}
+main>*+*{margin-top:var(--sp-4)}
+main>.head+*,main>.filters+*,main>.sub+*{margin-top:0}
+.tile .lbl{font-size:var(--fs-sm);font-weight:500}
+.tile .val{font-size:28px}
+.tile .note{font-size:var(--fs-xs)}
+/* الجداول */
+.tbl{border-radius:var(--rad);box-shadow:var(--d-card)}
+table{font-size:var(--fs-sm)}
+th{font-size:var(--fs-xs);font-weight:700;padding:10px 12px;letter-spacing:.2px}
+td{padding:10px 12px;vertical-align:middle;line-height:1.5}
+tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--sunk) 38%,transparent)}
+tbody tr:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+td.n,th.n{text-align:right;direction:ltr;unicode-bidi:isolate}
+td .row-actions,td.acts{justify-content:flex-start}
+/* القوايم */
+.li{gap:var(--sp-3);padding:var(--sp-3) var(--sp-2);border-radius:10px;min-height:52px}
+.li:hover{background:color-mix(in srgb,var(--sunk) 55%,transparent)}
+.li .t{font-size:var(--fs-md);line-height:1.45}
+.li .s{font-size:var(--fs-xs);line-height:1.5;margin-top:2px}
+.row-actions{gap:var(--sp-1);justify-content:flex-start}
+/* نماذج الإدخال */
+.field{gap:6px}
+.field label{font-size:var(--fs-xs);font-weight:600}
+.sheet .head{margin-bottom:var(--sp-4)}
+details.sec>summary{padding:14px var(--sp-4);font-size:var(--fs-md)}
+.empty{padding:40px var(--sp-4)}
+/* التنقل */
+nav.tabs button,nav.tabs summary{font-size:var(--fs-sm);padding:10px 12px}
+@media(max-width:760px){
+  main{padding-block:var(--sp-4) 72px}
+  h2{font-size:19px}
+  .card{padding:14px}
+  .grid{gap:var(--sp-3)}
+  .head{align-items:stretch}
+  .head .grow{flex-basis:100%}
+  .head>.btn{flex:1 1 auto}
+  .filters{flex-direction:column;align-items:stretch;padding:var(--sp-3)}
+  .filters>*{width:100%;flex:none!important}
+  .btn,input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]),select{min-height:44px}
+  .btn.sm,.btn.ghost{min-height:38px}
+  input,select,textarea{font-size:16px}
+  .li{flex-wrap:wrap;padding:var(--sp-3) var(--sp-1)}
+  td{padding:8px 12px}
+  tbody tr:nth-child(even) td{background:transparent}
+  .tile .val{font-size:24px}
+}
+@media print{h2::before{display:none}.filters{border:0;padding:0}tbody tr:nth-child(even) td{background:transparent}}
+</style>
 </body></html>
 
 
