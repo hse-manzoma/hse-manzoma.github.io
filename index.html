@@ -2243,7 +2243,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.37";
+const APP_VER="8.9.38";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3810,6 +3810,7 @@ function wrapLines(x,txt,maxW){const words=String(txt).split(/\s+/);const lines=
    كان فيه خوارزميتين مختلفتين: واحدة للنماذج (forms.json) وواحدة للسجلات
    (forms2.json) بتفترض إن كل الصور 150 DPI. دلوقتي الاتنين بيستخدموا ده،
    والمقياس بيتحسب من الصورة نفسها، والوزن والهوامش وارتفاع السطر موحّدين. */
+var INK="#1a3cb5";   /* حبر أزرق (قلم جاف) لكل الكتابة على النماذج */
 const FORM_W=700;                       /* وزن الخط — أتقل من 600 القديم */
 const FORM_MIN_PT=7.5;                  /* أصغر حجم مسموح بيه بالنقاط */
 const FORM_LH=1.16;                     /* ارتفاع السطر */
@@ -3849,11 +3850,11 @@ function drawBoxText(x,W,H,rect,txt,{szPt=11,pxPerPt=1,algn="ctr",lines=1,fill=f
   }
   const align=algn==="r"?"right":algn==="l"?"left":"center";
   const tx=align==="right"?bx+bw-padX:align==="left"?bx+padX:bx+bw/2;
-  x.fillStyle="#111";x.textBaseline="middle";x.textAlign=align;
+  x.fillStyle=INK;x.textBaseline="middle";x.textAlign=align;
   const lh=fs*FORM_LH,top=by+bh/2-(L.length-1)*lh/2;
   x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();
   if(sx<1){x.translate(tx,0);x.scale(sx,1);x.translate(-tx,0)}
-  x.strokeStyle="#111";x.lineWidth=Math.max(.45,fs*0.045)/(sx<1?sx:1);x.lineJoin="round";x.miterLimit=2;
+  x.strokeStyle=INK;x.lineWidth=Math.max(.45,fs*0.045)/(sx<1?sx:1);x.lineJoin="round";x.miterLimit=2;
   L.forEach((l,i)=>{const yy=top+i*lh;x.fillText(l,tx,yy);x.strokeText(l,tx,yy)});
   x.restore();
 }
@@ -3916,7 +3917,7 @@ function ptwPartyName(p,role){const src=PTW_PRINT_LAYOUT[p.type]?.roleMap?.[role
 function ptwSignatureTime(s){if(s?.time)return s.time;if(!s?.at)return"";try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(s.at))}catch(e){return""}}
 function ptwSignatureDate(s,fallback){if(s?.date)return fmtDate(s.date);if(s?.at){try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(s.at))}catch(e){}}return fmtDate(fallback)}
 function ptwSkipRepeatedApproval(T,b,pageCount){const q=PTW_PRINT_LAYOUT[T];return !!q&&b.page===pageCount-1&&["req","site","hse","sup","pdate"].includes(b.field)&&b.y>=q.blankAfter}
-function permitTextBox(cv,b,value,{fontSize=22,bold=true}={}){if(!cv||!b||value==null||value==="")return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H,pad=Math.max(2,bw*.035);g.save();g.fillStyle="#fff";g.fillRect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.beginPath();g.rect(bx,by,bw,bh);g.clip();g.direction=/[\u0600-\u06ff]/.test(String(value))?"rtl":"ltr";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#111";let fs=Math.min(fontSize,bh*.68);while(fs>8){g.font=`${bold?600:500} ${fs}px ${FFACE()}`;if(g.measureText(String(value)).width<=bw-pad*2)break;fs-=1}g.fillText(String(value),bx+bw/2,by+bh/2,bw-pad*2);g.restore()}
+function permitTextBox(cv,b,value,{fontSize=22,bold=true}={}){if(!cv||!b||value==null||value==="")return;const g=cv.getContext("2d"),W=cv.width,H=cv.height,bx=b.x*W,by=b.y*H,bw=b.w*W,bh=b.h*H,pad=Math.max(2,bw*.035);g.save();g.fillStyle="#fff";g.fillRect(bx+1,by+1,Math.max(1,bw-2),Math.max(1,bh-2));g.beginPath();g.rect(bx,by,bw,bh);g.clip();g.direction=/[\u0600-\u06ff]/.test(String(value))?"rtl":"ltr";g.textAlign="center";g.textBaseline="middle";g.fillStyle=INK;let fs=Math.min(fontSize,bh*.68);while(fs>8){g.font=`${bold?600:500} ${fs}px ${FFACE()}`;if(g.measureText(String(value)).width<=bw-pad*2)break;fs-=1}g.fillText(String(value),bx+bw/2,by+bh/2,bw-pad*2);g.restore()}
 async function applyPermitCloseoutOfficial(p,pages){if(!p?.closedAt||p.status!=="closed")return;const F=(await loadForms())[p.type],page=F.pages.length-1,cv=pages[page],signatures=ptwStageSignMap(p,"close");if(!cv)return;
   for(const [role,s] of Object.entries(signatures)){const cell=ptwSigCell(p.type,"close",role);if(cell&&s?.signature&&!ptwAdminActor(s.uid))await stampOn(cv,cell,s.signature,{fit:.82})}
   /* الاسم والتاريخ/الوقت في صفوف نموذج الإغلاق، دون تغيير اسم مصدر التصريح. */
@@ -3958,7 +3959,7 @@ function drawPermitCrew(pages,p){
   [["م",0],["الاسم",1],["الوظيفة",2]].forEach(([t,i])=>{g.fillStyle="#102b4b";g.font=`800 ${rh*0.46}px ${CREW_FONT}`;g.fillText(t,xs[i]+cw[i]/2,hy+rh/2+1)});
   for(let k=0;k<rows;k++){const idx=b*rows+k,y=hy+rh*(k+1),w=shown[idx];
    g.strokeStyle="#7b8794";g.lineWidth=1;[0,1,2].forEach(i=>g.strokeRect(xs[i],y,cw[i],rh));
-   if(!w)continue;g.fillStyle="#102b4b";g.font=`700 ${rh*0.46}px ${CREW_FONT}`;g.fillText(String(idx+1),xs[0]+cw[0]/2,y+rh/2+1);
+   if(!w)continue;g.fillStyle=INK;g.font=`700 ${rh*0.46}px ${CREW_FONT}`;g.fillText(String(idx+1),xs[0]+cw[0]/2,y+rh/2+1);
    crewFit(g,w.name,cw[1]-8,rh*0.5,"700");g.fillText(w.name,xs[1]+cw[1]/2,y+rh/2+1);
    if(w.job){crewFit(g,w.job,cw[2]-8,rh*0.44,"600");g.fillText(w.job,xs[2]+cw[2]/2,y+rh/2+1)}}
   g.strokeStyle="#5b6b7d";g.lineWidth=1.4;g.strokeRect(bx,hy,bw,rh*(rows+1))}
@@ -4005,7 +4006,7 @@ async function drawColdCloseInfo(pages,p){const c=pages[2];if(!c)return;const g=
  for(const it of items){if(li>=GY.length)break;const y=GY[li]-drop;
   g.fillStyle="#edf4ff";g.fillRect(lx,y-26,rx-lx,34);g.fillStyle="#d18a22";g.fillRect(lx,y-26,5,34);
   g.textAlign="right";g.fillStyle="#17365d";g.font="800 19px 'IBM Plex Sans Arabic',Arial,sans-serif";const lab=it[0]+": ";const lw=g.measureText(lab).width;g.fillText(lab,rx,y);
-  g.fillStyle="#102b4b";g.font="700 20px 'IBM Plex Sans Arabic',Arial,sans-serif";const first=(rx-lw-gap)-lx,full=rx-lx;const L=wrap(it[1],full,first);
+  g.fillStyle=INK;g.font="700 20px 'IBM Plex Sans Arabic',Arial,sans-serif";const first=(rx-lw-gap)-lx,full=rx-lx;const L=wrap(it[1],full,first);
   g.fillText(L[0]||"",rx-lw-gap,y);li++;
   for(let k=1;k<L.length;k++){if(li>=GY.length)break;const yy=GY[li]-drop;g.fillStyle="#edf4ff";g.fillRect(lx,yy-26,rx-lx,34);g.fillStyle="#d18a22";g.fillRect(lx,yy-26,5,34);g.fillStyle="#102b4b";g.fillText(L[k],rx,yy);li++}
   li++}
@@ -4013,7 +4014,7 @@ async function drawColdCloseInfo(pages,p){const c=pages[2];if(!c)return;const g=
 const SITE_CHECKS=[{k:"1.1",pg:0,y:0.505},{k:"1.2",pg:0,y:0.542},{k:"1.3.1",pg:0,y:0.6085},{k:"1.3.2",pg:0,y:0.646},{k:"1.3.3",pg:0,y:0.684},{k:"1.3.4",pg:0,y:0.721},{k:"1.4.1",pg:0,y:0.785},{k:"1.4.2",pg:0,y:0.818},{k:"1.4.3",pg:0,y:0.853},{k:"1.4.4",pg:0,y:0.888},{k:"1.4.5",pg:0,y:0.921},{k:"1.4.6",pg:0,y:0.954},{k:"1.5.1",pg:1,y:0.181},{k:"1.5.2",pg:1,y:0.214},{k:"1.6.1",pg:1,y:0.275},{k:"1.7.1",pg:1,y:0.336},{k:"1.7.2",pg:1,y:0.369},{k:"1.7.3",pg:1,y:0.402},{k:"1.7.4",pg:1,y:0.4345},{k:"1.8.1",pg:1,y:0.4957},{k:"1.8.2",pg:1,y:0.5285},{k:"1.9.1",pg:1,y:0.615,na:1},{k:"1.9.2",pg:1,y:0.6432,na:1},{k:"1.9.3",pg:1,y:0.6714,na:1},{k:"1.9.4",pg:1,y:0.6995,na:1},{k:"1.9.5",pg:1,y:0.7277,na:1},{k:"1.9.6",pg:1,y:0.7558,na:1},{k:"1.9.7",pg:1,y:0.784,na:1}];
 const SITE_CHECKS_KEYS=SITE_CHECKS.map(x=>x.k);
 function drawColdSiteChecks(pages,p){const sc=p.siteChecks;if(!sc)return;const C0={yes:0.862,no:0.947},C1={yes:0.869,no:0.953},CP={yes:0.8546,no:0.911,na:0.9669};
- for(const it of SITE_CHECKS){const v=sc[it.k];if(!v)continue;const pg=pages[it.pg];if(!pg)continue;const g=pg.getContext("2d"),W=pg.width,H=pg.height;const cols=it.pg===0?C0:(it.na?CP:C1);const x=cols[v];if(x==null)continue;g.save();g.font="700 "+Math.round(W*0.021)+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText("✓",x*W,it.y*H);g.restore()}}
+ for(const it of SITE_CHECKS){const v=sc[it.k];if(!v)continue;const pg=pages[it.pg];if(!pg)continue;const g=pg.getContext("2d"),W=pg.width,H=pg.height;const cols=it.pg===0?C0:(it.na?CP:C1);const x=cols[v];if(x==null)continue;g.save();g.font="700 "+Math.round(W*0.021)+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillStyle=INK;g.fillText("✓",x*W,it.y*H);g.restore()}}
 function scAll(btn,v){const box=btn.closest(".field");if(!box)return;SITE_CHECKS_KEYS.forEach(k=>{const r=box.querySelector('input[name="sc_'+k+'"][value="'+v+'"]');if(r)r.checked=true})}
 function siteChecksCollect(form){const o={};SITE_CHECKS_KEYS.forEach(k=>{const r=form.querySelector('input[name="sc_'+k+'"]:checked');if(r)o[k]=r.value});return o}
 function siteChecksHTML(p){const sc=p.siteChecks||{};
@@ -4035,11 +4036,11 @@ function siteChecksHTML(p){const sc=p.siteChecks||{};
 }
 async function drawColdExtension(pages,p){const c=pages[2];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
  try{await document.fonts.load('600 14px '+FFACE())}catch(e){}
- const draw=(t,x,y,size)=>{if(t==null||t==="")return;g.save();g.font="600 "+size+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText(String(t),x,y);g.restore()};
+ const draw=(t,x,y,size)=>{if(t==null||t==="")return;g.save();g.font="600 "+size+"px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle=INK;g.fillText(String(t),x,y);g.restore()};
  const start=fmtDate(p.extStart||p.startDate||p.date)+(p.extStartTo?" · "+p.extStartTo:"");
  const end=fmtDate(p.endDate)+(p.to?" · "+p.to:"");
  draw(start,W*0.905,H*0.466,10);draw(end,W*0.905,H*0.505,10);
- g.save();g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.font="500 9px 'IBM Plex Sans Arabic',Arial,sans-serif";g.fillStyle="#17231e";
+ g.save();g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.font="500 9px 'IBM Plex Sans Arabic',Arial,sans-serif";g.fillStyle=INK;
  let rs="سبب: "+(p.extReason||"");const maxW=W*0.12;while(g.measureText(rs).width>maxW&&rs.length>6)rs=rs.slice(0,-2);g.fillText(rs,W*0.905,H*0.519);g.restore();const sig=ptwSigCell("COLD","extension",p.extRole);if(sig&&p.extSignature)await stampOn(c,sig,p.extSignature,{fit:.75});if(sig)permitTextBox(c,{page:2,x:sig[0],y:sig[1]-.018,w:sig[2],h:.016},p.extName||"",{fontSize:11})}
 async function drawPermitExtension(pages,p){const T=p.type,exts=Array.isArray(p.extensions)&&p.extensions.length?p.extensions:[];const ext=exts[exts.length-1]||((p.extended||p.extSignature)?{date:p.extDate,at:p.extAt,time:p.extTime,name:p.extName,role:p.extRole,signature:p.extSignature,oldEnd:p.extStart,newEnd:p.endDate,newTo:p.to,reason:p.extReason}:null);if(!ext)return;const F=(await loadForms())[T],pg=F.pages.length-1,cv=pages[pg],W=cv?.width,H=cv?.height;if(!cv)return;const signatures=ptwStageSignMap(p,"extension");
   if(T==="COLD"){await drawColdExtension(pages,{...p,...ext,endDate:ext.newEnd||p.endDate,to:ext.newTo||p.to,extStart:ext.oldEnd||p.extStart,extStartTo:ext.oldTo||p.extStartTo,extReason:ext.reason||p.extReason,extName:ext.name||p.extName,extRole:ext.role||p.extRole,extSignature:ext.signature||p.extSignature});for(const [role,s] of Object.entries(signatures)){const c=ptwSigCell(T,"extension",role);if(c&&s?.signature&&!ptwAdminActor(s.uid))await stampOn(cv,c,s.signature,{fit:.82})}return}
@@ -4080,9 +4081,9 @@ async function renderPermitCloseoutPage(p){
   const cy=H*.415;g.fillStyle="#e8eeeb";g.fillRect(m,cy,W-m*2,H*.048);draw("تأكيدات الإغلاق",W-m*1.2,cy+H*.024,22,{bold:true});
   let yy=H*.465;const step=H*.047,checks=Array.isArray(p.closeChecks)?p.closeChecks:[];
   for(const item of PTW_CLOSE_CHECKS){const ok=checks.includes(item.k);g.strokeStyle=ok?"#2b7a4b":line;g.lineWidth=3;g.strokeRect(W-m*1.35,yy-13,26,26);if(ok)draw("✓",W-m*1.35+13,yy,21,{bold:true,color:"#2b7a4b",align:"center"});
-    g.save();g.font='500 18px "IBM Plex Sans Arabic",Arial,sans-serif';g.direction="rtl";g.textAlign="right";g.fillStyle=ink;const lines=wrapLines(g,item.t,W-m*2.15);lines.slice(0,2).forEach((z,i)=>g.fillText(z,W-m*1.65,yy-5+i*23));g.restore();yy+=step}
+    g.save();g.font='500 18px "IBM Plex Sans Arabic",Arial,sans-serif';g.direction="rtl";g.textAlign="right";g.fillStyle=INK;const lines=wrapLines(g,item.t,W-m*2.15);lines.slice(0,2).forEach((z,i)=>g.fillText(z,W-m*1.65,yy-5+i*23));g.restore();yy+=step}
   const ny=H*.71,nh=H*.085;g.fillStyle=soft;g.fillRect(m,ny,W-m*2,nh);g.strokeStyle=line;g.strokeRect(m,ny,W-m*2,nh);draw("ملاحظات الإغلاق",W-m*1.3,ny+20,17,{bold:true});
-  const nt=p.closeNote||"لا توجد ملاحظات إضافية.";g.save();g.font='500 17px "IBM Plex Sans Arabic",Arial,sans-serif';g.direction="rtl";g.textAlign="right";g.fillStyle=ink;wrapLines(g,nt,W-m*2.3).slice(0,2).forEach((z,i)=>g.fillText(z,W-m*1.4,ny+48+i*24));g.restore();
+  const nt=p.closeNote||"لا توجد ملاحظات إضافية.";g.save();g.font='500 17px "IBM Plex Sans Arabic",Arial,sans-serif';g.direction="rtl";g.textAlign="right";g.fillStyle=INK;wrapLines(g,nt,W-m*2.3).slice(0,2).forEach((z,i)=>g.fillText(z,W-m*1.4,ny+48+i*24));g.restore();
   const sy=H*.825,sh=H*.12;g.strokeStyle=line;g.strokeRect(m,sy,W-m*2,sh);g.fillStyle="#e8eeeb";g.fillRect(m,sy,W-m*2,H*.034);draw("اعتماد إغلاق التصريح",W-m*1.3,sy+H*.017,19,{bold:true});
   const who=p.closeName||p.closedByName||"—",role=p.closeRole==="sup"?"مشرف التنفيذ":p.closeRole==="site"?"مهندس الموقع":"مسؤول السلامة";
   draw("أغلق التصريح",W-m*1.4,sy+H*.06,15,{color:muted});draw(`${who} · ${role}`,W-m*1.4,sy+H*.083,19,{bold:true});
@@ -4399,7 +4400,7 @@ async function renderGenericBase(fid,rec){
     const font=s=>`700 ${s}px "IBM Plex Sans Arabic",Arial,sans-serif`;
     const text=(t,r,opt={})=>{if(t==null||t==="")return;t=String(t);const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;
       if(opt.fill){x.fillStyle="#fff";x.fillRect(bx+1,by+1,bw-2,bh-2)}
-      x.fillStyle="#111";x.textBaseline="middle";const rtl=/[؀-ۿ]/.test(t);x.direction=rtl?"rtl":"ltr";
+      x.fillStyle=INK;x.textBaseline="middle";const rtl=/[؀-ۿ]/.test(t);x.direction=rtl?"rtl":"ltr";
       if(opt.lines>1){let fs=Math.min(11*pxPt,bh/opt.lines*0.62);x.font=font(fs);const lh=bh/opt.lines;
         let lines=[];for(const para of t.split(/\n/))lines.push(...wrapLines(x,para,bw-12));
         while(lines.length>opt.lines&&fs>9){fs-=1;x.font=font(fs);lines=[];for(const para of t.split(/\n/))lines.push(...wrapLines(x,para,bw-12))}
@@ -4413,7 +4414,7 @@ async function renderGenericBase(fid,rec){
       const wNow=x.measureText(t).width;
       if(wNow>avail){const k=avail/wNow;x.save();x.translate(bx+bw/2,by+bh/2+1);x.scale(k,1);x.fillText(t,0,0);x.restore()}
       else x.fillText(t,bx+bw/2,by+bh/2+1)};
-    const tick=r=>{const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;x.strokeStyle="#111";x.lineWidth=Math.max(2,bw*0.14);x.beginPath();x.moveTo(bx+bw*0.15,by+bh*0.55);x.lineTo(bx+bw*0.42,by+bh*0.85);x.lineTo(bx+bw*0.95,by+bh*0.05);x.stroke()};
+    const tick=r=>{const bx=r[0]*W,by=r[1]*H,bw=r[2]*W,bh=r[3]*H;x.strokeStyle=INK;x.lineWidth=Math.max(2,bw*0.14);x.beginPath();x.moveTo(bx+bw*0.15,by+bh*0.55);x.lineTo(bx+bw*0.42,by+bh*0.85);x.lineTo(bx+bw*0.95,by+bh*0.05);x.stroke()};
     for(const f of spec.fields.filter(f=>f.page===k)){
       if(f.type==="check"){const v=rec.f?.[f.k];const sel=Array.isArray(v)?v:(v?[v]:[]);for(const o of sel)if(f.opts[o])tick(f.opts[o]);continue}
       text(fmtFieldVal(f,recVal(spec,rec,f.k)),f.rect,{fill:f.fill,lines:f.type==="textarea"?(f.lines||3):1});
@@ -5084,7 +5085,7 @@ async function renderGeneric(fid,rec){
       if(withName&&rec.approved.name&&Array.isArray(nf.rect)&&nf.rect.length>=4){
         const [nx,ny,nw,nh]=nf.rect,ax=nx*W,ay=ny*H,aw=nw*W,ah=nh*H;
         g.fillStyle="#fff";g.fillRect(ax+1,ay+1,aw-2,ah-2);
-        g.fillStyle="#111";g.textBaseline="middle";g.textAlign="center";g.direction="rtl";
+        g.fillStyle=INK;g.textBaseline="middle";g.textAlign="center";g.direction="rtl";
         let fs=Math.min(13*(150/72),ah*0.78);
         g.font=`700 ${fs}px "IBM Plex Sans Arabic",Arial,sans-serif`;
         const t=String(rec.approved.name);
