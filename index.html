@@ -989,12 +989,16 @@ function showBase(t){
 function refreshBase(){if(!importing)VIEWS[tab]?.fill()}
 /* تجميع إعادة الرسم: وقت الفتح بتوصل ~15 مجموعة بيانات ورا بعض وكل واحدة كانت بتعيد رسم الصفحة (رعشة).
    دلوقتي بنستنى 250ms هدوء (وبحد أقصى 600ms)، ولو المستخدم بيكتب في حقل بنأجّل لحد ما يخلّص. */
-let _rfT=0,_rfFirst=0;
+let _rfT=0,_rfFirst=0,_lastAct=0;
+["pointerdown","keydown","wheel","touchmove","scroll"].forEach(ev=>addEventListener(ev,()=>{_lastAct=Date.now()},{passive:true,capture:true}));
 function refreshSoon(){
   if(!_rfFirst)_rfFirst=Date.now();
   clearTimeout(_rfT);
   const wait=Math.max(0,Math.min(250,600-(Date.now()-_rfFirst)));
   _rfT=setTimeout(function go(){
+    /* وضع «ذكي/توفير»: ما نعيدش رسم الصفحة والمستخدم بيقرا أو بيمرّر أو فاتح نموذج/عارض — نستنى هدوء 2.5 ثانية */
+    try{const lm=window.SBA&&window.SBA.getLive&&window.SBA.getLive();
+      if(lm&&lm!=="live"&&_lastAct&&(Date.now()-_lastAct<2500||document.getElementById("ov")||document.getElementById("pvRoot"))){_rfT=setTimeout(go,2000);return}}catch(e){}
     const a=document.activeElement;
     if(a&&a.closest&&a.closest("#main")&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|button)$/.test(a.type||"")){_rfT=setTimeout(go,1500);return}
     _rfFirst=0;refresh()},wait)
@@ -2243,7 +2247,7 @@ function signPermEditor(){
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.41";
+const APP_VER="8.9.42";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11377,6 +11381,18 @@ const st=document.createElement("style");st.textContent=".pvnav{display:flex;ali
 document.head.appendChild(st);
 })();
 
+
+/* 8.9.42 — إعداد التحديث اللحظي (لكل جهاز) */
+{const _lvF=VIEWS.settings.fill;VIEWS.settings.fill=function(){_lvF.apply(this,arguments);if(!$("setBody")||$("lvCard"))return;
+  const cur=(window.SBA&&SBA.getLive&&SBA.getLive())||"smart";
+  const opts=[["smart","ذكي (الافتراضي)","التحديث اللحظي شغال وانت فاتح التطبيق، وبيقف لما تسيبه في الخلفية. والصفحة ما بتتحدّثش وانت بتقرا أو بتمرّر أو فاتح نموذج."],["saver","توفير باقة النت","من غير اتصال لحظي خالص. بيفحص كل دقيقتين بطلب صغير جدًا (بايتات لو مفيش جديد) وكل ما ترجع للتطبيق. مناسب لباقة محدودة أو شبكة ضعيفة."],["live","لحظي دايمًا","زي الأول: بيوصلك أي تغيير في نفس اللحظة حتى والتطبيق في الخلفية. أعلى استهلاك للبيانات."]];
+  const c=document.createElement("div");c.className="card";c.id="lvCard";c.style.marginTop="14px";
+  c.innerHTML=`<h3>🔄 التحديث اللحظي واستهلاك النت</h3><div class="muted" style="font-size:13px;margin-bottom:10px">الاختيار ده على الجهاز ده بس. الأدمن مش لازم يغيّره لباقي المستخدمين.</div>
+  <div class="list">${opts.map(([k,t,d])=>`<label class="li" style="cursor:pointer;align-items:flex-start"><input type="radio" name="lvMode" value="${k}" ${k===cur?"checked":""} style="margin-top:5px"><div class="grow"><div class="t">${t}</div><div class="s">${d}</div></div></label>`).join("")}</div>
+  <div class="muted" style="font-size:12.5px;margin-top:8px">لو بتشتغل على باقة موبايل: اختار «توفير». وتقدر تعمل تحديث يدوي أي وقت من زرار 🔄 فوق.</div>`;
+  $("setBody").appendChild(c);
+  c.querySelectorAll("input[name=lvMode]").forEach(r=>r.onchange=()=>{SBA.setLive(r.value);toast("اتغيّر وضع التحديث ✔")});
+}}
 </script>
 <style id="dsLayer">
 /* 8.9.34 — طبقة تنسيق موحّدة (DS): خطوط · مسافات · محاذاة · موبايل */

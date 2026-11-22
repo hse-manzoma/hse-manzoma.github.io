@@ -533,10 +533,15 @@ async function pullCol(col,force){
 }
 const snap=rows=>({docs:rows.map(r=>({id:r.id,exists:true,data:()=>r.data})),size:rows.length});
 const subs={};let chan=null;
+/* وضع التحديث اللحظي (لكل جهاز): live = لحظي دايمًا · smart = يوقف الاتصال اللحظي لما التطبيق في الخلفية · saver = من غير اتصال لحظي، فحص خفيف كل دقيقتين */
+let LIVE=(()=>{try{const v=localStorage.getItem("hseLive");if(v==="live"||v==="smart"||v==="saver")return v}catch(e){}return (navigator.connection&&navigator.connection.saveData)?"saver":"smart"})();
+const stopChan=()=>{if(chan){try{sb.removeChannel(chan)}catch(e){}chan=null}};
 function ensureChannel(){
-  if(chan)return;chan=sb.channel("docs-all")
+  if(chan||LIVE==="saver")return;chan=sb.channel("docs-all")
    .on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{const row=p.new&&p.new.col?p.new:p.old;const c=row?.col;const S=subs[c];if(!S)return;
-     if(p.eventType==="DELETE")S.map.delete(p.old.id);else S.map.set(p.new.id,p.new.data);S.emit()})
+     if(p.eventType==="DELETE")S.map.delete(p.old.id);
+     else{const cur=S.map.get(p.new.id);if(cur!==undefined&&JSON.stringify(cur)===JSON.stringify(p.new.data))return;S.map.set(p.new.id,p.new.data)}   /* صدى كتابتنا إحنا: ما نعيدش الرسم */
+     S.emit()})
    .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},p=>{const S=subs.__profiles;if(!S)return;if(p.eventType==="DELETE")S.map.delete(p.old.user_id);else S.map.set(p.new.user_id,p.new);S.emit()})
    .subscribe();
 }
@@ -684,6 +689,32 @@ addEventListener("offline",()=>badge());
 setInterval(()=>{if(NET())outCount().then(n=>{if(n)syncNow()})},60000);
 let _hidAt=0;
 document.addEventListener("visibilitychange",()=>{if(document.hidden){_hidAt=Date.now();return}if(NET()&&(!_hidAt||Date.now()-_hidAt>60000))syncSoon(400)});
+/* ---------- توفير البيانات: فحص خفيف بدل الاتصال اللحظي ---------- */
+let pollAt=new Date(Date.now()-120000).toISOString(),_liveHid=0,_lastFull=Date.now();
+async function deltaPoll(){
+  if(!NET())return;
+  const cols=Object.keys(subs).filter(c=>c!=="__profiles");if(!cols.length)return;
+  const {data,error}=await sb.from("docs").select("col,id,data,updated_at").in("col",cols).gt("updated_at",pollAt).order("updated_at",{ascending:true}).limit(200);
+  if(error||!data||!data.length)return;
+  let mx=pollAt;const touched=new Set();
+  for(const r of data){const S=subs[r.col];if(!S)continue;const cur=S.map.get(r.id);if(cur!==undefined&&JSON.stringify(cur)===JSON.stringify(r.data)){if(r.updated_at>mx)mx=r.updated_at;continue}
+    S.map.set(r.id,r.data);cachePut(r.col,r.id,r.data).catch(()=>{});touched.add(r.col);if(r.updated_at>mx)mx=r.updated_at}
+  pollAt=mx;for(const c of touched)subs[c]&&subs[c].emit();
+}
+setInterval(()=>{
+  if(LIVE!=="saver"||document.hidden||!NET())return;
+  if(Date.now()-_lastFull>1800000){_lastFull=Date.now();repull().catch(()=>{});return}   /* كل 30 دقيقة مزامنة كاملة للأمان (حذف/فرق ساعة) */
+  deltaPoll().catch(()=>{});
+},120000);
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){clearTimeout(_liveHid);if(LIVE!=="live")_liveHid=setTimeout(stopChan,90000);return}
+  clearTimeout(_liveHid);
+  if(LIVE!=="saver"&&!chan&&Object.keys(subs).length)ensureChannel();
+  if(LIVE==="saver")deltaPoll().catch(()=>{});
+});
+window.SBA.getLive=()=>LIVE;
+window.SBA.setLive=m=>{if(!["live","smart","saver"].includes(m))return;LIVE=m;try{localStorage.setItem("hseLive",m)}catch(e){}
+  if(m==="saver"){stopChan();pollAt=new Date(Date.now()-120000).toISOString()}else{ensureChannel();syncSoon(300)}};
 window.SBA.pullCol=pullCol;   /* للاختبار والتشخيص */
 /* مزامنة كاملة بالإجبار — لو حد عدّل في قاعدة البيانات من برّه المنظومة */
 window.SBA.resync=async()=>{FORCE_NEXT=true;try{await repull()}finally{FORCE_NEXT=false}};
