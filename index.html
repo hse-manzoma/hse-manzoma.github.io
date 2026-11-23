@@ -2187,7 +2187,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.89";
+const APP_VER="8.9.90";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11803,8 +11803,10 @@ waShare=async function({getPdf,filename,title}){
   try{blob=await getPdf();step="upload";
     if(!assetsNS||!window.SB)throw new Error("الرفع مش متاح (assets/SB)");
     const up=await assetsNS.upload(blob,{type:"application/pdf"});if(up.pending)throw new Error("الرفع اتأجّل (مفيش نت؟)");step="sign";
-    const {data,error}=await SB.storage.from("files").createSignedUrl(up.id,7*86400);if(error)throw error;link=data.signedUrl}
-  catch(err){console.error(err);why=step+": "+((err&&(err.message||err.code))?String(err.message||err.code).slice(0,80):String(err).slice(0,80))}
+    const {data,error}=await SB.storage.from("files").createSignedUrl(up.id,7*86400);if(error)throw error;link=data.signedUrl;step="check";
+    /* نتأكد إن الرابط شغال فعلًا قبل ما نبعته (لو السيرفر رفضه نكتب السبب في الرسالة بدل رابط ميّت) */
+    try{const rr=await fetch(link,{headers:{Range:"bytes=0-0"}});if(!(rr.ok||rr.status===206)){const tx=(await rr.text().catch(()=>"")).replace(/\s+/g," ").slice(0,90);link="";throw new Error("الرابط اترفض "+rr.status+" "+tx)}}catch(ce){if(!link)throw ce}}
+  catch(err){console.error(err);why=step+": "+((err&&(err.message||err.code))?String(err.message||err.code).slice(0,150):String(err).slice(0,150))}
   const msg=head+(link?`\n\nرابط ملف الـ PDF (صالح 7 أيام):\n${link}`:"\n\nملف الـ PDF في الرسالة اللي بعدها"+(why?`\n[تعذّر الرفع - ${why}]`:""));
   /* رابط واتساب ويب مباشر: wa.me بيشغّل تطبيق ويندوز (والنسخة المنتهية بتطلّع Update required) */
   const url=waMode()==='app'?`https://wa.me/?text=${encodeURIComponent(msg)}`:`https://web.whatsapp.com/send/?text=${encodeURIComponent(msg)}&type=custom_url&app_absent=0`;
