@@ -2184,7 +2184,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.81";
+const APP_VER="8.9.83";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5629,8 +5629,8 @@ VIEWS.report={
       <p class="muted" style="font-size:12.5px">خانة «من بداية المشروع» بتتحسب لوحدها = الشهر اللي فات + الشهر ده. أول مرة بس اكتب الرقم من آخر تقرير ورقي.</p></div></details>
     <details class="sec"><summary>3. أنشطة البيئة والسلامة والصحة المهنية</summary><div class="in"><table class="ed"><thead><tr><th>م</th><th>البيان</th><th>الشهر الحالي</th><th>من بداية السنة</th></tr></thead><tbody>${REP_ACTS.map(([k,l],i)=>`<tr><td class="n">${i+1}</td><td style="font-size:13px">${l}</td><td>${num_("act_"+k,R.acts?.[k]??"",`placeholder="${C.A[k]}"`)}<div class="autov">تلقائي ${C.A[k]}</div></td><td>${num_("actY_"+k,R.actsYtd?.[k]??"",`placeholder="${C.actY[k]}"`)}<div class="autov">تلقائي ${C.actY[k]}</div></td></tr>`).join("")}</tbody></table></div></details>
     <details class="sec"><summary>4. اجتماعات السلامة خلال الشهر</summary><div class="in">${rows("meetings",[["topic","موضوع الاجتماع"],["rec","توصيات الاجتماع"]],5)}</div></details>
-    <details class="sec"><summary>5. الإجراءات التصحيحية للملاحظات شديدة الخطورة</summary><div class="in">${ed?`<button type="button" class="btn sm" id="repPullAct">جيب الإجراءات اللي اتقفلت الشهر ده من المتابعة</button>`:""}${rows("corrective",[["desc","وصف الحالة"],["action","الإجراءات التصحيحية اللي اتعملت"]],6)}</div></details>
-    <details class="sec"><summary>6. مشاكل المعدات</summary><div class="in">${ed?`<button type="button" class="btn sm" id="repPullEq">جيب المعدات اللي اتفحصت «غير صالح» الشهر ده</button>`:""}${rows("equip",[["name","اسم المعدة"],["code","كود المعدة"],["site","الموقع"],["cause","السبب الجذري للمشكلة"]],3)}</div></details>
+    <details class="sec"><summary>5. الإجراءات التصحيحية للملاحظات شديدة الخطورة</summary><div class="in">${ed?`<button type="button" class="btn sm" id="repPullAct">جيب الإجراءات اللي اتقفلت الشهر ده من المتابعة</button> <button type="button" class="btn sm" id="repPullUns">جيب الملاحظات والتصرفات غير الآمنة وحلولها (بدون أسماء)</button>`:""}${rows("corrective",[["desc","وصف الحالة"],["action","الإجراءات التصحيحية اللي اتعملت"]],6)}</div></details>
+    <details class="sec"><summary>6. مشاكل المعدات</summary><div class="in">${ed?`<button type="button" class="btn sm" id="repPullEq">جيب أعطال المعدات من سجلات الفحص (نقل وحركة، أوناش، …)</button>`:""}${rows("equip",[["name","اسم المعدة"],["code","كود المعدة"],["site","الموقع"],["cause","السبب الجذري للمشكلة"]],3)}</div></details>
     <details class="sec"><summary>7. نتائج المراجعات الداخلية</summary><div class="in">${rows("audits",[["place","مكان المراجعة"],["nc","حالات عدم المطابقة ووصفها"],["rec","توصيات المراجعة"]],2)}</div></details>
     <details class="sec"><summary>8. فرص التحسين والمقترحات</summary><div class="in">${rows("improve",[["t","فرص التحسين والمقترحات"]],5)}</div></details>
     <details class="sec"><summary>مرفق: الحصر الشهري لمهمات السلامة</summary><div class="in"><table class="ed"><thead><tr><th>الصنف</th><th>صالح</th><th>غير صالح</th></tr></thead><tbody>${INV_ITEMS.map(([k,l])=>`<tr><td>${l}</td><td>${num_(`inv_${k}_ok`,R.inv?.[k]?.ok??"")}</td><td>${num_(`inv_${k}_nok`,R.inv?.[k]?.nok??"")}</td></tr>`).join("")}${[["powder","طفايات بودرة"],["co2","طفايات CO2"],["foam","طفايات فوم"]].map(([k,l])=>`<tr><td>${l}</td><td>${num_(`ext_${k}_ok`,ex[k]?.ok??0)}</td><td>${num_(`ext_${k}_nok`,ex[k]?.nok??0)}</td></tr>`).join("")}</tbody></table><p class="muted" style="font-size:12.5px">الطفايات اتحسبت من «المعدات والطوارئ». باقي الأصناف بتتنقل من الشهر اللي فات.</p></div></details>
@@ -5654,12 +5654,43 @@ VIEWS.report={
     if($("repAp"))$("repAp").onclick=async()=>{const X=await save(true);const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}if(X&&await write(()=>db.doc("reports/"+m).set({...X,status:"approved",approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد التقرير ✔")){ui.repDirty=false;setTimeout(()=>{this.fill(true);repView(m)},300)}};
     if($("repUnap"))$("repUnap").onclick=async()=>{await write(()=>upsert("reports",m,{status:"draft",approved:null}),"اتلغى الاعتماد");this.fill(true)};
     $("copyRep").onclick=()=>copyText(reportText(m));
-    if($("repPullAct"))$("repPullAct").onclick=()=>{const A=deriveActions().filter(a=>a.status==="closed"&&(a.closedAt||"").startsWith(m));if(!A.length){toast("مفيش إجراءات اتقفلت الشهر ده");return}const X=collect();X.corrective=[...X.corrective,...A.map(a=>({desc:[a.title,a.place].filter(Boolean).join(" — "),action:a.closeNote||"تم الإصلاح"}))];R.corrective=X.corrective;Object.assign(R,X);ui.repDirty=true;this.fill(true,R)};
-    if($("repPullEq"))$("repPullEq").onclick=()=>{const L=[];for(const q of S.equipment)for(const h of q.insp||[])if((h.date||"").startsWith(m)&&Object.values(h.res||{}).includes("nok"))L.push({name:q.name||EQ_K[q.kind]?.one||"",code:q.code||q.serial||"",site:q.place||estab().siteName,cause:h.notes||Object.entries(h.res).filter(([,v])=>v==="nok").map(([k])=>(EQ_K[q.kind].checks.find(c=>c[0]===k)||[k,k])[1]).join("، ")});if(!L.length){toast("مفيش معدات غير صالحة الشهر ده");return}const X=collect();X.equip=[...X.equip,...L];Object.assign(R,X);ui.repDirty=true;this.fill(true,R)};
+    if($("repPullUns"))$("repPullUns").onclick=()=>{const L=unsafeNoNames(m);if(!L.length){toast("مفيش ملاحظات أو تصرفات غير آمنة متسجلة الشهر ده");return}const X=collect();const have=new Set(X.corrective.map(x=>(x.desc||"").trim()));const add=L.filter(x=>!have.has(x.desc));if(!add.length){toast("كلها متضافة قبل كده");return}X.corrective=[...X.corrective.filter(x=>(x.desc||"").trim()||(x.action||"").trim()),...add];R.corrective=X.corrective;Object.assign(R,X);ui.repDirty=true;this.fill(true,R);toast(add.length+" ملاحظة اتضافت بدون أسماء — راجعها واكتب الحل اللي ناقص")};
+    if($("repPullAct"))$("repPullAct").onclick=()=>{const A=deriveActions().filter(a=>a.status==="closed"&&(a.closedAt||"").startsWith(m));if(!A.length){toast("مفيش إجراءات اتقفلت الشهر ده");return}const X=collect();X.corrective=[...X.corrective,...A.map(a=>({desc:scrubNames([a.title,a.place].filter(Boolean).join(" — ")),action:scrubNames(a.closeNote||"تم الإصلاح")}))];R.corrective=X.corrective;Object.assign(R,X);ui.repDirty=true;this.fill(true,R)};
+    if($("repPullEq"))$("repPullEq").onclick=()=>{const L=eqProblems(m);if(!L.length){toast("مفيش أعطال معدات متسجلة في فحوصات الشهر ده");return}const X0=collect();const have=new Set(X0.equip.map(x=>((x.code||"")+"|"+(x.cause||"")).trim()));const L2=L.filter(x=>!have.has((x.code+"|"+x.cause).trim()));if(!L2.length){toast("كلها متضافة قبل كده");return}const X=X0;X.equip=[...X.equip.filter(x=>(x.name||x.code||x.cause||"").trim()),...L2];Object.assign(R,X);ui.repDirty=true;this.fill(true,R)};
     if($("repKpiWho"))$("repKpiWho").onclick=()=>kpiRepForm(m,()=>{const X=collect();X.kpiRows=kpiRowsAuto(m);Object.assign(R,X);ui.repDirty=true;this.fill(true,R)});
     if($("repKpiReset"))$("repKpiReset").onclick=()=>{const X=collect();X.kpiRows=kpiRowsAuto(m);Object.assign(R,X);ui.repDirty=true;this.fill(true,R)};
   },
 };
+/* شيل أسماء الناس من أي نص (الاسم الكامل، أول اسمين، وأي اسم ثلاثي بيظهر في المنظومة) */
+function scrubNames(t){t=String(t||"");const names=new Set();
+  for(const e of (S.employees||[]))if(e&&e.name)names.add(String(e.name).trim());
+  for(const p of (S.profiles||[]))if(p&&p.name)names.add(String(p.name).trim());
+  const L=[];for(const n of names){const w=n.split(/\s+/).filter(Boolean);if(w.length>=2){L.push(n);L.push(w.slice(0,2).join(" "));if(w.length>=3)L.push(w.slice(0,3).join(" "))}}
+  L.sort((a,b)=>b.length-a.length);
+  for(const n of L){if(n.length<5)continue;t=t.split(n).join("أحد العاملين")}
+  return t.replace(/(أحد العاملين[\s،,و]*){2,}/g,"أحد العاملين ").replace(/\s{2,}/g," ").trim()}
+/* أعطال المعدات من كل سجلات الفحص للشهر: فحوصات المعدات (نقل وحركة، أوناش، ...) + سجل الفحص المستقل (بنود «غير جيد») */
+function eqProblems(m){const out=[],seen=new Set();
+  const keyOf=(c,d)=>{try{const k=inspCodeKey(c||"");return k&&d?`d:${k}:${d}`:""}catch(e){return ""}};
+  for(const q of (S.equipment||[]))for(const h of (q.insp||[])){if(!(h.date||"").startsWith(m)||!Object.values(h.res||{}).includes("nok"))continue;
+    const k=keyOf(q.serial||q.code,h.date);if(k)seen.add(k);
+    const kk=EQ_K[q.kind];const cause=h.notes?(Array.isArray(h.notes)?h.notes.join(" · "):h.notes):Object.entries(h.res).filter(([,v])=>v==="nok").map(([a])=>((kk?.checks||[]).find(c=>c[0]===a)||[a,a])[1]).join("، ");
+    out.push({name:q.name||kk?.one||"",code:q.code||q.serial||"",site:q.place||estab().siteName,cause:scrubNames(cause)})}
+  for(const x of (S.inspections||[])){if(!(x.date||"").startsWith(m))continue;
+    const fails=Object.entries(x.checks||{}).filter(([,v])=>v==="fail").map(([a])=>+String(a).slice(1)).filter(n=>n>=0);
+    if(!fails.length&&x.status!=="fail")continue;
+    const k=keyOf(x.code,x.date);if(k&&seen.has(k))continue;if(k)seen.add(k);
+    const items=INSP_FORMS[x.equipType]||[];
+    const cause=fails.map(i=>{const t=(items[i]||"").trim(),n=((x.notes_items||{})[`n${i}`]||"").trim();return [t,n].filter(Boolean).join(" — ")}).filter(Boolean).join("، ")||x.note||x.notes||"غير مطابق";
+    out.push({name:x.equipType||"",code:x.code||"",site:x.project||estab().siteName,cause:scrubNames(cause)})}
+  return out}
+/* ملاحظات وتصرفات غير آمنة الشهر ده (F-HSE-07-03) وحلولها، من غير أسماء */
+function unsafeNoNames(m){const out=[];
+  for(const r of (S.records||[])){if(r.form!=="F-HSE-07-03"||!(r.date||"").startsWith(m))continue;
+    for(const x of (r.rows||[])){if(!x||(x.kind!=="USC"&&x.kind!=="USA"))continue;
+      const d=[x.desc||x.description||"",x.place&&!String(x.desc||"").includes(x.place)?x.place:""].filter(Boolean).join(" — ");if(!d.trim())continue;
+      out.push({desc:(x.kind==="USA"?"تصرف غير آمن: ":"ظرف غير آمن: ")+scrubNames(d),action:scrubNames(x.action||"")})}}
+  return out}
 async function repView(m,X){X=X||repDoc(m);if(!X){toast("احفظ التقرير الأول");return}await sigData();
   const V=openViewer(`التقرير الشهري · ${monthName(m)}`,{filename:`${m}-التقرير الشهري ${estab().siteName}.pdf`,note:X.status==="approved"?"":"التقرير لسه مسودة. بعد ما تراجعه اضغط «اعتماد» عشان يطلع بالتوقيع."});
   if(X.status==="approved")V.note("✔ معتمد بتوقيع "+esc(X.approved?.name||""),true);
