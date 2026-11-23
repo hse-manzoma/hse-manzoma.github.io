@@ -2184,7 +2184,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.74";
+const APP_VER="8.9.75";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11703,7 +11703,8 @@ waShare=async function({getPdf,filename,title}){
     const {data,error}=await SB.storage.from("files").createSignedUrl(up.id,7*86400);if(error)throw error;link=data.signedUrl}
   catch(err){console.error(err);why=(err&&err.message)?String(err.message).slice(0,60):""}
   const msg=head+(link?`\n\nرابط ملف الـ PDF (صالح 7 أيام):\n${link}`:"\n\nملف الـ PDF في الرسالة اللي بعدها");
-  const url=`https://wa.me/?text=${encodeURIComponent(msg)}`;
+  /* رابط واتساب ويب مباشر: wa.me بيشغّل تطبيق ويندوز (والنسخة المنتهية بتطلّع Update required) */
+  const url=waMode()==='app'?`https://wa.me/?text=${encodeURIComponent(msg)}`:`https://web.whatsapp.com/send/?text=${encodeURIComponent(msg)}&type=custom_url&app_absent=0`;
   if(w){try{w.location.href=url}catch(e){w.close()}}
   if(!w)done(`<a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff" href="${esc(url)}" target="_blank" rel="noopener">📲 افتح واتساب</a> <span class="muted" style="font-size:12.5px">المتصفح منع الفتح التلقائي — دوس الزرار.</span>`);
   else done(link?'<span style="font-size:13px">✔ واتساب اتفتح والرسالة فيها رابط الملف. اختار المحادثة وابعت.</span>':`<span style="font-size:13px">واتساب اتفتح بس الملف ما اترفعش${why?" ("+esc(why)+")":""}. بنزّله على جهازك — اسحبه جوه المحادثة.</span>`);
