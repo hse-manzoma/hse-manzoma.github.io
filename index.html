@@ -2181,7 +2181,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.51";
+const APP_VER="8.9.52";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5243,7 +5243,7 @@ function flowCard(p,actions){return `<div class="li" style="align-items:flex-sta
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
   <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${actions}</div></div>`}
 VIEWS.ptw={
-  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${(()=>{const dir=R.role==="admin"||can("permit.direct");return (dir?`<button class="btn primary keep" id="newPtw">+ تصريح مباشر</button>`:"")+(R.role!=="admin"?`<button class="btn ${dir?"":"primary "}keep" id="newReq">+ طلب تصريح</button>`:"")})()}</div>
+  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${(()=>{const dir=R.role==="admin"||can("permit.direct");return (dir?`<button class="btn primary keep" id="newPtw">+ تصريح مباشر</button>`:"")+`<button class="btn ${dir?"":"primary "}keep" id="newReq">+ طلب تصريح</button>`})()}</div>
     <div id="ptwFlow"></div>
     <div id="ptwTiles" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:0 0 12px"></div>
     <div class="filters">
@@ -5277,7 +5277,7 @@ VIEWS.ptw={
     L.sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.serial)-num(a.serial));
     const el=$("ptwList");
     if(waiting("permits")){el.innerHTML=waiting("permits");return}
-    if(!L.length){el.innerHTML=`<div class="card">${S.permits.length?emptyState("مفيش نتايج","غيّر البحث أو الفلتر."):emptyState("لسه مفيش تصاريح","",`<button class="btn primary sm" onclick="${ptwRole().role==="admin"?"ptwForm()":"ptwRequestForm()"}">${ptwRole().final?"+ تصريح مباشر":"+ طلب تصريح"}</button>`)}</div>`;return}
+    if(!L.length){el.innerHTML=`<div class="card">${S.permits.length?emptyState("مفيش نتايج","غيّر البحث أو الفلتر."):emptyState("لسه مفيش تصاريح","",`<button class="btn primary sm" onclick="${can("permit.direct")?"ptwForm()":"ptwRequestForm()"}">${can("permit.direct")?"+ تصريح مباشر":"+ طلب تصريح"}</button>`)}</div>`;return}
     const pg=page(L,"ptw");
     el.innerHTML=tfBanner("ptw",TFL[ui.tf?.ptw]||"",L.length)+`<div class="tbl"><table><thead><tr><th>الرقم</th><th>النوع</th><th>التاريخ</th><th>المكان / الوصف</th><th>المقاول</th><th>مسؤول السلامة</th><th>الحالة</th><th></th></tr></thead><tbody>
       ${pg.rows.map(p=>`<tr><td><span class="num">${esc(p.number)}</span></td><td>${typeChip(p.type)}</td><td class="n"><div>${fmtDate(p.startDate||p.date)}</div><div class="muted" style="font-size:11px">${p.from?`${esc(p.from)} – ${esc(p.to||"")}`:""}${p.closedAt?` · إغلاق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}</div></td>
@@ -5995,7 +5995,7 @@ VIEWS.dash={
   shell:()=>`<div id="dHero"></div><div id="dRem"></div><div class="kstrip" id="dK"></div><div class="dgrid" id="dGrid"></div><div class="dgrid" style="margin-top:14px" id="dMore"></div>`,
   fill(){
     const al=allowedTabs()||[];const has=t=>al.includes(t);const lv=t=>tabLevel(t)!=="view";const m=thisMonth();const hseView=has("kpi")||has("office")||has("actions")&&has("forms");
-    const qa=[has("ptw")&&lv("ptw")&&(ptwRole().role==="admin"?`<button class="btn" onclick="ptwForm()">+ تصريح مباشر</button>`:`<button class="btn" onclick="ptwRequestForm()">+ طلب تصريح</button>`),has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-24-02')">+ محاضرة TBT</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-07-03')">+ ملاحظة غير آمنة</button>`,has("matreq")&&`<button class="btn" onclick="mrForm()">+ طلب مهمات</button>`,has("report")&&lv("report")&&`<button class="btn" onclick="show('report')">التقرير الشهري</button>`,window._installEvt&&`<button class="btn" onclick="installApp()">📲 ثبّت التطبيق</button>`].filter(Boolean);
+    const qa=[has("ptw")&&lv("ptw")&&(can("permit.direct")?`<button class="btn" onclick="ptwForm()">+ تصريح مباشر</button>`:`<button class="btn" onclick="ptwRequestForm()">+ طلب تصريح</button>`),has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-24-02')">+ محاضرة TBT</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-07-03')">+ ملاحظة غير آمنة</button>`,has("matreq")&&`<button class="btn" onclick="mrForm()">+ طلب مهمات</button>`,has("report")&&lv("report")&&`<button class="btn" onclick="show('report')">التقرير الشهري</button>`,window._installEvt&&`<button class="btn" onclick="installApp()">📲 ثبّت التطبيق</button>`].filter(Boolean);
     $("dHero").innerHTML=`<div class="hero"><div style="flex:1;min-width:220px;position:relative;z-index:1"><h2>${greet()}${myEmpName()?`، ${esc(myEmpName().split(" ")[0])}`:""} 👋</h2><div class="sub2">${esc(S.settings.project||"منظومة السلامة")} · ${arDate(today())}</div></div><div class="qa">${qa.join("")}</div></div>`;
     $("dRem").innerHTML=remindersHTML();
     // KPI strip
@@ -10459,7 +10459,7 @@ const _OWN_RESTRICTED=p=>!["sup","eng"].includes(p.role);
 const CAPS={
   "sys.admin":        {g:"النظام",ar:"إدارة المنظومة (الإعدادات والأدوات والمستخدمين)",fixed:1,roles:[]},
   "inspect.override": {g:"الفحص",ar:"تعديل أو مسح أو تغيير حالة فحص معتمد",roles:[]},
-  "permit.direct":    {g:"التصاريح",ar:"إصدار تصريح مباشر من غير طلب",roles:["sup","officer"]},
+  "permit.direct":    {g:"التصاريح",ar:"إصدار تصريح مباشر (الافتراضي لكل من يعدّل التصاريح)",def:p=>{const t=roleTabs(p);return t.ptw==="edit"||t.ptw==="full"}},
   "violation.review": {g:"المخالفات",ar:"مراجعة المخالفات واعتمادها",roles:[]},
   "incident.admin":   {g:"الحوادث",ar:"تحديد مين يشوف الحوادث",roles:[]},
   "records.review":   {g:"النماذج",ar:"مراجعة واعتماد السجلات والنماذج",roles:["hse","hsesup"]},
