@@ -1154,7 +1154,7 @@ function ptwFormBase(id){
     ${f("مكان العمل","location",{value:p.location||"",full:true,req:true,attrs:'placeholder="مثلاً: عمارة 7 - الدور الأرضي"'})}
     ${f("وصف الشغل","desc",{type:"textarea",value:p.desc||"",full:true})}
     ${f("المقاول / الشركة","contractor",{value:p.contractor||"",attrs:'list="ctrList" autocomplete="off"'})}<datalist id="ctrList">${S.contractors.filter(c=>c.active!==false).map(c=>`<option value="${esc(c.name)}">`).join("")}</datalist>
-    ${f("طالب التصريح / مسؤول المنطقة","requester",{value:p.requester||"",attrs:'list="ptwAuthList"'})}<datalist id="ptwAuthList">${S.employees.filter(e=>e.ptwAuth||execAcc(e.id)).map(e=>`<option value="${esc(e.name)}">`).join("")}</datalist>
+    ${f("طالب التصريح / مسؤول المنطقة","requester",{value:p.requester||"",req:isNew,attrs:'list="ptwAuthList" autocomplete="off" placeholder="اختار من القايمة أو اكتب الاسم"'})}<datalist id="ptwAuthList">${[...new Map([...S.employees.filter(e=>e.ptwAuth||execAcc(e.id)),...S.employees.filter(e=>e.active!==false)].map(e=>[e.id,e])).values()].map(e=>`<option value="${esc(e.name)}">`).join("")}</datalist>
     ${f("مهندس الموقع","siteEng",{value:p.siteEng||"",attrs:'list="ptwAuthList" placeholder="لو فاضي بيتكتب طالب التصريح"'})}
     ${f("مسؤول السلامة","safetyId",{value:p.safetyId||"",opts:empOpts(hseTeam(),"— من فريق السلامة —")})}
     ${f("مشرف التنفيذ / المقاول","supervisor",{value:p.supervisor||"",attrs:'list="ptwAuthList"'})}
@@ -1165,6 +1165,7 @@ function ptwFormBase(id){
   </div>`;
   openSheet(isNew?"تصريح عمل جديد":"تعديل تصريح "+p.number,body,async(fd)=>{
     if(!fd.location?.trim()) return "اكتب مكان العمل";
+    if(isNew&&!(fd.requester||"").trim()) return "اختار طالب التصريح";
     const data={workCategory:fd.workCategory||"",excW:fd.excW||"",excL:fd.excL||"",excD:fd.excD||"",date:fd.date,startDate:fd.startDate||fd.date,endDate:fd.endDate||"",siteEng:(fd.siteEng||"").trim(),status:fd.status,from:fd.from,to:fd.to,location:fd.location.trim(),desc:fd.desc.trim(),contractor:fd.contractor.trim(),requester:fd.requester.trim(),safetyId:fd.safetyId,supervisor:fd.supervisor.trim(),risk:fd.risk,workers:num(fd.workers)||null,notes:fd.notes.trim(),updatedAt:Date.now()};
     if(isNew){
       const t=fd.type, serial=nextSerial(t);
@@ -2180,7 +2181,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.50";
+const APP_VER="8.9.51";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10458,7 +10459,7 @@ const _OWN_RESTRICTED=p=>!["sup","eng"].includes(p.role);
 const CAPS={
   "sys.admin":        {g:"النظام",ar:"إدارة المنظومة (الإعدادات والأدوات والمستخدمين)",fixed:1,roles:[]},
   "inspect.override": {g:"الفحص",ar:"تعديل أو مسح أو تغيير حالة فحص معتمد",roles:[]},
-  "permit.direct":    {g:"التصاريح",ar:"إصدار تصريح مباشر من غير طلب",roles:[]},
+  "permit.direct":    {g:"التصاريح",ar:"إصدار تصريح مباشر من غير طلب",roles:["sup","officer"]},
   "violation.review": {g:"المخالفات",ar:"مراجعة المخالفات واعتمادها",roles:[]},
   "incident.admin":   {g:"الحوادث",ar:"تحديد مين يشوف الحوادث",roles:[]},
   "records.review":   {g:"النماذج",ar:"مراجعة واعتماد السجلات والنماذج",roles:["hse","hsesup"]},
