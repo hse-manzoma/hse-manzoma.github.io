@@ -2181,7 +2181,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.55";
+const APP_VER="8.9.56";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5515,7 +5515,7 @@ const INV_ITEMS=[["harness","حزام الأمان"],["cones","الأقماع"],
 const KPI_SITES=[["1005","كوبري هليل مثلث الإسكندرية"],["3400-417","كيان صواري"],["","بارير أنطونيادس"],["","جراج مرغم"],["","خزانات زيوت ميناء الدخيلة"],["","هناجر قاعدة محمد نجيب"],["","كوست لاين"],["","ميناء جرجوب البحري"],["","طرق السلوم براني"],["","طرق المجاورة السادسة"],["","محطة أسفلت الـ26"]];
 function repAuto(m){
   const inM=d=>(d||"").startsWith(m);const recs=S.records.filter(r=>inM(r.date));const cnt=fid=>recs.filter(r=>r.form===fid).length;
-  const P=S.permits.filter(p=>inM(p.date)&&!["requested","supok","rejected","cancelled"].includes(p.status));const pt=t=>P.filter(p=>p.type===t).length;
+  const P=S.permits.filter(p=>inM(p.date)); /* 8.9.56: كل التصاريح بكل حالاتها (مطلوب/مرفوض/ملغي/مفتوح/مقفول...) */const pt=t=>P.filter(p=>p.type===t).length;
   const eqInsp=S.equipment.reduce((a,q)=>a+(q.insp||[]).filter(h=>inM(h.date)).length,0);
   return {tbt:cnt("F-HSE-24-02"),induction:cnt("F-HSE-24-01"),drills:cnt("F-HSE-10-07"),emerg:0,insp:CHECKLIST_FORMS.reduce((a,f)=>a+cnt(f),0)+cnt("F-HSE-07-03")+eqInsp,meet:doneDoc("committee",m)?1:0,
     conf:pt("CONF"),height:pt("HEIGHT"),lift:pt("LIFT"),cold:pt("COLD"),hot:pt("HOT"),exc:pt("EXC"),diving:cnt("F-HSE-29-01"),edge:cnt("F-HSE-19-03"),road:cnt("F-HSE-19-02"),iso:pt("ELEC"),lotoA:0,lotoR:0,consult:0,viol:cnt("F-HSE-07-01"),excl:0,
