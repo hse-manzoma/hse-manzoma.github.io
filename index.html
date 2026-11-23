@@ -2184,7 +2184,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.72";
+const APP_VER="8.9.73";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11687,7 +11687,8 @@ function kpiRepForm(m,done){
 waShare=async function({getPdf,filename,title}){
   if(!waDesk())return _old.apply(this,arguments);
   const ap=(($("pvNote")?.textContent||"").match(/معتمد[^\n]{0,80}/)||[""])[0].replace(/\s+/g," ").trim();
-  const msg=[`📄 *${title}*`,S.settings.project?`🏗 ${S.settings.project}`:"",`📅 ${fmtDate(today())}`,ap?`✅ ${ap}`:"",filename?`🧾 ${filename.replace(/\.pdf$/i,"")}`:"","📎 ملف الـ PDF في الرسالة اللي بعدها"].filter(Boolean).join("\n");
+  /* من غير إيموجي: واتساب ويب بيبوّظها (�) لما تيجي في رابط */
+  const msg=[`*${title}*`,S.settings.project?`المشروع: ${S.settings.project}`:"",`التاريخ: ${fmtDate(today())}`,ap?`${ap}`:"",filename?`الملف: ${filename.replace(/\.pdf$/i,"")}`:"","ملف الـ PDF في الرسالة اللي بعدها"].filter(Boolean).join("\n");
   const t=encodeURIComponent(msg),url=waMode()==="app"?`whatsapp://send?text=${t}`:`https://wa.me/?text=${t}`;
   /* الفتح جوّه الضغطة نفسها قبل أي await */
   const w=/^whatsapp:/.test(url)?(waOpen(url),true):window.open(url,"_blank","noopener");
