@@ -1783,6 +1783,7 @@ function remindersBase(){
   if(al.includes("ptw")){const ex=expiredPermits();if(ex.length)R.push({lv:"bad",t:`${ex.length} تصريح وصل لموعد انتهائه ولسه مفتوح — راجع الإغلاق`,go:"closeExpired()"})}
   if(al.includes("ppe")&&!ownScope()){const low=S.items.filter(i=>num(i.min)>0&&balance(i.id)<=num(i.min));if(low.length)R.push({lv:"warn",t:`${low.length} صنف في المخزن تحت الحد الأدنى`,go:"show('ppe')"})}
   if(al.includes("contractors")&&!ownScope()){const w=S.employees.filter(e=>e.group==="ctr"&&e.active!==false);const noId=w.filter(e=>!hasID(e)).length,noInd=w.filter(e=>!S.records.some(r=>r.form==="F-HSE-24-01"&&(r.rows||[]).some(x=>x&&x.name_id===e.id))).length;
+    {const nn=(S.contractors||[]).filter(c=>c.active!==false).reduce((a,c)=>a+ctrGap(c).noName,0);if(nn)R.push({lv:"warn",t:`${nn} عامل مقاول لسه اسمه وبطاقته مش مرفقين (حسب العدد اليدوي)`,go:"show('contractors')"})}
     if(noId)R.push({lv:"warn",t:`${noId} عامل مقاول من غير صورة بطاقة`,go:"ui.mpG='ctr';ui.mpID='no';show('manpower')"});if(noInd)R.push({lv:"warn",t:`${noInd} عامل مقاول ما حضرش محاضرة Induction`,go:"show('contractors')"})}
   if(al.includes("team")&&hseTeam().length&&!attDoc(t0))R.push({lv:"warn",t:"حضور النهارده لسه ما اتسجلش",go:"ui.teamSub='att';show('team')"});
   {const mm=S.leaves.filter(missionNeedsMySign);
@@ -2182,7 +2183,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.62";
+const APP_VER="8.9.63";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2939,6 +2940,7 @@ const personLect=id=>S.records.filter(r=>LECT_FORMS.includes(r.form)&&(r.rows||[
 const personViol=id=>S.records.filter(r=>r.form==="F-HSE-07-01"&&r.f?.emp_id===id);
 const hasID=e=>(e.att||[]).some(a=>a.kind==="idFront"||a.kind==="idBack");
 const attOf=(x,kind)=>(x?.att||[]).filter(a=>a.kind===kind);
+const ctrGap=c=>{const n=ctrWorkers(c.id).length,d=Math.max(0,Number(c.declared)||0);return {declared:d,total:Math.max(n,d),noName:Math.max(0,d-n)}};
 const ctrWorkers=cid=>S.employees.filter(e=>e.contractorId===cid&&e.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
 /* 8.4.6: عارض الصور — تنقل + زوم (عجلة/قرص/دبل كليك/أزرار) + سحب + طباعة وPDF */
 async function attPrintUrls(urls,title,idx){
@@ -2998,7 +3000,7 @@ function contractorsHTML(){
     return `<div class="filters"><button class="btn" onclick="ui.ctrSel='';refresh()">→ كل المقاولين</button></div>
     <div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">${esc(c.name)}</h3><div class="muted" style="font-size:13px">${[c.scope,c.rep&&("المسؤول: "+c.rep),c.phone].filter(Boolean).map(esc).join(" · ")}</div></div>
       <button class="btn sm" onclick="recordForm('F-HSE-07-04',null,{f:{company:contractor('${c.id}').name,function:contractor('${c.id}').scope||'',rep:contractor('${c.id}').rep||''}})">سياسة السلامة للمقاول (07-04)</button><button class="btn sm" onclick="contractorForm('${c.id}')">تعديل</button>${attBtn("contractors",c.id,c)||""}${canDelete?`<button class="btn ghost sm danger" onclick="ctrDel('${c.id}')">مسح</button>`:""}</div>
-      <div class="grid g4" style="margin-top:12px"><div class="tile"><span class="lbl">العمال</span><b class="val">${W.length}</b></div><div class="tile ${noID?"alert":""}"><span class="lbl">من غير بطاقة</span><b class="val">${noID}</b></div><div class="tile"><span class="lbl">مخالفات</span><b class="val">${V.length+attOf(c,"violation").length}</b></div><div class="tile"><span class="lbl">محاضرات توعية</span><b class="val">${Lc.length+attOf(c,"lecture").length}</b></div></div>
+      <div class="grid g4" style="margin-top:12px"><div class="tile"><span class="lbl">العمال${ctrGap(c).declared>W.length?` (مسجّل ${W.length})`:""}</span><b class="val">${ctrGap(c).total}</b></div><div class="tile ${noID||ctrGap(c).noName?"alert":""}"><span class="lbl">من غير بطاقة${ctrGap(c).noName?" / اسم":""}</span><b class="val">${noID+ctrGap(c).noName}</b></div><div class="tile"><span class="lbl">مخالفات</span><b class="val">${V.length+attOf(c,"violation").length}</b></div><div class="tile"><span class="lbl">محاضرات توعية</span><b class="val">${Lc.length+attOf(c,"lecture").length}</b></div></div>
       ${attOf(c,"docs").length?`<div style="margin-top:10px"><div class="muted" style="font-size:12.5px;margin-bottom:4px">مستندات المقاول</div>${thumbs(attOf(c,"docs"))}</div>`:""}</div>
     <div class="card" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 class="grow" style="margin:0">رجالة المقاول</h3><button class="btn primary sm" onclick="empForm(null,{group:'ctr',contractorId:'${c.id}'})">+ عامل</button><button class="btn sm" onclick="importForm('employees','${c.id}')">لصق من Excel</button></div>
       ${W.length?`<input type="search" id="ctrWQ" placeholder="🔎 ابحث في عمال المقاول بالاسم أو الكود أو الوظيفة" value="${esc(ui.ctrWQ||"")}" oninput="ctrWSearch(this.value)" aria-label="بحث في عمال المقاول" style="width:100%;margin-top:8px"><div class="muted" id="ctrWN" style="font-size:12.5px;margin-top:4px"></div><div class="list" id="ctrWList" style="margin-top:8px">${W.map(personRow).join("")}</div>${(setTimeout(()=>ctrWSearch(ui.ctrWQ||""),0),"")}`:`<p class="muted">لسه مفيش عمال. ضيفهم واحد واحد أو الصقهم من Excel.</p>`}</div>
@@ -3008,7 +3010,7 @@ function contractorsHTML(){
       <div class="card"><div style="display:flex;align-items:center;gap:8px"><h3 class="grow" style="margin:0">محاضرات التوعية</h3><button class="btn sm" onclick="newLect(ctrWorkers('${c.id}'))">+ محاضرة لكل العمال</button></div>
         ${Lc.length?`<div class="list">${Lc.map(r=>recLine(r," · "+(r.form==="F-HSE-24-01"?"Induction":"TBT"))).join("")}</div>`:""}${thumbs(attOf(c,"lecture"))}${!Lc.length&&!attOf(c,"lecture").length?'<p class="muted">مفيش محاضرات مسجلة.</p>':""}</div></div>`}
   const C=S.contractors.filter(c=>c.active!==false).sort((a,b)=>a.name.localeCompare(b.name,"ar"));const old=S.contractors.filter(c=>c.active===false);
-  const card=c=>{const W=ctrWorkers(c.id);const nv=W.reduce((s,w)=>s+personViol(w.id).length,0);const noID=W.filter(w=>!hasID(w)).length;return `<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.ctrSel='${c.id}';refresh()"><span style="font-weight:700;font-size:15px">${esc(c.name)}</span><span class="note">${esc(c.scope||"")}</span><span class="note">${W.length} عامل${noID?` · ${noID} من غير بطاقة`:""}${nv?` · ${nv} مخالفة`:""}</span></button>`};
+  const card=c=>{const W=ctrWorkers(c.id);const nv=W.reduce((s,w)=>s+personViol(w.id).length,0);const noID=W.filter(w=>!hasID(w)).length,G=ctrGap(c);return `<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit" onclick="ui.ctrSel='${c.id}';refresh()"><span style="font-weight:700;font-size:15px">${esc(c.name)}</span><span class="note">${esc(c.scope||"")}</span><span class="note">${G.total} عامل${G.declared>W.length?` (مسجّل ${W.length})`:""}${nv?` · ${nv} مخالفة`:""}</span>${G.noName||noID?`<span class="note" style="color:var(--warn);font-weight:600">⚠ ${G.noName?`${G.noName} بدون اسم`:""}${G.noName&&noID?" · ":""}${noID?`${noID} بدون بطاقة`:""}</span>`:""}</button>`};
   return `<div class="filters"><div class="grow"></div><button class="btn primary" onclick="contractorForm()">+ مقاول</button></div>
     ${C.length?`<div class="grid g4">${C.map(card).join("")}</div>`:`<div class="card">${emptyState("لسه مفيش مقاولين","ضيف المقاولين اللي شغالين في الموقع، وبعدين ضيف رجالة كل مقاول وصور بطايقهم.",`<button class="btn primary sm" onclick="contractorForm()">+ مقاول</button>`)}</div>`}
     ${old.length?`<h3 style="margin-top:20px">مقاولين خلصوا</h3><div class="grid g4">${old.map(card).join("")}</div>`:""}`;
@@ -3104,8 +3106,8 @@ function newLect(W){recordForm('F-HSE-24-02',null,{rows:W.filter(Boolean).slice(
 function newViol(id){const e=emp(id);if(e)recordForm('F-HSE-07-01',null,{f:{emp:e.name,emp_id:e.id,code:e.code||"",job:e.job||""}})}
 function contractorForm(id){if(mpNoEdit()){toast("المقاولين للاطلاع فقط في حسابك");return}
   const c=id?contractor(id):{active:true};
-  openSheet(id?"تعديل مقاول":"مقاول جديد",`<div class="form">${f("اسم المقاول / الشركة","name",{value:c.name||"",req:true,full:true})}${f("نطاق الأعمال","scope",{value:c.scope||""})}${f("المسؤول / المندوب","rep",{value:c.rep||""})}${f("الموبايل","phone",{type:"tel",value:c.phone||""})}${f("الحالة","active",{value:c.active===false?"0":"1",opts:[["1","شغال في الموقع"],["0","خلص / مشي"]]})}</div>`,
-  async fd=>{if(!fd.name.trim())return "اكتب اسم المقاول";const data={name:fd.name.trim(),scope:fd.scope.trim(),rep:fd.rep.trim(),phone:fd.phone.trim(),active:fd.active==="1"};
+  openSheet(id?"تعديل مقاول":"مقاول جديد",`<div class="form">${f("اسم المقاول / الشركة","name",{value:c.name||"",req:true,full:true})}${f("نطاق الأعمال","scope",{value:c.scope||""})}${f("المسؤول / المندوب","rep",{value:c.rep||""})}${f("الموبايل","phone",{type:"tel",value:c.phone||""})}${f("عدد العمال (يدوي لحد ما يتسجلوا بالاسم والبطاقة)","declared",{type:"number",value:c.declared||"",attrs:'min="0" inputmode="numeric"'})}${f("الحالة","active",{value:c.active===false?"0":"1",opts:[["1","شغال في الموقع"],["0","خلص / مشي"]]})}</div>`,
+  async fd=>{if(!fd.name.trim())return "اكتب اسم المقاول";const data={name:fd.name.trim(),scope:fd.scope.trim(),rep:fd.rep.trim(),phone:fd.phone.trim(),declared:num(fd.declared)||0,active:fd.active==="1"};
     {const dd=dupCheck("contractor",data,id?c:null,id);if(dd)return "تكرار: "+dd}
     const ok=await write(()=>id?upsert("contractors",id,data):db.collection("contractors").add({...data,createdAt:Date.now()}),"اتحفظ");return ok?null:"الحفظ فشل"});
 }
