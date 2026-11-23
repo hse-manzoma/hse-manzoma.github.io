@@ -855,7 +855,10 @@ async function boot(){
 }
 function setSync(t,cls){const el=document.getElementById("sync");el.innerHTML=`<span class="dot ${cls}"></span><span>${esc(t)}</span>`}
 window.addEventListener("offline",()=>{online=false;setSync("الاتصال اتقطع","off")});
-window.addEventListener("online",()=>{setSync("استعادة الاتصال…","");if(window.claude?.use)setTimeout(()=>location.reload(),500)});
+/* 8.9.87: ما نعملش إعادة تحميل للصفحة لما النت يرجع — كانت بتمسح أي بيانات لسه ما اتحفظتش. بنزامن بس. */
+window.addEventListener("online",()=>{setSync("استعادة الاتصال…","");online=true;try{window.SBA?.sync?.now?.()}catch(e){}setTimeout(()=>{try{setSync("متصل","on")}catch(e){}},1500)});
+/* لو فيه تعديل في التقرير لسه ما اتحفظش: المتصفح يسأل قبل ما يقفل/يحدّث الصفحة */
+window.addEventListener("beforeunload",e=>{try{if(ui.repDirty&&document.getElementById("repForm")){e.preventDefault();e.returnValue=""}}catch(x){}});
 function renderBanner(){}
 
 /* ===== مزامنة فورية ===== */
@@ -2184,7 +2187,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.86";
+const APP_VER="8.9.87";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5650,7 +5653,7 @@ VIEWS.report={
     <details class="sec"><summary>مرفق: مؤشرات الأداء لمسئولي السلامة</summary><div class="in" style="overflow-x:auto"><table class="ed" style="min-width:760px"><thead><tr><th>الاسم</th><th>الغياب</th><th>الفحص</th><th>ظروف غير آمنة</th><th>تصرفات غير آمنة</th><th>إجراءات تصحيحية</th><th>التوعية</th><th>السلوك %</th><th>التقييم</th></tr></thead><tbody>${kr.map((r,i)=>`<tr><td style="font-size:13px">${esc(r.name)}<input type="hidden" name="kr_${i}_name" value="${esc(r.name)}"><input type="hidden" name="kr_${i}_code" value="${esc(r.code)}"><input type="hidden" name="kr_${i}_job" value="${esc(r.job)}"></td>${["abs","insp","usc","usa","corr","tbt","beh"].map(k=>`<td><input class="mini" name="kr_${i}_${k}" value="${esc(r[k])}" ${ed?"":"disabled"}></td>`).join("")}<td><select name="kr_${i}_grade" ${ed?"":"disabled"}>${["","A","B","C"].map(g=>`<option ${r.grade===g?"selected":""}>${g}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>${ed?`<button type="button" class="btn sm" id="repKpiReset" style="margin-top:6px">إعادة الحساب من KPIs</button>`:""}</div></details>
     <details class="sec"><summary>بيانات الغلاف</summary><div class="in"><div class="form">${f("تاريخ الإصدار","issueDate",{type:"date",value:R.issueDate||monthEnd(m)})}<div class="field"><label>المنطقة / الموقع / المعتمد</label><div class="muted" style="font-size:13px">بتتعدل من «مكتب السلامة ← بيانات المنشأة»: ${esc(estab().region)} · ${esc(estab().siteName)} · ${esc(estab().approver)}</div></div></div></div></details>
     </form>`;
-    const form=$("repForm");form.addEventListener("input",()=>{ui.repDirty=true});
+    const form=$("repForm");form.addEventListener("input",()=>{ui.repDirty=true;clearTimeout(window._bkT);window._bkT=setTimeout(()=>{try{localStorage.setItem("repBk:"+m,JSON.stringify({at:Date.now(),X:collect()}))}catch(e){}},1200)});
     const collect=()=>{const fd=Object.fromEntries(new FormData(form).entries());const X=JSON.parse(JSON.stringify(R));
       X.man={reg:num(fd.man_reg),irr:num(fd.man_irr),ctr:num(fd.man_ctr),hours:num(fd.man_hours)||9,days:num(fd.man_days)||26};X.hoursYtd=fd.hoursYtd===""?undefined:num(fd.hoursYtd);if(X.hoursYtd===undefined)delete X.hoursYtd;
       X.inc={};X.incCum={};for(const [k] of INC_ROWS){if(fd["inc_"+k]!=="")X.inc[k]=num(fd["inc_"+k]);if(fd["incC_"+k]!=="")X.incCum[k]=num(fd["incC_"+k])}
