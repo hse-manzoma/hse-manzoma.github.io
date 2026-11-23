@@ -2184,7 +2184,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.84";
+const APP_VER="8.9.85";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5621,9 +5621,10 @@ VIEWS.report={
   bind(){$("repMonth").onchange=e=>{ui.repMonth=e.target.value||thisMonth();ui.repDirty=false;this.fill(true)}},
   async fill(force,Rover){
     if(!force&&ui.repDirty&&$("repForm"))return;
-    const m=ui.repMonth,doc=repDoc(m),R=Rover||(doc?JSON.parse(JSON.stringify(doc)):repDefaults(m)),C=repComputed(m,R);const personalSig=await mySig();await sigData();const ed=canWrite;
+    const m=ui.repMonth,doc=repDoc(m);let bk=null;try{const b=JSON.parse(localStorage.getItem("repBk:"+m)||"null");if(b&&b.X&&b.at>(doc?.savedAt||0)&&!Rover)bk=b}catch(e){}
+    const R=Rover||(doc?JSON.parse(JSON.stringify(doc)):repDefaults(m)),C=repComputed(m,R);const personalSig=await mySig();await sigData();const ed=canWrite;
     $("repBar").innerHTML=`<span class="pill ${doc?.status==="approved"?"p-sign":doc?"p-susp":"p-closed"}" style="align-self:center">${doc?.status==="approved"?"✔ معتمد":doc?"مسودة محفوظة":"جديد"}</span><div class="grow"></div>
-      ${ed?`<button class="btn" id="repKpiWho">${kpiRepLabel(m)}</button><button class="btn" id="repSave">💾 حفظ</button>`:""}<button class="btn primary keep" id="repView">👁 معاينة وطباعة</button>${personalSig&&doc?(doc.status==="approved"?`<button class="btn" id="repUnap">إلغاء الاعتماد</button>`:`<button class="btn sign" id="repAp">✍ اعتماد بتوقيعي</button>`):""}<button class="btn ghost" id="copyRep">نسخ ملخص للواتساب</button>`;
+      ${ed?`<button class="btn" id="repKpiWho">${kpiRepLabel(m)}</button><button class="btn" id="repSave">💾 حفظ</button>`:""}${bk?`<button class="btn" id="repRestore" style="border-color:var(--warn);color:var(--warn)">⚠ استرجع نسخة أحدث محفوظة على الجهاز</button>`:""}<button class="btn primary keep" id="repView">👁 معاينة وطباعة</button>${personalSig&&doc?(doc.status==="approved"?`<button class="btn" id="repUnap">إلغاء الاعتماد</button>`:`<button class="btn sign" id="repAp">✍ اعتماد بتوقيعي</button>`):""}<button class="btn ghost" id="copyRep">نسخ ملخص للواتساب</button>`;
     const num_=(name,val,attrs="")=>`<input class="mini" inputmode="numeric" name="${name}" value="${val??""}" ${attrs} ${ed?"":"disabled"}>`;
     const rows=(key,cols,min)=>{const L=R[key]||[];const n=Math.max(min,L.length+2);return `<table class="ed"><thead><tr><th>م</th>${cols.map(c=>`<th>${c[1]}</th>`).join("")}</tr></thead><tbody>${Array.from({length:n},(_,i)=>{const x=key==="improve"?{t:L[i]||""}:(L[i]||{});return `<tr><td class="n">${i+1}</td>${cols.map(([k])=>`<td><textarea rows="2" name="${key}_${i}_${k}" ${ed?"":"disabled"}>${esc(x[k]||"")}</textarea></td>`).join("")}</tr>`}).join("")}</tbody></table>`};
     const kr=R.kpiRows||kpiRowsAuto(m);const ex=R.ext||extCounts();
@@ -5660,7 +5661,14 @@ VIEWS.report={
       X.ext={};for(const k of ["powder","co2","foam"])X.ext[k]={ok:num(fd[`ext_${k}_ok`]),nok:num(fd[`ext_${k}_nok`])};
       X.kpiRows=[];for(let i=0;fd[`kr_${i}_name`]!==undefined;i++){const r={name:fd[`kr_${i}_name`],code:fd[`kr_${i}_code`],job:fd[`kr_${i}_job`]};for(const k of ["abs","insp","usc","usa","corr","tbt","beh"])r[k]=fd[`kr_${i}_${k}`];r.grade=fd[`kr_${i}_grade`];X.kpiRows.push(r)}
       X.issueDate=fd.issueDate||monthEnd(m);X.month=m;X.updatedAt=Date.now();return X};
-    const save=async(silent)=>{const X=collect();if(!X.status)X.status="draft";const ok=await write(()=>db.doc("reports/"+m).set(X),silent?null:"اتحفظ التقرير");if(ok)ui.repDirty=false;return ok?X:null};
+    const save=async(silent)=>{const X=collect();if(!X.status)X.status="draft";X.savedAt=Date.now();
+      try{localStorage.setItem("repBk:"+m,JSON.stringify({at:X.savedAt,X}))}catch(e){} /* نسخة احتياطية على الجهاز قبل أي كتابة */
+      const ok=await write(()=>db.doc("reports/"+m).set(X),silent?null:"اتحفظ التقرير");if(ok)ui.repDirty=false;
+      if(ok){try{const r=await window.SB.from("docs").select("data").eq("col","reports").eq("id",m).maybeSingle();const d=r?.data?.data;
+        if(r&&!r.error&&(!d||d.savedAt!==X.savedAt))toast("⚠ التقرير اتحفظ على جهازك بس، لسه ما وصلش السيرفر. متقفلش الصفحة وجرّب «حفظ» تاني بعد شوية");
+        else if(r&&r.error)console.error("verify",r.error)}catch(e){console.error("verify",e)}}
+      return ok?X:null};
+    if($("repRestore"))$("repRestore").onclick=()=>{if(bk){Object.assign(R,JSON.parse(JSON.stringify(bk.X)));ui.repDirty=true;this.fill(true,R);toast("اتسترجعت النسخة المحفوظة على الجهاز — راجعها واضغط «حفظ»")}};
     if($("repSave"))$("repSave").onclick=()=>save().then(()=>this.fill(true));
     $("repView").onclick=async()=>{let X=ed&&(ui.repDirty||!doc)?await save(true):null;X=X||repDoc(m)||collect();repView(m,X)};
     if($("repAp"))$("repAp").onclick=async()=>{const X=await save(true);const signature=await mySig();if(!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");return}if(X&&await write(()=>db.doc("reports/"+m).set({...X,status:"approved",approved:{by:ME.id,at:Date.now(),name:myEmpName(),signature}}),"اتعتمد التقرير ✔")){ui.repDirty=false;setTimeout(()=>{this.fill(true);repView(m)},300)}};
