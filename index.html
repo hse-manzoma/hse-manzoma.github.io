@@ -1139,7 +1139,7 @@ VIEWS.ptw = {
   }
 };
 function ptwFormBase(id){
-  const p=id?S.permits.find(x=>x.id===id):{type:"COLD",date:today(),status:"open",risk:"med"};
+  const p=id?S.permits.find(x=>x.id===id):{type:"COLD",date:today(),status:"open",risk:"med",...ptwSeedTake()};
   const isNew=!id;
   const body=`<div class="form">
     ${f("نوع التصريح","type",{value:p.type,opts:Object.entries(PTW_TYPES).map(([k,v])=>[k,`${v.ar} · ${v.en}`]),attrs:isNew?"":"disabled"})}
@@ -2181,7 +2181,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.52";
+const APP_VER="8.9.53";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5072,6 +5072,25 @@ function ptwForm(id){
     const V=openViewer(`معاينة ${p.number}`,{filename:`${p.number}.pdf`,note:"معاينة قبل الحفظ."});try{V.setPages(await renderPermitPages(p))}catch(e){console.error(e);V.fail()}});
 }
 
+/* ---------- 8.9.52: زر واحد «تصريح جديد» + مفتاح (اعتماد فوري | إرسال للاعتماد) ---------- */
+let _ptwSeed=null;
+function ptwSeedTake(){const x=_ptwSeed;_ptwSeed=null;return x||{}}
+function ptwModeBar(mode){
+  const f=$("shForm");if(!f||$("ptwMode"))return;
+  const bar=document.createElement("div");bar.id="ptwMode";bar.className="seg";bar.setAttribute("role","group");
+  bar.innerHTML=`<button type="button" data-m="direct" aria-pressed="${mode==="direct"}">⚡ اعتماد فوري</button><button type="button" data-m="request" aria-pressed="${mode==="request"}">📨 إرسال للاعتماد</button>`;
+  const hint=document.createElement("p");hint.className="muted";hint.style.cssText="font-size:12.5px;margin:6px 0 12px";
+  hint.textContent=mode==="direct"?"التصريح بيتسجل برقمه فورًا وبتطبعه.":"الطلب بيوصل لمشرف/مهندس التنفيذ ومسؤول السلامة ويتفعّل بعد اعتمادهم.";
+  f.insertBefore(hint,f.firstChild);f.insertBefore(bar,f.firstChild);
+  bar.onclick=e=>{const b=e.target.closest("button[data-m]");if(!b||b.dataset.m===mode)return;
+    const fd=Object.fromEntries(new FormData(f).entries()),seed={};
+    for(const k of["type","startDate","from","to","location","desc","contractor","workers","risk","notes","requester","siteEng","workCategory","excW","excL","excD"])if(fd[k]!==undefined&&fd[k]!=="")seed[k]=fd[k];
+    if(seed.startDate)seed.date=seed.startDate;
+    _ptwSeed=seed;$("overlayRoot").innerHTML="";
+    b.dataset.m==="direct"?ptwForm():ptwRequestForm()}}
+{const _a=ptwForm;ptwForm=function(id){const r=_a.apply(this,arguments);if(!id&&typeof can==="function"&&can("permit.direct"))ptwModeBar("direct");return r}}
+{const _b=ptwRequestForm;ptwRequestForm=function(id){const r=_b.apply(this,arguments);if(!id&&can("permit.direct"))ptwModeBar("request");return r}}
+
 /* ---------- permit request workflow: engineer → (execution supervisor ∥ safety) → start work ---------- */
 const HSE_FINAL_ROLES=["admin","hse","hsesup","officer"];
 function ptwRole(){const a=myAccess();if(!a)return {};const r=a.role;const final=HSE_FINAL_ROLES.includes(r)||a.tabs?.ptw==="full";return {final,sup:r==="sup",role:r}}
@@ -5146,7 +5165,7 @@ function notifySheet(title,people,msg){
   openSheet(title,`<p style="margin-top:0">الإشعار وصلهم جوه المنظومة وعلى الموبايل. لو حابب تبعت كمان على واتساب:</p><div class="wa-mode" style="margin-bottom:8px">${waModeBtns()}</div><div class="list">${people.map(x=>`<div class="li"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s num">${esc(x.phone||"مفيش رقم")}</div></div><a class="btn sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none" target="_blank" rel="noopener" data-wa="${esc(x.phone||"")}" data-wm="${encodeURIComponent(msg)}" href="${waLink(x.phone,msg)}">📲 واتساب</a></div>`).join("")||'<p class="muted">مفيش أرقام مسجلة.</p>'}</div>`,async()=>null,"تم")}
 const profPeople=L=>L.map(s=>({name:profName(s),phone:emp(s.emp_id)?.phone}));
 function ptwRequestForm(id){
-  const p=id?S.permits.find(x=>x.id===id):{type:"COLD",date:today(),startDate:today(),risk:"med"};
+  const p=id?S.permits.find(x=>x.id===id):{type:"COLD",date:today(),startDate:today(),risk:"med",...ptwSeedTake()};
   const sups=supProfiles(),hses=hseProfiles(),isAdmin=myAccess()?.role==="admin";
   openSheet(id?"تعديل طلب التصريح":"طلب تصريح عمل",`<p class="muted" style="margin-top:0;font-size:13px">اختار مشرف التنفيذ و/أو مهندس التنفيذ ومسؤول السلامة. الطلب بيوصلهم كلهم: المشرف يعتمد مكان العمل ويضيف العاملين، ومسؤول السلامة يراجع الاشتراطات. لما الاتنين يعتمدوا التصريح بياخد رقمه.</p><div class="form">
     ${isAdmin?`${f("طالب التصريح الفعلي","requester",{value:p.requester||"",req:true,attrs:'list="ptwReqPeople"'})}${f("مهندس الموقع (إن وجد)","siteEng",{value:p.siteEng||"",attrs:'list="ptwReqPeople"'})}<datalist id="ptwReqPeople">${S.employees.filter(e=>e.active!==false).map(e=>`<option value="${esc(e.name)}">`).join("")}</datalist>`:""}
@@ -5243,7 +5262,7 @@ function flowCard(p,actions){return `<div class="li" style="align-items:flex-sta
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
   <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${actions}</div></div>`}
 VIEWS.ptw={
-  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${(()=>{const dir=R.role==="admin"||can("permit.direct");return (dir?`<button class="btn primary keep" id="newPtw">+ تصريح مباشر</button>`:"")+`<button class="btn ${dir?"":"primary "}keep" id="newReq">+ طلب تصريح</button>`})()}</div>
+  shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${(()=>{const dir=R.role==="admin"||can("permit.direct");return `<button class="btn primary keep" id="newPtw">+ تصريح جديد</button>`})()}</div>
     <div id="ptwFlow"></div>
     <div id="ptwTiles" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:0 0 12px"></div>
     <div class="filters">
@@ -5277,7 +5296,7 @@ VIEWS.ptw={
     L.sort((a,b)=>(b.date||"").localeCompare(a.date||"")||num(b.serial)-num(a.serial));
     const el=$("ptwList");
     if(waiting("permits")){el.innerHTML=waiting("permits");return}
-    if(!L.length){el.innerHTML=`<div class="card">${S.permits.length?emptyState("مفيش نتايج","غيّر البحث أو الفلتر."):emptyState("لسه مفيش تصاريح","",`<button class="btn primary sm" onclick="${can("permit.direct")?"ptwForm()":"ptwRequestForm()"}">${can("permit.direct")?"+ تصريح مباشر":"+ طلب تصريح"}</button>`)}</div>`;return}
+    if(!L.length){el.innerHTML=`<div class="card">${S.permits.length?emptyState("مفيش نتايج","غيّر البحث أو الفلتر."):emptyState("لسه مفيش تصاريح","",`<button class="btn primary sm" onclick="ptwForm()">+ تصريح جديد</button>`)}</div>`;return}
     const pg=page(L,"ptw");
     el.innerHTML=tfBanner("ptw",TFL[ui.tf?.ptw]||"",L.length)+`<div class="tbl"><table><thead><tr><th>الرقم</th><th>النوع</th><th>التاريخ</th><th>المكان / الوصف</th><th>المقاول</th><th>مسؤول السلامة</th><th>الحالة</th><th></th></tr></thead><tbody>
       ${pg.rows.map(p=>`<tr><td><span class="num">${esc(p.number)}</span></td><td>${typeChip(p.type)}</td><td class="n"><div>${fmtDate(p.startDate||p.date)}</div><div class="muted" style="font-size:11px">${p.from?`${esc(p.from)} – ${esc(p.to||"")}`:""}${p.closedAt?` · إغلاق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}</div></td>
@@ -5995,7 +6014,7 @@ VIEWS.dash={
   shell:()=>`<div id="dHero"></div><div id="dRem"></div><div class="kstrip" id="dK"></div><div class="dgrid" id="dGrid"></div><div class="dgrid" style="margin-top:14px" id="dMore"></div>`,
   fill(){
     const al=allowedTabs()||[];const has=t=>al.includes(t);const lv=t=>tabLevel(t)!=="view";const m=thisMonth();const hseView=has("kpi")||has("office")||has("actions")&&has("forms");
-    const qa=[has("ptw")&&lv("ptw")&&(can("permit.direct")?`<button class="btn" onclick="ptwForm()">+ تصريح مباشر</button>`:`<button class="btn" onclick="ptwRequestForm()">+ طلب تصريح</button>`),has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-24-02')">+ محاضرة TBT</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-07-03')">+ ملاحظة غير آمنة</button>`,has("matreq")&&`<button class="btn" onclick="mrForm()">+ طلب مهمات</button>`,has("report")&&lv("report")&&`<button class="btn" onclick="show('report')">التقرير الشهري</button>`,window._installEvt&&`<button class="btn" onclick="installApp()">📲 ثبّت التطبيق</button>`].filter(Boolean);
+    const qa=[has("ptw")&&lv("ptw")&&`<button class="btn" onclick="ptwForm()">+ تصريح جديد</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-24-02')">+ محاضرة TBT</button>`,has("forms")&&lv("forms")&&`<button class="btn" onclick="recordForm('F-HSE-07-03')">+ ملاحظة غير آمنة</button>`,has("matreq")&&`<button class="btn" onclick="mrForm()">+ طلب مهمات</button>`,has("report")&&lv("report")&&`<button class="btn" onclick="show('report')">التقرير الشهري</button>`,window._installEvt&&`<button class="btn" onclick="installApp()">📲 ثبّت التطبيق</button>`].filter(Boolean);
     $("dHero").innerHTML=`<div class="hero"><div style="flex:1;min-width:220px;position:relative;z-index:1"><h2>${greet()}${myEmpName()?`، ${esc(myEmpName().split(" ")[0])}`:""} 👋</h2><div class="sub2">${esc(S.settings.project||"منظومة السلامة")} · ${arDate(today())}</div></div><div class="qa">${qa.join("")}</div></div>`;
     $("dRem").innerHTML=remindersHTML();
     // KPI strip
@@ -11630,6 +11649,7 @@ nav.tabs button,nav.tabs summary{font-size:var(--fs-sm);padding:10px 12px}
 /* 8.9.48 — صلاحيات موحّدة */
 #permMatrixCard .pm-sel{max-width:150px;min-height:36px;border-radius:8px;border:1px solid var(--line,#8886);background:transparent;color:inherit;font:inherit;font-size:12.5px;padding:2px 6px}
 #permMatrixCard .pm-tb .pm-sel{max-width:118px}
+.seg{display:flex;gap:4px;padding:4px;background:var(--bg2,#eef1f5);border-radius:10px;margin-bottom:4px}.seg button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;color:inherit}.seg button[aria-pressed="true"]{background:var(--card,#fff);box-shadow:0 1px 3px rgba(0,0,0,.18);color:var(--pri,#0b5)}
 </style>
 </body></html>
 
