@@ -2182,7 +2182,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.58";
+const APP_VER="8.9.61";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3378,9 +3378,9 @@ function kpiSources(empId,month){
   const addInsp=(key,row)=>{if(_ik.has(key))return;_ik.add(key);o.inspection.push(row)};
   for(const r of S.records){if(!(r.date||"").startsWith(month))continue;
     if(CHECKLIST_FORMS.includes(r.form)&&((by(r,"officer")&&signedByMe(r))||reviewedBy(r)))o.inspection.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.place||r.f?.location||"قائمة تفتيش"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.officer||e?.name||""),role:reviewedBy(r)?"المعتمد":"الفاحص"});
-    if(r.form==="F-HSE-07-03")for(const [i,x] of (r.rows||[]).entries()){if(x?.kind==="USC"&&((by(r,"reporter")&&signedByMe(r))||reviewedBy(r)))o.unsafeCond.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"ظرف غير آمن"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.reporter||e?.name||""),role:reviewedBy(r)?"المعتمد":"المبلّغ",part:i+1});else if(x?.kind==="USA"&&((by(r,"reporter")&&signedByMe(r))||reviewedBy(r)))o.unsafeActs.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"تصرف غير آمن"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.reporter||e?.name||""),role:reviewedBy(r)?"المعتمد":"المبلّغ",part:i+1});if(x?.action)addCorrection(r,`F-HSE-07-03 · ${x.desc||x.description||x.place||"إجراء تصحيحي"}`,x.action,i+1,String(i))}
+    if(r.form==="F-HSE-07-03")for(const [i,x] of (r.rows||[]).entries()){if(x?.kind==="USC"&&((by(r,"reporter")&&signedByMe(r))||reviewedBy(r)))o.unsafeCond.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"ظرف غير آمن"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.reporter||e?.name||""),role:reviewedBy(r)?"المعتمد":"المبلّغ",part:i+1});else if(x?.kind==="USA"&&((by(r,"reporter")&&signedByMe(r))||reviewedBy(r)))o.unsafeActs.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-03 · ${x.desc||x.description||x.place||"تصرف غير آمن"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.reporter||e?.name||""),role:reviewedBy(r)?"المعتمد":"المبلّغ",part:i+1});if(r.date>=DISP_START?rowDisp(r,i):x?.action)addCorrection(r,`F-HSE-07-03 · ${x.desc||x.description||x.place||"إجراء تصحيحي"}`,x.action||"إجراء",i+1,String(i))}
     if(r.form==="F-HSE-07-01"&&((by(r,"writer","officer")&&signedByMe(r))||reviewedBy(r)))o.unsafeActs.push({type:"form",id:r.id,date:r.date,label:`F-HSE-07-01 · ${r.f?.desc||r.f?.action||"مخالفة"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.writer||r.f?.officer||e?.name||""),role:reviewedBy(r)?"المعتمد":"المحرر"});
-    if(r.form==="F-HSE-07-01")addCorrection(r,`F-HSE-07-01 · ${r.f?.desc||"مخالفة"}`,r.f?.action,"","v");
+    if(r.form==="F-HSE-07-01")addCorrection(r,`F-HSE-07-01 · ${r.f?.desc||"مخالفة"}`,(r.date>=DISP_START?(actDisp(r.id+"_v")?(r.f?.action||"إجراء"):""):r.f?.action),"","v");
     if(r.form==="F-HSE-03-01")addCorrection(r,`F-HSE-03-01 · ${r.f?.desc||"تقرير حادث"}`,r.f?.corrective||r.f?.immediate,"","c");
     if((r.form==="F-HSE-24-02"&&((by(r,"trainer")&&signedByMe(r))||reviewedBy(r)))||(r.form==="F-HSE-24-01"&&((by(r,"lecturer")&&signedByMe(r))||reviewedBy(r))))o.tbt.push({type:"form",id:r.id,date:r.date,label:`${r.form} · ${r.f?.title||r.f?.topic||"محاضرة توعية"}`,who:reviewedBy(r)?(profName(profOf((r.review||r.approved).by))||e?.name||""):(r.f?.trainer||r.f?.lecturer||e?.name||""),role:reviewedBy(r)?"المعتمد":"المحاضر"});}
   for(const q of S.equipment)if(!(q.kind==="ext"&&noExt))for(const [hi,h] of (q.insp||[]).entries())if((h.date||"").startsWith(month)&&(((h.by_id===empId||normName(h.by||"")===nm)&&sigOK(h))||(h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId)))addInsp(inspKeyEq(q,h),{type:"equipment",id:q.id,idx:hi,srcId:h.sourceInspectionId||"",date:h.date,label:`${EQ_K[q.kind]?.one||"معدة"} ${q.serial||q.code||q.name||""} · ${eqLabel(q)} · ${q.place||""}`,who:h.review?.status==="approved"&&h.review.signature&&profOf(h.review.by)?.emp_id===empId?h.review.name:(h.by||e?.name||""),role:h.review?.status==="approved"&&profOf(h.review.by)?.emp_id===empId?"المعتمد":"الفاحص",status:Object.values(h.res||{}).every(v=>v!=="nok")?"صالح":"غير صالح"});
@@ -4392,7 +4392,7 @@ function fillFormRecords(el,fid,spec){
     const approvedChip=approval?`<span class="pill p-appr" title="اعتماد ${esc(approval.name||approval.byName||"")}">✔ معتمد${approval.name?` · ${esc(approval.name)}`:""}</span>`:"";
     const signedChip=fid!=="F-HSE-03-01"&&!approval&&hasSigned(r)?'<span class="pill p-appr">مرفق موقّع</span>':"";
     const detail=meta.length?meta.map(m=>`<span class="${m.cls||""}"><span class="muted">${esc(m.label)}: </span>${esc(m.value)}</span>`).join('<span class="muted" style="margin:0 5px">·</span>'):esc(sum(r));
-    return `<div class="li"><span class="num" title="رقم التسلسل · الكود الداخلي: ${r.serial||"—"}">${displayNum}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s record-detail">${detail}</div></div><div class="row-actions">${approvedChip}${signedChip}<button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`;
+    return `<div class="li"><span class="num" title="رقم التسلسل · الكود الداخلي: ${r.serial||"—"}">${displayNum}</span><div class="grow"><div class="t">${fmtDate(r.date)}</div><div class="s record-detail">${detail}</div></div><div class="row-actions">${recFlagChip(r)}${approvedChip}${signedChip}<button class="btn ghost sm" onclick="printRecord('${r.id}')">👁 عرض</button>${attBtn("records",r.id,r)}<button class="btn ghost sm" onclick="recordForm('${fid}','${r.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="recordDel('${r.id}')">مسح</button>`:""}</div></div>`;
   };
   el.innerHTML=`<div class="filters"><button class="btn" onclick="ui.formSel='';refresh()">→ كل النماذج</button><div class="grow"></div>${total?`<span class="muted" style="font-size:13px;align-self:center">${total} سجل</span>`:""}  <button class="btn primary" onclick="recordForm('${fid}')">+ ${esc(spec.title)} جديد</button></div>
   <div class="card"><h3><span class="num">${fid}</span> · ${esc(spec.title)}</h3>
@@ -4510,7 +4510,7 @@ async function recordFormBase(fid,id,preset){
     if(ok&&rid&&fid==="F-HSE-07-01"&&!can("sys.admin")){const admins=(S.profiles||[]).filter(p=>p.role==="admin"&&!p.disabled).map(p=>p.id);if(admins.length)notifyUsers(admins,"🚨 مخالفة جديدة للمراجعة",`${currentActor||myEmpName()} أرسل إخطار مخالفة للمراجعة والتوقيع`,`?go=rec&id=${encodeURIComponent(rid)}`)}
     if(ok&&rid&&!id&&(fid==="F-HSE-03-01"||fid==="F-HSE-07-03"))setTimeout(()=>notifyRecordStakeholders(rid),600);
     if(ok&&rid&&TASK_RUN){const t=TASK_RUN;TASK_RUN=null;try{await taskFinish(t,{recId:rid})}catch(e){console.error(e)}}
-    if(ok&&rid)setTimeout(()=>printRecord(rid),400);
+    if(ok&&rid)setTimeout(async()=>{await printRecord(rid);if(!id&&(fid==="F-HSE-07-03"||fid==="F-HSE-07-01")&&can("actions.assign")&&recPending(S.records.find(x=>x.id===rid)||{})>0)setTimeout(()=>actAssignForm(rid),500)},400);
     return ok?null:"الحفظ فشل";
   },"حفظ وطباعة");
   /* تنقّل المراحل مع إبقاء جميع الحقول في DOM حتى تدخل ضمن FormData عند الحفظ النهائي. */
@@ -5521,11 +5521,14 @@ function repAuto(m){
   return {tbt:cnt("F-HSE-24-02"),induction:cnt("F-HSE-24-01"),drills:cnt("F-HSE-10-07"),emerg:0,insp:CHECKLIST_FORMS.reduce((a,f)=>a+cnt(f),0)+cnt("F-HSE-07-03")+eqInsp,meet:doneDoc("committee",m)?1:0,
     conf:pt("CONF"),height:pt("HEIGHT"),lift:pt("LIFT"),cold:pt("COLD"),hot:pt("HOT"),exc:pt("EXC"),diving:cnt("F-HSE-29-01"),edge:cnt("F-HSE-19-03"),road:cnt("F-HSE-19-02"),iso:pt("ELEC"),lotoA:0,lotoR:0,consult:0,viol:cnt("F-HSE-07-01"),excl:0,
     incidents:cnt("F-HSE-03-01")}}
+/* 8.9.60: العمالة المنتظمة = موظفو الشركة، غير المنتظمة = اللي كودهم مدني (47xxx / 48xxx / 49xxx)، والمقاولين من مجموعة «عمالة مقاول» */
+const civilCode=e=>/^(47|48|49)\d{3}$/.test(String(e?.code||"").trim());
+function manAuto(){const A=countedEmps(),ctr=A.filter(e=>e.group==="ctr"),rest=A.filter(e=>e.group!=="ctr"),irr=rest.filter(civilCode);return {reg:rest.length-irr.length,irr:irr.length,ctr:Math.max(ctr.length,num(S.settings?.ctrManual)),ctrReg:ctr.length}}
 function repDefaults(m){
   const prev=S.reports.filter(r=>r.id<m).sort((a,b)=>b.id.localeCompare(a.id))[0]||{};
   /* أرقام العمالة في التقرير = الكشف الفعلي من آخر تحديث */
-  const act=countedEmps();
-  return {month:m,status:"draft",man:{reg:act.filter(e=>e.group!=="ctr").length,irr:prev.man?.irr||0,ctr:act.filter(e=>e.group==="ctr").length,hours:prev.man?.hours||9,days:prev.man?.days||26},
+  const MA=manAuto();
+  return {month:m,status:"draft",man:{reg:MA.reg,irr:MA.irr,ctr:MA.ctr,hours:prev.man?.hours||9,days:prev.man?.days||26},
     inc:{},incCum:{},acts:{},actsYtd:{},meetings:(prev.meetings||[]).map(x=>({...x})),corrective:[],equip:[],audits:[],improve:[...(prev.improve||[])],inv:JSON.parse(JSON.stringify(prev.inv||{})),kpiRows:null,issueDate:monthEnd(m)}}
 function repDoc(m){return S.reports.find(r=>r.id===m)}
 function repComputed(m,R){
@@ -6351,6 +6354,7 @@ function flPerHTML(){const v=flPeriod();return `<span class="muted" style="font-
 function roleDuties(uid,per="week"){const p=profOf(uid);const r=p?.role;const mo=per==="month",pw=mo?"الشهر":"الأسبوع";const ws=flStart(per),t0=today();const W=userRecs(uid,ws,t0),D=userRecs(uid,t0,t0);const L=[];
   if(LECT_ROLES.includes(r)){const n=W.filter(isLect).length;L.push({k:"lect",t:`محاضرات توعية ${pw}: ${n} من ${mo?12:3}`,ok:n>=(mo?12:3),go:"recordForm('F-HSE-24-02')"})}
   if(["hse","hsesup","officer"].includes(r)){const n=D.filter(isInsp).length;L.push({k:"insp",t:`قوائم تفتيش النهارده: ${n}`,ok:n>=1,go:"wsFocus('inspToday')"})}
+  if(["hse","hsesup","officer"].includes(r)){const n=S.records.reduce((a,x)=>a+recPending(x),0);if(n)L.push({k:"pend",t:`بنود أوضاع/تصرفات غير آمنة بدون «تم الحل» أو إحالة: ${n}`,ok:false,go:"ui.actF='open';show('actions')"})}
   if(["hse","hsesup","officer","monitor"].includes(r)){const n=W.filter(isObs).length;L.push({k:"obs",t:`ملاحظات أوضاع/تصرفات غير آمنة ${pw}: ${n}`,ok:n>=1,go:"recordForm('F-HSE-07-03')"})}
   if(r==="monitor"){const d=S.equipment.filter(q=>q.active!==false&&eqDue(q)).length;L.push({k:"eq",t:`طفايات ومعدات محتاجة فحص: ${d}`,ok:d===0,go:"ui.eqKind='ext';show('equip')"})}
   {const n=S.records.filter(x=>recTodoFor(x,uid)==="review").length;if(REVIEWERS.includes(r)||n)L.push({k:"rev",t:`نماذج مستنية اعتمادك: ${n}`,ok:n===0,go:"wsFocus('revForms')"});
@@ -11536,13 +11540,22 @@ function repHistUI(){
   if(gap.length&&$("repBody")&&!$("repGapNote"))$("repBody").insertAdjacentHTML("afterbegin",`<div class="card" id="repGapNote" style="margin-bottom:12px;border-color:#f0b429"><b>تنبيه:</b> مفيش تقرير محفوظ لشهر ${gap.join("، ")}، فالتراكمي حاسب أنشطته وساعاته تلقائي من المنظومة. احفظ تقريره عشان يتثبّت.</div>`)}
 {const _rf=VIEWS.report.fill;VIEWS.report.fill=async function(){const r=await _rf.apply(this,arguments);try{repHistUI()}catch(e){console.error(e)}return r}}
 
+
+/* ===== 8.9.59: كل وضع/تصرف غير آمن لازم «تم الحل» أو «إحالة لمسؤول»، وإلا يظهر بإشارة ⚠ ===== */
+const DISP_START="2026-11-23";
+function actDisp(id){const a=(S.actions||[]).find(x=>x.id===id);if(a?.status==="closed")return "done";if(a&&(a.ownerId||a.ownerName))return "ref";return ""}
+const rowDisp=(r,i)=>actDisp(`${r.id}_${i}`);
+function recPending(r){if(!r||!r.id||(r.date||"")<DISP_START)return 0;
+  if(r.form==="F-HSE-07-03")return (r.rows||[]).reduce((a,x,i)=>a+(x?.desc&&!rowDisp(r,i)?1:0),0);
+  if(r.form==="F-HSE-07-01")return actDisp(r.id+"_v")?0:1;return 0}
+function recFlagChip(r){const n=recPending(r);return n?`<span class="pill p-canc" title="مفيش «تم الحل» ولا إحالة لمسؤول">⚠ ${n} بدون إجراء</span>`:""}
 /* ===== 8.9.58: تعيين مسؤول / «تم الحل» من نموذج الأوضاع والتصرفات غير الآمنة (وكل نموذج فيه بنود إجراء) ===== */
 Object.assign(CAPS,{"actions.assign":{g:"المتابعة",ar:"تعيين مسؤول وإغلاق الإجراءات التصحيحية",roles:["hse","hsesup","officer","sup","eng"]}});
 function actAssignForm(recId){
   const L=deriveActions().filter(a=>a.recId===recId);
   if(!L.length){toast("مفيش بنود إجراء في النموذج ده");return}
   SHEET_FORCE=can("actions.assign");
-  openSheet("المسؤول وتم الحل",`<p class="muted" style="margin-top:0;font-size:13px">حدد مسؤول لكل بند وميعاد، أو علّم «تم الحل» لو اتصلّح.</p><div class="form">${L.map((a,i)=>`<div class="full" style="border:1px solid var(--line);border-radius:10px;padding:10px"><b>${esc(a.title)}</b><div class="muted" style="font-size:12.5px">${esc([a.detail,a.place&&("📍 "+a.place)].filter(Boolean).join(" · "))}</div>
+  openSheet("المسؤول وتم الحل",`<p class="muted" style="margin-top:0;font-size:13px">لكل بند: علّم «تم الحل» لو اتصلّح، أو اكتب اسم المسؤول (إحالة) وميعاد. البند اللي مفيهوش واحد منهم بيفضل بإشارة ⚠.</p><div class="form">${L.map((a,i)=>`<div class="full" style="border:1px solid var(--line);border-radius:10px;padding:10px"><b>${esc(a.title)}</b><div class="muted" style="font-size:12.5px">${esc([a.detail,a.place&&("📍 "+a.place)].filter(Boolean).join(" · "))}</div>
     <div class="form" style="margin-top:6px"><div class="field"><label>المسؤول</label><input name="o${i}" list="empListAll" autocomplete="off" value="${esc(actOwner(a))}" placeholder="اسم الموظف أو مشرف المقاول"></div>${f("آخر ميعاد","d"+i,{type:"date",value:a.due||today()})}
     <label class="chk full"><input type="checkbox" name="c${i}" ${a.status==="closed"?"checked":""}> ✔ تم الحل</label><div class="field full"><label>اللي اتعمل (اختياري)</label><input name="n${i}" value="${esc(a.closeNote||"")}" autocomplete="off"></div></div></div>`).join("")}</div>${empDatalist2()}`,async fd=>{
     const notify=[];
@@ -11560,9 +11573,19 @@ function actAssignForm(recId){
 {const _p=printRecord;printRecord=async function(id){const r=await _p.apply(this,arguments);
   try{const rec=S.records.find(x=>x.id===id);if(rec&&can("actions.assign")){const L=deriveActions().filter(a=>a.recId===id);
     if(L.length&&$("pvAct")&&!$("pvAssign")){const open=L.filter(a=>a.status!=="closed").length;const b=document.createElement("button");b.className="btn";b.id="pvAssign";b.setAttribute("data-extra","");
-      b.textContent=open?`👤 مسؤول / ✔ تم الحل (${open})`:"✔ اتحل — راجع";b.onclick=()=>actAssignForm(id);$("pvAct").insertBefore(b,$("pvAct").firstChild)}}}catch(e){console.error(e)}
+      const pend=recPending(rec);b.textContent=pend?`⚠ ${pend} بدون إجراء — مسؤول / تم الحل`:open?`👤 مسؤول / ✔ تم الحل (${open})`:"✔ اتحل — راجع";if(pend)b.style.cssText="border-color:var(--bad);color:var(--bad);font-weight:700";b.onclick=()=>actAssignForm(id);$("pvAct").insertBefore(b,$("pvAct").firstChild)}}}catch(e){console.error(e)}
   return r}}
 {const w=n=>{const o=window[n];window[n]=function(){SHEET_FORCE=can("actions.assign");try{return o.apply(this,arguments)}finally{SHEET_FORCE=false}}};w("actionForm");w("actionClose")}
+
+/* ===== 8.9.60: عرض العمالة التلقائية في التقرير الشهري مع زر «طبّق» ===== */
+{const _rf2=VIEWS.report.fill;VIEWS.report.fill=async function(){const r=await _rf2.apply(this,arguments);
+  try{const sec=document.querySelector("#repForm details.sec .in");if(sec&&!$("manAutoNote")){const A=manAuto();
+    const d=document.createElement("div");d.id="manAutoNote";d.className="muted";d.style.cssText="font-size:12.5px;margin-top:8px";
+    d.innerHTML=`تلقائي من كشف القوى العاملة: منتظمة <b>${A.reg}</b> · غير منتظمة (كود مدني 47/48/49) <b>${A.irr}</b> · مقاولين <b>${A.ctr}</b> (مسجّلين ${A.ctrReg}) ${canWrite?'<button type="button" class="btn sm" id="manApply">طبّق على الشهر</button>':""}`;
+    if(canWrite){const m=document.createElement("div");m.style.cssText="margin-top:8px;font-size:13px";m.innerHTML=`عدد عمالة المقاولين يدوي (لحد ما يتسجلوا كلهم): <input class="mini" id="manCtrIn" inputmode="numeric" value="${esc(S.settings?.ctrManual??"")}" style="width:90px"> <button type="button" class="btn sm" id="manCtrSave">حفظ</button> <span class="muted">بيتاخد الأكبر بين اليدوي والمسجّل.</span>`;d.after(m);
+      m.querySelector("#manCtrSave").onclick=async()=>{const v=num($("manCtrIn").value);if(await write(()=>upsert("settings","app",{ctrManual:v}),"اتحفظ ✔")){S.settings.ctrManual=v;ui.repDirty=false;VIEWS.report.fill(true)}}}
+    sec.appendChild(d);const b=$("manApply");if(b)b.onclick=()=>{for(const [k,v] of [["man_reg",A.reg],["man_irr",A.irr],["man_ctr",A.ctr]]){const i=document.querySelector(`#repForm [name="${k}"]`);if(i)i.value=v}ui.repDirty=true;$("repForm").dispatchEvent(new Event("input"));toast("اتطبّق — دوس حفظ")}}}catch(e){console.error(e)}
+  return r}}
 </script>
 <style id="dsLayer">
 /* 8.9.34 — طبقة تنسيق موحّدة (DS): خطوط · مسافات · محاذاة · موبايل */
