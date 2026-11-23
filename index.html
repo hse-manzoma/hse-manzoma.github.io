@@ -2184,7 +2184,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.80";
+const APP_VER="8.9.81";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -4682,7 +4682,20 @@ function printFrame(html){const f=document.createElement("iframe");f.setAttribut
   const imgs=[...d.images];Promise.all([...imgs.map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r})),d.fonts?d.fonts.ready.catch(()=>{}):1]).then(()=>setTimeout(go,350))}
 async function ensureH2C(){if(window.html2canvas)return;await new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
 /* html2canvas 1.4.1 مبيفهمش color(srgb ..) اللي بيطلع من color-mix() في فايرفوكس: نحوّلها لألوان عادية في النسخة المصوّرة بس */
-function fixColorFn(doc){try{
+/* html2canvas مبيرسمش writing-mode:vertical: بنرسم النص العمودي صورة (بنفس الخط والحجم) في النسخة المصوّرة بس */
+function fixVertical(doc){try{
+  const w=doc.defaultView;
+  for(const td of doc.querySelectorAll('.dpage [style*="writing-mode"]')){
+    const cs=w.getComputedStyle(td),txt=(td.textContent||"").trim();if(!txt)continue;
+    const fs=parseFloat(cs.fontSize)||10,K=3,font=`${cs.fontWeight||400} ${fs*K}px ${cs.fontFamily}`;
+    const c=document.createElement("canvas"),x=c.getContext("2d");x.font=font;x.direction="rtl";
+    const tw=Math.ceil(x.measureText(txt).width)+4,th=Math.ceil(fs*K*1.5);
+    c.width=th;c.height=tw;const g=c.getContext("2d");g.font=font;g.direction="rtl";g.fillStyle="#000";g.textAlign="center";g.textBaseline="middle";
+    g.translate(th/2,tw/2);g.rotate(-Math.PI/2);g.fillText(txt,0,0);
+    const im=doc.createElement("img");im.src=c.toDataURL("image/png");im.style.cssText=`width:${th/K}px;height:${tw/K}px;display:block;margin:0 auto`;
+    td.style.writingMode="horizontal-tb";td.style.transform="none";td.style.textAlign="center";td.style.verticalAlign="middle";td.textContent="";td.appendChild(im)}
+}catch(e){console.error("fixVertical",e)}}
+function fixColorFn(doc){fixVertical(doc);try{
   const cv=document.createElement("canvas").getContext("2d");
   const cv1=v=>{try{cv.fillStyle="#000";cv.fillStyle=v;return String(cv.fillStyle)}catch(e){return "transparent"}};
   const P=["color","background-color","background-image","border-top-color","border-right-color","border-bottom-color","border-left-color","outline-color","box-shadow","text-decoration-color","text-shadow","fill","stroke"];
