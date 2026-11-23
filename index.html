@@ -2187,7 +2187,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.88";
+const APP_VER="8.9.89";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11793,7 +11793,7 @@ waShare=async function({getPdf,filename,title}){
   const probe=pdfFile(new Blob(["x"],{type:"application/pdf"}),filename);
   const canFile=!!(navigator.canShare&&probe&&navigator.canShare({files:[probe]}));
   /* 1) مشاركة الملف نفسه (موبايل + كروم/إيدج على ويندوز) */
-  if(canFile)return _old.apply(this,arguments);
+  if(canFile&&isMobile())return _old.apply(this,arguments); /* 8.9.89: على الكمبيوتر مفيش شاشة مشاركة ويندوز — واتساب ويب/التطبيق + تنزيل الملف */
   /* 2) فايرفوكس/غيره: نرفع الـ PDF ونبعت رابطه. التاب بيتفتح الأول جوّه الضغطة */
   const w=window.open("about:blank","_blank");
   const done=(html)=>pvPanel(html);
