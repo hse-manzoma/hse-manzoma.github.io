@@ -2184,7 +2184,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.67";
+const APP_VER="8.9.68";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5534,7 +5534,10 @@ function manAuto(){const A=countedEmps();let reg=0,irr=0,ctr=0,mo=0,st=0;
   /* المقاولين: العدد اليدوي لكل مقاول (مسجّل أو لا) + أي عامل مقاول مش مربوط بمقاول */
   const act=(S.contractors||[]).filter(c=>c.active!==false),ids=new Set(act.map(c=>c.id));
   const decl=act.reduce((a,c)=>a+ctrGap(c).total,0)+A.filter(e=>e.group==="ctr"&&!ids.has(e.contractorId)).length;
-  return {reg:Math.max(reg,num(M.regManual)),irr:Math.max(irr,num(M.irrManual)),ctr:Math.max(ctr,decl,num(M.ctrManual)),regReg:reg,irrReg:irr,ctrReg:ctr,ctrDecl:decl,mo,st}}
+  const live={reg:Math.max(reg,num(M.regManual)),irr:Math.max(irr,num(M.irrManual)),ctr:Math.max(ctr,decl,num(M.ctrManual))};
+  const F=M.wfFix;/* آخر تثبيت من الأدمن: الأعداد اللي بتترحّل للتقرير ثابتة لحد ما الأدمن يثبّت من جديد */
+  const use=F&&(F.reg||F.irr||F.ctr)?{reg:num(F.reg),irr:num(F.irr),ctr:num(F.ctr)}:live;
+  return {...use,live,fixed:!!(F&&use!==live),fixAt:F?.at,fixBy:F?.by,regReg:reg,irrReg:irr,ctrReg:ctr,ctrDecl:decl,mo,st}}
 /* أعداد ملف التصنيفات: شهري 87 + ستيل 53 = منتظمة، مدني 178 = غير منتظمة */
 const CLS_FILE={reg:140,irr:178};
 function repDefaults(m){
@@ -11599,12 +11602,16 @@ function actAssignForm(recId){
 {const _rf2=VIEWS.report.fill;VIEWS.report.fill=async function(){const r=await _rf2.apply(this,arguments);
   try{const sec=document.querySelector("#repForm details.sec .in");if(sec&&!$("manAutoNote")){const A=manAuto();
     const d=document.createElement("div");d.id="manAutoNote";d.className="muted";d.style.cssText="font-size:12.5px;margin-top:8px";
-    d.innerHTML=`تلقائي من كشف القوى العاملة: منتظمة <b>${A.reg}</b> (شهري ${A.mo} + ستيل ${A.st}${A.reg>A.regReg?"، يدوي":""}) · غير منتظمة (مدني) <b>${A.irr}</b> · مقاولين <b>${A.ctr}</b>${A.ctr>A.ctrReg?` (مسجّل بالاسم ${A.ctrReg} + باقي بالعدد اليدوي)`:""} ${canWrite?'<button type="button" class="btn sm" id="manApply">طبّق على الشهر</button>':""}`;
+    d.innerHTML=A.fixed?`📌 <b>ثابت على آخر تحديث للأدمن${A.fixAt?" ("+fmtDate(new Date(A.fixAt).toISOString().slice(0,10))+")":""}</b>: منتظمة <b>${A.reg}</b> · غير منتظمة (مدني) <b>${A.irr}</b> · مقاولين <b>${A.ctr}</b><br><span style="font-size:12px">الحالي في المنظومة دلوقتي: ${A.live.reg} / ${A.live.irr} / ${A.live.ctr}${A.live.reg!==A.reg||A.live.irr!==A.irr||A.live.ctr!==A.ctr?" — مختلف عن الثابت":""}</span> ${canWrite?'<button type="button" class="btn sm" id="manApply">طبّق على الشهر</button> <button type="button" class="btn sm" id="manFix">📌 ثبّت الحالي</button> <button type="button" class="btn sm" id="manUnfix">إلغاء التثبيت</button>':""}`:`تلقائي من كشف القوى العاملة: منتظمة <b>${A.reg}</b> (شهري ${A.mo} + ستيل ${A.st}${A.reg>A.regReg?"، يدوي":""}) · غير منتظمة (مدني) <b>${A.irr}</b> · مقاولين <b>${A.ctr}</b>${A.ctr>A.ctrReg?` (مسجّل بالاسم ${A.ctrReg} + باقي بالعدد اليدوي)`:""} ${canWrite?'<button type="button" class="btn sm" id="manApply">طبّق على الشهر</button> <button type="button" class="btn sm" id="manFix">📌 ثبّت الحالي</button>':""}`;
     if(canWrite){const m=document.createElement("div");m.style.cssText="margin-top:8px;font-size:13px";m.innerHTML=`الحد الأدنى اليدوي (لحد ما يتسجلوا كلهم في المنظومة): منتظمة <input class="mini" id="manRegIn" inputmode="numeric" value="${esc(S.settings?.regManual??"")}" style="width:70px"> غير منتظمة <input class="mini" id="manIrrIn" inputmode="numeric" value="${esc(S.settings?.irrManual??"")}" style="width:70px"> مقاولين <input class="mini" id="manCtrIn" inputmode="numeric" value="${esc(S.settings?.ctrManual??"")}" style="width:70px"> <button type="button" class="btn sm" id="manCtrSave">حفظ</button> <button type="button" class="btn sm" id="manFile">خُد أعداد ملف التصنيفات (${CLS_FILE.reg} / ${CLS_FILE.irr})</button><div class="muted" style="font-size:12px">بيتاخد الأكبر بين اليدوي والمسجّل في المنظومة.</div>`;d.after(m);
       const sv=async(v)=>{if(await write(()=>upsert("settings","app",v),"اتحفظ ✔")){Object.assign(S.settings,v);ui.repDirty=false;VIEWS.report.fill(true)}};
       m.querySelector("#manCtrSave").onclick=()=>sv({regManual:num($("manRegIn").value),irrManual:num($("manIrrIn").value),ctrManual:num($("manCtrIn").value)});
       m.querySelector("#manFile").onclick=()=>sv({regManual:CLS_FILE.reg,irrManual:CLS_FILE.irr})}
-    sec.appendChild(d);const b=$("manApply");if(b)b.onclick=()=>{for(const [k,v] of [["man_reg",A.reg],["man_irr",A.irr],["man_ctr",A.ctr]]){const i=document.querySelector(`#repForm [name="${k}"]`);if(i)i.value=v}ui.repDirty=true;$("repForm").dispatchEvent(new Event("input"));toast("اتطبّق — دوس حفظ")}}}catch(e){console.error(e)}
+    sec.appendChild(d);
+    {const fx=$("manFix"),ux=$("manUnfix"),sv2=async v=>{if(await write(()=>upsert("settings","app",v),"اتحفظ ✔")){Object.assign(S.settings,v);VIEWS.report.fill(true)}};
+     if(fx)fx.onclick=()=>sv2({wfFix:{reg:A.live.reg,irr:A.live.irr,ctr:A.live.ctr,at:Date.now(),by:ME.id}});
+     if(ux)ux.onclick=()=>sv2({wfFix:null})}
+    const b=$("manApply");if(b)b.onclick=()=>{for(const [k,v] of [["man_reg",A.reg],["man_irr",A.irr],["man_ctr",A.ctr]]){const i=document.querySelector(`#repForm [name="${k}"]`);if(i)i.value=v}ui.repDirty=true;$("repForm").dispatchEvent(new Event("input"));toast("اتطبّق — دوس حفظ")}}}catch(e){console.error(e)}
   return r}}
 </script>
 <style id="dsLayer">
