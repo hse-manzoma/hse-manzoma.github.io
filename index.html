@@ -2189,7 +2189,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.94";
+const APP_VER="8.9.95";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3538,12 +3538,12 @@ function kpiTeamForm(){
   const inTeam=S.employees.filter(e=>e.active!==false&&e.group==="hse").sort((a,b)=>a.name.localeCompare(b.name,"ar"));
   const others=S.employees.filter(e=>e.active!==false&&e.group!=="hse"&&!isLeft(e)).sort((a,b)=>a.name.localeCompare(b.name,"ar"));
   const was=SHEET_FORCE;SHEET_FORCE=true;
-  openSheet("فريق الـKPI — مين بيتحسب له الـKPI",`<div class="form"><div class="muted" style="font-size:12.5px;margin-bottom:8px">علّم على اللي عاوز الـKPI يتحسب لهم في المنظومة (الجدول والتصدير والتدقيق والتقرير). شيل العلامة عن أي حد مش عايزه، وضيف موظفين تانيين من الجزء اللي تحت. ده مستقل عن اختيار «مين يترحّل للتقرير الشهري».</div>
-    <h4 style="margin:6px 0">فريق السلامة (${inTeam.length})</h4>
-    <div class="list">${inTeam.map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="kt_${esc(e.id)}" ${e.noKpi?"":"checked"} style="margin-inline-end:10px;width:20px;height:20px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}</div></div></label>`).join("")||'<p class="muted">مفيش موظفين في مجموعة «فريق السلامة».</p>'}</div>
-    <h4 style="margin:14px 0 6px">إضافة موظفين تانيين للفريق (${others.length})</h4>
-    <input type="search" id="ktQ" placeholder="ابحث بالاسم أو الوظيفة…" style="width:100%;margin-bottom:6px" oninput="const q=this.value.trim().toLowerCase();document.querySelectorAll('#ktOthers .li').forEach(l=>l.hidden=q&&!l.dataset.s.includes(q))">
-    <div class="list" id="ktOthers" style="max-height:260px;overflow:auto">${others.map(e=>`<label class="li" style="cursor:pointer" data-s="${esc(((e.name||"")+" "+(e.job||"")+" "+(e.code||"")).toLowerCase())}"><input type="checkbox" name="ko_${esc(e.id)}" ${e.kpiTeam?"checked":""} style="margin-inline-end:10px;width:20px;height:20px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?" · "+esc(e.code):""}</div></div></label>`).join("")||'<p class="muted">مفيش موظفين تانيين.</p>'}</div></div>`,
+  openSheet("فريق الـKPI — مين بيتحسب له الـKPI",`<div class="form"><div class="full muted" style="font-size:12.5px;margin-bottom:8px">علّم على اللي عاوز الـKPI يتحسب لهم في المنظومة (الجدول والتصدير والتدقيق والتقرير). شيل العلامة عن أي حد مش عايزه، وضيف موظفين تانيين من الجزء اللي تحت. ده مستقل عن اختيار «مين يترحّل للتقرير الشهري».</div>
+    <h4 class="full" style="margin:6px 0">فريق السلامة (${inTeam.length})</h4>
+    <div class="list full">${inTeam.map(e=>`<label class="li" style="cursor:pointer"><input type="checkbox" name="kt_${esc(e.id)}" ${e.noKpi?"":"checked"} style="margin-inline-end:10px;width:20px;height:20px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}</div></div></label>`).join("")||'<p class="muted">مفيش موظفين في مجموعة «فريق السلامة».</p>'}</div>
+    <h4 class="full" style="margin:14px 0 6px">إضافة موظفين تانيين للفريق (${others.length})</h4>
+    <input class="full" type="search" id="ktQ" placeholder="ابحث بالاسم أو الوظيفة…" style="width:100%;margin-bottom:6px" oninput="const q=this.value.trim().toLowerCase();document.querySelectorAll('#ktOthers .li').forEach(l=>l.hidden=q&&!l.dataset.s.includes(q))">
+    <div class="list full" id="ktOthers" style="max-height:260px;overflow:auto">${others.map(e=>`<label class="li" style="cursor:pointer" data-s="${esc(((e.name||"")+" "+(e.job||"")+" "+(e.code||"")).toLowerCase())}"><input type="checkbox" name="ko_${esc(e.id)}" ${e.kpiTeam?"checked":""} style="margin-inline-end:10px;width:20px;height:20px"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.job||"")}${e.code?" · "+esc(e.code):""}</div></div></label>`).join("")||'<p class="muted">مفيش موظفين تانيين.</p>'}</div></div>`,
   async fd=>{
     const ch=[];
     for(const e of inTeam){const off=fd["kt_"+e.id]===undefined;if(!!e.noKpi!==off)ch.push([e.id,{noKpi:off}])}
