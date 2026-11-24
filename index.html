@@ -2189,7 +2189,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.96";
+const APP_VER="8.9.97";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5638,9 +5638,9 @@ function repComputed(m,R){
   const hoursYtd=R.hoursYtd!==undefined&&R.hoursYtd!==""?num(R.hoursYtd):(prevSameYear?prevC.hoursYtd+gap.length*prevC.monthHours:0)+monthHours;
   const rateM=monthHours?incM.lti*1e6/monthHours:0,rateC=hoursYtd?incC.lti*1e6/hoursYtd:0;
   return {R,A,hrs,days,monthHours,totalMan,rowH,actM,actY,incM,incC,hoursYtd,rateM,rateC}}
-function kpiRowsAuto(m){const K=Object.fromEntries(kpiSummary(m).map(r=>[r.id,r]));const att={};for(const d of S.att.filter(a=>(a.id||"").startsWith(m)))for(const [eid,r] of Object.entries(d.records||{}))if(r.s==="a")att[eid]=(att[eid]||0)+1;
-  const team=hseTeam();const withData=team.filter(e=>K[e.id]);const core=team.filter(e=>/supervisor|officer|leader|engineer|أخصائي|مشرف|مهندس/i.test(e.job||""));
-  const KP=(S.settings||{}).kpiRep;return (withData.length?withData:core.length?core:team).filter(e=>kpiRepOk(e.id)).map(e=>{const r=K[e.id];const beh=S.kpi.filter(x=>x.empId===e.id&&(x.date||"").startsWith(m)&&num(x.behavior)>0);const b=beh.length?Math.round(beh.reduce((a,x)=>a+num(x.behavior),0)/beh.length):100;const sc=r?r.score:0;
+function kpiRowsAuto(m){const K=Object.fromEntries(kpiSummary(m,true).map(r=>[r.id,r]));const att={};for(const d of S.att.filter(a=>(a.id||"").startsWith(m)))for(const [eid,r] of Object.entries(d.records||{}))if(r.s==="a")att[eid]=(att[eid]||0)+1;
+  const team=kpiTeamList();
+  const KP=(S.settings||{}).kpiRep;return team.filter(e=>kpiRepOk(e.id)).map(e=>{const r=K[e.id];const beh=S.kpi.filter(x=>x.empId===e.id&&(x.date||"").startsWith(m)&&num(x.behavior)>0);const b=beh.length?Math.round(beh.reduce((a,x)=>a+num(x.behavior),0)/beh.length):100;const sc=r?r.score:0;
     return {code:e.code||"",name:e.name,job:e.job||"",abs:att[e.id]||0,insp:r?.sums.inspection||0,usc:r?.sums.unsafeCond||0,usa:r?.sums.unsafeActs||0,corr:r?.sums.corrective||0,tbt:r?.sums.tbt||0,beh:b,grade:!r?"":sc>=90?"A":sc>=75?"B":"C"}})}
 function extCounts(){const o={};for(const t of ["powder","co2","foam"]){const L=S.equipment.filter(q=>q.kind==="ext"&&q.active!==false&&q.type===t);o[t]={ok:L.filter(q=>eqOk(q)!==false).length,nok:L.filter(q=>eqOk(q)===false).length}}return o}
 ui.repDirty=false;
@@ -11798,7 +11798,7 @@ function repWhoForm(){
 /* ===== 8.9.71: اختيار الأشخاص اللي بيترحّل مؤشراتهم (KPI) للتقرير الشهري — ثابت ومحفوظ ===== */
 /* اختيار «الأشخاص» المحفوظ: اللي اتعلّم عليهم بيظهروا، واللي اتشال عنهم العلامة بيستخبّوا، وأي حد جديد بيتضاف للفريق بعد الحفظ بيظهر تلقائي */
 function kpiRepOk(id){const st=S.settings||{},KP=st.kpiRep;if(!Array.isArray(KP))return true;if(KP.includes(id))return true;const kn=st.kpiRepKnown;return Array.isArray(kn)&&!kn.includes(id)}
-function kpiRepBase(m){const K=new Set(kpiSummary(m).map(r=>r.id)),team=kpiTeamList(),w=team.filter(e=>K.has(e.id)),core=team.filter(e=>/supervisor|officer|leader|engineer|أخصائي|مشرف|مهندس/i.test(e.job||""));return w.length?w:core.length?core:team}
+function kpiRepBase(m){return kpiTeamList()}
 function kpiRepLabel(m){const B=kpiRepBase(m),KP=(S.settings||{}).kpiRep,n=Array.isArray(KP)?B.filter(e=>kpiRepOk(e.id)).length:B.length;return `👥 مين يترحّل (${n} من ${B.length})`}
 function kpiRepForm(m,done){
   const B=kpiRepBase(m),KP=(S.settings||{}).kpiRep,K=Object.fromEntries(kpiSummary(m).map(r=>[r.id,r]));
