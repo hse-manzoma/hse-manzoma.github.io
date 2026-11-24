@@ -2189,7 +2189,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.97";
+const APP_VER="8.9.99";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5757,8 +5757,15 @@ function unsafeNoNames(m){const out=[];
 async function repView(m,X){X=X||repDoc(m);if(!X){toast("احفظ التقرير الأول");return}await sigData();
   const V=openViewer(`التقرير الشهري · ${monthName(m)}`,{filename:`${m}-التقرير الشهري ${estab().siteName}.pdf`,note:X.status==="approved"?"":"التقرير لسه مسودة. بعد ما تراجعه اضغط «اعتماد» عشان يطلع بالتوقيع."});
   if(X.status==="approved")V.note("✔ معتمد بتوقيع "+esc(X.approved?.name||""),true);
-  try{V.setHtml(await repHTML(m,X))}catch(e){console.error(e);V.fail()}}
-async function repHTML(m,X){
+  try{V.setHtml(await repHTML(m,X))}catch(e){console.error(e);V.fail()}
+  V.actions(REP_PARTS.map(([k,l])=>`<button class="btn" data-extra data-part="${k}">${l}</button>`).join(""));
+  V.root.querySelectorAll("[data-part]").forEach(b=>b.onclick=()=>repPartView(m,X,b.dataset.part))}
+const REP_PARTS=[["main","📄 الغلاف + التقرير"],["inj","🩹 حصر الإصابات"],["inv","📦 الحصر الشهري"],["kpi","📊 KPI"]];
+async function repPartView(m,X,part){await sigData();const E=estab();
+  const N={main:["الغلاف والتقرير الشهري","التقرير الشهري"],inj:["حصر إصابات منطقة "+E.siteName,"حصر الإصابات "+E.siteName],inv:["الحصر الشهري لمهمات السلامة","الحصر الشهري"],kpi:["مؤشرات الأداء KPIs","KPI"]}[part];
+  const V=openViewer(`${N[0]} · ${monthName(m)}`,{filename:`${m}-${N[1]}.pdf`});
+  try{V.setHtml(await repHTML(m,X,part))}catch(e){console.error(e);V.fail()}}
+async function repHTML(m,X,part){
   const C=repComputed(m,X),E=estab(),sig=await sigBox(X.status==="approved"?X.approved:null);const mn=monthName(m).split(" ");const MN=`${mn[0]}- ${mn[1]}`;
   const head=`<div class="rhead"><div class="t">التقرير الشهري للبيئة والسلامة والصحة المهنية<br>اسم المنطقة :......... ${esc(E.siteName)}.......... ${MN}</div><div class="lg"><img src="rep-logo.png" alt=""></div></div>`;
   const pages=[];const page=(inner)=>pages.push(inner);
@@ -5815,6 +5822,7 @@ async function repHTML(m,X){
     <table style="font-size:8.5pt"><thead><tr><th colspan="4">بيانات الموظف</th><th>أيام الغياب</th><th>عمليات الفحص</th><th>رصد ظروف غير آمنة</th><th>رصد تصرفات غير آمنة</th><th>إجراءات تصحيحية</th><th>محاضرات التوعية</th><th>تقييم السلوك الشخصي</th><th>التقييم المقترح</th></tr><tr><th>#</th><th>الكود</th><th>الاسم</th><th>الوظيفة</th><th>عدد</th><th>عدد</th><th>عدد</th><th>عدد</th><th>عدد</th><th>عدد</th><th>بنسبة %</th><th>A · B · C</th></tr></thead>
     <tbody>${Array.from({length:Math.max(12,kr.length)},(_,i)=>{const r=kr[i];return r?`<tr><td>${i+1}</td><td>${esc(r.code)}</td><td class="r dv">${esc(r.name)}</td><td>${esc(r.job)}</td><td>${esc(r.abs)}</td><td>${esc(r.insp)}</td><td>${esc(r.usc)}</td><td>${esc(r.usa)}</td><td>${esc(r.corr)}</td><td>${esc(r.tbt)}</td><td>${esc(r.beh)}%</td><td><b>${esc(r.grade)}</b></td></tr>`:`<tr><td>${i+1}</td>${"<td></td>".repeat(11)}</tr>`}).join("")}</tbody></table>
     <table style="width:48mm;width:70mm;margin-top:3mm"><tbody><tr><td colspan="2" class="gray">مشرف أول السلامة</td></tr><tr><td class="gray" style="width:20mm">الاسم :</td><td>${esc(LEADER())}</td></tr><tr style="height:12mm"><td class="gray">التوقيع :</td><td>${sig}</td></tr></tbody></table></div>`;
+  if(part==='main')return cover+body;if(part==='inj')return a1;if(part==='inv')return a2+a3;if(part==='kpi')return a4;
   return cover+body+a1+a2+a3+a4}
 
 /* ---------- materials / PPE needs requests ---------- */
