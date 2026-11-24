@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=IBM+Plex+Mono:wght@500&family=Amiri:wght@400;700&family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;600;700&family=Aref+Ruqaa:wght@400;700&display=swap">
 </head><body>
-<script>try{const hseTheme=localStorage.getItem("hse.theme")||"green";document.documentElement.dataset.theme=["dark","navy","light","green","ocean","sand"].includes(hseTheme)?hseTheme:"green"}catch(e){document.documentElement.dataset.theme="green"}document.documentElement.style.colorScheme=["light","sand"].includes(document.documentElement.dataset.theme)?"light":"dark";try{document.documentElement.dataset.fx=localStorage.getItem("hse.fx")==="flat"?"flat":"3d"}catch(e){document.documentElement.dataset.fx="3d"}const themeMeta=document.querySelector('meta[name="theme-color"]');if(themeMeta)themeMeta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8"})[document.documentElement.dataset.theme]</script>
+<script>try{const hseTheme=localStorage.getItem("hse.theme")||"green";document.documentElement.dataset.theme=["dark","navy","light","green","ocean","sand","sanad","sanadn"].includes(hseTheme)?hseTheme:"green"}catch(e){document.documentElement.dataset.theme="green"}document.documentElement.style.colorScheme=["light","sand"].includes(document.documentElement.dataset.theme)?"light":"dark";try{document.documentElement.dataset.fx=localStorage.getItem("hse.fx")==="flat"?"flat":"3d"}catch(e){document.documentElement.dataset.fx="3d"}const themeMeta=document.querySelector('meta[name="theme-color"]');if(themeMeta)themeMeta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8"})[document.documentElement.dataset.theme]</script>
 <style>
 html,body{margin:0}
 /* Layout: sticky header + tab rail, one working surface per tab; tables scroll inside their own box */
@@ -41,6 +41,28 @@ html,body{margin:0}
   --accent:#B8F23C;--accent-ink:#122007;--accent-soft:#244417;--ok:#84DF55;--ok-soft:#173B25;--warn:#F0BD59;--warn-soft:#3D321B;--bad:#FF8179;--bad-soft:#402323;--info:#67C8F4;--info-soft:#1B3043;
   --t-hot:#FF9562;--t-cold:#76B6F5;--t-height:#F0BD59;--t-lift:#C0A2F1;--t-conf:#4FD5C1;--t-elec:#F28EB1;--t-exc:#D4C5A6;
   color-scheme:dark;--d-lift:0 1px 0 rgba(255,255,255,.07) inset,0 2px 5px rgba(0,0,0,.34);--d-lift-h:0 1px 0 rgba(255,255,255,.1) inset,0 8px 20px rgba(0,0,0,.32);--d-press:0 2px 5px rgba(0,0,0,.4) inset;--d-card:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px -14px rgba(0,0,0,.55);--d-gloss:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,0) 58%)}
+
+/* ===== 8.9.101: الهوية الجديدة (ثيمان اختياريان: sanad فاتح، sanadn داكن). ما بتغيّر أي ثيم موجود ولا أي بيانات ===== */
+:root[data-theme="sanad"]{--bg:#F5F4EF;--surface:#FFFFFF;--sunk:#ECEAE3;--ink:#15221D;--muted:#5E6B64;--line:#E3E1D8;--accent:#0F4C3F;--accent-ink:#FFFFFF;--accent-soft:#E3EFEA;--ok:#1F6B49;--ok-soft:#E3EFEA;--warn:#8A5A00;--warn-soft:#F7ECD2;--bad:#A8322A;--bad-soft:#F6E2DF;--info:#2457A6;--info-soft:#E2EAF6;--t-hot:#C2410C;--t-cold:#1D5FA8;--t-height:#B7791F;--t-lift:#6B4FA0;--t-conf:#0F766E;--t-elec:#A61E4D;--t-exc:#6B5B45;--r:16px;--d-lift:0 1px 2px rgba(21,34,29,.06);--d-lift-h:0 2px 8px rgba(21,34,29,.10);--d-press:0 1px 3px rgba(21,34,29,.16) inset;--d-card:0 1px 1px rgba(21,34,29,.04),0 8px 24px rgba(21,34,29,.07);--d-gloss:none;color-scheme:light}
+:root[data-theme="sanadn"]{--bg:#0C1512;--surface:#14201B;--sunk:#1D2C26;--ink:#E8EFEA;--muted:#9DB0A6;--line:#22332C;--accent:#6DD3B0;--accent-ink:#0C1512;--accent-soft:#16332B;--ok:#5CCB9A;--ok-soft:#163A2B;--warn:#E6B04A;--warn-soft:#3A2D12;--bad:#F0786A;--bad-soft:#3D1C19;--info:#78AEFF;--info-soft:#18293B;--t-hot:#FF8A4C;--t-cold:#6FA8EA;--t-height:#E6B04A;--t-lift:#B39AE6;--t-conf:#4CC7BA;--t-elec:#F27BA3;--t-exc:#C8B79A;--r:16px;--d-lift:0 0 0 1px #22332C;--d-lift-h:0 0 0 1px #2E443B;--d-press:0 1px 3px rgba(0,0,0,.4) inset;--d-card:0 0 0 1px #22332C;--d-gloss:none;color-scheme:dark}
+:root[data-theme^="sanad"] body::before{background:var(--bg)}
+:root[data-theme^="sanad"] header.top{background:var(--bg);border-bottom:0}
+:root[data-theme^="sanad"] .card{border:0;border-radius:22px;padding:18px}
+:root[data-theme^="sanad"] .btn{border:0;background:var(--sunk);border-radius:14px;padding:10px 16px;min-height:44px}
+:root[data-theme^="sanad"] .btn:hover{border:0;transform:none;box-shadow:var(--d-lift-h)}
+:root[data-theme^="sanad"] .btn.primary{background:var(--accent);color:var(--accent-ink)}
+:root[data-theme^="sanad"] .btn.ghost{background:none;color:var(--muted)}
+:root[data-theme^="sanad"] .pill{padding:3px 11px;font-weight:700;letter-spacing:.01em}
+:root[data-theme^="sanad"] h1,:root[data-theme^="sanad"] h2,:root[data-theme^="sanad"] .head h2{font-family:Cairo,var(--f-display);letter-spacing:-.01em}
+:root[data-theme^="sanad"] nav.tabs button[aria-selected="true"],:root[data-theme^="sanad"] nav.tabs .nav-group[open]>summary{border-bottom-color:transparent;background:var(--accent-soft);color:var(--accent);border-radius:12px}
+:root[data-theme^="sanad"] input,:root[data-theme^="sanad"] select,:root[data-theme^="sanad"] textarea{border-radius:12px}
+@media (max-width:760px){
+  :root[data-theme^="sanad"] #bnav{inset:auto 14px calc(10px + env(safe-area-inset-bottom,0px)) 14px;border-top:0;border-radius:26px;padding:6px;box-shadow:var(--d-card),0 10px 30px rgba(0,0,0,.14);background:var(--surface)}
+  :root[data-theme^="sanad"] #bnav button{border-radius:20px;min-height:52px}
+  :root[data-theme^="sanad"] #bnav button[aria-current="true"]{background:var(--accent-soft);color:var(--accent)}
+  :root[data-theme^="sanad"] #bnav button[aria-current="true"] .ic{background:none}
+  :root[data-theme^="sanad"] main{padding-bottom:calc(112px + env(safe-area-inset-bottom,0px))}
+}
 *{box-sizing:border-box}
 html{background:var(--bg);transition:background-color .22s ease,color .22s ease}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14.5px;line-height:1.55;transition:background-color .22s ease,color .22s ease}
@@ -151,6 +173,7 @@ td.n,th.n{font-variant-numeric:tabular-nums;text-align:left;direction:ltr}
 .seg button{font:600 12.5px var(--f-body);border:0;background:var(--surface);color:var(--muted);padding:6px 10px;cursor:pointer;border-inline-start:1px solid var(--line)}
 .seg button:first-child{border-inline-start:0}
 .seg button[aria-pressed="true"].s-p{background:var(--ok-soft);color:var(--ok)}
+.seg button[aria-pressed="true"].s-l{background:var(--warn-soft);color:var(--warn)}
 .seg button[aria-pressed="true"].s-a{background:var(--bad-soft);color:var(--bad)}
 .seg button[aria-pressed="true"].s-v{background:var(--info-soft);color:var(--info)}
 .seg button[aria-pressed="true"].s-m{background:var(--warn-soft);color:var(--warn)}
@@ -702,7 +725,7 @@ const PTW_ACTIVITY_OPTIONS={COLD:["صب خرسانة","ترميم","أعمال �
 function ptwActivityField(p={}){const opts=PTW_ACTIVITY_OPTIONS[p.type]||[];return opts.length?f("نوع النشاط / الحمولة","workCategory",{value:p.workCategory||"",opts:[["","— اختياري —"],...opts.map(x=>[x,x]),["other","أخرى — وضّحها في وصف العمل"]] }):""}
 function ptwActivityText(p){const a=PTW_ACTIVITY_OPTIONS[p.type]||[];return p.workCategory&&p.workCategory!=="other"&&a.includes(p.workCategory)?p.workCategory:""}
 const RISK = {low:"منخفض",med:"متوسط",high:"عالي"};
-const ATT = {p:["حاضر","s-p"],a:["غياب","s-a"],v:["إجازة","s-v"],m:["مأمورية","s-m"],e:["إذن","s-e"]};
+const ATT = {p:["حاضر","s-p"],l:["تأخير","s-l"],a:["غياب","s-a"],v:["إجازة","s-v"],m:["مأمورية","s-m"],e:["إذن","s-e"]};
 const KPIS = [
   {k:"inspection",ar:"الفحص الدوري",def:40},
   {k:"unsafeCond",ar:"الظروف غير الآمنة",def:20},
@@ -1083,7 +1106,7 @@ VIEWS.dash = {
     const monthP=S.permits.filter(p=>(p.date||"").startsWith(m));
     const low=S.items.filter(i=>num(i.min)>0&&balance(i.id)<=num(i.min));
     const a=attDoc(today());const recs=a?.records||{};const team=hseTeam();
-    const present=team.filter(e=>recs[e.id]?.s==="p").length;
+    const present=team.filter(e=>["p","l"].includes(recs[e.id]?.s)).length;
     $("dTiles").innerHTML=[
       ["تصاريح شغالة",live.length,`${live.filter(p=>p.status==="suspended").length} موقوف`,false,"ui.tf=ui.tf||{};ui.tf.ptw='open';ui.ptwMonth='';show('ptw')"],
       ["تصاريح "+monthName(m),monthP.length,"كل الأنواع",false,"ui.tf=ui.tf||{};ui.tf.ptw='';ui.ptwMonth='"+m+"';show('ptw')"],
@@ -1443,11 +1466,11 @@ function fillAtt(el){
   if(!fullTeam.length){el.innerHTML=`<div class="card">${emptyState("مفيش فريق سلامة","ضيف موظفين في مجموعة «فريق السلامة» الأول.",`<button class="btn primary sm" onclick="ui.teamSub='emps';show('team')">الموظفين</button>`)}</div>`;return}
   if(own&&myEid&&!team.length){el.innerHTML=`<div class="card">${emptyState("حضورك غير مسجل","حسابك مش مربوط بموظف في فريق السلامة. راجع المدير.")}</div>`;return}
   const recs=attDoc(ui.attDate)?.records||{};
-  const c={};for(const e of fullTeam){const s=recs[e.id]?.s;if(s)c[s]=(c[s]||0)+1}
+  const past=ui.attDate<today(),eff=id=>recs[id]?.s||(past?"a":"");const c={};for(const e of fullTeam){const s=eff(e.id);if(s)c[s]=(c[s]||0)+1}
   {const sum=$("attSum");if(sum)sum.textContent=!own?Object.entries(ATT).map(([k,v])=>`${v[0]} ${c[k]||0}`).join(" · ")+` · من ${fullTeam.length}`:`حضورك · ${fmtDate(ui.attDate)}`;}
   el.innerHTML=`<div class="card"><h3>${own?"حضورك":"فريق السلامة"} <span class="muted" style="font-weight:400">${own?"":`(${fullTeam.length}) · `}${fmtDate(ui.attDate)}</span></h3><div class="list">
-    ${team.map(e=>{const r=recs[e.id]||{};return `<div class="li" style="flex-wrap:wrap"><div class="grow" style="min-width:150px"><div class="t">${esc(e.name)}${r.selfConfirmed?` ${locPill(r.loc,e.id,ui.attDate)}`:""}</div><div class="s">${esc(e.job||"")}${e.code?` · <span class="num">${esc(e.code)}</span>`:""}</div></div>
-      <div class="seg" role="group" aria-label="حالة ${esc(e.name)}">${Object.entries(ATT).map(([k,v])=>`<button type="button" class="${v[1]}" aria-pressed="${r.s===k}" onclick="setAtt('${e.id}','${k}')" ${!canWrite||own?"disabled":""}>${v[0]}</button>`).join("")}</div></div>`}).join("")}
+    ${team.map(e=>{const r=recs[e.id]||{};return `<div class="li" style="flex-wrap:wrap"><div class="grow" style="min-width:150px"><div class="t">${esc(e.name)}${r.selfConfirmed?` ${locPill(r.loc,e.id,ui.attDate)}`:""}</div><div class="s">${esc(e.job||"")}${e.code?` · <span class="num">${esc(e.code)}</span>`:""}${!r.s&&past?` · <span style="color:var(--bad)">غياب تلقائي (لم يُسجَّل حضور)</span>`:""}</div></div>
+      <div class="seg" role="group" aria-label="حالة ${esc(e.name)}">${Object.entries(ATT).map(([k,v])=>`<button type="button" class="${v[1]}" aria-pressed="${eff(e.id)===k}" onclick="setAtt('${e.id}','${k}')" ${!canWrite||own?"disabled":""}>${v[0]}</button>`).join("")}</div></div>`}).join("")}
   </div></div>`;
 }
 function fillLeaves(el){
@@ -1674,6 +1697,7 @@ function userForm(uid){
     try{const r=await SBA.fn("create",{username:uname,password:pin,role:fd.role,tabs,scope:fd.scope,empId:e.id});await savePin(r.user_id,{pin,username:uname});setTimeout(()=>sendInvite(r.user_id),500)}catch(err){return SBA.ar(err)}
     toast("اتسجل المستخدم");return null},p?"حفظ":"تسجيل وإرسال على واتساب");
   form_role_toggle();
+  if(!p){const rs=$("f_role"),sc=$("f_scope");if(rs&&sc)rs.addEventListener("change",()=>{sc.value=rs.value==="monitor"?"own":"all"})}
 }
 function form_role_toggle_base(){const s=document.querySelector('#shForm [name="role"]');if(s)s.onchange=()=>{$("cust").hidden=s.value!=="custom"}}
 async function userToggle(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const {error}=await SB.from("profiles").update({disabled:!p.disabled}).eq("user_id",uid);toast(error?"فشل":"تم")}
@@ -1712,7 +1736,7 @@ const actMine=a=>{if(!ownScope())return true;const me=myEmpId();if(me&&a.ownerId
   const r=a.recId?S.records.find(x=>x.id===a.recId):null;return !!(r&&mineRec(r))};
 /* السجل نفسه: يظهر للمستخدم المقيّد لو يخصه (كاتبه/مذكور فيه/مستني توقيعه أو مراجعته) — والتعديل بيحتاج صلاحية «النماذج» إضافة وتعديل */
 const actOwnsRec=r=>{const me=myEmpId(),mn=myNameN();return (S.actions||[]).some(a=>String(a.id).startsWith(r.id+"_")&&((me&&a.ownerId===me)||(mn&&a.ownerName&&normName(a.ownerName).includes(mn))))};
-const recVisible=r=>!ownScope()||mineRec(r)||actOwnsRec(r)||(typeof recTodoFor==="function"&&!!recTodoFor(r,ME.id))||(()=>{const mn=myNameN();return !!mn&&normName(String(r.f?.resp||"")).includes(mn)})();
+const recVisible=r=>!(r?.form==="F-HSE-03-01"&&myRole()==="monitor")&&(!ownScope()||mineRec(r)||actOwnsRec(r)||(typeof recTodoFor==="function"&&!!recTodoFor(r,ME.id))||(()=>{const mn=myNameN();return !!mn&&normName(String(r.f?.resp||"")).includes(mn)})());
 const recEditable=r=>!ownScope()||(mineRec(r)&&allowedTabs().includes("forms")&&["edit","full"].includes(tabLevel("forms")));
 const mineRec=r=>{
   if(!ownScope())return true;
@@ -1765,7 +1789,7 @@ async function sendInvite(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn primary" data-wa="${esc(e?.phone||"")}" data-wm="${encodeURIComponent(msg)}" href="${href}" target="_blank" rel="noopener" style="background:#25D366;border-color:#25D366;text-decoration:none">📲 فتح واتساب وإرسال</a><button type="button" class="btn" onclick="copyText(document.getElementById('invMsg').innerText)">نسخ الرسالة</button><button type="button" class="btn ghost" onclick="newPin('${uid}')">كلمة سر جديدة</button></div>`,async()=>null,"تم")}
 async function newPin(uid){const p=(S.profiles||[]).find(x=>x.id===uid);if(!p)return;const pin=genPin();
   try{await SBA.fn("reset",{user_id:uid,password:pin});await savePin(uid,{pin,username:p.username});toast("اتعملت كلمة سر جديدة");setTimeout(()=>sendInvite(uid),300)}catch(e){toast(SBA.ar(e))}}
-const HSE_THEMES=[{id:"navy",name:"كحلي مؤسسي",palette:["#0B1220","#17385F","#69A9F5","#F59A23"]},{id:"light",name:"فاتح نظيف",palette:["#F3F6FA","#FFFFFF","#168A59","#F4AE30"]},{id:"green",name:"أخضر ميداني",palette:["#032F22","#06462F","#B8F23C","#E8FFB9"]},{id:"dark",name:"عالي التباين",palette:["#171C22","#303840","#F59A23","#42C77A"]},{id:"ocean",name:"محيطي",palette:["#06141C","#0D2230","#2EC4D6","#F0BF5A"]},{id:"sand",name:"رملي دافئ",palette:["#F4EEE3","#FFFDF8","#B4531A","#2F7D4F"]}];
+const HSE_THEMES=[{id:"sanad",name:"سَنَد فاتح (الهوية الجديدة)",palette:["#F5F4EF","#FFFFFF","#0F4C3F","#B5612A"]},{id:"sanadn",name:"سَنَد داكن (الهوية الجديدة)",palette:["#0C1512","#14201B","#6DD3B0","#E0915A"]},{id:"navy",name:"كحلي مؤسسي",palette:["#0B1220","#17385F","#69A9F5","#F59A23"]},{id:"light",name:"فاتح نظيف",palette:["#F3F6FA","#FFFFFF","#168A59","#F4AE30"]},{id:"green",name:"أخضر ميداني",palette:["#032F22","#06462F","#B8F23C","#E8FFB9"]},{id:"dark",name:"عالي التباين",palette:["#171C22","#303840","#F59A23","#42C77A"]},{id:"ocean",name:"محيطي",palette:["#06141C","#0D2230","#2EC4D6","#F0BF5A"]},{id:"sand",name:"رملي دافئ",palette:["#F4EEE3","#FFFDF8","#B4531A","#2F7D4F"]}];
 const HSE_MOBILE_LAYOUTS=[{id:"field",name:"ميداني سريع",desc:"الإجراءات والحضور أولًا"},{id:"operations",name:"مركز العمليات",desc:"التنبيهات والإجراءات حسب الأولوية"},{id:"tasks",name:"لوحة المهام",desc:"مهامك وتقدم الفحوص أولًا"}];
 function mobileLayout(){try{const id=localStorage.getItem("hse.mobileLayout");return HSE_MOBILE_LAYOUTS.some(x=>x.id===id)?id:"field"}catch(e){return "field"}}
 function setMobileLayout(layout){if(!HSE_MOBILE_LAYOUTS.some(x=>x.id===layout))return;try{localStorage.setItem("hse.mobileLayout",layout)}catch(e){};const root=$("homeDashboard");if(root)root.dataset.mobileLayout=layout;document.querySelectorAll("[data-mobile-layout-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mobileLayoutChoice===layout)))}
@@ -1774,7 +1798,7 @@ function setFx(m){document.documentElement.dataset.fx=m==="flat"?"flat":"3d";try
 (function(){if(!matchMedia("(hover:hover) and (pointer:fine)").matches||matchMedia("(prefers-reduced-motion:reduce)").matches)return;let el=null;
 document.addEventListener("pointermove",e=>{if(fxMode()!=="3d")return;const t=e.target.closest&&e.target.closest(".tile");if(el&&el!==t){el.style.transform="";el=null}if(!t||t.getAttribute("aria-pressed")==="true")return;el=t;const r=t.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;t.style.transform=`perspective(700px) rotateX(${(-y*7).toFixed(2)}deg) rotateY(${(x*7).toFixed(2)}deg) translateZ(0)`},{passive:true});
 document.addEventListener("pointerleave",()=>{if(el){el.style.transform="";el=null}},true)})();
-function setTheme(theme){if(!HSE_THEMES.some(x=>x.id===theme))return;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=["light","sand"].includes(theme)?"light":"dark";try{localStorage.setItem("hse.theme",theme)}catch(e){};const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8"})[theme];document.querySelectorAll("[data-theme-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.themeChoice===theme)))}
+function setTheme(theme){if(!HSE_THEMES.some(x=>x.id===theme))return;document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=["light","sand","sanad"].includes(theme)?"light":"dark";try{localStorage.setItem("hse.theme",theme)}catch(e){};const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=({dark:"#0E1412",navy:"#0B1220",light:"#FFFFFF",green:"#032F22",ocean:"#06141C",sand:"#FFFDF8",sanad:"#F5F4EF",sanadn:"#0C1512"})[theme];document.querySelectorAll("[data-theme-choice]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.themeChoice===theme)))}
 function meMenuBase(){const activeTheme=document.documentElement.dataset.theme||"green",activeLayout=mobileLayout();const themePanel=`<section class="theme-setting"><b>🎨 ألوان التطبيق</b><div class="muted" style="font-size:12px;margin-top:2px">اختار الثيم المناسب؛ اختيارك محفوظ على هذا الجهاز.</div><div class="theme-options">${HSE_THEMES.map(t=>`<button type="button" class="theme-opt" data-theme-choice="${t.id}" aria-pressed="${t.id===activeTheme}" onclick="setTheme('${t.id}')"><span class="theme-swatches" aria-hidden="true">${t.palette.map(c=>`<i class="theme-dot" style="background:${c}"></i>`).join("")}</span><span>${t.name}</span></button>`).join("")}</div></section>`,fxPanel=`<section class="theme-setting"><b>🧊 نمط العرض</b><div class="muted" style="font-size:12px;margin-top:2px">ثلاثي الأبعاد (عمق وأزرار بارزة) أو مسطّح أخف.</div><div class="theme-options">${[["3d","ثلاثي الأبعاد"],["flat","مسطّح"]].map(([id,n])=>`<button type="button" class="theme-opt" data-fx-choice="${id}" aria-pressed="${id===fxMode()}" onclick="setFx('${id}')"><span>${n}</span></button>`).join("")}</div></section>`,layoutPanel=`<section class="theme-setting"><b>📱 تخطيط الشاشة الرئيسية للموبايل</b><div class="muted" style="font-size:12px;margin-top:2px">٣ تخطيطات مستقلة عن الثيمات، وتعمل على شاشة الموبايل فقط.</div><div class="theme-options" style="grid-template-columns:1fr">${HSE_MOBILE_LAYOUTS.map(x=>`<button type="button" class="theme-opt" style="justify-content:flex-start;text-align:right" data-mobile-layout-choice="${x.id}" aria-pressed="${x.id===activeLayout}" onclick="setMobileLayout('${x.id}')"><span><b>${x.name}</b><small class="muted" style="display:block;font-size:11px">${x.desc}</small></span></button>`).join("")}</div></section>`;openSheet("حسابي",`<p style="margin-top:0">اسم المستخدم: <b dir="ltr">${esc(ME.name)}</b></p>${themePanel}${fxPanel}${layoutPanel}<div class="form" style="margin-top:14px">${f("كلمة سر جديدة","np",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}${f("تأكيدها","np2",{type:"password",attrs:'dir="ltr" autocomplete="new-password"'})}</div>
   <button type="button" class="btn" style="margin-top:14px" onclick="errLogCopy()">📋 نسخ سجل الأخطاء</button> <button type="button" class="btn danger" style="margin-top:14px" onclick="SBA.logout().then(()=>location.reload())">تسجيل خروج</button>`,async fd=>{if(!fd.np)return null;if(fd.np.length<6)return `كلمة السر لازم ٦ حروف/أرقام على الأقل (إنت كاتب ${fd.np.length})`;if(fd.np!==fd.np2)return "كلمتين السر مش زي بعض";const {error}=await SB.auth.updateUser({password:fd.np});if(error){const m=String(error.message||"");errLogPush(error,"change-password");return /different|same/i.test(m)?"لازم تكون مختلفة عن كلمة السر الحالية":/least|short|weak|characters/i.test(m)?"كلمة السر ضعيفة أو قصيرة — جرّب ٨ حروف فيها أرقام وحروف":/reauth|recent|session|jwt|expired/i.test(m)?"الجلسة قديمة: سجّل خروج وادخل تاني وحاول":"مقدرتش أغيّرها: "+m.slice(0,120)}toast("اتغيرت كلمة السر ✔");return null},"حفظ")}
 function settleInvites(){}
@@ -2189,7 +2213,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.99";
+const APP_VER="8.9.105";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3569,7 +3593,7 @@ function monthReport(m){
   const byItem={};for(const x of M)byItem[x.itemId]=(byItem[x.itemId]||0)+num(x.qty);
   const topItems=Object.entries(byItem).sort((a,b)=>b[1]-a[1]);
   const days=S.att.filter(a=>(a.id||"").startsWith(m));
-  const att={};for(const d of days)for(const [eid,r] of Object.entries(d.records||{})){(att[eid]??={p:0,a:0,v:0,m:0,e:0});if(r.s)att[eid][r.s]++}
+  const att={};for(const d of days)for(const [eid,r] of Object.entries(d.records||{})){(att[eid]??={p:0,l:0,a:0,v:0,m:0,e:0});if(r.s){att[eid][r.s]++;if(r.s==="l")att[eid].p++}}
   const K=kpiSummary(m);
   return {P,byType,byStatus,M,topItems,days,att,K};
 }
@@ -6417,8 +6441,11 @@ async function selfAttWrite(d,eid,recs){
    catch(e){if(e&&e.code)throw e}}
   await db.doc("attendance/"+d).set({date:d,records:recs,updatedAt:Date.now()})
 }
-async function homeConfirmAttendance(date,force){const mid=myEmpId(),e=emp(mid),d=date||today();if(d!==today()){toast("تأكيد الحضور الذاتي متاح لتاريخ اليوم فقط");return}if(!ME.id||!e||!hseTeam().some(x=>x.id===e.id)){toast("الحساب غير مرتبط بموظف في فريق السلامة");return}toast("بنحدد موقعك…");const G=await geoTry(),loc=G.loc;if(!loc&&!force){attNoLoc(d,G.err);return}const old=attDoc(d)?.records||{},recs={...old,[e.id]:{...(old[e.id]||{}),s:"p",selfConfirmed:true,selfConfirmedBy:ME.id,selfConfirmedAt:Date.now(),loc:loc||null}};write(()=>selfAttWrite(d,e.id,recs),"اتأكد حضورك بنجاح").then(ok=>{if(ok){const local=attDoc(d);if(local)local.records=recs;else S.att.push({id:d,date:d,records:recs});const admins=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);if(admins.length)notifyUsers(admins,"✔ تأكيد حضور",`${e.name} أكد حضوره يوم ${fmtDate(d)} — ${locStatus(loc).t}${loc?` https://maps.google.com/?q=${loc.lat},${loc.lng}`:""}`,"?go=team");homeFillAttendance();try{refresh()}catch(x){}}})}
+async function homeConfirmAttendance(date,force){const mid=myEmpId(),e=emp(mid),d=date||today();if(d!==today()){toast("تأكيد الحضور الذاتي متاح لتاريخ اليوم فقط");return}if(!ME.id||!e||!hseTeam().some(x=>x.id===e.id)){toast("الحساب غير مرتبط بموظف في فريق السلامة");return}toast("بنحدد موقعك…");const G=await geoTry(),loc=G.loc;if(!loc&&!force){attNoLoc(d,G.err);return}const old=attDoc(d)?.records||{},recs={...old,[e.id]:{...(old[e.id]||{}),s:attLateNow()?"l":"p",selfConfirmed:true,selfConfirmedBy:ME.id,selfConfirmedAt:Date.now(),loc:loc||null}};write(()=>selfAttWrite(d,e.id,recs),"اتأكد حضورك بنجاح").then(ok=>{if(ok){const local=attDoc(d);if(local)local.records=recs;else S.att.push({id:d,date:d,records:recs});const admins=(S.profiles||[]).filter(p=>p.role==="admin").map(p=>p.id);if(admins.length)notifyUsers(admins,"✔ تأكيد حضور",`${e.name} أكد حضوره يوم ${fmtDate(d)} — ${locStatus(loc).t}${loc?` https://maps.google.com/?q=${loc.lat},${loc.lng}`:""}`,"?go=team");homeFillAttendance();try{refresh()}catch(x){}}})}
 /* 8.9.64: لو الموقع فشل ما بنسجّلش حضور بدون موقع بصمت — بنقول السبب ونسيب الاختيار */
+/* 8.9.102: التأخير = تأكيد الحضور بعد ميعاد البدء (افتراضي 09:00، يتغيّر من localStorage hse.lateAfter) */
+function attLateAfter(){try{return localStorage.getItem("hse.lateAfter")||"09:00"}catch(e){return"09:00"}}
+function attLateNow(){const n=new Date(),[h,m]=attLateAfter().split(":").map(Number);return n.getHours()*60+n.getMinutes()>(h||0)*60+(m||0)}
 function geoTry(ms=15000){return new Promise(res=>{if(!navigator.geolocation)return res({loc:null,err:"unsupported"});
   navigator.geolocation.getCurrentPosition(p=>res({loc:{lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy||0),at:Date.now()}}),e=>res({loc:null,err:e&&e.code===1?"denied":e&&e.code===3?"timeout":"unavailable"}),{enableHighAccuracy:true,timeout:ms,maximumAge:0})})}
 function attNoLoc(d,err){const why={denied:"المتصفح رافض إذن الموقع. دوس على أيقونة القفل/الموقع جنب العنوان ← الموقع ← سماح، وبعدين حاول تاني.",timeout:"تحديد الموقع اتأخر. اتأكد إن الموقع (GPS) شغال وجرّب في مكان مفتوح.",unavailable:"الجهاز مش قادر يحدد موقعك (على الكمبيوتر بيعتمد على الواي فاي وممكن يفشل).",unsupported:"المتصفح ده مش بيدعم تحديد الموقع."}[err]||"معرفتش أحدد موقعك.";
@@ -6431,7 +6458,7 @@ const VIEW_ALL={manpower:"view",contractors:"view"};
 const HSE_FULL={dash:"view",actions:"full",ptw:"edit",ppe:"edit",matreq:"full",manpower:"view",contractors:"view",equip:"edit",forms:"edit",kpi:"edit",report:"edit",office:"edit",team:"view"};
 Object.assign(BUILTIN_ROLES,{
   hsesup:{ar:"مشرف سلامة",tabs:{...HSE_FULL}},
-  hse:{ar:"أخصائي سلامة",tabs:{...HSE_FULL}},
+  hse:{ar:"أخصائي سلامة (قائد الفريق)",tabs:{...HSE_FULL,team:"full",manpower:"edit",contractors:"edit",forms:"full",ptw:"full"}},
   officer:{ar:"أوفيسر سلامة",tabs:{dash:"view",actions:"edit",ptw:"edit",forms:"edit",equip:"edit",matreq:"edit",kpi:"view",...VIEW_ALL}},
   monitor:{ar:"مراقب سلامة",tabs:{dash:"view",forms:"edit",equip:"edit",matreq:"edit",...VIEW_ALL}},
   eng:{ar:"مهندس تنفيذ (طالب تصريح)",tabs:{dash:"view",ptw:"edit",forms:"view",actions:"edit",matreq:"edit",...VIEW_ALL}},
@@ -6501,6 +6528,8 @@ async function reviewRecord(id,ok){const r=S.records.find(x=>x.id===id);if(!r)re
   if(await write(()=>upsert("records",id,patch),"اتعتمد ✔")){notifyUsers([r.createdBy],"✅ نموذجك اتعتمد",`${me} اعتمد ${r.form}`,`?go=rec&id=${id}`);setTimeout(()=>printRecord(id),300)}}
 {const _pr=printRecord;printRecord=async function(id){await _pr(id);const r=S.records.find(x=>x.id===id);if(!r||!$("pvAct"))return;
   if(recActions(r).review){$("pvAct").insertAdjacentHTML("afterbegin",`${isViolationRec(r)?`<button class="btn" data-extra onclick="pvClose();recordForm('${r.form}','${id}')">✏️ تعديل المخالفة</button>`:""}<button class="btn ok" data-extra onclick="reviewRecord('${id}',true)">✔ مراجعة واعتماد</button><button class="btn" data-extra onclick="reviewRecord('${id}',false)">↩️ رجّعه للتعديل</button>`)}
+  if(canWrite&&r.referral?.status!=="open")$("pvAct").insertAdjacentHTML("afterbegin",`<button class="btn" data-extra onclick="pvClose();referRecord('${id}')">↪️ إحالة</button>`);
+  if(r.referral?.status==="open"){if($("pvAct")&&(r.referral.to===ME.id||can("sys.admin")))$("pvAct").insertAdjacentHTML("afterbegin",`<button class="btn ok" data-extra onclick="pvClose();referDone('${id}')">✔ تمت المعالجة</button>`);if($("pvNote"))$("pvNote").insertAdjacentHTML("afterbegin",`<div class="pvnote">↪️ محال إلى ${esc(r.referral.toName)} من ${esc(r.referral.byName)}${r.referral.note?` — ${esc(r.referral.note)}`:""}</div>`)}
   if(!r.review&&needsReview(r))$("pvNote").insertAdjacentHTML("afterbegin",`<div class="pvnote">⏳ ${isViolationRec(r)?"مستني مراجعة واعتماد الأدمن":"مستني مراجعة واعتماد مشرف / أخصائي السلامة"}${r.reviewNote?` · ملاحظة: ${esc(r.reviewNote)}`:""}</div>`)}}
 /* week helpers (week starts Saturday) */
 function weekStart(d=today()){const x=new Date(d+"T00:00:00");const k=(x.getDay()+1)%7;x.setDate(x.getDate()-k);return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate())}
@@ -6549,6 +6578,19 @@ function hrHeal(){if(!can("sys.admin"))return;for(const r of(S.leavereq||[]))if(
   return o}}
 /* notifications: inbox table + push */
 let NOTIFS=[];
+/* 8.9.102: إحالة سجل لشخص (أوفيسر/مشرف/أخصائي/أي مستخدم) + إشعار بالتطبيق أو واتساب أو الاتنين. بتضيف حقل referral على السجل نفسه بس. */
+function referRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;
+  const people=(S.profiles||[]).filter(p=>!p.disabled&&p.id!==ME.id&&profName(p));
+  if(!people.length){toast("مفيش مستخدمين تانيين للإحالة");return}
+  openSheet("↪️ إحالة السجل",`<div class="form">${f("أحيل إلى","to",{type:"select",full:true,req:true,opts:[["","— اختر —"],...people.map(p=>[p.id,profName(p)+" · "+(p.role==="admin"?"مدير":(ROLES_ALL()[p.role]?.ar||p.role||""))])]})}${f("طريقة الإشعار","via",{type:"select",full:true,value:"app",opts:[["app","إشعار في المنظومة"],["wa","رسالة واتساب"],["both","الاتنين"]]})}${f("ملاحظة / المطلوب","note",{type:"textarea",full:true})}</div>`,async fd=>{
+    const p=people.find(x=>x.id===fd.to);if(!p)return "اختر الشخص";
+    const me=myEmpName()||ME.username||"",kind=recKindAr(r),msg=`↪️ ${me} أحال إليك سجل (${kind}) بتاريخ ${r.date||""}${fd.note?` — ${fd.note.trim()}`:""}`;
+    if(fd.via==="wa"||fd.via==="both"){const ph=emp(p.emp_id)?.phone;if(ph)window.open(waLink(ph,msg+"\n"+location.origin+location.pathname+`?go=rec&id=${encodeURIComponent(id)}`),"_blank");else if(fd.via==="wa")return "الشخص ده ملوش رقم موبايل مسجل"}
+    const done=await write(()=>upsert("records",id,{referral:{to:p.id,toName:profName(p),by:ME.id,byName:me,at:Date.now(),note:(fd.note||"").trim(),status:"open"}}),"اتحوّل ✔");
+    if(done&&fd.via!=="wa")notifyUsers([p.id],"↪️ سجل محال لك — محتاج مراجعتك",msg,`?go=rec&id=${encodeURIComponent(id)}`);
+    return done?null:"فشل"},"إحالة")}
+async function referDone(id){const r=S.records.find(x=>x.id===id);if(!r?.referral)return;
+  if(await write(()=>upsert("records",id,{referral:{...r.referral,status:"done",doneAt:Date.now()}}),"تم إنهاء الإحالة ✔"))notifyUsers([r.referral.by],"✅ اتنفذت إحالتك",`${r.referral.toName} أنهى الإحالة`,`?go=rec&id=${encodeURIComponent(id)}`)}
 async function notifyUsers(uids,title,body,url="./"){uids=[...new Set((uids||[]).filter(u=>u&&u!==ME.id))];if(!uids.length)return;
   try{await SB.from("notif").insert(uids.map(u=>({to_uid:u,title,body,url})))}catch(e){}
   try{await notifyCall({action:"send",to:uids,title,body,url},true)}catch(e){}}
@@ -6577,7 +6619,7 @@ function notifLive(n){/* true: لسه مطلوب · false: خلص/قديم · nu
       const n1=(typeof eqPendingReviews==="function"?eqPendingReviews().length:0)+inspPendingReviews().length;return n1>0}
     if(go==="task"){const k=(S.tasks||[]).find(x=>x.id===id);return k?k.status!=="done":(loaded.tasks?false:null)}
     if(go==="attendance-confirm"){const d=(new URLSearchParams(String(n.url||"").split("?")[1]||"")).get("date")||today();
-      if(d!==today())return false;const rec=attDoc(d)?.records?.[myEmp];return !(rec&&(rec.s==="p"||rec.selfConfirmed))}
+      if(d!==today())return false;const rec=attDoc(d)?.records?.[myEmp];return !(rec&&(rec.s==="p"||rec.s==="l"||rec.selfConfirmed))}
     if(go==="me"&&/تنبيه من متابعة/.test(t))return roleDuties(ME.id).some(x=>!x.ok)
     if(go==="hrchain"){const rq=(new URLSearchParams(String(n.url||"").split("?")[1]||"")).get("req"),r=(S.leavereq||[]).find(x=>x.id===rq);if(!r)return typeof loaded!=="undefined"&&loaded.leavereq?false:null;
       if(r.status!=="new"||hrStale(r))return false;const nx=hrNext(r);return !!nx&&nx.uid===ME.id}
@@ -6726,6 +6768,16 @@ VIEWS.me={shell:()=>`<div class="head" style="flex-wrap:wrap"><h2 class="grow">�
     ${A.length?sec(`الإجراءات التصحيحية (${A.length})`,`<div class="list">${A.slice(0,10).map(a=>`<div class="li"><div class="grow"><div class="t">${esc(a.title)}</div><div class="s">${a.status==="closed"?"✔ اتقفل "+fmtDate(a.closedAt):"مفتوح · الميعاد "+fmtDate(a.due)}</div></div></div>`).join("")}</div>`):""}
     ${K.length?sec("مؤشرات الأداء (KPI) آخر 6 شهور",`<div class="list">${K.map(({m,r})=>`<div class="li"><div class="grow"><div class="t">${monthName(m)}</div>${r?`<div class="bar-meter" style="margin-top:4px"><span class="${r.score>=90?"ok":""}" style="width:${Math.min(100,r.score)}%"></span></div>`:""}</div><span class="num">${r?r.score+"%":"—"}</span></div>`).join("")}</div>`):""}
     </div>`}};
+
+/* 8.9.105: «اعرف دورك» — شرح الدور في ملفي. النص الافتراضي جاهز، والأدمن يقدر يعدّله (بيتخزن في settings.roleGuide فقط). */
+const ROLE_GUIDE_DEF={
+ monitor:"• سجّل حضورك يوميًا بالموقع.\n• ارصد الأوضاع والتصرفات غير الآمنة (F-HSE-07-03) بالصور.\n• افحص الأدوات والمعدات (ماعدا النقل والحركة والأوناش) وأحل الفحص للأوفيسر أو المشرف.\n• سجّل المحاضرات واعتمدها.\n• ترى سجلاتك فقط والتصاريح المفتوحة اليوم للاطلاع.",
+ officer:"• راجع وعدّل تقارير المراقبين ووقّعها كمحرر.\n• افحص كل المعدات واعتمد الفحوصات المحالة إليك.\n• أنشئ تصاريح العمل وأخطر الأطراف واطبعها بالرقم المسلسل.\n• عدّل تقارير الحوادث وأرسلها للأخصائي.\n• تصاريحك وسجلاتك فقط.",
+ hsesup:"• اعتمد بدل الأوفيسر (بتعديل أو بدونه) وأغلق الأوضاع غير الآمنة: تم الحل / تعديل / إحالة لشخص.\n• اعتمد الفحوصات المحالة إليك — قوائم التفتيش مطلوبة.\n• أرسل مهام (نموذج أو فحص).\n• تحرير كامل لكل النماذج.",
+ hse:"• أنت قائد الفريق بصلاحيات المدير ماعدا الإعدادات.\n• ترى كل بيانات الموقع.\n• اعتمد إجازات وشؤون فريق السلامة، ومحاضرات السلامة الأولية، وتقارير الحوادث، والسجلات المحالة إليك.\n• عدّل الحضور والغياب مع الأدمن وأرسل المهام."};
+function roleGuideText(r){return (S.settings?.roleGuide?.[r])??ROLE_GUIDE_DEF[r]??""}
+function roleGuideEdit(r){openSheet("تعديل «اعرف دورك» — "+(ROLES_ALL()[r]?.ar||r),`<div class="form">${f("النص (سطر لكل نقطة)","t",{type:"textarea",full:true,value:roleGuideText(r),attrs:'rows="9"'})}</div>`,async fd=>{const g={...(S.settings?.roleGuide||{}),[r]:fd.t};const ok=await write(()=>upsert("settings","main",{roleGuide:g}),"اتحفظ ✔");if(ok){try{S.settings.roleGuide=g;VIEWS.me.fill()}catch(e){}}return ok?null:"فشل"},"حفظ")}
+{const _mf=VIEWS.me.fill;VIEWS.me.fill=async function(){const r=await _mf.apply(this,arguments);try{const role=myRole(),txt=roleGuideText(role),box=$("meBody");if(box&&txt&&!box.querySelector("#roleGuide"))box.insertAdjacentHTML("afterbegin",`<div class="card" id="roleGuide"><div style="display:flex;gap:8px;align-items:center"><h3 class="grow" style="margin:0">🧭 اعرف دورك — ${esc(ROLES_ALL()[role]?.ar||"")}</h3>${can("sys.admin")?`<button class="btn ghost sm" onclick="roleGuideEdit('${role}')">✏️ تعديل</button>`:""}</div><div style="white-space:pre-line;margin-top:8px;line-height:1.9">${esc(txt)}</div></div>`)}catch(e){}return r}}
 /* delete (soft) / restore employees */
 function empDel(id){const e=emp(id);if(!e)return;
   if(tabLevel("manpower")==="view"){chgReq('employee','del',id);return}
@@ -9873,7 +9925,7 @@ function wsSiteHTML(){ const t0=today();
   const openP=(S.permits||[]).filter(p=>p.status==="open"||p.status==="approved").length;
   const exp=expiredPermits().length;
   const att=attDoc(t0)?.records||{},team=hseTeam();
-  const present=team.filter(e=>att[e.id]?.s==="p").length;
+  const present=team.filter(e=>["p","l"].includes(att[e.id]?.s)).length;
   const recsToday=(S.records||[]).filter(r=>r.date===t0).length+(S.inspections||[]).filter(x=>x.date===t0).length;
   const openAct=(S.actions||[]).filter(a=>a.status!=="done"&&a.status!=="closed").length;
   const tile=(lbl,n,note,bad)=>`<div class="card tile"><span class="lbl">${lbl}</span><span class="val"${bad?' style="color:var(--bad)"':""}>${n}</span>${note?`<span class="note">${note}</span>`:""}</div>`;
@@ -9913,7 +9965,7 @@ function wsAssignHTML(){
 function wsRecComplete(r){ return !!(r&&(r.review?.status==="approved"||r.closed||r.locked)); }
 function wsExecHTML(){ const t0=today(),m=thisMonth();
   const openP=(S.permits||[]).filter(p=>p.status==="open"||p.status==="approved").length;
-  const team=hseTeam(),att=attDoc(t0)?.records||{},present=team.filter(e=>att[e.id]?.s==="p").length;
+  const team=hseTeam(),att=attDoc(t0)?.records||{},present=team.filter(e=>["p","l"].includes(att[e.id]?.s)).length;
   const done=(S.records||[]).filter(r=>(r.date||"").startsWith(m)&&wsRecComplete(r)).length;
   const insp=(S.inspections||[]).filter(x=>(x.date||"").startsWith(m)&&x.review?.status==="approved").length;
   const tile=(lbl,n,note)=>`<div class="card tile"><span class="lbl">${lbl}</span><span class="val">${n}</span>${note?`<span class="note">${note}</span>`:""}</div>`;
@@ -10018,7 +10070,7 @@ async function incToggleRole(role,on){if(!can("incident.admin"))return;const cur
 function wsInboxHTML(){
   const t0=today();let late=[],ex=[];try{late=deriveActions().filter(a=>a.status!=="closed"&&a.late)}catch(e){}try{ex=expiredPermits()}catch(e){}
   const openP=(S.permits||[]).filter(p=>p.status==="open"||p.status==="approved").length;
-  const attD=attDoc(t0),att=attD?.records||{},team=hseTeam(),hasAtt=!!attD,present=team.filter(e=>att[e.id]?.s==="p").length;
+  const attD=attDoc(t0),att=attD?.records||{},team=hseTeam(),hasAtt=!!attD,present=team.filter(e=>["p","l"].includes(att[e.id]?.s)).length;
   const recsToday=(S.records||[]).filter(r=>r.date===t0).length+(S.inspections||[]).filter(x=>x.date===t0).length;
   const openAct=(S.actions||[]).filter(a=>a.status!=="done"&&a.status!=="closed").length;
   const inc30=(S.records||[]).filter(r=>r.form==="F-HSE-03-01"&&incidentVisible(r)&&(r.date||"")>=addDays(t0,-30));
@@ -11993,7 +12045,7 @@ nav.tabs button,nav.tabs summary{font-size:var(--fs-sm);padding:10px 12px}
 /* 8.9.48 — صلاحيات موحّدة */
 #permMatrixCard .pm-sel{max-width:150px;min-height:36px;border-radius:8px;border:1px solid var(--line,#8886);background:transparent;color:inherit;font:inherit;font-size:12.5px;padding:2px 6px}
 #permMatrixCard .pm-tb .pm-sel{max-width:118px}
-.seg{display:flex;gap:4px;padding:4px;background:var(--bg2,#eef1f5);border-radius:10px;margin-bottom:4px}.seg button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;color:inherit}.seg button[aria-pressed="true"]{background:var(--card,#fff);box-shadow:0 1px 3px rgba(0,0,0,.18);color:var(--pri,#0b5)}
+.seg{display:flex;gap:4px;padding:4px;background:var(--sunk,rgba(128,128,128,.14));border-radius:10px;margin-bottom:4px}.seg button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;color:inherit}.seg button[aria-pressed="true"]{background:var(--surface,#fff);box-shadow:0 1px 3px rgba(0,0,0,.18);color:var(--accent,#0b5)}
 
 /* 8.9.69 — أزرار مستوى القسم */
 #permMatrixCard .pm-chips{flex-wrap:wrap;overflow:visible}
