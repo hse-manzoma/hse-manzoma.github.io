@@ -722,7 +722,12 @@ const PTW_TYPES = {
 };
 const PTW_STATUS = {open:["مفتوح","p-open"],approved:["معتمد","p-appr"],suspended:["موقوف","p-susp"],closed:["مغلق","p-closed"],cancelled:["ملغي","p-canc"]};
 const PTW_ACTIVITY_OPTIONS={COLD:["صب خرسانة","ترميم","أعمال بناء"],HEIGHT:["سقالات","نجارة مسلحة","حدادة مسلحة","أعمال أخرى على ارتفاع"],LIFT:["طبلية طوب حتى 2 طن","حلة خرسانة","أدوات رفع 1 طن","أدوات رفع 800 كجم","طرد خشب موسكي","بلود مواسير","شدة معدنية","طرود حديد تسليح"]};
-function ptwActivityField(p={}){const opts=PTW_ACTIVITY_OPTIONS[p.type]||[];return opts.length?f("نوع النشاط / الحمولة","workCategory",{value:p.workCategory||"",opts:[["","— اختياري —"],...opts.map(x=>[x,x]),["other","أخرى — وضّحها في وصف العمل"]] }):""}
+function ptwActivityField(p={}){const opts=PTW_ACTIVITY_OPTIONS[p.type]||[];let lib="";
+  try{const want=(typeof PTW_RA_GROUPS!=="undefined"&&PTW_RA_GROUPS[p.type])||[];const gs=[...new Set(RA_LIB.map(a=>a.g))].sort((x,y)=>(want.includes(x)?0:1)-(want.includes(y)?0:1));
+    lib=gs.map(g=>`<optgroup label="🛡 ${esc(g)}${want.includes(g)?" (مقترح)":""}">${RA_LIB.filter(a=>a.g===g).map(a=>`<option value="${esc(a.name)}"${p.workCategory===a.name?" selected":""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")}catch(e){}
+  const base=[["","— اختياري —"],...opts.map(x=>[x,x]),["other","أخرى — وضّحها في وصف العمل"]];
+  const h=f("نوع النشاط / الحمولة","workCategory",{value:p.workCategory||"",opts:base});
+  return lib?h.replace(/<\/select>/,lib+"</select>"):h}
 function ptwActivityText(p){const a=PTW_ACTIVITY_OPTIONS[p.type]||[];return p.workCategory&&p.workCategory!=="other"&&a.includes(p.workCategory)?p.workCategory:""}
 const RISK = {low:"منخفض",med:"متوسط",high:"عالي"};
 const ATT = {p:["حاضر","s-p"],l:["تأخير","s-l"],a:["غياب","s-a"],v:["إجازة","s-v"],m:["مأمورية","s-m"],e:["إذن","s-e"]};
@@ -2218,7 +2223,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.125";
+const APP_VER="8.9.126";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -10673,14 +10678,16 @@ async function raBuild(r){await sigData();
     const t3=side("(Likelihood) الاحتمالية",RA_L,"L"),t4=side("(Severity) الشدة",RA_S,"S");
     const dt=x=>x?new Date(x).toISOString().slice(0,10):"";
     const sg=u=>u?`<img src="${u}" style="max-height:11mm;max-width:40mm" alt="">`:"";
+    const person=(o)=>o||{};const P=person(r.prep),A=person(r.appr),SU=person(r.sup),MG=person(r.mgr);
+    const sigc=(o,fb)=>`<td>${(o.signature||fb)?`<img src="${o.signature||fb}" style="max-height:11mm;max-width:40mm" alt="">`:""}</td>`;
     const sig=`<table class="rasg"><colgroup><col style="width:13%"><col style="width:23%"><col style="width:20%"><col style="width:21%"><col style="width:23%"></colgroup><tr><td class="g">Representative:</td><td class="g">Prepared By</td><td class="g">Revised &amp; Approved By</td><td class="g">Construction Supervisor</td><td class="g">Construction Manager</td></tr>
-     <tr><td class="g">Job Title:</td><td>HSE Team Leader</td><td>HSE Zone Mgr.</td><td></td><td></td></tr>
-     <tr><td class="g">Name:</td><td>${esc(r.prep?.name||r.createdName||"")}</td><td>${esc(r.appr?.name||"")}</td><td></td><td></td></tr>
-     <tr><td class="g" style="height:13mm">Signature:</td><td>${sg(prepSig)}</td><td>${sg(apprSig)}</td><td></td><td></td></tr>
-     <tr><td class="g">Date:</td><td>${dt(r.prep?.at)}</td><td>${dt(r.appr?.at)}</td><td></td><td></td></tr></table>`;
+     <tr><td class="g">Job Title:</td><td>HSE Supervisor</td><td>HSE Specialist</td><td>Execution Supervisor</td><td>Execution Manager / Requester</td></tr>
+     <tr><td class="g">Name:</td><td>${esc(P.name||r.createdName||"")}</td><td>${esc(A.name||"")}</td><td>${esc(SU.name||"")}</td><td>${esc(MG.name||"")}</td></tr>
+     <tr><td class="g" style="height:13mm">Signature:</td>${sigc(P,prepSig)}${sigc(A,apprSig)}${sigc(SU)}${sigc(MG)}</tr>
+     <tr><td class="g">Date:</td><td>${dt(P.at)}</td><td>${dt(A.at)}</td><td>${dt(SU.at)}</td><td>${dt(MG.at)}</td></tr></table>`;
     return `<div style="border:1.6px solid #000"><div style="display:flex;gap:6mm;justify-content:center;align-items:flex-start;padding:22mm 4mm 5mm">${t1}${t2}${t3}${t4}</div>${sig}</div>`};
   const page=(rowsH,p,withLegend)=>`<div class="dpage land ra" dir="ltr" style="padding:6mm 8mm">${head}<table class="rat"><colgroup>${[7,12,20,16,6,6,7,7,0,17,14,6,6,7,7].map(w=>w?`<col style="width:${w}mm">`:"<col>").join("")}</colgroup>${colh}${rowsH}</table>${withLegend?legend():""}${foot(p)}</div>`;
-  let html=`<style>.ra{direction:ltr!important}.ra table{width:100%;border-collapse:collapse;table-layout:fixed;margin:0}.ra td,.ra th{border:1px solid #000!important;padding:.6mm .8mm;text-align:center;vertical-align:middle;overflow:hidden;color:#000}.ra .rah{margin-bottom:0}.ra .lb{font:italic 8pt 'Times New Roman',serif;width:24mm;text-align:left;background:#f2f2f2}.ra .vl{font:9pt 'Times New Roman',serif;width:34mm}.ra .ral{width:auto;table-layout:auto;font:8.6pt 'Times New Roman',serif}.ra .ral th{background:#d9d9d9;font-weight:700}.ra .ral td,.ra .ral th{padding:.5mm 1.6mm;height:7mm}.ra .rasg{table-layout:fixed;font:10.5pt 'Times New Roman',serif;border-top:0}.ra .rasg td{height:8.5mm}.ra .rasg .g{background:#d9d9d9}.ra img{display:inline-block}</style>`;
+  let html=`<style>.ra{direction:ltr!important}.ra table{width:100%;border-collapse:collapse;table-layout:fixed;margin:0}.ra td,.ra th{border:1px solid #000!important;padding:.6mm .8mm;text-align:center;vertical-align:middle;overflow:hidden;color:#000}.ra tbody tr:nth-child(even) td,.ra tr:hover td{background-color:transparent}.ra .rah{margin-bottom:0}.ra .lb{font:italic 8pt 'Times New Roman',serif;width:24mm;text-align:left;background:#f2f2f2}.ra .vl{font:9pt 'Times New Roman',serif;width:34mm}.ra .ral{width:auto;table-layout:auto;font:8.6pt 'Times New Roman',serif}.ra .ral th{background:#d9d9d9;font-weight:700}.ra .ral td,.ra .ral th{padding:.5mm 1.6mm;height:7mm}.ra .rasg{table-layout:fixed;font:10.5pt 'Times New Roman',serif;border-top:0}.ra .rasg td{height:8.5mm}.ra .rasg .g{background:#d9d9d9}.ra img{display:inline-block}</style>`;
   const pg=[];pages.forEach((P,k)=>pg.push(page(P.map(rowHTML).join(""),k+1,!legendOwn&&k===pages.length-1)));
   if(legendOwn)pg.push(`<div class="dpage land ra" dir="ltr" style="padding:6mm 8mm">${legend()}${foot(N)}</div>`);
   return {html,pg}}
@@ -10688,7 +10695,12 @@ async function raView(id){const r=S.riskassess.find(x=>x.id===id);if(!r)return;c
   const V=openViewer(`تقييم مخاطر: ${r.activity||""}`,{filename:`تقييم مخاطر - ${(r.activity||"RA-"+r.serial).replace(/[\\/:*?"<>|]/g," ")}.pdf`,extra:(r.status==="new"&&raCanApprove()?`<button class="btn sign" data-extra onclick="pvClose();raDecide('${r.id}',true)">✍ اعتماد</button>`:"")});
   V.setHtml(html.replace(/^(<style>[\s\S]*?<\/style>)/,"$1")+pg.join(""))}
 async function raViewPermit(pid){const p=S.permits.find(x=>x.id===pid);if(!p||!(p.raSnap||[]).length){toast("مفيش تقييم مخاطر على التصريح ده");return}
-  let css="",pgs=[];for(const x of p.raSnap){const r={serial:"",activity:x.act,rows:x.rows||[],project:(S.settings&&S.settings.project)||"",persons:"GIECO Crew",assessedBy:p.requester||"",revisedBy:"",status:"approved",prep:{name:p.requester||""},appr:{name:p.raApprovedName||"",at:p.raApprovedAt||0}};
+  let css="",pgs=[];for(const x of p.raSnap){const sg=Object.values(p.signs||{}),by=k=>sg.find(z=>z.role===k)||{},doc=x.doc?S.riskassess.find(d=>d.id===x.doc):null;
+    const r={serial:"",activity:x.act,rows:x.rows||[],project:(S.settings&&S.settings.project)||"",persons:"GIECO Crew",assessedBy:(doc&&doc.assessedBy)||"",revisedBy:"",status:"approved",
+      prep:{name:(doc&&(doc.prep&&doc.prep.name||doc.createdName))||"",signature:(doc&&doc.prep&&doc.prep.signature)||"",at:(doc&&doc.prep&&doc.prep.at)||0},
+      appr:{name:by("hse").name||(doc&&doc.appr&&doc.appr.name)||p.raApprovedName||"",signature:by("hse").signature||"",at:by("hse").at||p.raApprovedAt||0},
+      sup:{name:by("sup").name||p.supervisor||"",signature:by("sup").signature||"",at:by("sup").at||0},
+      mgr:{name:by("site").name||p.siteEng||p.requester||"",signature:by("site").signature||"",at:by("site").at||0}};
     const o=await raBuild(r);if(!css)css=o.html;pgs.push(...o.pg)}
   const V=openViewer(`تقييم مخاطر التصريح ${p.number||""}`,{filename:`تقييم مخاطر ${p.number||""}.pdf`});V.setHtml(css+pgs.join(""))}
 /* ---- التوصيل: صلاحية القسم = صلاحية التصاريح، والشريحة في «العمليات» و«سجلاتي» ---- */
@@ -10702,10 +10714,9 @@ async function raViewPermit(pid){const p=S.permits.find(x=>x.id===pid);if(!p||!(
 /* ===== 8.9.123: ربط التصريح بتقييم المخاطر المعتمد ===== */
 const PTW_RA_GROUPS={HOT:["الأعمال الحارة"],HEIGHT:["الارتفاعات والرفع","الهيكل الإنشائي","الخرسانة"],LIFT:["الارتفاعات والرفع"],EXC:["الحفر والأعمال الترابية","الخوازيق والأساسات العميقة"],ELEC:["التمديدات"],CONF:["التمديدات","الحفر والأعمال الترابية"],COLD:["الخرسانة","المباني والمحارة","التشطيبات","الهيكل الإنشائي","التجهيز والأعمال التمهيدية","الأعمال الخارجية"]};
 function raGroupOf(act){return (RA_LIB.find(a=>a.name===act)||{}).g||"أخرى"}
-function raPick(fd,stamp){const ids=String(fd&&fd.raIds||"").split(",").filter(Boolean);const snap=[];
-  ids.forEach(id=>{const a=RA_LIB.find(x=>x.id===id);if(!a)return;const d=(S.riskassess||[]).find(r=>r.status==="approved"&&r.activity===a.name);
-    snap.push({lib:a.id,act:a.name,g:a.g,doc:d?d.id:"",rows:JSON.parse(JSON.stringify(d?d.rows:a.rows))})});
-  const o={raIds:ids.join(","),raSnap:snap};if(stamp&&snap.length)Object.assign(o,{raApprovedAt:Date.now(),raApprovedName:(typeof myEmpName==="function"?myEmpName():"")||""});return o}
+function raPick(fd,stamp){const snap=[];const a=RA_LIB.find(x=>x.name===(fd&&fd.workCategory));
+  if(a){const d=(S.riskassess||[]).find(r=>r.status==="approved"&&r.activity===a.name);snap.push({lib:a.id,act:a.name,g:a.g,doc:d?d.id:"",rows:JSON.parse(JSON.stringify(d?d.rows:a.rows))})}
+  const o={raIds:snap.map(x=>x.lib).join(","),raSnap:snap};if(stamp&&snap.length)Object.assign(o,{raApprovedAt:Date.now(),raApprovedName:(typeof myEmpName==="function"?myEmpName():"")||""});return o}
 function ptwRaBox(type,sel){const want=PTW_RA_GROUPS[type]||[];
   const gs=[...new Set(RA_LIB.map(a=>a.g))];gs.sort((x,y)=>(want.includes(x)?0:1)-(want.includes(y)?0:1));
   const items=gs.map(g=>`<div class="ra-g" style="margin:6px 0 2px;font-weight:700;font-size:12.5px;color:var(--muted)">${esc(g)}${want.includes(g)?" · مقترح":""}</div>`+RA_LIB.filter(a=>a.g===g).map(a=>`<label class="chk ra-i" data-t="${esc(a.name)}" style="display:flex;gap:6px;align-items:center;margin:3px 0"><input type="checkbox" data-ra="${esc(a.id)}" ${sel.includes(a.id)?"checked":""}> <span>${esc(a.name)}</span></label>`).join("")).join("");
@@ -10716,8 +10727,6 @@ function ptwRaMount(p){const n=document.querySelector('[name="notes"]');const fm
   const sync=()=>{fm.querySelector('[name="raIds"]').value=[...fm.querySelectorAll("[data-ra]:checked")].map(x=>x.dataset.ra).join(",")};
   fm.addEventListener("input",e=>{if(e.target.id==="raSearch"){const q=e.target.value.trim();fm.querySelectorAll(".ra-i").forEach(l=>l.hidden=!!q&&!l.dataset.t.includes(q))}});
   fm.addEventListener("change",e=>{if(e.target.matches("[data-ra]"))sync();else if(e.target.id==="f_type"){const cur=fm.querySelector('[name="raIds"]').value.split(",").filter(Boolean);const b=document.getElementById("raBox");if(b){const w=document.createElement("div");w.innerHTML=ptwRaBox(e.target.value,cur);b.replaceWith(w.firstElementChild)}}})}
-{const _a=ptwForm;ptwForm=function(id){const r=_a.apply(this,arguments);try{ptwRaMount(id?(S.permits.find(x=>x.id===id)||{}):{...(_ptwSeedLast||{}),type:"COLD"})}catch(e){console.error(e)}return r}}
-{const _b=ptwRequestForm;ptwRequestForm=function(id){const r=_b.apply(this,arguments);try{ptwRaMount(id?(S.permits.find(x=>x.id===id)||{}):{..._ptwSeedLast,type:"COLD"})}catch(e){console.error(e)}return r}}
 /* تسجيل الصفحات كـ VIEWS عشان الراوتينج والتاريخ والتصدير يشتغلوا زي أي قسم */
 for(const k of Object.keys(WS_DEF)){
   VIEWS[k]={shell:()=>wsShellHTML(k),fill(){return wsFillBody(k)}};
