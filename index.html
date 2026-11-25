@@ -2225,7 +2225,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.133";
+const APP_VER="8.9.134";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5299,7 +5299,7 @@ function ptwRequestForm(id){
   async fd=>{
     if(!fd.location?.trim())return "اكتب مكان العمل";if(!fd.desc?.trim())return "اكتب وصف الشغل";
     const me=myEmpName();const requester=isAdmin?(fd.requester||"").trim():me,siteEng=isAdmin?(fd.siteEng||"").trim():me;if(!requester)return "حدد اسم طالب التصريح الفعلي";const reqEmp=S.employees.find(e=>normName(e.name)===normName(requester));const data={...raPick(fd),type:fd.type,workCategory:fd.workCategory||"",date:fd.startDate,startDate:fd.startDate,endDate:"",from:fd.from,to:fd.to,location:fd.location.trim(),desc:fd.desc.trim(),contractor:(fd.contractor||"").trim(),workers:num(fd.workers)||null,supUid:fd.supUid||"",engUid:fd.engUid||"",hseUid:fd.hseUid||"",risk:fd.risk,notes:(fd.notes||"").trim(),excW:fd.excW||"",excL:fd.excL||"",excD:fd.excD||"",updatedAt:Date.now(),...(isAdmin||!id?{requester,siteEng,reqEmpId:reqEmp?.id||(!isAdmin?myEmpId()||"":"")}: {})};
-    try{if(!id||!p.reqSignature){const sg0=await mySig();if(sg0)Object.assign(data,{reqSignature:sg0,reqSignName:me,reqAt:Date.now()})}}catch(e){}
+    try{if((!id||!p.reqSignature)&&(normName(requester)===normName(me)||normName(siteEng)===normName(me))){const sg0=await mySig();if(sg0)Object.assign(data,{reqSignature:sg0,reqSignName:me,reqAt:Date.now()})}}catch(e){}
     const targets=[...new Set([...((data.supUid||data.engUid)?[data.supUid,data.engUid].filter(Boolean):supProfiles().map(x=>x.id)),...(data.hseUid?[data.hseUid]:hseProfiles().map(x=>x.id))])];
     if(id){const ts=(p.serial&&p.type===data.type)?{}:(()=>{const x=nextSerial(data.type);return {serial:x,number:`${data.type}-${x}`}})();const ok=await write(()=>upsert("permits",id,{...data,...ts,status:"requested",supOk:false,hseOk:false,rejectedAt:"",rejectNote:"",flow:[...(p.flow||[]),{st:"edited",by:ME.id,name:me,at:Date.now()}]}),"اتعدل الطلب واتبعت تاني");
       if(ok){notifyUsers([...targets,...ptwAdminIds()],"🟠 طلب تصريح اتعدل",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · من ${me}`,`?go=ptw&id=${id}`);raNotify({...p,...data,status:"requested"},id)}return ok?null:"الحفظ فشل"}
@@ -5307,7 +5307,7 @@ function ptwRequestForm(id){
     const rs=nextSerial(data.type);Object.assign(data,{status:"requested",supOk:false,hseOk:false,serial:rs,number:`${data.type}-${rs}`,reqBy:ME.id,createdBy:ME.id,createdAt:Date.now(),flow:[{st:"requested",by:ME.id,name:me,at:Date.now()}]});
     const ok=await write(()=>db.collection("permits").doc(rid).set(data),"اتبعت الطلب لمشرف التنفيذ ومسؤول السلامة");
     if(ok){notifyUsers([...targets,...ptwAdminIds()],"🟠 طلب تصريح جديد محتاج اعتمادك",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · من ${me}`,`?go=ptw&id=${rid}`);
-      raNotify(data,rid);setTimeout(()=>printPermit(rid),500)}
+      raNotify(data,rid);try{const rn=normName(data.siteEng||data.requester||"");if(rn&&rn!==normName(me)){const U=(S.profiles||[]).filter(x=>!x.disabled&&x.id!==ME.id&&normName(profName(x))===rn).map(x=>x.id);if(U.length)notifyUsers(U,"✍ مطلوب توقيعك كطالب/مدير تنفيذ للتصريح",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · اتبعته ${me}، افتح التصريح ووقّع`,`?go=ptw&id=${rid}`)}}catch(er){console.error(er)}setTimeout(()=>printPermit(rid),500)}
     return ok?null:"الحفظ فشل"},id?"حفظ وإعادة إرسال":"إرسال الطلب");
   $("f_type").onchange=e=>{$("excBox").hidden=e.target.value!=="EXC";const field=document.querySelector('[name="workCategory"]')?.closest(".field"),fresh=ptwActivityField({type:e.target.value});if(field){if(fresh){const wrap=document.createElement("div");wrap.innerHTML=fresh;field.replaceWith(wrap.firstElementChild)}else field.remove()}else if(fresh){$("f_type").closest(".field").insertAdjacentHTML("afterend",fresh)}};
 }
@@ -10711,9 +10711,10 @@ async function raPermitHtml(p){const snap=raSnapOf(p);let css="",pgs=[];
       prep:hse,
       appr:{name:ap.name||"",signature:ap.signature||"",at:ap.at||0},
       sup:(()=>{const q=party([p.supUid].filter(Boolean),[p.supervisor,p.supName]);return q.signature||!p.supSignature?q:{name:p.supName||q.name,signature:p.supSignature,at:p.supAt||q.at}})(),
-      mgr:(()=>{const q=party([p.engUid,p.reqBy].filter(Boolean),[p.siteEng,p.requester]);if(q.signature)return q;
-        if(p.engSignature)return {name:p.engName||q.name,signature:p.engSignature,at:p.engAt||q.at};
-        if(p.reqSignature)return {name:p.reqSignName||q.name,signature:p.reqSignature,at:p.reqAt||q.at};return q})()};
+      mgr:(()=>{const nm=p.siteEng||p.requester||"",q=party([],[p.siteEng,p.requester]);if(q.signature)return q;
+        if(p.engSignature&&p.engOk&&normName(p.engName)===normName(nm))return {name:nm,signature:p.engSignature,at:p.engAt||q.at};
+        if(p.reqSignature&&normName(p.reqSignName)===normName(nm))return {name:nm,signature:p.reqSignature,at:p.reqAt||q.at};
+        return {name:nm,signature:"",at:0}})()};
     const o=await raBuild(r);if(!css)css=o.html;pgs.push(...o.pg)}
   return {css,pgs}}
 async function raViewPermit(pid){const p=S.permits.find(x=>x.id===pid);if(!p||!raSnapOf(p).length){toast("مفيش تقييم مخاطر على التصريح ده");return}
@@ -11175,7 +11176,7 @@ async function ptwEngDecide(id,ok){const p=S.permits.find(x=>x.id===id);if(!p)re
     return ok?null:"الحفظ فشل"},"اعتماد وتوقيع")}
 /* توقيع المهندس بيتختم في خانته بس لو اعتمد بنفسه؛ أي توقيع تاني ما بيتحطش في خانة المهندس (الإصدار) */
 {const _f=renderPermitPagesFull;renderPermitPagesFull=async function(p){
-  if(!p||!p.engUid)return _f.apply(this,arguments);
+  if(!p||!p.engUid||!p.engOk)return _f.apply(this,arguments);
   const o=ptwSigCell;ptwSigCell=function(T,stage,role){return stage==="issue"&&role==="site"?null:o.apply(this,arguments)};
   let pages;try{pages=await _f.apply(this,arguments)}finally{ptwSigCell=o}
   if(p.engOk&&p.engSignature){const c=o(p.type,"issue","site"),F=(await loadForms())[p.type];
