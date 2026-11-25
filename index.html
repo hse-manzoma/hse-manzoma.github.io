@@ -1489,7 +1489,7 @@ function fillLeaves(el){
   const totalDays=L.reduce((s,l)=>s+num(l.days),0);
   el.innerHTML=`<div class="grid g2">
     <div class="card"><h3>أرصدة الإجازات المتبقية${filterEid?` <span class="muted" style="font-weight:400;font-size:13px">· ${empName(filterEid)}</span>`:""}</h3>${team.length?`<div class="tbl" style="border:0"><table><thead><tr><th>الاسم</th><th class="n">عارضة</th><th class="n">اعتيادي</th></tr></thead><tbody>${team.map(e=>`<tr><td>${esc(e.name)}</td><td class="n ${num(e.casual)<=0?"stock-low":""}">${num(e.casual)}</td><td class="n ${num(e.annual)<=0?"stock-low":""}">${num(e.annual)}</td></tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:12.5px">الرصيد بيتخصم لوحده لما تسجّل إجازة. تعديل الرصيد من «الموظفين».</p>`:emptyState("مفيش فريق سلامة","")}</div>
-    <div class="card">${filterEid?`<button type="button" class="btn sm primary" style="float:left;margin-inline-start:8px" onclick="empAllDownload('${filterEid}')" title="كل إجازات وتكليفات ومأموريات وأذونات الموظف بمرفقاتها + ملفه">📦 تحميل كل ما يخص ${esc(empName(filterEid))}</button>`:""}<h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>{const calcDays=l.date&&l.to?daysBetween(l.date,l.to):num(l.days);const dispDays=calcDays||num(l.days);return`<div class="li" style="cursor:pointer" title="اضغط لعرض نموذج الإجازة ومرفقاته" onclick="if(!event.target.closest('button,a'))printLeave('${l.id}')"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num ${!num(l.days)&&dispDays?"stock-low":""}" title="${!num(l.days)&&dispDays?"الأيام محسوبة من التاريخ — اضغط تعديل لحفظها":""}">${dispDays} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button><button class="btn ghost sm" onclick="leaveEdit('${l.id}')">✏️ تعديل</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`}).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
+    <div class="card">${filterEid&&can("export.bulk")?`<button type="button" class="btn sm primary" style="float:left;margin-inline-start:8px" onclick="empAllDownload('${filterEid}')" title="كل إجازات وتكليفات ومأموريات وأذونات الموظف بمرفقاتها + ملفه">📦 تحميل كل ما يخص ${esc(empName(filterEid))}</button>`:""}<h3>${leaveLabel}${L.length?` <span class="muted" style="font-weight:400;font-size:13px">(${L.length} إجازة · ${totalDays} يوم)</span>`:""}</h3>${L.length?`<div class="list">${L.map(l=>{const calcDays=l.date&&l.to?daysBetween(l.date,l.to):num(l.days);const dispDays=calcDays||num(l.days);return`<div class="li" style="cursor:pointer" title="اضغط لعرض نموذج الإجازة ومرفقاته" onclick="if(!event.target.closest('button,a'))printLeave('${l.id}')"><div class="grow"><div class="t">${esc(empName(l.empId))}</div><div class="s">${LEAVE_T[l.leaveType]||""} · ${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.note?" · "+esc(l.note):""}</div></div><span class="num ${!num(l.days)&&dispDays?"stock-low":""}" title="${!num(l.days)&&dispDays?"الأيام محسوبة من التاريخ — اضغط تعديل لحفظها":""}">${dispDays} يوم</span><button class="btn ghost sm" onclick="printLeave('${l.id}')">👁 عرض</button><button class="btn ghost sm" onclick="leaveEdit('${l.id}')">✏️ تعديل</button>${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div>`}).join("")}</div>`:emptyState("مفيش إجازات","")}</div>
   </div>`;
 }
 function fillDuties(el){
@@ -1508,6 +1508,7 @@ function fillDuties(el){
   </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات"+(isYear?` في ${ui.dutyMonth}`:" في "+monthName(ui.dutyMonth)),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
 }
 /* 8.9.117: التسجيل لأي موظف = الأدمن وقائد الفريق (hse) بس؛ أي حد تاني بيطلب لنفسه فقط ويتبعت للاعتماد */
+try{setInterval(()=>{const b=document.getElementById("exportPageBtn");if(b)b.hidden=!can("export.bulk")},1200)}catch(e){}
 function hrRegAll(){const r=myRole();return r==="admin"||r==="hse"}
 function leaveForm(){
   if(!hrRegAll()){leaveReqForm();return}
@@ -2217,7 +2218,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.117";
+const APP_VER="8.9.118";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -9510,7 +9511,7 @@ function pgSelectVisible(sel,on){
     cb.checked=on;
   });
 }
-function pageExportSheet(){
+function pageExportSheet(){if(!can("export.bulk")){toast("تحميل وتصدير النماذج والسجلات للأدمن والأخصائي فقط");return}
   const tables=pgTables(),F=pgFormRecords(),forms=F.length,recIds=pgRecordIds(),VK=pgVoucherList();
   const PR=pgPrintables().filter(p=>p.fn!=="printVoucher");
   const title=($("main")?.querySelector("h2")?.textContent||TAB_NAMES[tab]||"الصفحة").replace(/\s+/g," ").trim();
@@ -9656,7 +9657,7 @@ function pgAllDocs(){
   const seen=new Set();
   return out.filter(p=>{const k=p.fn+"|"+p.arg;if(seen.has(k))return false;seen.add(k);return true});
 }
-async function pgDownloadAllDocs(){
+async function pgDownloadAllDocs(){if(!can("export.bulk")){toast("تحميل وتصدير النماذج والسجلات للأدمن والأخصائي فقط");return}
   const L=pgAllDocs();
   if(!L.length){toast("مفيش نماذج في الصفحة دي");return}
   openSheet(`تحميل كل نماذج الصفحة (${L.length})`,`
@@ -9719,6 +9720,7 @@ function pgBarMount(){
     const h=main.querySelector("h2");if(!h)return;
     const docs=pgAllDocs().length,tbl=pgTables().length;
     if(!docs&&!tbl)return;
+    if(!can("export.bulk"))return;
     const bar=document.createElement("div");
     bar.id="pgBar";
     bar.style.cssText="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 12px";
@@ -11287,7 +11289,7 @@ async function attPagesAll(rec,title){const out=[];const A=(rec.att||[]).filter(
 {const _pp=photoPages;photoPages=async function(rec,title,label,sub,kind){const base=await _pp.apply(this,arguments);
   try{if(!kind&&rec&&rec.id&&(S.leaves||[]).includes(rec)&&(rec.att||[]).some(a=>a.kind!=="photo"||/pdf/.test(a.type||"")))return [...base,...await attPagesAll(rec,title)]}catch(e){console.error(e)}
   return base}}
-function empAllDownload(eid){const e=emp(eid);if(!e){toast("الموظف مش موجود");return}
+function empAllDownload(eid){if(!can("export.bulk")){toast("تحميل وتصدير النماذج والسجلات للأدمن والأخصائي فقط");return}const e=emp(eid);if(!e){toast("الموظف مش موجود");return}
   const m=ui.leaveMonth||String(new Date().getFullYear()),isY=m.length===4;let from,to;
   if(isY){from=m+"-01-01";to=m+"-12-31"}else{from=m+"-01";const [y,mo]=m.split("-").map(Number);to=m+"-"+String(new Date(y,mo,0).getDate()).padStart(2,"0")}
   confirmSheet("تحميل كل ما يخص "+e.name,`هيتجهّز ملف ZIP فيه: الإجازات، والتكليفات والمأموريات والأذونات (نماذج PDF + مرفقاتها الأصلية) عن ${isY?"سنة "+m:monthName(m)}، وجواه فولدر «ملف الموظف» بمرفقاته (البطاقة وغيرها). التجهيز ممكن ياخد وقت.`,
@@ -11822,7 +11824,7 @@ function recPending(r){if(!r||!r.id||(r.date||"")<DISP_START)return 0;
   if(r.form==="F-HSE-07-01")return actDisp(r.id+"_v")?0:1;return 0}
 function recFlagChip(r){const n=recPending(r);return n?`<span class="pill p-canc" title="مفيش «تم الحل» ولا إحالة لمسؤول">⚠ ${n} بدون إجراء</span>`:""}
 /* ===== 8.9.58: تعيين مسؤول / «تم الحل» من نموذج الأوضاع والتصرفات غير الآمنة (وكل نموذج فيه بنود إجراء) ===== */
-Object.assign(CAPS,{"actions.assign":{g:"المتابعة",ar:"تعيين مسؤول وإغلاق الإجراءات التصحيحية",roles:["hse","hsesup","officer","sup","eng"]}});
+Object.assign(CAPS,{"export.bulk":{g:"التقارير",ar:"تحميل وتصدير النماذج والسجلات (جماعي)",roles:["hse"]},"actions.assign":{g:"المتابعة",ar:"تعيين مسؤول وإغلاق الإجراءات التصحيحية",roles:["hse","hsesup","officer","sup","eng"]}});
 function actAssignForm(recId){
   const L=deriveActions().filter(a=>a.recId===recId);
   if(!L.length){toast("مفيش بنود إجراء في النموذج ده");return}
