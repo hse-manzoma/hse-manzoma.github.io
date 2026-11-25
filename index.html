@@ -1507,7 +1507,10 @@ function fillDuties(el){
     ${L.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td><span class="pill ${l.kind==="perm"?"p-susp":(l.kind==="mission"||l.kind==="missiong")?"p-open":"p-appr"}">${DUTY_K[l.kind]||l.kind}</span></td><td>${esc(empName(l.empId))}</td><td class="muted">${l.kind==="perm"?`من ${esc(l.from||"")} لحد ${esc(l.to||"")}`:esc(l.reason||"")}${(()=>{const sg=leaveSigns(l),mine=sg.some(z=>z.uid===ME.id);return mine?' <span class="pill p-appr" title="وقّعت واعتمدت المستند ده بتوقيعك">✔ وقّعت</span>':sg.length?` <span class="pill" title="عدد التوقيعات">✔ ${sg.length} توقيع</span>`:""})()}</td><td><div class="row-actions">${l.kind==="perm"?`<button class="btn ghost sm" onclick="printPerm('${l.id}')">👁 عرض</button>`:l.kind==="duty"?`<button class="btn ghost sm" onclick="printTeamDuty('${l.date}')">طباعة جماعي</button><button class="btn ghost sm" onclick="printOneDuty('${l.id}')">تكليف فردي</button>`:l.kind==="one"?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')">👁 نموذج التكليف الإضافي</button>`:l.kind==="mission"?`<button class="btn ghost sm" onclick="printMission('${l.id}')">👁 نموذج المأمورية</button>${isLegacyAssignment(l)?`<button class="btn ghost sm" onclick="printOneDuty('${l.id}')" title="السجل ده اتسجل قبل فصل المأمورية عن التكليف">تكليف إضافي</button>`:""}`:l.kind==="missiong"?`<button class="btn ghost sm" onclick="printMissionGroup('${l.date}')">👁 نموذج المأمورية المجمع</button>`:""}${isMissionKind(l.kind)?missionSignBtns(l):""}${attBtn("leaves",l.id,l)}${canDelete?`<button class="btn ghost sm danger" onclick="leaveDel('${l.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
   </tbody></table></div>`:`<div class="card">${emptyState("مفيش تسجيلات"+(isYear?` في ${ui.dutyMonth}`:" في "+monthName(ui.dutyMonth)),"التيم ديوتي (الشغل في يوم الراحة)، والمأموريات، وأذون الساعتين بتتسجل هنا.")}</div>`;
 }
+/* 8.9.117: التسجيل لأي موظف = الأدمن وقائد الفريق (hse) بس؛ أي حد تاني بيطلب لنفسه فقط ويتبعت للاعتماد */
+function hrRegAll(){const r=myRole();return r==="admin"||r==="hse"}
 function leaveForm(){
+  if(!hrRegAll()){leaveReqForm();return}
   if(!hseTeam().length){toast("ضيف فريق السلامة الأول");return}
   openSheet("تسجيل إجازة",`<div class="form">
     ${f("الموظف","empId",{opts:empOpts(hseTeam()),req:true,full:true})}
@@ -1562,6 +1565,7 @@ function leaveEdit(id){
   setTimeout(()=>{$("f_date")?.addEventListener("change",recalc);$("f_to")?.addEventListener("change",recalc)},50);
 }
 function dutyForm(presetKind){
+  if(!hrRegAll()){dutyReqForm(["perm","mission","one"].includes(presetKind)?presetKind:"perm");return}
   if(!hseTeam().length){toast("ضيف فريق السلامة الأول");return}
   const k0=DUTY_K[presetKind]?presetKind:"duty";
   openSheet(DUTY_K[presetKind]?`تسجيل ${DUTY_K[presetKind]}`:"تيم ديوتي / مأمورية / إذن",`<div class="form">
@@ -2213,7 +2217,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.116";
+const APP_VER="8.9.117";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
