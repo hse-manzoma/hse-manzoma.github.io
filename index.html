@@ -1168,7 +1168,7 @@ VIEWS.ptw = {
       ${pg.rows.map(p=>`<tr><td><span class="num">${esc(p.number)}</span></td><td>${typeChip(p.type)}</td><td class="n">${fmtDate(p.date)}</td>
       <td style="min-width:180px"><div>${esc(p.location||"—")}</div><div class="muted" style="font-size:12.5px">${esc([ptwActivityText(p),p.desc||""].filter(Boolean).join(" — ").slice(0,80))}</div></td>
       <td>${esc(p.contractor||"")}</td><td>${esc(p.safetyId?empName(p.safetyId):(p.safetyName||""))}</td><td>${esc(RISK[p.risk]||"")}</td><td>${statusPill(p.status)}</td>
-      <td><div class="row-actions">${(p.raSnap||[]).length?`<button class="btn ghost sm" onclick="raViewPermit('${p.id}')" title="تقييم المخاطر المرتبط">🛡 التقييم</button>`:""}${FORM_TYPES.includes(p.type)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')">👁 عرض</button>`:""}${attBtn("permits",p.id,p)}<button class="btn ghost sm" onclick="ptwForm('${p.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+      <td><div class="row-actions">${(p.raSnap||[]).length?`<button class="btn ghost sm" onclick="raViewPermit('${p.id}')" title="تقييم المخاطر المرتبط">🛡 التقييم</button>`:""}${raPending(p)&&raCanApprove()?`<button class="btn sm primary" onclick="raPermitDecide('${p.id}',true)">✍ اعتماد التقييم</button>`:""}${FORM_TYPES.includes(p.type)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')">👁 عرض</button>`:""}${attBtn("permits",p.id,p)}<button class="btn ghost sm" onclick="ptwForm('${p.id}')">تعديل</button>${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
       </tbody></table></div>${pg.btn}<p class="muted" style="font-size:12.5px">${L.length} تصريح</p>`;
   }
 };
@@ -2223,7 +2223,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.128";
+const APP_VER="8.9.129";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5197,8 +5197,8 @@ function ptwModeBar(mode){
     if(seed.startDate)seed.date=seed.startDate;
     _ptwSeed=seed;$("overlayRoot").innerHTML="";
     b.dataset.m==="direct"?ptwForm():ptwRequestForm()}}
-{const _a=ptwForm;ptwForm=function(id){const r=_a.apply(this,arguments);if(!id&&typeof can==="function"&&can("permit.direct"))ptwModeBar("direct");return r}}
-{const _b=ptwRequestForm;ptwRequestForm=function(id){const r=_b.apply(this,arguments);if(!id&&can("permit.direct"))ptwModeBar("request");return r}}
+{const _a=ptwForm;ptwForm=function(id){if(!id)return ptwRequestForm.apply(this,[]);return _a.apply(this,arguments)}}
+
 
 /* ---------- permit request workflow: engineer → (execution supervisor ∥ safety) → start work ---------- */
 const HSE_FINAL_ROLES=["admin","hse","hsesup","officer"];
@@ -5298,17 +5298,17 @@ function ptwRequestForm(id){
     const me=myEmpName();const requester=isAdmin?(fd.requester||"").trim():me,siteEng=isAdmin?(fd.siteEng||"").trim():me;if(!requester)return "حدد اسم طالب التصريح الفعلي";if(!fd.engUid&&engProfiles().length)return "اختار مهندس التنفيذ — اعتماده وتوقيعه مطلوبين لتفعيل التصريح";const reqEmp=S.employees.find(e=>normName(e.name)===normName(requester));const data={...raPick(fd),type:fd.type,workCategory:fd.workCategory||"",date:fd.startDate,startDate:fd.startDate,endDate:"",from:fd.from,to:fd.to,location:fd.location.trim(),desc:fd.desc.trim(),contractor:(fd.contractor||"").trim(),workers:num(fd.workers)||null,supUid:fd.supUid||"",engUid:fd.engUid||"",hseUid:fd.hseUid||"",risk:fd.risk,notes:(fd.notes||"").trim(),excW:fd.excW||"",excL:fd.excL||"",excD:fd.excD||"",updatedAt:Date.now(),...(isAdmin||!id?{requester,siteEng,reqEmpId:reqEmp?.id||(!isAdmin?myEmpId()||"":"")}: {})};
     const targets=[...new Set([...((data.supUid||data.engUid)?[data.supUid,data.engUid].filter(Boolean):supProfiles().map(x=>x.id)),...(data.hseUid?[data.hseUid]:hseProfiles().map(x=>x.id))])];
     if(id){const ts=(p.serial&&p.type===data.type)?{}:(()=>{const x=nextSerial(data.type);return {serial:x,number:`${data.type}-${x}`}})();const ok=await write(()=>upsert("permits",id,{...data,...ts,status:"requested",supOk:false,hseOk:false,rejectedAt:"",rejectNote:"",flow:[...(p.flow||[]),{st:"edited",by:ME.id,name:me,at:Date.now()}]}),"اتعدل الطلب واتبعت تاني");
-      if(ok)notifyUsers([...targets,...ptwAdminIds()],"🟠 طلب تصريح اتعدل",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · من ${me}`,`?go=ptw&id=${id}`);return ok?null:"الحفظ فشل"}
+      if(ok){notifyUsers([...targets,...ptwAdminIds()],"🟠 طلب تصريح اتعدل",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · من ${me}`,`?go=ptw&id=${id}`);raNotify({...p,...data,status:"requested"},id)}return ok?null:"الحفظ فشل"}
     const rid="REQ-"+Date.now().toString(36).toUpperCase();
     const rs=nextSerial(data.type);Object.assign(data,{status:"requested",supOk:false,hseOk:false,serial:rs,number:`${data.type}-${rs}`,reqBy:ME.id,createdBy:ME.id,createdAt:Date.now(),flow:[{st:"requested",by:ME.id,name:me,at:Date.now()}]});
     const ok=await write(()=>db.collection("permits").doc(rid).set(data),"اتبعت الطلب لمشرف التنفيذ ومسؤول السلامة");
     if(ok){notifyUsers([...targets,...ptwAdminIds()],"🟠 طلب تصريح جديد محتاج اعتمادك",`${PTW_TYPES[data.type]?.ar||""} — ${data.location} · من ${me}`,`?go=ptw&id=${rid}`);
-      const people=(S.profiles||[]).filter(x=>targets.includes(x.id));setTimeout(()=>notifySheet("اتبعت الطلب ✔",profPeople(people),permitMsg(data,"🟠 طلب تصريح جديد محتاج اعتمادك")),400)}
+      raNotify(data,rid);setTimeout(()=>printPermit(rid),500)}
     return ok?null:"الحفظ فشل"},id?"حفظ وإعادة إرسال":"إرسال الطلب");
   $("f_type").onchange=e=>{$("excBox").hidden=e.target.value!=="EXC";const field=document.querySelector('[name="workCategory"]')?.closest(".field"),fresh=ptwActivityField({type:e.target.value});if(field){if(fresh){const wrap=document.createElement("div");wrap.innerHTML=fresh;field.replaceWith(wrap.firstElementChild)}else field.remove()}else if(fresh){$("f_type").closest(".field").insertAdjacentHTML("afterend",fresh)}};
 }
 async function activateIfReady(id,patch,okMsg){const p=S.permits.find(x=>x.id===id);if(!p)return false;const m={...p,...patch};const me=myEmpName();
-  if(isSupOk(m)&&m.hseOk&&(!m.engUid||m.engOk)){const t=m.type,serial=m.serial||nextSerial(t);Object.assign(patch,{status:"approved",serial,number:`${t}-${serial}`,approvedAt:Date.now(),approvedBy:ME.id,...((m.raSnap||[]).length?{raApprovedAt:Date.now(),raApprovedName:me}:{}),flow:[...(m.flow||[]),{st:"approved",by:ME.id,name:me,at:Date.now()}]});
+  if(isSupOk(m)&&m.hseOk&&(!m.engUid||m.engOk)){const t=m.type,serial=m.serial||nextSerial(t);Object.assign(patch,{status:"approved",serial,number:`${t}-${serial}`,approvedAt:Date.now(),approvedBy:ME.id,flow:[...(m.flow||[]),{st:"approved",by:ME.id,name:me,at:Date.now()}]});
     const ok=await write(()=>upsert("permits",id,patch),`اتعتمد التصريح ${t}-${serial} ✔ ابدأ الشغل`);
     if(ok){notifyUsers([p.reqBy,p.supUid,p.engUid,p.hseUid],`✅ التصريح ${t}-${serial} اتعتمد`,`${PTW_TYPES[t]?.ar||""} — ${m.location} · ابدأ الشغل`,`?go=ptw&id=${id}`);setTimeout(()=>printPermit(id),400)}return ok}
   patch.status="requested";const ok=await write(()=>upsert("permits",id,patch),okMsg);
@@ -5410,9 +5410,9 @@ VIEWS.ptw={
     const pg=page(L,"ptw");
     el.innerHTML=tfBanner("ptw",TFL[ui.tf?.ptw]||"",L.length)+`<div class="tbl"><table><thead><tr><th>الرقم</th><th>النوع</th><th>التاريخ</th><th>المكان / الوصف</th><th>المقاول</th><th>مسؤول السلامة</th><th>الحالة</th><th></th></tr></thead><tbody>
       ${pg.rows.map(p=>`<tr><td><span class="num">${esc(p.number)}</span></td><td>${typeChip(p.type)}</td><td class="n"><div>${fmtDate(p.startDate||p.date)}</div><div class="muted" style="font-size:11px">${p.from?`${esc(p.from)} – ${esc(p.to||"")}`:""}${p.closedAt?` · إغلاق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}</div></td>
-      <td style="min-width:180px"><div>${esc(p.location||"—")}</div><div class="muted" style="font-size:12.5px">${esc((p.desc||"").slice(0,80))}</div>${(p.raSnap||[]).length?`<div style="font-size:11.5px;margin-top:2px">🛡 ${(p.raSnap||[]).map(x=>esc(x.act)).join(" · ")}${p.raApprovedAt?" ✔":" (بانتظار الاعتماد)"}</div>`:(p.status==="requested"||p.status==="approved"||p.status==="open"?`<div class="muted" style="font-size:11.5px;margin-top:2px">⚠ من غير تقييم مخاطر</div>`:"")}</td>
+      <td style="min-width:180px"><div>${esc(p.location||"—")}</div><div class="muted" style="font-size:12.5px">${esc((p.desc||"").slice(0,80))}</div>${(p.raSnap||[]).length?`<div style="font-size:11.5px;margin-top:2px">🛡 ${(p.raSnap||[]).map(x=>esc(x.act)).join(" · ")}${p.raApprovedAt?" ✔":(p.raStatus==="rejected"?" (مرفوض)":" (بانتظار الاعتماد)")}</div>`:(p.status==="requested"||p.status==="approved"||p.status==="open"?`<div class="muted" style="font-size:11.5px;margin-top:2px">⚠ من غير تقييم مخاطر</div>`:"")}</td>
       <td>${esc(p.contractor||"")}</td><td>${esc(p.safetyId?empName(p.safetyId):(p.safetyName||""))}</td><td>${statusPill(p.status)}</td>
-      <td><div class="row-actions">${(p.raSnap||[]).length?`<button class="btn ghost sm" onclick="raViewPermit('${p.id}')" title="تقييم المخاطر المرتبط">🛡 التقييم</button>`:""}${FORM_TYPES.includes(p.type)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')" title="${ptwDraft(p)?"طباعة الطلب قبل الاعتماد (نسخة مسودة)":"عرض التصريح"}">${ptwDraft(p)?"🖨 طباعة":"👁 عرض"}</button>`:""}${(p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn ghost sm danger" onclick="ptwClose('${p.id}')">✔ إغلاق</button>`:""}${ptwDraft(p)?"":attBtn("permits",p.id,p)}${R.final||p.createdBy===ME.id&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="${ptwDraft(p)?`ptwRequestForm('${p.id}')`:`ptwForm('${p.id}')`}">تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
+      <td><div class="row-actions">${(p.raSnap||[]).length?`<button class="btn ghost sm" onclick="raViewPermit('${p.id}')" title="تقييم المخاطر المرتبط">🛡 التقييم</button>`:""}${raPending(p)&&raCanApprove()?`<button class="btn sm primary" onclick="raPermitDecide('${p.id}',true)">✍ اعتماد التقييم</button>`:""}${FORM_TYPES.includes(p.type)?`<button class="btn ghost sm" onclick="printPermit('${p.id}')" title="${ptwDraft(p)?"طباعة الطلب قبل الاعتماد (نسخة مسودة)":"عرض التصريح"}">${ptwDraft(p)?"🖨 طباعة":"👁 عرض"}</button>`:""}${(p.status==="open"||p.status==="approved")&&ptwCloseAllowed(p)?`<button class="btn ghost sm danger" onclick="ptwClose('${p.id}')">✔ إغلاق</button>`:""}${ptwDraft(p)?"":attBtn("permits",p.id,p)}${R.final||p.createdBy===ME.id&&!ptwDraft(p)?`<button class="btn ghost sm" onclick="${ptwDraft(p)?`ptwRequestForm('${p.id}')`:`ptwForm('${p.id}')`}">تعديل</button>`:""}${canDelete?`<button class="btn ghost sm danger" onclick="ptwDel('${p.id}')">مسح</button>`:""}</div></td></tr>`).join("")}
       </tbody></table></div>${pg.btn}<p class="muted" style="font-size:12.5px">${L.length} تصريح</p>`;
   }
 };
@@ -10695,16 +10695,38 @@ async function raView(id){const r=S.riskassess.find(x=>x.id===id);if(!r)return;c
   V.setHtml(html.replace(/^(<style>[\s\S]*?<\/style>)/,"$1")+pg.join(""))}
 function raSnapOf(p){return (p&&p.raSnap&&p.raSnap.length)?p.raSnap:((p&&p.workCategory)?raPick({workCategory:p.workCategory}).raSnap:[])}
 async function raPermitHtml(p){const snap=raSnapOf(p);let css="",pgs=[];
-  for(const x of snap){const sg=Object.values(p.signs||{}),by=k=>sg.find(z=>z.role===k)||{},doc=x.doc?S.riskassess.find(d=>d.id===x.doc):null;
-    const r={serial:"",activity:x.act,rows:x.rows||[],project:(S.settings&&S.settings.project)||"",persons:"GIECO Crew",assessedBy:(doc&&doc.assessedBy)||"",revisedBy:"",status:"approved",
-      prep:{name:(doc&&(doc.prep&&doc.prep.name||doc.createdName))||"",signature:(doc&&doc.prep&&doc.prep.signature)||"",at:(doc&&doc.prep&&doc.prep.at)||0},
-      appr:{name:by("hse").name||(doc&&doc.appr&&doc.appr.name)||p.raApprovedName||"",signature:by("hse").signature||"",at:by("hse").at||p.raApprovedAt||0},
-      sup:{name:by("sup").name||p.supervisor||"",signature:by("sup").signature||"",at:by("sup").at||0},
-      mgr:{name:by("site").name||p.siteEng||p.requester||"",signature:by("site").signature||"",at:by("site").at||0}};
+  const SG=[...signsOf(p)].sort((a,b)=>(a.at||0)-(b.at||0));
+  const nmU=u=>{const pr=(S.profiles||[]).find(x=>x.id===u);return pr?profName(pr):""};
+  const party=(uids,names)=>{const ns=names.concat(uids.map(nmU)).filter(Boolean);const z=SG.find(g=>(g.uid&&uids.includes(g.uid))||ns.some(n=>normName(n)===normName(g.name)));
+    return {name:(z&&z.name)||ns[0]||"",signature:(z&&z.signature)||"",at:(z&&z.at)||0}};
+  for(const x of snap){const doc=x.doc?S.riskassess.find(d=>d.id===x.doc):null;
+    const hse=party([p.hseUid].filter(Boolean),[p.safetyId?empName(p.safetyId):"",p.hseName,p.safetyName]);
+    const ap=p.raAppr||{};
+    const r={serial:"",activity:x.act,rows:x.rows||[],project:(S.settings&&S.settings.project)||"",persons:"GIECO Crew",assessedBy:hse.name||(doc&&doc.assessedBy)||"",revisedBy:ap.name||"",status:"approved",
+      prep:hse,
+      appr:{name:ap.name||"",signature:ap.signature||"",at:ap.at||0},
+      sup:party([p.supUid].filter(Boolean),[p.supervisor,p.supName]),
+      mgr:party([p.engUid,p.reqBy].filter(Boolean),[p.siteEng,p.requester])};
     const o=await raBuild(r);if(!css)css=o.html;pgs.push(...o.pg)}
   return {css,pgs}}
 async function raViewPermit(pid){const p=S.permits.find(x=>x.id===pid);if(!p||!raSnapOf(p).length){toast("مفيش تقييم مخاطر على التصريح ده");return}
   const {css,pgs}=await raPermitHtml(p);const V=openViewer(`تقييم مخاطر التصريح ${p.number||""}`,{filename:`تقييم مخاطر ${p.number||""}.pdf`});V.setHtml(css+pgs.join(""))}
+const raPending=p=>!!(p&&(p.raSnap||[]).length&&!p.raAppr&&!p.raApprovedAt&&p.raStatus!=="rejected"&&!["rejected","cancelled","closed"].includes(p.status));
+function raNotify(p,id){try{if(!raPending(p))return;const U=[...new Set([...(S.profiles||[]).filter(x=>!x.disabled&&x.id!==ME.id&&can("risk.approve",x)).map(x=>x.id),...ptwAdminIds().filter(u=>u!==ME.id)])];
+  if(U.length)notifyUsers(U,"🛡 تقييم مخاطر تصريح محتاج اعتمادك",`${(p.raSnap||[]).map(x=>x.act).join("، ")} · ${PTW_TYPES[p.type]?.ar||""} — ${p.location||""}`,`?go=ptw&id=${id}`)}catch(e){console.error(e)}}
+async function raPermitDecide(pid,yes){const p=S.permits.find(x=>x.id===pid);if(!p)return;if(!raCanApprove()){toast("اعتماد تقييم المخاطر للأخصائي ومشرف السلامة والأدمن");return}
+  const me=myEmpName();const signature=yes?await mySig():"";if(yes&&!signature){toast("ضيف توقيعك الأول من ملفك الشخصي");sigEditor();return}
+  const acts=(p.raSnap||[]).map(x=>x.act).join("، ");
+  openSheet(yes?"اعتماد تقييم المخاطر":"رفض تقييم المخاطر",`<p style="margin-top:0">${esc(acts)}<br><span class="muted">تصريح ${esc(p.number||"")}</span></p><div class="form">${f(yes?"ملاحظة (اختياري)":"سبب الرفض","note",{type:"textarea",full:true,req:!yes})}</div>`,async fd=>{
+    if(!yes&&!(fd.note||"").trim())return "اكتب السبب";
+    const d=yes?{raStatus:"approved",raApprovedAt:Date.now(),raApprovedName:me,raAppr:{by:ME.id,name:me,at:Date.now(),signature,note:(fd.note||"").trim()}}:{raStatus:"rejected",raRejNote:fd.note.trim(),raRejName:me,raRejAt:Date.now()};
+    const ok=await write(()=>upsert("permits",pid,d),yes?"اتعتمد التقييم ✔":"اترفض التقييم");
+    if(ok){try{notifyUsers([...new Set([p.reqBy,p.createdBy].filter(u=>u&&u!==ME.id))],yes?"✅ اتعتمد تقييم مخاطر تصريحك":"❌ اترفض تقييم مخاطر تصريحك",`${acts} · ${p.number||""}${yes?"":" — "+fd.note.trim()}`,`?go=ptw&id=${pid}`)}catch(e){}}
+    return ok?null:"الحفظ فشل"},yes?"اعتماد":"رفض")}
+{const _f=VIEWS.ptw.fill;VIEWS.ptw.fill=function(){const r=_f.apply(this,arguments);
+  try{if(raCanApprove()){const L=(S.permits||[]).filter(raPending);const el=$("ptwFlow");
+    if(L.length&&el)el.insertAdjacentHTML("afterbegin",`<div class="inbox" style="border-inline-start-color:#2f5597"><h3 style="margin:0 0 4px">🛡 تقييمات مخاطر تصاريح مستنية اعتمادك (${L.length})</h3><div class="list">${L.map(p=>flowCard(p,`<button class="btn sm primary" onclick="raPermitDecide('${p.id}',true)">✍ اعتماد التقييم</button><button class="btn ghost sm danger" onclick="raPermitDecide('${p.id}',false)">رفض</button>`)).join("")}</div></div>`)}}catch(e){console.error(e)}
+  return r}}
 /* التقييم بيتطبع ويتوقّع مع التصريح في نفس الملف */
 {const _r=renderPermitPages;renderPermitPages=async function(p,opts){const pages=await _r.apply(this,arguments);
   try{if(p&&raSnapOf(p).length&&!(opts&&opts.noRA)){const {css,pgs}=await raPermitHtml(p);pages.push(...await htmlCanvases(css+pgs.join("")))}}catch(e){console.error("RA pages",e)}return pages}}
