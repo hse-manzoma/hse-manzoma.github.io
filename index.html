@@ -2225,7 +2225,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.132";
+const APP_VER="8.9.133";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11180,6 +11180,12 @@ async function ptwEngDecide(id,ok){const p=S.permits.find(x=>x.id===id);if(!p)re
   let pages;try{pages=await _f.apply(this,arguments)}finally{ptwSigCell=o}
   if(p.engOk&&p.engSignature){const c=o(p.type,"issue","site"),F=(await loadForms())[p.type];
     if(c&&F){const pg=pages[F.pages.length-1];if(pg)await stampOn(pg,c,p.engSignature,null,{fit:.82})}}
+  return pages}}
+/* 8.9.133: توقيع الطالب (بيتسجل لما يبعت الطلب) بيتختم في خانة المهندس/الطالب في التصريح نفسه */
+{const _g=renderPermitPagesFull;renderPermitPagesFull=async function(p){const pages=await _g.apply(this,arguments);
+  try{if(p&&p.reqSignature&&!(p.engOk&&p.engSignature)){const F=(await loadForms())[p.type];const pg=F&&pages[F.pages.length-1];
+    if(pg){const nm=normName(p.reqSignName||"");const done=new Set();
+      for(const [role,party] of [["site",p.siteEng||p.requester],["req",p.requester]]){if(!party||normName(party)!==nm)continue;const c=ptwSigCell(p.type,"issue",role);if(!c)continue;const k=c.join();if(done.has(k))continue;done.add(k);await stampOn(pg,c,p.reqSignature,null,{fit:.82})}}}}catch(e){console.error("req sign",e)}
   return pages}}
 /* توقيع الإغلاق/التمديد في خانة المهندس: للمهندس المحدد فقط */
 {const _r=ptwStageRoles;ptwStageRoles=function(p,stage){let r=_r.apply(this,arguments);
