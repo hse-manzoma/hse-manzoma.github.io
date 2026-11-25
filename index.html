@@ -722,12 +722,13 @@ const PTW_TYPES = {
 };
 const PTW_STATUS = {open:["مفتوح","p-open"],approved:["معتمد","p-appr"],suspended:["موقوف","p-susp"],closed:["مغلق","p-closed"],cancelled:["ملغي","p-canc"]};
 const PTW_ACTIVITY_OPTIONS={COLD:["صب خرسانة","ترميم","أعمال بناء"],HEIGHT:["سقالات","نجارة مسلحة","حدادة مسلحة","أعمال أخرى على ارتفاع"],LIFT:["طبلية طوب حتى 2 طن","حلة خرسانة","أدوات رفع 1 طن","أدوات رفع 800 كجم","طرد خشب موسكي","بلود مواسير","شدة معدنية","طرود حديد تسليح"]};
-function ptwActivityField(p={}){const opts=PTW_ACTIVITY_OPTIONS[p.type]||[];let lib="";
+function ptwActivityField(p={}){const opts=PTW_ACTIVITY_OPTIONS[p.type]||[];return opts.length?f("نوع النشاط / الحمولة","workCategory",{value:p.workCategory||"",opts:[["","— اختياري —"],...opts.map(x=>[x,x]),["other","أخرى — وضّحها في وصف العمل"]] }):""}
+function ptwRiskField(p={}){let lib="";const cur=p.raAct||((p.raSnap||[])[0]||{}).act||"";
   try{const want=(typeof PTW_RA_GROUPS!=="undefined"&&PTW_RA_GROUPS[p.type])||[];const gs=[...new Set(RA_LIB.map(a=>a.g))].sort((x,y)=>(want.includes(x)?0:1)-(want.includes(y)?0:1));
-    lib=gs.map(g=>`<optgroup label="🛡 ${esc(g)}${want.includes(g)?" (مقترح)":""}">${RA_LIB.filter(a=>a.g===g).map(a=>`<option value="${esc(a.name)}"${p.workCategory===a.name?" selected":""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")}catch(e){}
-  const base=[["","— اختياري —"],...opts.map(x=>[x,x]),["other","أخرى — وضّحها في وصف العمل"]];
-  const h=f("نوع النشاط / الحمولة","workCategory",{value:p.workCategory||"",opts:base});
-  return lib?h.replace(/<\/select>/,lib+"</select>"):h}
+    lib=gs.map(g=>`<optgroup label="${esc(g)}${want.includes(g)?" (مقترح)":""}">${RA_LIB.filter(a=>a.g===g).map(a=>`<option value="${esc(a.name)}"${cur===a.name?" selected":""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")}catch(e){}
+  const h=f("🛡 تقييم المخاطر — اختار نشاط العمل","raAct",{value:cur,full:true,req:true,opts:[["","— اختار النشاط (بيربط تقييم المخاطر بالتصريح) —"]]});
+  return h.replace(/<\/select>/,lib+"</select>")}
+document.addEventListener("change",e=>{if(e.target&&e.target.id==="f_type"){const c=document.querySelector('[name="raAct"]');if(!c)return;const fld=c.closest(".field");if(!fld)return;const w=document.createElement("div");w.innerHTML=ptwRiskField({type:e.target.value,raAct:c.value});fld.replaceWith(w.firstElementChild)}});
 function ptwActivityText(p){const a=PTW_ACTIVITY_OPTIONS[p.type]||[];return p.workCategory&&p.workCategory!=="other"&&a.includes(p.workCategory)?p.workCategory:""}
 const RISK = {low:"منخفض",med:"متوسط",high:"عالي"};
 const ATT = {p:["حاضر","s-p"],l:["تأخير","s-l"],a:["غياب","s-a"],v:["إجازة","s-v"],m:["مأمورية","s-m"],e:["إذن","s-e"]};
@@ -1180,6 +1181,7 @@ function ptwFormBase(id){
     <div class="field"><label>رقم التصريح</label><div class="serial" id="serialPrev">${isNew?`${p.type}-${nextSerial(p.type)}`:esc(p.number)}</div></div>
     ${f("تاريخ الإصدار","date",{type:"date",value:p.date,req:true})}
     ${f("الحالة","status",{value:p.status,opts:Object.entries(PTW_STATUS).map(([k,v])=>[k,v[0]])})}
+    ${ptwRiskField(p)}
     ${ptwActivityField(p)}
     ${f("تاريخ بداية التصريح","startDate",{type:"date",value:p.startDate||p.date||today()})}
     ${f("تاريخ نهاية التصريح","endDate",{type:"date",value:p.endDate||"",attrs:'placeholder="تلقائي حسب النوع"'})}
@@ -1200,7 +1202,7 @@ function ptwFormBase(id){
   openSheet(isNew?"تصريح عمل جديد":"تعديل تصريح "+p.number,body,async(fd)=>{
     if(!fd.location?.trim()) return "اكتب مكان العمل";
     if(isNew&&!(fd.requester||"").trim()) return "اختار طالب التصريح";
-    const data={...raPick(fd,true),workCategory:fd.workCategory||"",excW:fd.excW||"",excL:fd.excL||"",excD:fd.excD||"",date:fd.date,startDate:fd.startDate||fd.date,endDate:fd.endDate||"",siteEng:(fd.siteEng||"").trim(),status:fd.status,from:fd.from,to:fd.to,location:fd.location.trim(),desc:fd.desc.trim(),contractor:fd.contractor.trim(),requester:fd.requester.trim(),safetyId:fd.safetyId,supervisor:fd.supervisor.trim(),risk:fd.risk,workers:num(fd.workers)||null,notes:fd.notes.trim(),updatedAt:Date.now()};
+    const data={...raPick(fd),workCategory:fd.workCategory||"",excW:fd.excW||"",excL:fd.excL||"",excD:fd.excD||"",date:fd.date,startDate:fd.startDate||fd.date,endDate:fd.endDate||"",siteEng:(fd.siteEng||"").trim(),status:fd.status,from:fd.from,to:fd.to,location:fd.location.trim(),desc:fd.desc.trim(),contractor:fd.contractor.trim(),requester:fd.requester.trim(),safetyId:fd.safetyId,supervisor:fd.supervisor.trim(),risk:fd.risk,workers:num(fd.workers)||null,notes:fd.notes.trim(),updatedAt:Date.now()};
     if(isNew){
       const t=fd.type, serial=nextSerial(t);
       Object.assign(data,{type:t,serial,number:`${t}-${serial}`,createdAt:Date.now(),createdBy:ME.id||""});
@@ -2223,7 +2225,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.131";
+const APP_VER="8.9.132";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5193,7 +5195,7 @@ function ptwModeBar(mode){
   f.insertBefore(hint,f.firstChild);f.insertBefore(bar,f.firstChild);
   bar.onclick=e=>{const b=e.target.closest("button[data-m]");if(!b||b.dataset.m===mode)return;
     const fd=Object.fromEntries(new FormData(f).entries()),seed={};
-    for(const k of["type","startDate","from","to","location","desc","contractor","workers","risk","notes","requester","siteEng","workCategory","raIds","excW","excL","excD"])if(fd[k]!==undefined&&fd[k]!=="")seed[k]=fd[k];
+    for(const k of["type","startDate","from","to","location","desc","contractor","workers","risk","notes","requester","siteEng","workCategory","raAct","raIds","excW","excL","excD"])if(fd[k]!==undefined&&fd[k]!=="")seed[k]=fd[k];
     if(seed.startDate)seed.date=seed.startDate;
     _ptwSeed=seed;$("overlayRoot").innerHTML="";
     b.dataset.m==="direct"?ptwForm():ptwRequestForm()}}
@@ -5280,6 +5282,7 @@ function ptwRequestForm(id){
   openSheet(id?"تعديل طلب التصريح":"طلب تصريح عمل",`<p class="muted" style="margin-top:0;font-size:13px">اختار مشرف التنفيذ و/أو مهندس التنفيذ ومسؤول السلامة. الطلب بيوصلهم كلهم: المشرف يعتمد مكان العمل ويضيف العاملين، ومسؤول السلامة يراجع الاشتراطات. لما الاتنين يعتمدوا التصريح بياخد رقمه.</p><div class="form">
     ${isAdmin?`${f("طالب التصريح الفعلي","requester",{value:p.requester||"",req:true,attrs:'list="ptwReqPeople"'})}${f("مهندس الموقع (إن وجد)","siteEng",{value:p.siteEng||"",attrs:'list="ptwReqPeople"'})}<datalist id="ptwReqPeople">${S.employees.filter(e=>e.active!==false).map(e=>`<option value="${esc(e.name)}">`).join("")}</datalist>`:""}
     ${f("نوع التصريح","type",{value:p.type,opts:Object.entries(PTW_TYPES).map(([k,v])=>[k,`${v.ar} · ${v.en}`])})}
+    ${ptwRiskField(p)}
     ${ptwActivityField(p)}
     ${f("تاريخ بداية الشغل","startDate",{type:"date",value:p.startDate||p.date||today(),req:true})}
     ${f("من الساعة","from",{type:"time",value:p.from||""})}${f("لحد الساعة","to",{type:"time",value:p.to||""})}
@@ -10694,7 +10697,7 @@ async function raBuild(r){await sigData();
 async function raView(id){const r=S.riskassess.find(x=>x.id===id);if(!r)return;const {html,pg}=await raBuild(r);
   const V=openViewer(`تقييم مخاطر: ${r.activity||""}`,{filename:`تقييم مخاطر - ${(r.activity||"RA-"+r.serial).replace(/[\\/:*?"<>|]/g," ")}.pdf`,extra:(r.status==="new"&&raCanApprove()?`<button class="btn sign" data-extra onclick="pvClose();raDecide('${r.id}',true)">✍ اعتماد</button>`:"")});
   V.setHtml(html.replace(/^(<style>[\s\S]*?<\/style>)/,"$1")+pg.join(""))}
-function raSnapOf(p){return (p&&p.raSnap&&p.raSnap.length)?p.raSnap:((p&&p.workCategory)?raPick({workCategory:p.workCategory}).raSnap:[])}
+function raSnapOf(p){return (p&&p.raSnap&&p.raSnap.length)?p.raSnap:((p&&(p.raAct||p.workCategory))?raPick({raAct:p.raAct,workCategory:p.workCategory}).raSnap:[])}
 async function raPermitHtml(p){const snap=raSnapOf(p);let css="",pgs=[];
   const SG=[...signsOf(p)].sort((a,b)=>(a.at||0)-(b.at||0));
   const nmU=u=>{const pr=(S.profiles||[]).find(x=>x.id===u);return pr?profName(pr):""};
@@ -10732,6 +10735,13 @@ async function raPermitDecide(pid,yes){const p=S.permits.find(x=>x.id===pid);if(
     if(L.length&&el)el.insertAdjacentHTML("afterbegin",`<div class="inbox" style="border-inline-start-color:#2f5597"><h3 style="margin:0 0 4px">🛡 تقييمات مخاطر تصاريح مستنية اعتمادك (${L.length})</h3><div class="list">${L.map(p=>flowCard(p,`<button class="btn sm primary" onclick="raPermitDecide('${p.id}',true)">✍ اعتماد التقييم</button><button class="btn ghost sm danger" onclick="raPermitDecide('${p.id}',false)">رفض</button>`)).join("")}</div></div>`)}}catch(e){console.error(e)}
   return r}}
 function raFinalNote(p){return (raPending(p)&&raCanApprove())?`<div class="field full"><div class="banner" style="margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="grow">🛡 تقييم المخاطر: <b>${esc((p.raSnap||[]).map(x=>x.act).join("، "))}</b> — بيتعتمد معاك بنفس التوقيع.</span><button type="button" class="btn sm" onclick="raViewPermit('${p.id}')">عرض التقييم</button></div></div>`:""}
+{const _rf=VIEWS.risk.fill;VIEWS.risk.fill=function(){const r=_rf.apply(this,arguments);
+  try{const ap=raCanApprove();const L=(S.permits||[]).filter(p=>(p.raSnap||[]).length&&(ap||!ownScope()||p.createdBy===ME.id)).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||num(b.serial)-num(a.serial));
+    const box=$("raBody");if(!box)return r;box.querySelector("#raPermits")?.remove();if(!L.length)return r;
+    const st=p=>p.raAppr||p.raApprovedAt?['معتمد','p-appr']:p.raStatus==="rejected"?['مرفوض','p-canc']:['مستني الاعتماد','p-susp'];
+    const rows=L.flatMap(p=>(p.raSnap||[]).map(x=>{const q=st(p);return `<tr><td><b>${esc(x.act)}</b><div class="muted" style="font-size:12px">تصريح <span class="num">${esc(p.number||"")}</span> · ${esc(PTW_TYPES[p.type]?.ar||"")}</div></td><td class="n">${fmtDate(p.date||p.startDate)}</td><td>${esc(p.location||"")}</td><td class="n">${(x.rows||[]).length}</td><td>${raBadge(raMax(x.rows,"a"))} ← ${raBadge(raMax(x.rows,"r"))}</td><td><span class="pill ${q[1]}">${q[0]}</span></td><td><div class="row-actions" style="flex-wrap:wrap">${raPending(p)&&ap?`<button class="btn sm ok" onclick="raPermitDecide('${p.id}',true)">اعتماد</button><button class="btn ghost sm danger" onclick="raPermitDecide('${p.id}',false)">رفض</button>`:""}<button class="btn ghost sm" onclick="raViewPermit('${p.id}')">👁 عرض</button></div></td></tr>`}));
+    box.insertAdjacentHTML("beforeend",`<div id="raPermits" style="margin-top:18px"><h3 style="margin:0 0 8px">🛡 تقييمات التصاريح (${rows.length}) <span class="muted" style="font-size:12.5px;font-weight:400">— كل تقييم محفوظ برقم تصريحه</span></h3><div class="tbl"><table><thead><tr><th>النشاط / التصريح</th><th>التاريخ</th><th>المكان</th><th>البنود</th><th>الخطورة قبل / بعد</th><th>الحالة</th><th></th></tr></thead><tbody>${rows.join("")}</tbody></table></div></div>`)}catch(e){console.error(e)}
+  return r}}
 /* التقييم بيتطبع ويتوقّع مع التصريح في نفس الملف */
 {const _r=renderPermitPages;renderPermitPages=async function(p,opts){const pages=await _r.apply(this,arguments);
   try{if(p&&raSnapOf(p).length&&!(opts&&opts.noRA)){const {css,pgs}=await raPermitHtml(p);pages.push(...await htmlCanvases(css+pgs.join("")))}}catch(e){console.error("RA pages",e)}return pages}}
@@ -10746,7 +10756,7 @@ function raFinalNote(p){return (raPending(p)&&raCanApprove())?`<div class="field
 /* ===== 8.9.123: ربط التصريح بتقييم المخاطر المعتمد ===== */
 const PTW_RA_GROUPS={HOT:["الأعمال الحارة"],HEIGHT:["الارتفاعات والرفع","الهيكل الإنشائي","الخرسانة"],LIFT:["الارتفاعات والرفع"],EXC:["الحفر والأعمال الترابية","الخوازيق والأساسات العميقة"],ELEC:["التمديدات"],CONF:["التمديدات","الحفر والأعمال الترابية"],COLD:["الخرسانة","المباني والمحارة","التشطيبات","الهيكل الإنشائي","التجهيز والأعمال التمهيدية","الأعمال الخارجية"]};
 function raGroupOf(act){return (RA_LIB.find(a=>a.name===act)||{}).g||"أخرى"}
-function raPick(fd,stamp){const snap=[];const a=RA_LIB.find(x=>x.name===(fd&&fd.workCategory));
+function raPick(fd,stamp){const snap=[];const a=RA_LIB.find(x=>x.name===(fd&&(fd.raAct||fd.workCategory)));
   if(a){const d=(S.riskassess||[]).find(r=>r.status==="approved"&&r.activity===a.name);snap.push({lib:a.id,act:a.name,g:a.g,doc:d?d.id:"",rows:JSON.parse(JSON.stringify(d?d.rows:a.rows))})}
   const o={raIds:snap.map(x=>x.lib).join(","),raSnap:snap};if(stamp&&snap.length)Object.assign(o,{raApprovedAt:Date.now(),raApprovedName:(typeof myEmpName==="function"?myEmpName():"")||""});return o}
 function ptwRaBox(type,sel){const want=PTW_RA_GROUPS[type]||[];
