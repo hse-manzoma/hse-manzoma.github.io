@@ -2213,11 +2213,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-<<<<<<< HEAD
-const APP_VER="8.9.115";
-=======
-const APP_VER="8.9.113";
->>>>>>> 12c7f8407d1f4b54f33dec991b536ff470ade33b
+const APP_VER="8.9.114";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11719,34 +11715,7 @@ function permMatrixHTML(){const mig=_permStored().v!==2;
   ${_pm.view==="role"?`<label class="pm-chk"><input type="checkbox" ${_pm.mod?"checked":""} onchange="_pm.mod=this.checked;permRefresh()"> المعدّل فقط</label>`:""}
   ${_pm.view==="role"&&Object.keys(_permStored().roles||{}).length?`<button class="btn sm" onclick="permResetAll()">↺ كله للافتراضي</button>`:""}</div>
   <div id="pmBody">${permBodyHTML()}</div>`}
-/* ===== 8.9.115: شاشة صلاحيات واحدة مبسّطة (واجهة بس — نفس التخزين والبيانات) ===== */
-function permRoleHTML(){
-  const roles=_pmRoles();if(!roles.length)return '<p class="muted">مفيش أدوار.</p>';
-  if(!roles.some(r=>r[0]===_pm.role))_pm.role=roles[0][0];
-  const R=_pm.role,q=_pm.q.trim(),rn=ROLES_ALL()[R]?.ar||R;
-  const chips=roles.map(([k,r])=>`<button class="pm-chip ${k===R?"on":""}" onclick="_pm.role='${k}';permRefresh()">${esc(r.ar||k)}</button>`).join("");
-  const sel=k=>{const v=pmRoleTabs(R)[k]||"";return `<select class="pm-sel" onchange="permSetTab('${R}','${k}',this.value)"><option value="">مخفي</option>${Object.entries(LV).map(([x,n])=>`<option value="${x}" ${v===x?"selected":""}>${n}</option>`).join("")}</select>`};
-  const tabRows=pmTabsGroups().flatMap(([,ks])=>ks).filter(k=>TAB_NAMES[k]&&(!q||TAB_NAMES[k].includes(q)));
-  const tabsHTML=tabRows.map(k=>`<div class="pm-row"><div class="pm-t">${esc(TAB_NAMES[k])}</div>${sel(k)}</div>`).join("")||'<p class="muted">مفيش نتائج.</p>';
-  const caps=_pmCapsFiltered(R);let g="",capsHTML="";
-  for(const [cap,d] of caps){if(d.g!==g){g=d.g;capsHTML+=`<div class="pm-g">${esc(g)}</div>`}const s=_pmState(R,cap);
-    capsHTML+=`<div class="pm-row"><div class="pm-t">${esc(d.ar)}${s.changed?'<span class="pm-badge">معدّل</span>':""}${s.changed?`<div class="pm-s">الافتراضي: ${s.def?"مسموح":"ممنوع"} · <button class="pm-reset" onclick="permResetCap('${R}','${cap}')">↺ رجّعه</button></div>`:""}</div>${_pmSwitch(s.on,`permSetRole('${R}','${cap}',this.checked)`)}</div>`}
-  if(!caps.length)capsHTML='<p class="muted">مفيش نتائج.</p>';
-  const on=_pmCaps().filter(([c])=>_pmState(R,c).on).length,hasOv=Object.keys((_permStored().roles||{})[R]||{}).length;
-  const mgr=`<details style="margin-top:12px"><summary class="muted" style="cursor:pointer;font-size:13px">متقدم: قواعد التوقيع والإعتماد · إدارة الأدوار</summary>${permRulesHTML()}<div class="pm-g" style="margin-top:16px">إدارة الأدوار</div><div class="list">${roles.map(([k,r])=>`<div class="li"><div class="grow"><div class="t">${esc(r.ar||k)}</div></div><div class="row-actions"><button class="btn ghost sm" onclick="roleForm('${k}')">تعديل</button>${BUILTIN_ROLES[k]?(S.settings.roles?.[k]?`<button class="btn ghost sm" onclick="roleDelete('${k}')">رجّعه للأصل</button>`:""):`<button class="btn ghost sm danger" onclick="roleDelete('${k}')">حذف</button>`}</div></div>`).join("")}</div><button class="btn sm" style="margin-top:8px" onclick="roleForm()">+ دور جديد</button></details>`;
-  return `<div class="pm-chips" style="flex-wrap:wrap;overflow:visible">${chips}</div>
-  <div class="card" style="padding:10px 14px;margin:6px 0"><div style="font-weight:700">${esc(rn)}</div><div class="muted" style="font-size:12.5px">يدخل ${tabRows.filter(k=>pmRoleTabs(R)[k]).length} قسم · مسموح له ${on} من ${_pmCaps().length} إجراء${hasOv?` · <button class="pm-reset" onclick="permResetRole('${R}')">↺ رجّع إجراءات الدور للافتراضي</button>`:""}</div></div>
-  <details open><summary style="cursor:pointer;font-weight:700;padding:8px 0">١) الأقسام اللي يدخلها</summary><div class="muted" style="font-size:12.5px">مخفي = مش بيظهر · مشاهدة = يشوف بس · إضافة وتعديل = يسجّل · ومسح = كمان يمسح.</div>${tabsHTML}</details>
-  <details open><summary style="cursor:pointer;font-weight:700;padding:8px 0">٢) الإجراءات المسموحة (شغّل أو اقفل)</summary>${capsHTML}</details>${mgr}`}
-function permResetRole(r){return permSave(O=>{delete O.roles[r]})}
-permBodyHTML=function(){return _pm.view==="user"?permUsersHTML():permRoleHTML()};
-function permMatrixHTML(){const mig=_permStored().v!==2;if(_pm.view!=="user")_pm.view="role";
-  return `<h3 style="margin:0 0 4px">🧭 الصلاحيات</h3><div class="muted" style="font-size:12.5px">اختار الدور وظبّط له الأقسام والإجراءات من شاشة واحدة. الأدمن دايمًا مسموح له. التعديل بيتطبق فورًا، وحماية السيرفر على الأقسام زي ما هي.</div>
-  ${mig?`<div class="banner" style="margin:10px 0"><b>فيه إعدادات صلاحيات قديمة لسه شغالة.</b> رحّلها للمصفوفة عشان يبقى فيه مصدر واحد. <button class="btn sm primary" onclick="permMigrateOpen()">ابدأ الترحيل</button></div>`:""}
-  <div class="pm-top"><div class="pm-seg"><button class="${_pm.view==="role"?"on":""}" onclick="_pm.view='role';permRefresh(1)">حسب الدور</button><button class="${_pm.view==="user"?"on":""}" onclick="_pm.view='user';permRefresh(1)">حسب الشخص</button></div>
-  <input class="pm-q" id="pmQ" type="search" placeholder="🔎 ابحث" value="${esc(_pm.q)}" oninput="_pm.q=this.value;permRefresh()"></div>
-  <div id="pmBody">${permBodyHTML()}</div>`}
-_pm.view="role";
+_pm.view="tabs";
 /* ---- الترحيل: القديم → المصفوفة، وبعدها مسح القديم ---- */
 function permMigrateOpen(){const dv=permDerive(S.settings||{}),cnt={};
   for(const o of [...Object.values(dv.roles),...Object.values(dv.users)])for(const c of Object.keys(o))cnt[c]=(cnt[c]||0)+1;
