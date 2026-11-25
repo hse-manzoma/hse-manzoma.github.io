@@ -1,5 +1,9 @@
 /* network-first service worker + daily push reminders */
+<<<<<<< HEAD
 const C="hse-v217";
+=======
+const C="hse-v215";
+>>>>>>> 12c7f8407d1f4b54f33dec991b536ff470ade33b
 /* الملفات اللي لازم تكون متخزنة عشان المنظومة تفتح وانت مفيش نت */
 const SHELL=["./","index.html","supa.js","forms.json","forms-index.json","manifest.json","icon-180.png","icon-192.png","icon-512.png","icon.svg","brand-sanad-mark.svg","brand-sanad.svg","rep-logo.png"];
 const CDN=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js",
