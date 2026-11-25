@@ -2213,7 +2213,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.108";
+const APP_VER="8.9.109";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11652,6 +11652,7 @@ function inspectionInspectorEmployees(){const P=S.profiles||[];return hseTeam().
 function inspectionApproverProfiles({excludeSelf=true}={}){return (S.profiles||[]).filter(p=>!p.disabled&&(!excludeSelf||p.id!==ME.id)&&permRaw("inspect.approve",p)).sort((a,b)=>profName(a).localeCompare(profName(b),"ar"))}
 function canSignGroup(g,{names=[],ownerId=""}={}){
   if(myAccess()?.role==="admin")return true;
+  if(g==="leave"&&ownerId&&ownerId===myEmpId()&&BASE.write)return true;   /* 8.9.109: الموظف يوقّع على إجازته/إذنه/تكليفه هو */
   if(!groupWritable(g))return false;
   if(myProfile()&&!can("sign."+g))return false;
   const r=signRule(g).sign,me=myEmpId();
