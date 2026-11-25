@@ -2223,7 +2223,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.126";
+const APP_VER="8.9.127";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5370,7 +5370,7 @@ function ptwFinalForm(id){
 }
 function flowCard(p,actions){return `<div class="li" style="align-items:flex-start;flex-wrap:wrap"><div class="grow" style="min-width:220px"><div class="t">${typeChip(p.type)} <span class="num">${esc(p.number||"")}</span> · ${esc(p.location||"")}</div>
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
-  <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${actions}</div></div>`}
+  <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${raSnapOf(p).length?`<button class="btn ghost sm" onclick="raViewPermit('${p.id}')">🛡 تقييم المخاطر</button>`:""}${actions}</div></div>`}
 VIEWS.ptw={
   shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${(()=>{const dir=R.role==="admin"||can("permit.direct");return `<button class="btn primary keep" id="newPtw">+ تصريح جديد</button>`})()}</div>
     <div id="ptwFlow"></div>
@@ -9724,12 +9724,11 @@ function pgBarMount(){
     main.querySelectorAll("#pgBar,#pgPeriodBox").forEach(e=>e.remove());
     const h=main.querySelector("h2");if(!h)return;
     const docs=pgAllDocs().length,tbl=pgTables().length;
-    if(!docs&&!tbl)return;
-    if(!can("export.bulk"))return;
+    const showX=can("export.bulk")&&(docs||tbl);
     const bar=document.createElement("div");
     bar.id="pgBar";
-    bar.style.cssText="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 12px";
-    bar.innerHTML=`<button type="button" class="btn sm" onclick="pageExportSheet()" title="تحديد وبحث وتصدير">📥 تحديد وبحث وتصدير</button>`
+    bar.style.cssText=showX?"display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 12px":"display:none";
+    if(showX)bar.innerHTML=`<button type="button" class="btn sm" onclick="pageExportSheet()" title="تحديد وبحث وتصدير">📥 تحديد وبحث وتصدير</button>`
       +(docs?`<button type="button" class="btn sm primary" onclick="pgDownloadAllDocs()">🗂️ تحميل كل نماذج الصفحة (${docs})</button>`:"")
       +`<span class="muted" style="font-size:12.5px">${tbl?`${tbl} جدول`:""}${tbl&&docs?" · ":""}${docs?`${docs} نموذج`:""}</span>`;
     h.insertAdjacentElement("afterend",bar);
@@ -10694,15 +10693,21 @@ async function raBuild(r){await sigData();
 async function raView(id){const r=S.riskassess.find(x=>x.id===id);if(!r)return;const {html,pg}=await raBuild(r);
   const V=openViewer(`تقييم مخاطر: ${r.activity||""}`,{filename:`تقييم مخاطر - ${(r.activity||"RA-"+r.serial).replace(/[\\/:*?"<>|]/g," ")}.pdf`,extra:(r.status==="new"&&raCanApprove()?`<button class="btn sign" data-extra onclick="pvClose();raDecide('${r.id}',true)">✍ اعتماد</button>`:"")});
   V.setHtml(html.replace(/^(<style>[\s\S]*?<\/style>)/,"$1")+pg.join(""))}
-async function raViewPermit(pid){const p=S.permits.find(x=>x.id===pid);if(!p||!(p.raSnap||[]).length){toast("مفيش تقييم مخاطر على التصريح ده");return}
-  let css="",pgs=[];for(const x of p.raSnap){const sg=Object.values(p.signs||{}),by=k=>sg.find(z=>z.role===k)||{},doc=x.doc?S.riskassess.find(d=>d.id===x.doc):null;
+function raSnapOf(p){return (p&&p.raSnap&&p.raSnap.length)?p.raSnap:((p&&p.workCategory)?raPick({workCategory:p.workCategory}).raSnap:[])}
+async function raPermitHtml(p){const snap=raSnapOf(p);let css="",pgs=[];
+  for(const x of snap){const sg=Object.values(p.signs||{}),by=k=>sg.find(z=>z.role===k)||{},doc=x.doc?S.riskassess.find(d=>d.id===x.doc):null;
     const r={serial:"",activity:x.act,rows:x.rows||[],project:(S.settings&&S.settings.project)||"",persons:"GIECO Crew",assessedBy:(doc&&doc.assessedBy)||"",revisedBy:"",status:"approved",
       prep:{name:(doc&&(doc.prep&&doc.prep.name||doc.createdName))||"",signature:(doc&&doc.prep&&doc.prep.signature)||"",at:(doc&&doc.prep&&doc.prep.at)||0},
       appr:{name:by("hse").name||(doc&&doc.appr&&doc.appr.name)||p.raApprovedName||"",signature:by("hse").signature||"",at:by("hse").at||p.raApprovedAt||0},
       sup:{name:by("sup").name||p.supervisor||"",signature:by("sup").signature||"",at:by("sup").at||0},
       mgr:{name:by("site").name||p.siteEng||p.requester||"",signature:by("site").signature||"",at:by("site").at||0}};
     const o=await raBuild(r);if(!css)css=o.html;pgs.push(...o.pg)}
-  const V=openViewer(`تقييم مخاطر التصريح ${p.number||""}`,{filename:`تقييم مخاطر ${p.number||""}.pdf`});V.setHtml(css+pgs.join(""))}
+  return {css,pgs}}
+async function raViewPermit(pid){const p=S.permits.find(x=>x.id===pid);if(!p||!raSnapOf(p).length){toast("مفيش تقييم مخاطر على التصريح ده");return}
+  const {css,pgs}=await raPermitHtml(p);const V=openViewer(`تقييم مخاطر التصريح ${p.number||""}`,{filename:`تقييم مخاطر ${p.number||""}.pdf`});V.setHtml(css+pgs.join(""))}
+/* التقييم بيتطبع ويتوقّع مع التصريح في نفس الملف */
+{const _r=renderPermitPages;renderPermitPages=async function(p,opts){const pages=await _r.apply(this,arguments);
+  try{if(p&&raSnapOf(p).length&&!(opts&&opts.noRA)){const {css,pgs}=await raPermitHtml(p);pages.push(...await htmlCanvases(css+pgs.join("")))}}catch(e){console.error("RA pages",e)}return pages}}
 /* ---- التوصيل: صلاحية القسم = صلاحية التصاريح، والشريحة في «العمليات» و«سجلاتي» ---- */
 {const _tb=tabLevelBase;tabLevelBase=function(tb){if(tb==="risk"){const a=myAccess();if(!a)return "view";if(a.role==="admin")return "full";return a.tabs.risk||a.tabs.ptw||"view"}return _tb.apply(this,arguments)};
  const _ab=allowedTabsBase;allowedTabsBase=function(){const t=_ab.apply(this,arguments);const a=myAccess();return t&&a&&a.tabs?.ptw&&!t.includes("risk")?[...t,"risk"]:t};
