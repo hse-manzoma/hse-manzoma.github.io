@@ -2213,7 +2213,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.109";
+const APP_VER="8.9.113";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6424,6 +6424,7 @@ async function assignHomeAction(key){
     return null;
   },"إرسال المهمة");
 }
+function homeSelfViolation(){const L=S.employees.filter(e=>e.active!==false&&!e.contractorId);if(!L.length){toast("مفيش عاملين مسجلين في القوى العاملة الذاتية");return}openSheet("مخالفة — القوى العاملة الذاتية",`<div class="form">${f("الموظف","empId",{opts:L.map(e=>[e.id,`${e.name}${e.job?" · "+e.job:""}`]),req:true,full:true})}</div>`,async fd=>{if(!fd.empId)return "اختار الموظف";setTimeout(()=>newViol(fd.empId),120);return null},"فتح نموذج المخالفة")}
 function homeContractorViolation(){const L=S.employees.filter(e=>e.active!==false&&e.contractorId);if(!L.length){toast("مفيش عمال مقاول باطن مسجلين");return}openSheet("مخالفة مقاول باطن",`<div class="form">${f("العامل","empId",{opts:L.map(e=>[e.id,`${e.name} · ${contractor(e.contractorId)?.name||"مقاول"}`]),req:true,full:true})}</div>`,async fd=>{if(!fd.empId)return "اختار العامل";setTimeout(()=>newViol(fd.empId),120);return null},"فتح نموذج المخالفة")}
 async function homeChecklist(){const idx=FORMS2||await loadForms2().catch(()=>null),L=CHECKLIST_FORMS.map(id=>[id,idx?.[id]?.title||id]);openSheet("قائمة التفتيش",`<div class="form">${f("نوع القائمة","fid",{opts:L,req:true,full:true})}</div>`,async fd=>{if(!fd.fid)return "اختار قائمة التفتيش";setTimeout(()=>recordForm(fd.fid),120);return null},"فتح القائمة")}
 function homeFillAttendance(){const box=$("homeAttendance"),summary=$("homeAttSummary");if(!box)return;const team=hseTeam(),canViewTeam=(allowedTabs()||[]).includes("team"),date=canViewTeam?(ui.attDate||today()):today(),recs=attDoc(date)?.records||{},canManage=canViewTeam&&tabLevel("team")!=="view",title=$("homeAttTitle"),dateInput=$("homeAttDate");if(dateInput){dateInput.disabled=!canViewTeam;if(!canViewTeam)dateInput.value=today()}if(!canViewTeam){const e=emp(myEmpId()),r=e?recs[e.id]||{}:{};if(title)title.textContent="📍 إثبات حضوري";if(summary)summary.textContent=e?`${e.name} · ${fmtDate(date)}`:"اربط حسابك بملف موظف لعرض الحضور";if(box)box.innerHTML=e?`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${r.selfConfirmed?`✔ تم تأكيد حضورك في ${esc(new Date(r.selfConfirmedAt||Date.now()).toLocaleTimeString("ar-EG",{hour:"2-digit",minute:"2-digit"}))}`:ATT[r.s]?.[0]||"لم يُسجل حضورك بعد"}</div></div>${r.selfConfirmed?`<span class="pill p-appr">تم الإثبات</span> ${locPill(r.loc,e.id,date)}`:`<button type="button" class="btn primary sm" onclick="homeShowAttendancePrompt('${homeEscSearch(date)}')">✔ أنا حاضر</button>`}</div>`:`<div class="empty">${e?"لا يوجد حضور مسجل لهذا اليوم.":"حسابك غير مرتبط بموظف في فريق السلامة."}</div>`;return}if(title)title.textContent="📋 حضور فريق السلامة";if(summary){const confirmed=team.filter(e=>recs[e.id]?.selfConfirmed).length;summary.textContent=`${team.length} عضو · ${confirmed} أكدوا حضورهم`}
@@ -9830,7 +9831,7 @@ const WS_BY_PERSONA={
   exec:["ws_exec","ws_perf","ws_archive","ws_store"]
 };
 /* صفحة تظهر فقط لو فيها شريحة واحدة على الأقل مسموح بيها */
-function wsPages(){ const L=WS_BY_PERSONA[wsPersona()]||WS_BY_PERSONA.field;
+function wsPages(){ const L=(myRole()==="officer"&&WS_DEF.ws_mine)?WS_OFFICER_PAGES:(myRole()==="monitor"&&WS_DEF.ws_mon)?["ws_daily","ws_mon","ws_me"]:(WS_BY_PERSONA[wsPersona()]||WS_BY_PERSONA.field);
   return L.filter(k=>WS_DEF[k]&&wsSubs(k).length>0); }
 /* الشرائح المسموح بيها داخل صفحة.
    لو الصلاحيات لسه ما اتحمّلتش (allowedTabsBase=null) مابنفلترش،
@@ -10231,6 +10232,13 @@ WS_DEF.ws_admin.subs.push({k:"slim",t:"تخفيف الحجم",lvl:"settings",htm
  const _at2=allowedTabs;window.allowedTabs=function(){const b=_at2.apply(this,arguments);return b&&noFollow()?b.filter(t=>t!=="follow"):b};
 }
 
+/* ===== 8.9.112: هيكل الأوفيسر = 3 صفحات: اليوم | سجلاتي | حسابي. بيعيد استخدام الشرائح الموجودة (نفس البيانات والصلاحيات) من غير تكرار ===== */
+const WS_OFFICER_PAGES=["ws_daily","ws_mine","ws_me"];
+{const all=Object.values(WS_DEF).flatMap(p=>p.subs||[]),get=k=>all.find(x=>x.k===k);
+ const mk=(k,t)=>{const x=get(k);return x?{...x,t:t||x.t,only:undefined}:null};
+ WS_DEF.ws_mine={ic:"🗂️",t:"سجلاتي",s:"تصاريحي وسجلاتي وفحوصاتي ومؤشراتي.",subs:[mk("ptw","تصاريحي"),mk("forms","سجلاتي"),mk("equip","الفحوصات"),mk("kpi","مؤشراتي"),mk("act","المتابعة والإجراءات")].filter(Boolean)};
+ WS_DEF.ws_mon={ic:"🗂️",t:"سجلاتي",s:"سجلاتي وفحوصاتي وتصاريح النهاردة (مشاهدة).",subs:[mk("forms","سجلاتي"),mk("equip","فحوصاتي"),mk("ptw","تصاريح اليوم")].filter(Boolean)};
+ const dailyAtt=(WS_DEF.ws_daily.subs||[]).find(x=>x.k==="att");if(dailyAtt)dailyAtt.t="حضوري"}
 /* تسجيل الصفحات كـ VIEWS عشان الراوتينج والتاريخ والتصدير يشتغلوا زي أي قسم */
 for(const k of Object.keys(WS_DEF)){
   VIEWS[k]={shell:()=>wsShellHTML(k),fill(){return wsFillBody(k)}};
@@ -10460,14 +10468,15 @@ const inspForbidden=t=>isMonitor()&&INSP_MON_RE.test(String(t||""));
  const V=VIEWS.equip,_vf=V.fill;V.fill=function(){if(isMonitor()&&EQ_MON_KINDS.includes(ui.eqKind))ui.eqKind="ext";const r=_vf.apply(this,arguments);
    if(isMonitor())document.querySelectorAll('#eqBody button[onclick*="eqSelect(\'vehicle\')"],#eqBody button[onclick*="eqSelect(\'tower\')"],.eq-quick-nav button[onclick*="eqSelect(\'vehicle\')"],.eq-quick-nav button[onclick*="eqSelect(\'tower\')"]').forEach(b=>b.remove());return r}}
 /* «اليوم» للميداني: اختصارات التسجيل */
+/* 8.9.110: اختيار سريع من قائمة صغيرة (بدل ما كل خيار يبقى زرار لوحده) */
+function quickPick(title,items){window._qp=items.map(x=>x[1]);$("overlayRoot").innerHTML=`<div role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:16px" onclick="if(event.target===this)$('overlayRoot').innerHTML=''"><section class="card" style="width:min(380px,100%);padding:18px"><h3 style="margin-top:0">${esc(title)}</h3><div style="display:grid;gap:8px">${items.map((x,i)=>`<button type="button" class="btn" style="min-height:46px;justify-content:flex-start" onclick="$('overlayRoot').innerHTML='';eval(window._qp[${i}])">${x[0]}</button>`).join("")}</div></section></div>`}
 function wsQuickHTML(){const a=allowedTabs()||[],has=t=>a.includes(t),ed=t=>has(t)&&tabLevel(t)!=="view",L=[];
   const myE=hseTeam().some(x=>x.id===myEmpId());
   if(myE)L.push(["✔ سجل حضورك","homeShowAttendancePrompt()",true]);
-  if(ed("forms")){L.push(["⚠️ سجل ظرف أو تصرف","recordForm('F-HSE-07-03')"],["🚑 سجل حادث","recordForm('F-HSE-03-01')"],["🎓 سجل محاضرة","recordForm('F-HSE-24-02')"])}
-  if(ed("forms"))L.push(["🎓 سجل محاضرة سلامة أولية","recordForm('F-HSE-24-01')"]);
-  if(ed("ptw"))L.push(["🪪 اطلب فتح تصريح — إرسال للاعتماد","ptwRequestForm()"]);
+  if(ed("forms")){L.push(["⚠️ سجل ظرف أو تصرف","recordForm('F-HSE-07-03')"],...(isMonitor()?[]:[["🚑 سجل حادث / وشيك","recordForm('F-HSE-03-01')"],["📋 سجل مخالفة","quickPick('مخالفة على',[['👷 القوى العاملة الذاتية','homeSelfViolation()'],['🏗 القوى العاملة (مقاول)','homeContractorViolation()']])"]]),["🎓 سجل محاضرة","quickPick('محاضرة',[['🎓 محاضرة توعية (TBT)',&quot;recordForm('F-HSE-24-02')&quot;],['🎓 محاضرة سلامة أولية (Induction)',&quot;recordForm('F-HSE-24-01')&quot;]])"])}
+  if(ed("ptw")&&!isMonitor())L.push(["🪪 اطلب فتح تصريح — إرسال للاعتماد","ptwRequestForm()"]);
   if(has("equip"))L.push(["🧯 افحص معدة","show('inspection')"]);
-  if(myE||myEmpId())L.push(["🏖 طلب إجازة","leaveReqForm()"],["⏱ طلب إذن","dutyReqForm('perm')"],["📌 طلب تكليف","dutyReqForm('one')"],["🚗 طلب مأمورية","dutyReqForm('mission')"]);
+  if(myE||myEmpId())L.push(["📨 طلباتي (إجازة / إذن / تكليف / مأمورية)","quickPick('طلب لنفسي فقط',[['🏖 طلب إجازة','leaveReqForm()'],['⏱ طلب إذن',&quot;dutyReqForm('perm')&quot;],['📌 طلب تكليف',&quot;dutyReqForm('one')&quot;],['🚗 طلب مأمورية',&quot;dutyReqForm('mission')&quot;]])"]);
   if(!L.length)return "";
   return `<div class="card" style="margin-bottom:12px"><h3 style="margin-top:0">تسجيل سريع</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">${L.map(([t,fn,pr])=>`<button type="button" class="btn${pr?" primary":""}" style="min-height:48px;white-space:normal" onclick="${fn}">${t}</button>`).join("")}</div></div>`}
 {const sub=(WS_DEF.ws_daily.subs||[]).find(x=>x.k==="todo");if(sub){const _h=sub.html;sub.html=async function(){const h=await _h.apply(this,arguments);return (wsPersona()==="field"?wsQuickHTML():"")+h}}}
