@@ -2225,7 +2225,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.138";
+const APP_VER="8.9.139";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3973,7 +3973,7 @@ async function ptwExtend(id){const p=S.permits.find(x=>x.id===id);if(!p||!(p.sta
      const actorRole=!isAdmin?ptwStageRoles(p,"extension")[0]||"":"";const actorSignature=actorRole?signature:"";const entry=actorSignature?{uid:ME.id,name:me,signature:actorSignature,at:Date.now(),date:now.day,time:now.time}:null;const ext={at:Date.now(),date:now.day,time:now.time,by:ME.id,name:isAdmin?"":me,role:actorRole,oldEnd:curEnd,oldTo:p.to||"",newEnd:fd.newEnd,newTo:(fd.newTo||"").trim(),reason:fd.reason.trim(),signature:actorSignature,signatures:entry?{[actorRole]:entry}:{}};
      const patch={extended:true,endDate:fd.newEnd,to:(fd.newTo||p.to||""),extReason:ext.reason,extBy:ME.id,extName:ext.name,extRole:ext.role,extAt:ext.at,extDate:now.day,extTime:now.time,extStart:curEnd,extStartTo:p.to||"",extSignature:signature,extensions:[...(p.extensions||[]),ext],flow:[...(p.flow||[]),{st:"extended",by:ME.id,name:me,at:Date.now(),note:ext.reason}]};
      const ok=await write(()=>upsert("permits",id,patch),"اتمدّد التصريح ✔");if(!ok)return "الحفظ فشل";Object.assign(p,patch);
-     await notifyUsers(ptwStakeholders(p),"تم تمديد تصريح العمل",`${p.number||""} · المدة لحد ${fmtDate(fd.newEnd)} · ${me}`,`?go=ptw&id=${encodeURIComponent(id)}`);setTimeout(()=>printPermit(id),350);return null},isAdmin?"تأكيد التمديد":"تأكيد التمديد والتوقيع")}
+     try{const nn=[p.requester,p.siteEng].filter(Boolean).map(normName),U=(S.profiles||[]).filter(x=>!x.disabled&&x.id!==ME.id&&nn.includes(normName(profName(x)))).map(x=>x.id);if(U.length)notifyUsers(U,"✍ مطلوب توقيعك على تمديد التصريح",`${p.number||""} · لحد ${fmtDate(fd.newEnd)}`,`?go=ptw&id=${id}`)}catch(er){}await notifyUsers(ptwStakeholders(p),"تم تمديد تصريح العمل",`${p.number||""} · المدة لحد ${fmtDate(fd.newEnd)} · ${me}`,`?go=ptw&id=${encodeURIComponent(id)}`);setTimeout(()=>printPermit(id),350);return null},isAdmin?"تأكيد التمديد":"تأكيد التمديد والتوقيع")}
 async function drawColdCloseInfo(pages,p){const T0=p.type,NB=PERMIT_CREW_NOTES[T0]||PERMIT_CREW_NOTES.COLD,c=pages[NB.pg];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
  try{await document.fonts.load('800 20px '+FFACE())}catch(e){}
  if(p.closedAt&&T0==="COLD"){g.save();g.font="700 15px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText(fmtDate(p.closedAt),W*0.747,H*0.596);g.fillText(p.closedTime||"",W*0.905,H*0.596);g.restore()}
@@ -4037,12 +4037,13 @@ async function drawPermitExtension(pages,p){const T=p.type,exts=Array.isArray(p.
     text([.84,.434,.12,.022],`${fmtDate(ext.oldEnd||p.startDate)} ${ext.oldTo||p.from||""}`,11);text([.84,.483,.12,.022],`${fmtDate(ext.newEnd||p.endDate)} ${ext.newTo||p.to||""}`,11);text([.84,.505,.12,.018],ext.reason||p.extReason||"",10);
     if(cell)text([cell[0],cell[1]-.018,cell[2],.016],ext.name||p.extName||"",11);
   }else if(T==="HEIGHT"){
-    const X0={6:.752,0:.661,1:.570,2:.479,3:.388,4:.297,5:.205},CW=.091,list=exts.length?exts:[ext];
+    const X0={6:.7779,0:.6775,1:.5767,2:.4763,3:.3755,4:.2751,5:.1747},CW=.1004,R={d:[.4110,.0373],t:[.4483,.0376],a:[.4859,.0374],h:[.5233,.0379]},list=exts.length?exts:[ext];
+    const ink=(x,r,v,sz)=>{if(!v)return;const g=cv.getContext("2d"),bx=x*W,bw=CW*W,cy=(r[0]+r[1]/2)*H;g.save();g.direction="ltr";g.textAlign="center";g.textBaseline="middle";g.fillStyle=INK;let fs=sz;while(fs>9){g.font=`700 ${fs}px 'IBM Plex Sans Arabic',Arial,sans-serif`;if(g.measureText(v).width<=bw-10)break;fs--}g.fillText(v,bx+bw/2,cy,bw-8);g.restore()};
     for(const e of list){const ne=e.newEnd||p.endDate;if(!ne)continue;const ed=new Date(ne+"T00:00:00"),sd=e.oldEnd?new Date(e.oldEnd+"T00:00:00"):new Date(ed.getTime()-864e5);
       const mp=e.signatures||{},sigA=(mp.site||mp.req||{}).signature||(e.role==="site"||e.role==="req"?e.signature:""),sigH=(mp.hse||{}).signature||(e.role==="hse"?e.signature:"");
       for(let k=1;k<=7;k++){const dd=new Date(sd.getTime()+k*864e5);if(dd>ed)break;const x=X0[dd.getDay()],iso=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");if(x==null)continue;
-        text([x,.4145,CW,.035],fmtDate(iso),11);text([x,.4505,CW,.036],e.newTo||p.to||"",12);
-        if(sigA)await stampOn(cv,[x,.4875,CW,.035],sigA,{fit:.8});if(sigH)await stampOn(cv,[x,.5235,CW,.035],sigH,{fit:.8})}}
+        ink(x,R.d,fmtDate(iso),22);ink(x,R.t,e.newTo||p.to||"",22);
+        if(sigA)await stampOn(cv,[x,R.a[0],CW,R.a[1]],sigA,{fit:.86});if(sigH)await stampOn(cv,[x,R.h[0],CW,R.h[1]],sigH,{fit:.86})}}
   }
 }
 async function renderPermitCloseoutPage(p){
@@ -11192,14 +11193,16 @@ async function ptwChecksEdit(id){const p=S.permits.find(x=>x.id===id);if(!p)retu
 {const _o2=ptwOrg;ptwOrg=function(p,html){let b="";try{if((p.type==="HEIGHT"||p.type==="COLD")&&["requested","supok","approved","open"].includes(p.status)&&(myAccess()?.role==="admin"||ptwSignerRoles(p,myEmpName()).length)&&!Object.keys(p.siteChecks||{}).length)b=`<button class="btn" onclick="pvClose();ptwChecksEdit('${p.id}')">☑ قائمة الفحص</button>`;else if((p.type==="HEIGHT"||p.type==="COLD")&&["approved","open"].includes(p.status)&&(myAccess()?.role==="admin"||ptwSignerRoles(p,myEmpName()).length))b=`<button class="btn" onclick="pvClose();ptwChecksEdit('${p.id}')">☑ تعديل قائمة الفحص</button>`}catch(e){}
   return _o2.call(this,p,(html||"")+b)}}
 /* 8.9.135: اعتماد سريع — من شاشة عرض النموذج: خطوة واحدة (توقيع + عمالة / اشتراطات) */
-const ptwSignMissing=p=>{try{if(!p||!["requested","supok","approved","open"].includes(p.status))return false;const me=myEmpName();if(!me||myAccess()?.role==="admin")return false;
+const ptwSignMissing0=p=>{try{if(!p||!["requested","supok","approved","open"].includes(p.status))return false;const me=myEmpName();if(!me||myAccess()?.role==="admin")return false;
   if(!ptwSignerRoles(p,me).length&&!(p.engUid===ME.id))return false;
   const sg=(p.signs||{})[ME.id];if(sg&&sg.signature)return false;
   if(p.reqSignature&&normName(p.reqSignName)===normName(me))return false;
   if(p.engOk&&p.engUidDone===ME.id)return false;
   if(p.supSignature&&p.supUidDone===ME.id)return false;if(p.hseSignature&&p.hseUidDone===ME.id)return false;return true}catch(e){return false}};
+const ptwExtMissing=p=>{try{return !!(p&&p.type==="HEIGHT"&&["approved","open"].includes(p.status)&&canSignPermitStage(p,"extension"))}catch(e){return false}};
+const ptwSignMissing=p=>ptwSignMissing0(p)||ptwExtMissing(p);
 const ptwQuickWho=p=>{const P=pendingForMe();return P.sup.includes(p)?"sup":P.final.includes(p)?"hse":ptwSignMissing(p)?"sign":""};
-async function ptwSignNow(id){const p=S.permits.find(x=>x.id===id);if(!p)return;const sig=await mySig();if(!sig){toast("ضيف توقيعك المحفوظ من ملفك الشخصي الأول");sigEditor();return}
+async function ptwSignNow(id){const p=S.permits.find(x=>x.id===id);if(!p)return;if(!ptwSignMissing0(p)&&ptwExtMissing(p))return signPermitStage(id,"extension");const sig=await mySig();if(!sig){toast("ضيف توقيعك المحفوظ من ملفك الشخصي الأول");sigEditor();return}
   const me=myEmpName(),n=normName(me),roles=ptwSignerRoles(p,me),role=roles.includes("site")?"site":roles.includes("req")?"req":roles[0]||"site",isReq=n===normName(p.requester||"")||n===normName(p.siteEng||"");
   const patch={signs:{...(p.signs||{}),[ME.id]:{uid:ME.id,name:me,at:Date.now(),signature:sig,role}},...(isReq?{reqSignature:sig,reqSignName:me,reqAt:Date.now()}:{}),...(p.engUid===ME.id?{engOk:true,engUidDone:ME.id,engName:me,engAt:Date.now(),engSignature:sig}:{}),flow:[...(p.flow||[]),{st:"signed",by:ME.id,name:me,at:Date.now()}]};
   if(await write(()=>upsert("permits",id,patch),"اتوقّع ✔")){Object.assign(p,patch);notifyUsers([p.reqBy,p.createdBy].filter(x=>x&&x!==ME.id),"✍ اتوقّع التصريح",`${p.number||""} · ${me}`,`?go=ptw&id=${id}`);setTimeout(()=>printPermit(id),300)}}
