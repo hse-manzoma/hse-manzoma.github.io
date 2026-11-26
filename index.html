@@ -2225,7 +2225,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.142";
+const APP_VER="8.9.143";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11010,7 +11010,7 @@ function quickPick(title,items){window._qp=items.map(x=>x[1]);$("overlayRoot").i
 function wsQuickHTML(){const a=allowedTabs()||[],has=t=>a.includes(t),ed=t=>has(t)&&tabLevel(t)!=="view",L=[];
   const myE=hseTeam().some(x=>x.id===myEmpId());
   if(myE)L.push(["✔ سجل حضورك","homeShowAttendancePrompt()",true]);
-  if(ed("forms")){L.push(["⚠️ سجل ظرف أو تصرف","recordForm('F-HSE-07-03')"],...(isMonitor()?[]:[["🚑 سجل حادث / وشيك","recordForm('F-HSE-03-01')"],["📋 سجل مخالفة","quickPick('مخالفة على',[['👷 القوى العاملة الذاتية','homeSelfViolation()'],['🏗 القوى العاملة (مقاول)','homeContractorViolation()']])"]]),["🎓 سجل محاضرة","quickPick('محاضرة',[['🎓 محاضرة توعية (TBT)',&quot;recordForm('F-HSE-24-02')&quot;],['🎓 محاضرة سلامة أولية (Induction)',&quot;recordForm('F-HSE-24-01')&quot;]])"])}
+  if(ed("forms")){L.push(["⚠️ سجل ظرف أو تصرف","recordForm('F-HSE-07-03')"],...(isMonitor()?[]:[["🚑 سجل حادث / وشيك","recordForm('F-HSE-03-01')"],["📋 سجل مخالفة","quickPick('مخالفة على',[['👷 القوى العاملة الذاتية','homeSelfViolation()'],['🏗 القوى العاملة (مقاول)','homeContractorViolation()']])"]]),["🎓 سجل محاضرة","quickPick('محاضرة',[['🎯 توعية بنشاط (من الريسك)','tbtFromRA()'],['🎓 محاضرة توعية (TBT)',&quot;recordForm('F-HSE-24-02')&quot;],['🎓 محاضرة سلامة أولية (Induction)',&quot;recordForm('F-HSE-24-01')&quot;]])"])}
   if(ed("ptw")&&!isMonitor())L.push(["🪪 اطلب فتح تصريح — إرسال للاعتماد","ptwRequestForm()"]);
   if(has("equip"))L.push(["🧯 افحص معدة","show('inspection')"]);
   if(myE||myEmpId())L.push(["📨 طلباتي (إجازة / إذن / تكليف / مأمورية)","quickPick('طلب لنفسي فقط',[['🏖 طلب إجازة','leaveReqForm()'],['⏱ طلب إذن',&quot;dutyReqForm('perm')&quot;],['📌 طلب تكليف',&quot;dutyReqForm('one')&quot;],['🚗 طلب مأمورية',&quot;dutyReqForm('mission')&quot;]])"]);
