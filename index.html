@@ -2225,7 +2225,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.144";
+const APP_VER="8.9.145";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11237,6 +11237,29 @@ function tbtPreset(a){const sc=r=>(+r.s||0)*(+r.l||0),rows=[...a.rows].sort((x,y
   const hs=new Set(),tr=rows.filter(r=>{const k=normName(r.hazard);if(hs.has(k))return false;hs.add(k);return true});const topics=tr.slice(0,6).map(r=>"• "+cut(r.act,28)+": "+cut(String(r.hazard||"").split(/\s*[–—-]\s*/).filter(Boolean).slice(0,3).join(" - "),70)).join("\n");
   const seen=new Set(),ctr=[];out:for(const r of rows)for(const c of (r.ctrl||[])){const k=normName(c).slice(0,40);if(seen.has(k))continue;seen.add(k);ctr.push("• "+cut(c,118));if(ctr.length>=10)break out}
   return {subject:"توعية بمخاطر: "+a.name,topics,remarks:ctr.join("\n")}}
+/* 8.9.144: مع كل تصريح معتمد وليه نشاط ريسك → محاضرة توعية (F-HSE-24-02) تتعمل تلقائي والعمالة تتضاف فيها */
+const _lectBusy={};
+async function ptwLectureSync(m){try{
+  if(!m||!m.id||!["open","approved","suspended"].includes(m.status))return;
+  const a=RA_LIB.find(x=>x.name===m.raAct);if(!a)return;
+  const crew=(m.crew||[]).filter(c=>c&&String(c.name||"").trim());if(!crew.length)return;
+  if(_lectBusy[m.id])return;_lectBusy[m.id]=1;
+  const rid="lect_"+m.id,cur=S.records.find(r=>r.id===rid);
+  const rowOf=c=>{const e=c.id?emp(c.id):null;return {name:c.name,name_id:c.id||"",pos:c.job||(e&&e.job)||""}};
+  const key=r=>r.name_id?"i:"+r.name_id:"n:"+normName(r.name);
+  if(!cur){
+    const P=tbtPreset(a),tr=m.safetyId?emp(m.safetyId):null;
+    const f={...P,subject:(P.subject+(m.number?" — تصريح "+m.number:"")).slice(0,120),date:today(),project:(S.settings&&S.settings.project)||"",trainer:tr?tr.name:"",jobTitle:tr?(tr.job||""):""};
+    await write(()=>upsert("records",rid,{form:"F-HSE-24-02",f,rows:crew.slice(0,25).map(rowOf),date:f.date,permitId:m.id,auto:true,serial:nextRecSerial("F-HSE-24-02"),createdAt:Date.now(),createdBy:ME.id||""}),"اتعملت محاضرة التوعية للتصريح ✔");
+  }else{
+    const keep=(cur.rows||[]).filter(Boolean),want=new Set(crew.map(c=>key(rowOf(c))));
+    const kept=keep.filter(r=>r.sigImg||want.has(key(r))),have=new Set(kept.map(key));
+    const add=crew.map(rowOf).filter(r=>!have.has(key(r)));
+    if(add.length||kept.length!==keep.length){const rows=[...kept,...add].slice(0,25);
+      await write(()=>upsert("records",rid,{rows}),"اتحدّثت العمالة في محاضرة التصريح ✔")}
+  }}catch(e){console.warn("ptwLectureSync",e)}finally{delete _lectBusy[m&&m.id]}}
+{const _up=upsert;upsert=async function(col,id,data){const cur0=col==="permits"?(S.permits.find(x=>x.id===id)||{}):null;const r=await _up.apply(this,arguments);
+  if(col==="permits"&&data&&("crew" in data||"status" in data||"raAct" in data)){const m={...cur0,...data,id};setTimeout(()=>ptwLectureSync(m),700)}return r}}
 /* 8.9.144: محاضرة توعية من جوه التصريح — نشاط التصريح + عمالته */
 async function tbtFromPermit(id){const p=S.permits.find(x=>x.id===id);if(!p)return;const a=RA_LIB.find(x=>x.name===p.raAct);
   if(!a){toast("التصريح مش مربوط بنشاط من مكتبة الريسك");return}
