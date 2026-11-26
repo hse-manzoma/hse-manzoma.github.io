@@ -2226,7 +2226,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.147";
+const APP_VER="8.9.148";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -5382,7 +5382,7 @@ function ptwFinalForm(id){
 }
 function flowCard(p,actions){return `<div class="li" style="align-items:flex-start;flex-wrap:wrap"><div class="grow" style="min-width:220px"><div class="t">${typeChip(p.type)} <span class="num">${esc(p.number||"")}</span> · ${esc(p.location||"")}</div>
   <div class="s">${esc((p.desc||"").slice(0,110))}</div><div class="s">👷 ${esc(p.requester||"")} · ${fmtDate(p.startDate||p.date)}${p.from?` ${esc(p.from)}${p.to?`–${esc(p.to)}`:""}`:""}${p.closedAt?` · أُغلق ${fmtDate(p.closedAt)} ${esc(p.closedTime||"")}`:""}${p.supName?` · المشرف: ${esc(p.supName)}`:""}</div>
-  <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${raSnapOf(p).length?`<button class="btn ghost sm" onclick="raViewPermit('${p.id}')">🛡 تقييم المخاطر</button>`:""}${actions}</div></div>`}
+  <div style="margin-top:5px">${flowSteps(p)}</div>${p.status==="rejected"&&p.rejectNote?`<div class="s" style="color:var(--bad)">سبب الرفض: ${esc(p.rejectNote)}</div>`:""}</div><div class="row-actions" style="flex-wrap:wrap">${FORM_TYPES.includes(p.type)?`<button class="btn sm" onclick="printPermit('${p.id}')">👁 عرض التصريح</button>`:""}${raSnapOf(p).length?`<button class="btn ghost sm" onclick="raViewPermit('${p.id}')">🛡 تقييم المخاطر</button>`:""}${actions}</div></div>`}
 VIEWS.ptw={
   shell:()=>{const R=ptwRole();return `<div class="head"><h2 class="grow">تصاريح العمل PTW</h2>${(()=>{const dir=R.role==="admin"||can("permit.direct");return `<button class="btn primary keep" id="newPtw">+ تصريح جديد</button>`})()}</div>
     <div id="ptwFlow"></div>
