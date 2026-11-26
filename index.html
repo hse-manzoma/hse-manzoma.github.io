@@ -2239,7 +2239,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.168";
+const APP_VER="8.9.169";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3859,6 +3859,14 @@ function formVals(vals){
   return {project:S.settings.project||"",leaderName:S.settings.leaderName||"اسلام بكر عباس",
           deptName:S.settings.deptName||"HSE",...(vals||{})};
 }
+/* إدارة التنفيذ: لو الموظف من فريق الإشراف/التنفيذ، نماذج الـHR بتطلع باسم ورقم «إدارة التنفيذ» بدل فريق السلامة */
+function execInfo(){return {name:S.settings.execDeptName||"إدارة التنفيذ",code:S.settings.execDeptCode||"EXE",en:S.settings.execDeptEn||"execution dept"}}
+function isExecEmp(e){if(!e)return false;if(e.group==="sup")return true;return (S.profiles||[]).some(p=>p&&p.emp_id===e.id&&!p.disabled&&["sup","eng"].includes(p.role))}
+function execVals(e){return isExecEmp(e)?{__exec:execInfo()}:{}}
+function execDeptFix(o,e){/* o: {department,deptCode,[section]} — بيستبدل قيم السلامة الافتراضية بإدارة التنفيذ */
+  if(!isExecEmp(e))return o;const X=execInfo(),d=String(o.department||"").trim(),dflt=[S.settings.deptName||"",S.settings.project||"","HSE",""].includes(d);
+  const c=String(o.deptCode||"").trim();
+  return {...o,department:dflt?X.name:o.department,section:(o.section!==undefined)?(dflt?X.name:o.section):undefined,deptCode:(!c||c==="HSE")?X.code:o.deptCode}}
 async function renderForm(T,vals,opt={}){
   const F=tweakedForm((await loadForms())[T],T);if(!F)throw new Error("no form "+T);
   vals=formVals(vals);
@@ -3882,8 +3890,14 @@ async function renderForm(T,vals,opt={}){
     for(const b of [...F.boxes.filter(b=>b.page===k),...(opt.extraBoxes||[]).filter(b=>b.page===k)]){
       if(opt.skipBox?.(b))continue;
       if(b.hideIfLeader&&opt.leader)continue;
-      const txt=b.static??vals[b.field];if(txt==null||txt==="")continue;
-      drawBoxText(x,W,H,[b.x,b.y,b.w,b.h],txt,{szPt:b.sz||11,pxPerPt,algn:b.algn||"ctr",
+      let txt=b.static??vals[b.field],bb=[b.x,b.y,b.w,b.h];
+      const EX=vals.__exec;
+      if(EX){const wid=(w)=>{const c=b.x+b.w/2,hh=Math.max(b.h,.052);return [c-w/2,b.y+b.h/2-hh/2,w,hh]};
+        if(b.field==="deptName"){const dn=F.boxes.filter(q=>q.page===k&&q.field==="deptName").sort((p,q)=>p.y-q.y),i=dn.indexOf(b);txt=i<=0?EX.code:EX.name;bb=wid(i<=0?.26:.30)}
+        else if(b.static==="HSE"){if(b.name==="TextBox 21"){txt=EX.name;bb=wid(.26)}else txt=EX.code}
+        else if(/hse department/i.test(b.static||""))txt=EX.en}
+      if(txt==null||txt==="")continue;
+      drawBoxText(x,W,H,bb,txt,{szPt:(EX&&bb[2]!==b.w&&b.field!=="deptName"||EX&&b.field==="deptName"&&bb[2]!==b.w)?Math.max(b.sz||11,12.5):(b.sz||11),pxPerPt,algn:b.algn||"ctr",
         lines:b.lines||1,fill:b.fill===false?false:(WHITEOUT.includes(b.field)||!!b.fill)});
     }    out.push(c);
   }
@@ -4144,18 +4158,18 @@ async function printVoucher(key){
 async function printLeave(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
   const fld=l.leaveType==="casual"?"casual":l.leaveType==="annual"?"annual":null;
-  const vals={name:e.name||"",job:e.job||"",code:e.code||"",mobile:String(e.phone||"").replace(/^\+/,""),from:dmy(l.date,"-"),to:dmy(l.to||l.date,"-"),days:String(num(l.days)),reqDate:dmy(l.reqDate||l.date,"-"),today:dmy(l.printDate||today(),"-"),alt:l.alt?empName(l.alt):"",balance:fld&&l.balanceAfter!=null?String(l.balanceAfter):""};
+  const vals={name:e.name||"",job:e.job||"",code:e.code||"",mobile:String(e.phone||"").replace(/^\+/,""),from:dmy(l.date,"-"),to:dmy(l.to||l.date,"-"),days:String(num(l.days)),reqDate:dmy(l.reqDate||l.date,"-"),today:dmy(l.printDate||today(),"-"),alt:l.alt?empName(l.alt):"",balance:fld&&l.balanceAfter!=null?String(l.balanceAfter):"",...execVals(e)};
   printDoc({title:"طلب إجازة · "+(e.name||""),T:"VAC",vals,opt:{leader:isLeader(e),cond:l.leaveType==="other"?"other":l.leaveType},miss:l.alt?[]:["القائم بالعمل"],filename:`طلب اجازة ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printLeave('${l.id}')`});
 }
 async function printPerm(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
-  printDoc({title:"إذن خروج / تأخير · "+(e.name||""),T:"PERM",vals:{name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(l.date),dayName:dayName(l.date),from:l.from||"",to:l.to||""},opt:{leader:isLeader(e)},filename:`اذن ساعتين ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printPerm('${l.id}')`});
+  printDoc({title:"إذن خروج / تأخير · "+(e.name||""),T:"PERM",vals:{name:e.name||"",code:e.code||"",job:e.job||"",date:dmy(l.date),dayName:dayName(l.date),from:l.from||"",to:l.to||"",...execVals(e)},opt:{leader:isLeader(e)},filename:`اذن ساعتين ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printPerm('${l.id}')`});
 }
 /* التكليف الإضافي الفردي — نموذج f-ONE، منفصل تمامًا عن المأمورية */
 async function printOneDuty(id){
   const l=S.leaves.find(x=>x.id===id);if(!l)return;const e=emp(l.empId)||{};
   printDoc({title:"تكليف إضافي لموظف · "+(e.name||""),T:"ONE",
-    vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",out:l.outTime||"",today:ymdSlash(today())},
+    vals:{name:e.name||"",job:e.job||"",code:e.code||"",date:dmyShort(l.date),reason:l.reason||"",out:l.outTime||"",today:ymdSlash(today()),...execVals(e)},
     opt:{leader:isLeader(e)},filename:`تكليف ${e.name||""} ${l.date}.pdf`,rec:l,signCol:"leaves",reopen:`printOneDuty('${l.id}')`});
 }
 /* سجل قديم اتسجل أيام ما «مأمورية» كانت بتطبع نموذج التكليف الإضافي */
@@ -4255,6 +4269,7 @@ async function printMission(id){
     reqName:e.name||"", mgrName:mgr,
     reqDate:dmy(l.date), mgrDate:dmy(l.date)
   };
+  Object.assign(vals,execDeptFix({department:vals.department,deptCode:vals.deptCode},e));
   const miss=[];if(!l.destination)miss.push("جهة المأمورية");if(!l.reason)miss.push("الغرض من المأمورية");
   if(!mgr)miss.push("المعتمد (مدير الإدارة)");
   if(!missionSignedName(l,e.name))miss.push("توقيع طالب المأمورية");
@@ -4277,6 +4292,7 @@ async function printMissionGroup(date){
     destination:h.destination||"", purpose:h.reason||"",
     mgrName:mgr, mgrDate:dmy(date)
   };
+  {const X=execDeptFix({department:vals.department,section:vals.section,deptCode:vals.deptCode},emp(h.empId));vals.department=X.department;vals.section=X.section;vals.deptCode=X.deptCode}
   L.forEach((l,i)=>{const e=emp(l.empId)||{};vals["code"+i]=e.code||"";vals["name"+i]=e.name||""});
   const miss=[];if(ALL.length>18)miss.push("النموذج بياخد 18 فرد بس، الباقي محتاج نموذج تاني");
   if(!h.destination)miss.push("جهة المأمورية");if(!h.reason)miss.push("الغرض من المأمورية");
@@ -4293,7 +4309,7 @@ async function printTeamDuty(date){
   const seen=new Set();const ALL=S.leaves.filter(l=>l.kind==="duty"&&l.date===date&&!seen.has(l.empId)&&seen.add(l.empId));const L=ALL.slice(0,10);if(!L.length)return;
   /* أول صف في اليوم هو حامل الاعتماد للتكليف المجمع كله (زي المأمورية المجمع) */
   const h=L[0];
-  const vals={today:ymdSlash(today()),dayName:dayName(date),date:dmyShort(date),reason:h.reason||""};
+  const vals={today:ymdSlash(today()),dayName:dayName(date),date:dmyShort(date),reason:h.reason||"",...execVals(emp(h.empId))};
   L.forEach((l,i)=>{const e=emp(l.empId)||{};vals["code"+i]=e.code||"";vals["name"+i]=e.name||"";vals["job"+i]=e.job||"";vals["out"+i]=l.outTime||""});
   const more=ALL.length>10;
   const miss=more?["النموذج بياخد 10 بس، الباقي محتاج نموذج تاني"]:[];
@@ -6789,7 +6805,7 @@ function leaveReqForm(){const e=emp(myEmpId());if(!e){toast("حسابك مش م�
 function dutyReqForm(kind){const e=emp(myEmpId());if(!e){toast("حسابك مش مربوط بموظف — كلّم الأدمن");return}
   if(!["perm","mission","one"].includes(kind))return;
   const title=DUTY_K[kind];
-  const extra=kind==="perm"?`${f("من الساعة","from",{value:"2 م",req:true})}${f("لحد الساعة","toH",{value:"4 م",req:true})}`:kind==="mission"?`${f("جهة المأمورية","destination",{full:true,req:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today(),req:true})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:S.settings.deptName||S.settings.project||""})}${f("الغرض من المأمورية","reason",{full:true,req:true})}`:`${f("سبب / العمل المكلف به","reason",{full:true,req:true})}${f("وقت الخروج","outTime",{value:"",attrs:'placeholder="مثال: 5 م"'})}`;
+  const extra=kind==="perm"?`${f("من الساعة","from",{value:"2 م",req:true})}${f("لحد الساعة","toH",{value:"4 م",req:true})}`:kind==="mission"?`${f("جهة المأمورية","destination",{full:true,req:true})}${f("تاريخ العودة","returnDate",{type:"date",value:today(),req:true})}${f("ساعة العودة","returnTime",{value:"4 م"})}${f("القسم / الإدارة","department",{value:(isExecEmp(e)?execInfo().name:(S.settings.deptName||S.settings.project||""))})}${f("الغرض من المأمورية","reason",{full:true,req:true})}`:`${f("سبب / العمل المكلف به","reason",{full:true,req:true})}${f("وقت الخروج","outTime",{value:"",attrs:'placeholder="مثال: 5 م"'})}`;
   openSheet(`طلب ${title}`,`<div class="form">${f("التاريخ","date",{type:"date",value:today(),req:true})}${extra}${f("ملاحظات","note",{full:true})}${kind==="one"?"":hrChainHTML()}<div class="field full muted">سيظهر الطلب للمدير للمراجعة، ولن يُسجل في ملفك إلا بعد الموافقة.</div></div>`,async fd=>{
     if(kind==="mission"&&fd.returnDate<fd.date)return "تاريخ العودة قبل تاريخ المأمورية";
     const data={requestKind:kind,kind,empId:e.id,empName:e.name,date:fd.date,status:"new",by:ME.id,at:Date.now(),note:(fd.note||"").trim()};
