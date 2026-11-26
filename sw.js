@@ -1,5 +1,5 @@
 /* network-first service worker + daily push reminders */
-const C="hse-v265";
+const C="hse-v266";
 /* الملفات اللي لازم تكون متخزنة عشان المنظومة تفتح وانت مفيش نت */
 const SHELL=["./","index.html","supa.js","forms.json","forms-index.json","manifest.json","icon-180.png","icon-192.png","icon-512.png","icon.svg","brand-sanad-mark.svg","brand-sanad.svg","rep-logo.png"];
 const CDN=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js",
@@ -27,6 +27,9 @@ self.addEventListener("fetch",e=>{const r=e.request;const u=new URL(r.url);if(r.
   }
   e.respondWith(fetch(r).then(res=>{if(res.ok){const cp=res.clone();caches.open(C).then(c=>c.put(r,cp)).catch(()=>{})}return res}).catch(()=>caches.match(r).then(m=>m||caches.match("index.html").then(x=>x||caches.match("./")))))});
 self.addEventListener("push",e=>{let d={};try{d=e.data.json()}catch(x){d={title:"منظومة السلامة",body:e.data&&e.data.text()}}
-  e.waitUntil(self.registration.showNotification(d.title||"منظومة السلامة",{body:d.body||"",icon:"icon-192.png",badge:"icon-192.png",tag:d.tag||"hse",dir:"rtl",lang:"ar",data:{url:d.url||"./"},renotify:true,requireInteraction:true,vibrate:[300,120,300,120,300]}))});
+  e.waitUntil((async()=>{
+    await self.registration.showNotification(d.title||"منظومة السلامة",{body:d.body||"",icon:"icon-192.png",badge:"icon-192.png",tag:d.tag||("hse-"+Date.now()),dir:"rtl",lang:"ar",data:{url:d.url||"./"},renotify:true,requireInteraction:true,silent:false,timestamp:Date.now(),vibrate:[500,120,500,120,500,120,900],actions:[{action:"open",title:"فتح"}]});
+    try{const n=(await self.registration.getNotifications()).length;if(self.navigator.setAppBadge)await self.navigator.setAppBadge(n)}catch(x){}
+  })())});
 self.addEventListener("notificationclick",e=>{e.notification.close();const url=new URL(e.notification.data&&e.notification.data.url||"./",self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(L=>{for(const c of L){if(c.url.startsWith(self.registration.scope)){c.navigate(url).catch(()=>{});return c.focus()}}return self.clients.openWindow(url)}))});
