@@ -2239,7 +2239,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.167";
+const APP_VER="8.9.168";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11495,7 +11495,7 @@ const CAPS={
   "location.view":    {g:"الفريق",ar:"رؤية مواقع الفريق",roles:["hsesup","hse","officer","monitor"]},
   "follow.manage":    {g:"الفريق",ar:"متابعة الفريق (إدارة وتعديل)",roles:["hsesup"]},
   "manpower.manage":  {g:"القوى العاملة",ar:"إضافة وتعديل العاملين",def:_OWN_RESTRICTED},
-  "hr.request":       {g:"الموارد البشرية",ar:"طلب إجازة أو إذن أو مأمورية أو تكليف",def:_OWN_RESTRICTED},
+  "hr.request":       {g:"الموارد البشرية",ar:"طلب إجازة أو إذن أو مأمورية أو تكليف",def:p=>p.role!=="eng"},
   "ppe.access":       {g:"المخزن",ar:"مخزن مهمات الوقاية وطلباته",def:_OWN_RESTRICTED},
   "ws.write":         {g:"النظام",ar:"الكتابة العامة في الأقسام المتاحة",def:p=>p.role!=="eng"},
   "id.view":          {g:"القوى العاملة",ar:"مشاهدة بطاقات العاملين وملف الفرد",def:p=>!!_idDef(p)[0]},
