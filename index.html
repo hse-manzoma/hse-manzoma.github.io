@@ -2226,7 +2226,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.150";
+const APP_VER="8.9.151";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -11299,7 +11299,8 @@ async function permitLecturePages(p){try{if(!p||p.lecture!=="yes")return [];cons
 async function ptwLectureOpen(pid){const p=S.permits.find(x=>x.id===pid),rid="lect_"+pid,r=S.records.find(x=>x.id===rid);
   if(!p||!r){toast("المحاضرة لسه ما اتعملتش");return}
   if(!ptwLectureCan(p)){toast("المحاضرة من اختصاص مسؤول السلامة (فريق السلامة)");return}
-  openSheet("🎓 محاضرة التصريح — اقرأها على العاملين ثم وقّعهم",`<div id="pvw" class="pvw"><div class="empty">بيجهّز النموذج…</div></div>`,async()=>{setTimeout(()=>attendSign(rid),60);return null},"✍ توقيع العاملين");
+  const lecSigned=()=>Object.values((S.records.find(x=>x.id===rid)||{}).signs||{}).some(g=>g&&g.signature);
+  openSheet("🎓 محاضرة التصريح — اقرأها على العاملين ثم وقّعهم",`<div class="banner" style="margin-bottom:8px">${lecSigned()?"✔ المحاضر وقّع. دلوقتي وقّع العاملين.":"الخطوة 1: توقيع المحاضر (مسؤول السلامة) — الخطوة 2: توقيع العاملين."}</div><div id="pvw" class="pvw"><div class="empty">بيجهّز النموذج…</div></div>`,async()=>{setTimeout(()=>lecSigned()?attendSign(rid):signDoc("records",rid,{reopen:()=>setTimeout(()=>attendSign(rid),200)}),60);return null},lecSigned()?"✍ توقيع العاملين":"✍ توقيع المحاضر ثم العاملين");
   try{const pages=await renderGeneric(r.form,r);const b=$("pvw");if(b){b.innerHTML="";pages.forEach(c=>b.appendChild(c))}}catch(e){console.error(e);const b=$("pvw");if(b)b.innerHTML='<div class="msg">معرفتش أحمّل النموذج.</div>'}}
 {const _as=attendSign;attendSign=function(recId){if(String(recId).startsWith("lect_")){const p=S.permits.find(x=>x.id===String(recId).slice(5));if(p&&!ptwLectureCan(p)){toast("المحاضرة من اختصاص مسؤول السلامة (فريق السلامة)");return}}return _as.apply(this,arguments)}}
 /* 8.9.144: محاضرة توعية من جوه التصريح — نشاط التصريح + عمالته */
