@@ -2239,7 +2239,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.165";
+const APP_VER="8.9.166";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6374,11 +6374,22 @@ function showReminder(m){playPtwSoftAlarm();$("remBanner")?.remove();const d=doc
   d.innerHTML=`<div style="display:flex;gap:10px;align-items:flex-start"><div class="grow"><div style="font:700 16px var(--f-display)">${esc(m.title)}</div><div style="white-space:pre-line;font-size:14px;margin-top:4px">${esc(m.body)}</div>${m.url?`<button type="button" class="btn sm primary" data-rem-open style="margin-top:10px">${String(m.url).includes("go=ptw-close")?"راجع التصريح وافتح الإغلاق":"فتح"}</button>`:""}</div><button class="btn ghost sm" aria-label="قفل">✕</button></div>`;
   d.querySelector('[aria-label="قفل"]').onclick=()=>d.remove();const go=d.querySelector("[data-rem-open]");if(go)go.onclick=()=>{d.remove();goTo(m.url)};document.body.appendChild(d);setTimeout(()=>d.remove(),60000)}
 setInterval(inAppTick,30000);setTimeout(inAppTick,8000);
+
+async function pushReadiness(){
+  const st=await pushState(),ios=isIOS(),standalone=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone;
+  const ok=(b,t)=>`<div class="li" style="border:0"><span style="font-size:18px">${b?"✅":"❌"}</span><div class="grow"><div class="t">${t}</div></div></div>`;
+  const steps=ios?`<ol style="line-height:2;padding-inline-start:20px;margin:6px 0"><li>افتح المنظومة في Safari ← مشاركة ← <b>Add to Home Screen</b> وافتحها من الأيقونة.</li><li>دوس «تفعيل» للتنبيهات واسمح بالإشعارات.</li><li>الإعدادات ← الإشعارات ← المنظومة: فعّل <b>Lock Screen</b> و<b>Sounds</b> و<b>Time Sensitive</b>.</li><li>وضع التركيز (Focus): اسمح بتطبيق المنظومة.</li></ol>`
+   :`<ol style="line-height:2;padding-inline-start:20px;margin:6px 0"><li>ثبّت المنظومة: قائمة Chrome ← <b>تثبيت التطبيق / Add to Home screen</b>.</li><li>دوس «تفعيل» للتنبيهات واسمح بالإشعارات.</li><li>إعدادات الأندرويد ← التطبيقات ← المنظومة ← الإشعارات: خلّي الأهمية <b>عالية (صوت وتنبيه منبثق)</b> وفعّل الصوت والاهتزاز.</li><li>إعدادات ← البطارية ← المنظومة: اختار <b>بدون قيود (Unrestricted)</b> علشان النظام ما يوقفهاش وهو نايم.</li><li>لو عندك «عدم الإزعاج»: أضف المنظومة للاستثناءات.</li></ol>`;
+  openSheet("📲 جاهزية التنبيه والجهاز نايم",`<div class="list">${ok(st==="on","التنبيهات مفعّلة على الجهاز ده")}${ok(standalone,"المنظومة مثبّتة كتطبيق على الشاشة الرئيسية")}${ok(typeof Notification!=="undefined"&&Notification.permission==="granted","إذن الإشعارات متاح")}</div>
+   <p class="muted" style="margin:10px 0 4px">علشان الإشعار يوصل والجهاز نايم:</p>${steps}
+   <p class="muted" style="font-size:12.5px">ملاحظة: النغمة والرنين وهو نايم بيتحكم فيهم نظام الموبايل نفسه، والمنظومة بتطلب أعلى أولوية وتنبيه ثابت مع اهتزاز طويل.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${st==="off"?`<button type="button" class="btn primary" onclick="enablePush()">تفعيل التنبيهات</button>`:""}${st==="on"?`<button type="button" class="btn primary" onclick="testPush()">🔔 جرّب تنبيه (اقفل الشاشة بعد الضغط)</button>`:""}</div>`,null,null)}
 /* account menu: signature + reminders */
 async function meMenu(){SHEET_FORCE=true;try{meMenuBase()}finally{SHEET_FORCE=false}const form=$("shForm");if(!form)return;const st=await pushState();const sg=await mySig();
   const box=document.createElement("div");box.className="card";box.style.cssText="margin-top:14px;padding:12px";
   box.innerHTML=`<div class="li" style="border:0"><div class="grow"><div class="t">✍ توقيعي</div><div class="s">${sg?"متسجل — بيظهر لأطراف المستند بعد توقيعك":"لسه ما ضفتش توقيعك"}</div></div>${sg?`<img src="${sg}" alt="" style="height:34px;max-width:120px;background:#fff;border-radius:6px;padding:2px">`:""}<button type="button" class="btn sm" id="mmSig">${sg?"تغيير":"إضافة توقيع"}</button></div>
      <div class="li"><div class="grow"><div class="t">🔔 التنبيهات اليومية</div><div class="s">7:45 صباحاً · 12:55 الضهر · 3:00 العصر${st==="unsupported"?(isIOS()?" — ثبّت المنظومة على الشاشة الرئيسية الأول":" — المتصفح مش بيدعمها"):st==="denied"?" — مقفولة من إعدادات المتصفح":""}</div></div>${st==="on"?`<button type="button" class="btn ghost sm" id="mmTest">تجربة</button><button type="button" class="btn ghost sm" id="mmOff">إيقاف</button>`:st==="off"?`<button type="button" class="btn sm primary" id="mmOn">تفعيل</button>`:""}</div>
+     <div class="li"><div class="grow"><div class="t">📲 جاهزية التنبيه والجهاز نايم</div><div class="s">خطوات تخلّي الإشعار يرن ويصحّي الموبايل حتى والشاشة مقفولة</div></div><button type="button" class="btn sm" onclick="pushReadiness()">افتح الدليل</button></div>
      <div class="li"><div class="grow"><div class="t">⏰ منبّه الفريق 7:45</div><div class="s">فايبريشن + صوت قوي على جهازك كل يوم الساعة 7:45 صباحاً — حتى بدون إنترنت</div></div><button type="button" class="btn sm" id="alarmToggleBtn" onclick="toggleAlarm(localStorage.getItem('${ALARM_KEY}')!=='1')">${localStorage.getItem(ALARM_KEY)==="1"?"🔔 شغّال — إيقاف":"🔕 تفعيل المنبّه"}</button><button type="button" class="btn ghost sm" onclick="alarm745()" title="تجربة الآن">▶ تجربة</button></div>
      <div class="li"><div class="grow"><div class="t">🚨 صوت نهاية التصريح</div><div class="s">تنبيه صوتي قصير وخفيف عند وصول إشعار التصريح.</div></div><button type="button" class="btn sm ${ptwAlarmSoundOn()?"primary":""}" id="mmAlarm">${ptwAlarmSoundOn()?"كتم الصوت":"تفعيل الصوت"}</button></div>`;
   form.insertBefore(box,form.querySelector("#shMsg"));
@@ -6638,7 +6649,7 @@ async function referDone(id){const r=S.records.find(x=>x.id===id);if(!r?.referra
   if(await write(()=>upsert("records",id,{referral:{...r.referral,status:"done",doneAt:Date.now()}}),"تم إنهاء الإحالة ✔"))notifyUsers([r.referral.by],"✅ اتنفذت إحالتك",`${r.referral.toName} أنهى الإحالة`,`?go=rec&id=${encodeURIComponent(id)}`)}
 async function notifyUsers(uids,title,body,url="./"){uids=[...new Set((uids||[]).filter(u=>u&&u!==ME.id))];if(!uids.length)return;
   try{await SB.from("notif").insert(uids.map(u=>({to_uid:u,title,body,url})))}catch(e){}
-  try{await notifyCall({action:"send",to:uids,title,body,url},true)}catch(e){}}
+  try{await notifyCall({action:"send",to:uids,title,body,url,urgency:"high",ttl:86400,priority:"high"},true)}catch(e){}}
 async function loadNotifs(){try{const {data}=await SB.from("notif").select("*").eq("to_uid",ME.id).order("at",{ascending:false}).limit(150);NOTIFS=data||[];bellBadge();try{window.dispatchEvent(new Event("hse-notifs-loaded"))}catch(e){}}catch(e){}}
 /* ===== إشعارات حيّة: الإشعار الطلبي بيتقارن بحالة الشيء النهارده =====
    الإشعار صورة وقت الحدث؛ لو الشيء اتعتمد/اتقفل بعدها ما يفضلش «محتاج اعتماد». */
