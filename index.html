@@ -2225,7 +2225,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.140";
+const APP_VER="8.9.141";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -6619,7 +6619,7 @@ async function referDone(id){const r=S.records.find(x=>x.id===id);if(!r?.referra
 async function notifyUsers(uids,title,body,url="./"){uids=[...new Set((uids||[]).filter(u=>u&&u!==ME.id))];if(!uids.length)return;
   try{await SB.from("notif").insert(uids.map(u=>({to_uid:u,title,body,url})))}catch(e){}
   try{await notifyCall({action:"send",to:uids,title,body,url},true)}catch(e){}}
-async function loadNotifs(){try{const {data}=await SB.from("notif").select("*").eq("to_uid",ME.id).order("at",{ascending:false}).limit(60);NOTIFS=data||[];bellBadge()}catch(e){}}
+async function loadNotifs(){try{const {data}=await SB.from("notif").select("*").eq("to_uid",ME.id).order("at",{ascending:false}).limit(150);NOTIFS=data||[];bellBadge()}catch(e){}}
 /* ===== إشعارات حيّة: الإشعار الطلبي بيتقارن بحالة الشيء النهارده =====
    الإشعار صورة وقت الحدث؛ لو الشيء اتعتمد/اتقفل بعدها ما يفضلش «محتاج اعتماد». */
 const NOTIF_RESULT_RE=/اتعتمد|اترفض|اتوافق|اتنفذ|اتقفل|اتمدد|اتلغى|^\s*(✅|❌)|تم |انتهى/;
@@ -11194,6 +11194,44 @@ async function ptwChecksEdit(id){const p=S.permits.find(x=>x.id===id);if(!p)retu
     const ok=await write(()=>upsert("permits",id,{siteChecks:sc,siteChecksBy:ME.id,siteChecksName:myEmpName()}),"اتحفظت قائمة الفحص ✔");if(!ok)return "الحفظ فشل";Object.assign(p,{siteChecks:sc});setTimeout(()=>printPermit(id),300);return null},"حفظ القائمة")}
 {const _o2=ptwOrg;ptwOrg=function(p,html){let b="";try{if((p.type==="HEIGHT"||p.type==="COLD")&&["requested","supok","approved","open"].includes(p.status)&&(myAccess()?.role==="admin"||ptwSignerRoles(p,myEmpName()).length)&&!Object.keys(p.siteChecks||{}).length)b=`<button class="btn" onclick="pvClose();ptwChecksEdit('${p.id}')">☑ قائمة الفحص</button>`;else if((p.type==="HEIGHT"||p.type==="COLD")&&["approved","open"].includes(p.status)&&(myAccess()?.role==="admin"||ptwSignerRoles(p,myEmpName()).length))b=`<button class="btn" onclick="pvClose();ptwChecksEdit('${p.id}')">☑ تعديل قائمة الفحص</button>`}catch(e){}
   return _o2.call(this,p,(html||"")+b)}}
+/* 8.9.141: إشعارات اليوم داخل الصفحة الرئيسية — مبوّبة، حيّة، من غير ما تدخل القسم */
+const NF_CATS=[["ptw","🪪","التصاريح"],["rec","📄","السجلات والنماذج"],["task","✅","المهام والمتابعة"],["equip","🧯","المعدات والفحوصات"],["att","📍","الحضور"],["chat","💬","التواصل"],["other","🔔","أخرى"]];
+function nfCat(n){let go="";try{go=new URLSearchParams(String(n.url||"").split("?")[1]||"").get("go")||""}catch(e){}
+  return /^ptw/.test(go)?"ptw":go==="rec"?"rec":/^(task|follow|hrchain|me|mr)$/.test(go)?"task":/^(inspection|equip)$/.test(go)?"equip":go==="attendance-confirm"?"att":go==="chat"?"chat":/تصريح/.test(n.title||"")?"ptw":"other"}
+function nfAgo(at){const m=Math.max(0,Math.round((Date.now()-new Date(at).getTime())/6e4));if(m<1)return "الآن";if(m<60)return "منذ "+m+" د";const h=Math.round(m/60);if(h<24)return "منذ "+h+" س";const d=Math.round(h/24);return "منذ "+d+" يوم"}
+function nfDay(at){try{return new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Cairo"}).format(new Date(at))}catch(e){return String(at).slice(0,10)}}
+function nfItem(n){const live=notifLive(n)===true,done=notifOpen(n),cat=NF_CATS.find(c=>c[0]===nfCat(n))||NF_CATS[6];
+  return `<button type="button" class="nf-i ${n.read?"":"unread"} ${done?"done":""}" data-nf="${n.id}"><span class="nf-ic">${cat[1]}</span><span class="nf-bd"><span class="nf-t">${esc(n.title||"")}</span><span class="nf-s">${esc((n.body||"").slice(0,160))}</span></span><span class="nf-m">${live?'<b class="nf-pill ask">مطلوب</b>':done?'<b class="nf-pill ok">✔ تم</b>':""}<small>${nfAgo(n.at)}</small></span></button>`}
+function homeNotifHTML(){const f=ui.nfFilter||"today",today0=nfDay(Date.now()),all=(NOTIFS||[]).slice();
+  const ask=all.filter(n=>notifLive(n)===true&&!notifOpen(n));
+  let rest=all.filter(n=>!ask.includes(n)&&!notifOpen(n));
+  rest=f==="unread"?rest.filter(n=>!n.read):f==="week"?rest.filter(n=>Date.now()-new Date(n.at)<7*864e5):f==="all"?all.filter(n=>!ask.includes(n)):rest.filter(n=>nfDay(n.at)===today0);
+  const unread=all.filter(n=>!n.read&&!notifOpen(n)).length;
+  const chip=(k,l)=>`<button type="button" class="nf-chip ${f===k?"on":""}" data-nff="${k}">${l}</button>`;
+  const grp=(key,ic,label,list)=>list.length?`<details class="nf-g" open><summary><span>${ic} ${label}</span><b>${list.length}</b></summary><div class="nf-l">${list.map(nfItem).join("")}</div></details>`:"";
+  const groups=NF_CATS.map(([k,ic,l])=>grp(k,ic,l,rest.filter(n=>nfCat(n)===k))).join("");
+  return `<div class="nf-bar"><div class="nf-chips">${chip("today","اليوم")}${chip("unread","غير المقروء"+(unread?" ("+unread+")":""))}${chip("week","٧ أيام")}${chip("all","الكل")}</div>${unread?'<button type="button" class="btn ghost sm" data-nfall>تعليم الكل كمقروء</button>':""}</div>
+  ${ask.length?`<div class="nf-ask"><div class="nf-ask-h">⏳ مطلوب منك الآن <b>${ask.length}</b></div><div class="nf-l">${ask.map(nfItem).join("")}</div></div>`:""}
+  ${groups||(!ask.length?'<div class="muted" style="padding:8px 2px">مفيش إشعارات '+(f==="today"?"النهارده":"في الفترة دي")+' ✨</div>':"")}`}
+function homeNotifRender(){const box=$("homeNotifBody");if(!box)return;box.innerHTML=homeNotifHTML();const b=$("homeNotifCount");if(b){const n=(NOTIFS||[]).filter(x=>!x.read&&!notifOpen(x)).length;b.textContent=n?n:"";b.style.display=n?"":"none"}}
+document.addEventListener("click",async e=>{const r=e.target.closest&&e.target.closest("#homeNotifCard");if(!r)return;
+  const c=e.target.closest("[data-nff]");if(c){ui.nfFilter=c.dataset.nff;homeNotifRender();return}
+  if(e.target.closest("[data-nfall]")){const ids=NOTIFS.filter(x=>!x.read).map(x=>x.id);NOTIFS.forEach(x=>x.read=true);bellBadge();if(ids.length)SB.from("notif").update({read:true}).in("id",ids).then(()=>{},()=>{});return}
+  const it=e.target.closest("[data-nf]");if(it){const x=NOTIFS.find(n=>String(n.id)===it.dataset.nf);if(!x)return;if(!x.read){x.read=true;bellBadge();SB.from("notif").update({read:true}).eq("id",x.id).then(()=>{},()=>{})}if(x.url)goTo(x.url)}});
+{const _bb=bellBadge;bellBadge=function(){_bb.apply(this,arguments);try{if(typeof tab!=="undefined"&&tab==="dash")homeNotifRender()}catch(e){}}}
+{const _sh=VIEWS.dash.shell,_fl=VIEWS.dash.fill;
+ VIEWS.dash.shell=function(){return _sh.apply(this,arguments).replace('<section class="card" id="homeOpsCard">','<section class="card" id="homeNotifCard" aria-live="polite"><h3 style="margin-top:0;display:flex;gap:8px;align-items:center">🔔 إشعارات اليوم <span id="homeNotifCount" class="nf-badge" style="display:none"></span></h3><div id="homeNotifBody"></div></section><section class="card" id="homeOpsCard">')};
+ VIEWS.dash.fill=function(){const r=_fl.apply(this,arguments);try{homeNotifRender()}catch(e){console.error(e)}return r}}
+{const st=document.createElement("style");st.textContent=`#homeNotifCard .nf-bar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
+#homeNotifCard .nf-chips{display:flex;gap:6px;flex-wrap:wrap}#homeNotifCard .nf-chip{border:1px solid var(--line);background:none;color:inherit;border-radius:999px;padding:4px 12px;font:inherit;font-size:12.5px;cursor:pointer}#homeNotifCard .nf-chip.on{background:var(--accent-soft);border-color:var(--accent);font-weight:700}
+#homeNotifCard .nf-badge{background:var(--bad);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px}
+#homeNotifCard .nf-ask{border:1px solid var(--warn);border-inline-start-width:4px;border-radius:12px;padding:8px;margin-bottom:10px;background:color-mix(in srgb,var(--warn) 8%,transparent)}#homeNotifCard .nf-ask-h{font-weight:700;margin-bottom:4px}
+#homeNotifCard .nf-g{border-top:1px solid var(--line);padding:6px 0}#homeNotifCard .nf-g>summary{display:flex;justify-content:space-between;cursor:pointer;font-weight:700;font-size:13.5px;padding:4px 2px;list-style:none}#homeNotifCard .nf-g>summary b{background:var(--line);border-radius:999px;padding:0 8px;font-size:12px}
+#homeNotifCard .nf-l{display:flex;flex-direction:column;gap:2px}#homeNotifCard .nf-i{display:flex;gap:10px;align-items:flex-start;text-align:right;width:100%;background:none;border:0;border-radius:10px;padding:8px;font:inherit;color:inherit;cursor:pointer;min-height:48px}
+#homeNotifCard .nf-i:hover{background:var(--accent-soft)}#homeNotifCard .nf-i.unread{background:var(--accent-soft)}#homeNotifCard .nf-i.done{opacity:.55}
+#homeNotifCard .nf-ic{font-size:18px;line-height:1.3}#homeNotifCard .nf-bd{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}#homeNotifCard .nf-t{font-weight:600;font-size:13.5px}#homeNotifCard .nf-s{font-size:12.5px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line}
+#homeNotifCard .nf-m{display:flex;flex-direction:column;align-items:flex-end;gap:3px;white-space:nowrap}#homeNotifCard .nf-m small{color:var(--muted);font-size:11px}#homeNotifCard .nf-pill{font-size:11px;border-radius:999px;padding:1px 8px}#homeNotifCard .nf-pill.ask{background:var(--warn);color:#fff}#homeNotifCard .nf-pill.ok{background:var(--ok);color:#fff}`;document.head.appendChild(st)}
+setInterval(()=>{try{if(typeof tab!=="undefined"&&tab==="dash")homeNotifRender()}catch(e){}},60000);
 /* 8.9.135: اعتماد سريع — من شاشة عرض النموذج: خطوة واحدة (توقيع + عمالة / اشتراطات) */
 const ptwSignMissing0=p=>{try{if(!p||!["requested","supok","approved","open"].includes(p.status))return false;const me=myEmpName();if(!me||myAccess()?.role==="admin")return false;
   if(!ptwSignerRoles(p,me).length&&!(p.engUid===ME.id))return false;
