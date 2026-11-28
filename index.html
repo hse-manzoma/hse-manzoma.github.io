@@ -2239,7 +2239,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.171";
+const APP_VER="8.9.172";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3756,6 +3756,16 @@ function ptwSignerRoles(p,name,roleHint=""){
   const matches=keys.filter(role=>map[role]&&normName(partyValue(map[role]))===normName(name));
   return roleHint&&matches.includes(roleHint)?[roleHint]:matches;
 }
+/* 8.9.172: لو اسم الشخص متكرر في أكتر من خانة في النموذج، توقيعه يتحط مرة واحدة في خانة دوره الحقيقي */
+function ptwPreferRole(p,name,roles,hint){
+  if(!p||!roles||roles.length<2)return roles||[];
+  if(hint&&roles.includes(hint))return [hint];
+  const hn=p.safetyId?empName(p.safetyId):(p.hseName||p.safetyName||"");
+  if(roles.includes("hse")&&hn&&normName(hn)===normName(name))return ["hse"];
+  if(roles.includes("sup")&&normName(p.supervisor||p.supName||"")===normName(name))return ["sup"];
+  if(roles.includes("site")&&p.siteEng&&normName(p.siteEng)===normName(name))return ["site"];
+  return [roles[0]];
+}
 function ptwAdminActor(uid){if(!uid)return false;if(uid===ME.id&&myAccess()?.role==="admin")return true;return (S.profiles||[]).some(x=>(x.id===uid||x.user_id===uid)&&x.role==="admin")}
 function canSignPermit(p){return !!canWrite&&myAccess()?.role!=="admin"&&ptwSignerRoles(p,myEmpName()).length>0}
 function ptwStageSignMap(p,stage){if(stage==="close"){const m={...(p.closeSignatures||{})};if(p.closeSignature&&p.closeRole&&!m[p.closeRole]&&!ptwAdminActor(p.closeUid))m[p.closeRole]={uid:p.closeUid,name:p.closeName,signature:p.closeSignature,at:p.closedAtMs,date:p.closedAt,time:p.closedTime};return m}const a=Array.isArray(p.extensions)?p.extensions:[],x=a[a.length-1];const m={...(x?.signatures||{})};if(x?.signature&&x?.role&&!m[x.role]&&!ptwAdminActor(x.by))m[x.role]={uid:x.by,name:x.name,signature:x.signature,at:x.at,date:x.date,time:x.time};return m}
@@ -3770,7 +3780,7 @@ function ptwCloseApprovalBody(p,roles){
 async function signPermitStage(id,stage){
   const p=S.permits.find(x=>x.id===id);
   if(!p||!canSignPermitStage(p,stage)){toast("التوقيع متاح لأطراف النموذج المحددين فقط");return}
-  const roles=ptwStageRoles(p,stage).filter(r=>!ptwStageSignMap(p,stage)[r]);
+  let roles=ptwStageRoles(p,stage).filter(r=>!ptwStageSignMap(p,stage)[r]);if(stage==="extension")roles=ptwPreferRole(p,myEmpName(),roles,ptwCloseRole());
   if(!roles.length){toast("تم تسجيل توقيعك لهذه المرحلة بالفعل");return}
   const signature=await mySig();if(!signature){toast("أضف توقيعك المحفوظ من الملف الشخصي أولاً");sigEditor();return}
   const saveExtension=async()=>{
@@ -3792,7 +3802,9 @@ async function signPermitStage(id,stage){
     for(const r of roles){closeSignatures[r]=entry;closeChecksByRole[r]=checks.filter(k=>required.some(x=>x.k===k&&x.role===r));closeNotesByRole[r]=(fd["closeNote_"+r]||"").trim();closeRecommendationsByRole[r]=(fd["closeRec_"+r]||"").trim()}
     const patch={closeSignatures,closeChecksByRole,closeNotesByRole,closeRecommendationsByRole,flow:[...(p.flow||[]),{st:"close-approved",by:ME.id,name:myEmpName(),at:Date.now(),date:now.day,time:now.time,roles}]};
     if(!await write(()=>upsert("permits",id,patch),"اتسجلت موافقتك وفحوصاتك وتوقيع الإغلاق ✔"))return "الحفظ فشل";
-    Object.assign(p,patch);await notifyUsers(ptwStakeholders(p),"تم تسجيل موافقة طرف على إغلاق التصريح",(p.number||"")+" · "+myEmpName()+" وقّع على بنوده. بانتظار بقية الأطراف.","?go=ptw&id="+encodeURIComponent(id));
+    Object.assign(p,patch);
+    {const need=p.closeRequest?.requiredRoles||[],done=p.closeSignatures||{};
+     if(!(need.length&&need.every(r=>done[r]?.signature)))await notifyUsers(ptwStakeholders(p),"تم تسجيل موافقة طرف على إغلاق التصريح",(p.number||"")+" · "+myEmpName()+" وقّع على بنوده. بانتظار بقية الأطراف.","?go=ptw&id="+encodeURIComponent(id));}
     await ptwFinalizeClose(p);setTimeout(()=>printPermit(id),250);return null
   },"موافقة وتوقيع الإغلاق")
 }
@@ -3998,10 +4010,10 @@ async function ptwExtend(id){const p=S.permits.find(x=>x.id===id);if(!p||!(p.sta
   openSheet(`تمديد التصريح ${p.number||""}`,`<div class="banner" style="margin-bottom:12px"><b>${esc(p.number||"")}</b> · ${esc(p.location||"")}<br>الموعد الحالي للانتهاء: ${fmtDate(curEnd)}${p.to?` · ${esc(p.to)}`:""}</div><div class="form">${f("تاريخ النهاية الجديد","newEnd",{type:"date",value:addDays(curEnd||today(),1),req:true})}<div class="field full" style="margin-top:-6px"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted" style="font-size:12.5px">تمديد سريع:</span>${[1,2,3,5,7].map(n=>`<button type="button" class="btn sm" onclick="const i=document.getElementById('f_newEnd');if(i){i.value=addDays('${curEnd||today()}',${n});i.dispatchEvent(new Event('change',{bubbles:true}))}">+${n} ${n===1?"يوم":"أيام"}</button>`).join("")}</div>${p.type==="HEIGHT"?'<small class="muted">نموذج العمل على ارتفاع فيه 7 أعمدة (أيام الأسبوع): التمديد حتى 7 أيام بيتسجّل بتاريخ كل يوم في عموده.</small>':""}</div>${f("لحد الساعة","newTo",{type:"time",value:p.to||""})}${f("سبب التمديد","reason",{type:"textarea",full:true,req:true,attrs:'placeholder="مثلاً: استمرار الأعمال ولم تكتمل في المدة المحددة"'})}</div><p class="muted" style="font-size:12.5px;margin-bottom:0">${isAdmin?"سيُسجّل التمديد إداريًا، ولن يوضع توقيع الأدمن في خانة أحد أطراف النموذج.":"سيُسجّل التمديد بتوقيعك المحفوظ في خانة دورك بالنموذج."} المدة الجديدة هتظهر داخل القالب والتصريح يفضل مفتوح للموعد الجديد.</p>`,
    async(fd)=>{if(!(fd.reason||"").trim())return "اكتب سبب التمديد";if(!fd.newEnd)return "اختار تاريخ النهاية الجديد";if(fd.newEnd<=(curEnd||"0"))return "تاريخ النهاية الجديد لازم يكون بعد الموعد الحالي";if(p.type==="HEIGHT"&&curEnd&&(new Date(fd.newEnd)-new Date(curEnd))/864e5>7)return "نموذج العمل على ارتفاع بيستوعب تمديد لحد 7 أيام في المرة. مدّد على مرحلتين.";
      const me=myEmpName()||ME.name||"";const now=cairoClock();
-     const actorRole=!isAdmin?ptwStageRoles(p,"extension")[0]||"":"";const actorSignature=actorRole?signature:"";const entry=actorSignature?{uid:ME.id,name:me,signature:actorSignature,at:Date.now(),date:now.day,time:now.time}:null;const ext={at:Date.now(),date:now.day,time:now.time,by:ME.id,name:isAdmin?"":me,role:actorRole,oldEnd:curEnd,oldTo:p.to||"",newEnd:fd.newEnd,newTo:(fd.newTo||"").trim(),reason:fd.reason.trim(),signature:actorSignature,signatures:entry?{[actorRole]:entry}:{}};
+     const actorRole=!isAdmin?(ptwPreferRole(p,myEmpName(),ptwStageRoles(p,"extension"),ptwCloseRole())[0]||""):"";const actorSignature=actorRole?signature:"";const entry=actorSignature?{uid:ME.id,name:me,signature:actorSignature,at:Date.now(),date:now.day,time:now.time}:null;const ext={at:Date.now(),date:now.day,time:now.time,by:ME.id,name:isAdmin?"":me,role:actorRole,oldEnd:curEnd,oldTo:p.to||"",newEnd:fd.newEnd,newTo:(fd.newTo||"").trim(),reason:fd.reason.trim(),signature:actorSignature,signatures:entry?{[actorRole]:entry}:{}};
      const patch={extended:true,endDate:fd.newEnd,to:(fd.newTo||p.to||""),extReason:ext.reason,extBy:ME.id,extName:ext.name,extRole:ext.role,extAt:ext.at,extDate:now.day,extTime:now.time,extStart:curEnd,extStartTo:p.to||"",extSignature:signature,extensions:[...(p.extensions||[]),ext],flow:[...(p.flow||[]),{st:"extended",by:ME.id,name:me,at:Date.now(),note:ext.reason}]};
      const ok=await write(()=>upsert("permits",id,patch),"اتمدّد التصريح ✔");if(!ok)return "الحفظ فشل";Object.assign(p,patch);
-     try{const nn=[p.requester,p.siteEng].filter(Boolean).map(normName),U=(S.profiles||[]).filter(x=>!x.disabled&&x.id!==ME.id&&nn.includes(normName(profName(x)))).map(x=>x.id);if(U.length)notifyUsers(U,"✍ مطلوب توقيعك على تمديد التصريح",`${p.number||""} · لحد ${fmtDate(fd.newEnd)}`,`?go=ptw&id=${id}`)}catch(er){}await notifyUsers(ptwStakeholders(p),"تم تمديد تصريح العمل",`${p.number||""} · المدة لحد ${fmtDate(fd.newEnd)} · ${me}`,`?go=ptw&id=${encodeURIComponent(id)}`);setTimeout(()=>printPermit(id),350);return null},isAdmin?"تأكيد التمديد":"تأكيد التمديد والتوقيع")}
+     try{const nn=[p.requester,p.siteEng].filter(Boolean).map(normName),U=(S.profiles||[]).filter(x=>!x.disabled&&x.id!==ME.id&&nn.includes(normName(profName(x)))).map(x=>x.id);if(U.length)await notifyUsers(U,"✍ مطلوب توقيعك على تمديد التصريح",`${p.number||""} · لحد ${fmtDate(fd.newEnd)}`,`?go=ptw&id=${id}`);const RST=ptwStakeholders(p).filter(u=>!U.includes(u));if(RST.length)await notifyUsers(RST,"تم تمديد تصريح العمل",`${p.number||""} · المدة لحد ${fmtDate(fd.newEnd)} · ${me}`,`?go=ptw&id=${encodeURIComponent(id)}`)}catch(er){}setTimeout(()=>printPermit(id),350);return null},isAdmin?"تأكيد التمديد":"تأكيد التمديد والتوقيع")}
 async function drawColdCloseInfo(pages,p){const T0=p.type,NB=PERMIT_CREW_NOTES[T0]||PERMIT_CREW_NOTES.COLD,c=pages[NB.pg];if(!c)return;const g=c.getContext("2d"),W=c.width,H=c.height;
  try{await document.fonts.load('800 20px '+FFACE())}catch(e){}
  if(p.closedAt&&T0==="COLD"){g.save();g.font="700 15px 'IBM Plex Sans Arabic',Arial,sans-serif";g.direction="rtl";g.textAlign="center";g.textBaseline="middle";g.fillStyle="#17231e";g.fillText(fmtDate(p.closedAt),W*0.747,H*0.596);g.fillText(p.closedTime||"",W*0.905,H*0.596);g.restore()}
@@ -6179,10 +6191,14 @@ async function renderPermitPages(p,opts){
    return pg}
   return renderPermitPagesFull(p)}
 async function renderPermitPagesFull(p){const pages=await renderPermitPagesBase(p),T=p.type,F=(await loadForms())[T],vals=ptwValues(p),byUid=new Map(signsOf(p).filter(s=>!ptwAdminActor(s.uid)).map(s=>[s.uid,{...s}]));
-  if(p.supSignature&&p.supUidDone&&p.supName&&!ptwAdminActor(p.supUidDone))byUid.set(p.supUidDone,{...(byUid.get(p.supUidDone)||{}),uid:p.supUidDone,name:p.supName,at:p.supAt,signature:p.supSignature});
-  if(p.hseSignature&&p.hseUidDone&&p.hseName&&!ptwAdminActor(p.hseUidDone))byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature});
-  /* لا نطبع إلا توقيع شخص اسمه طرف فعلي في النموذج، وفي خانة دوره المطابقة. */
-  for(const s of byUid.values())for(const role of ptwSignerRoles(p,s.name)){const cell=ptwSigCell(T,"issue",role);if(cell&&s.signature)await stampOn(pages[F.pages.length-1],cell,s.signature,null,{fit:.82})}
+  if(p.supSignature&&p.supUidDone&&p.supName&&!ptwAdminActor(p.supUidDone))byUid.set(p.supUidDone,{...(byUid.get(p.supUidDone)||{}),uid:p.supUidDone,name:p.supName,at:p.supAt,signature:p.supSignature,role:(byUid.get(p.supUidDone)||{}).role||"sup"});
+  if(p.hseSignature&&p.hseUidDone&&p.hseName&&!ptwAdminActor(p.hseUidDone))byUid.set(p.hseUidDone,{...(byUid.get(p.hseUidDone)||{}),uid:p.hseUidDone,name:p.hseName,at:p.hseAt,signature:p.hseSignature,role:(byUid.get(p.hseUidDone)||{}).role||"hse"});
+  /* لا نطبع إلا توقيع شخص اسمه طرف فعلي في النموذج، في خانة دوره — توقيع واحد لكل شخص، وختم واحد لكل خانة (منع الدبلرة) */
+  {const usedCell=new Set();
+   for(const s of byUid.values()){if(!s.signature)continue;
+     const roles=ptwPreferRole(p,s.name,ptwSignerRoles(p,s.name),s.role);
+     for(const role of roles.slice(0,1)){const cell=ptwSigCell(T,"issue",role);if(!cell)continue;const k=cell.join(",");if(usedCell.has(k))continue;usedCell.add(k);
+       await stampOn(pages[F.pages.length-1],cell,s.signature,null,{fit:.82})}}}
   /* اعتماد الإغلاق يظل في مصفوفة الإغلاق المطبوعة، بجوار اسم الدور نفسه. */
   if(p.status==="closed"&&p.closedAt){await applyPermitCloseoutOfficial(p,pages);if(!PERMIT_CREW_NOTES[T]&&(p.closeNote||Object.values(p.closeNotesByRole||{}).some(Boolean)||Object.values(p.closeRecommendationsByRole||{}).some(Boolean)))pages.push(permitCloseNotesPage(p))}
   return pages}
@@ -6663,7 +6679,20 @@ function referRecord(id){const r=S.records.find(x=>x.id===id);if(!r)return;
     return done?null:"فشل"},"إحالة")}
 async function referDone(id){const r=S.records.find(x=>x.id===id);if(!r?.referral)return;
   if(await write(()=>upsert("records",id,{referral:{...r.referral,status:"done",doneAt:Date.now()}}),"تم إنهاء الإحالة ✔"))notifyUsers([r.referral.by],"✅ اتنفذت إحالتك",`${r.referral.toName} أنهى الإحالة`,`?go=rec&id=${encodeURIComponent(id)}`)}
-async function notifyUsers(uids,title,body,url="./"){uids=[...new Set((uids||[]).filter(u=>u&&u!==ME.id))];if(!uids.length)return;
+/* 8.9.172 — منع زحمة الإشعارات: نفس الشخص ما ياخدش أكتر من إشعار لنفس المستند في نفس اللحظة،
+   ولا نفس الرسالة مرتين. الاستثناء: الرفض والتحذيرات والإغلاق النهائي بيعدّوا دايمًا. */
+const NOTIF_RECENT=new Map(),NOTIF_ALWAYS=/❌|🚨|اترفض|تم إغلاق التصريح|انتهى موعد التصريح/;
+function notifThin(uids,title,body,url){
+  try{const now=Date.now(),m=String(url||"").match(/[?&]id=([^&]+)/),doc=m?m[1]:"",keep=NOTIF_ALWAYS.test(String(title||""));
+    for(const [k,t] of NOTIF_RECENT)if(now-t>9e5)NOTIF_RECENT.delete(k);
+    return uids.filter(u=>{
+      const same=u+"#"+title+"|"+body+"|"+url, burst=doc?u+"@"+doc:"";
+      const dupSame=NOTIF_RECENT.has(same)&&now-NOTIF_RECENT.get(same)<6e5;
+      const dupDoc=!keep&&burst&&NOTIF_RECENT.has(burst)&&now-NOTIF_RECENT.get(burst)<25e3;
+      NOTIF_RECENT.set(same,now);if(burst)NOTIF_RECENT.set(burst,now);
+      return !dupSame&&!dupDoc})}catch(e){return uids}
+}
+async function notifyUsers(uids,title,body,url="./"){uids=[...new Set((uids||[]).filter(u=>u&&u!==ME.id))];uids=notifThin(uids,title,body,url);if(!uids.length)return;
   try{await SB.from("notif").insert(uids.map(u=>({to_uid:u,title,body,url})))}catch(e){}
   try{await notifyCall({action:"send",to:uids,title,body,url,urgency:"high",ttl:86400,priority:"high"},true)}catch(e){}}
 async function loadNotifs(){try{const {data}=await SB.from("notif").select("*").eq("to_uid",ME.id).order("at",{ascending:false}).limit(150);NOTIFS=data||[];bellBadge();try{window.dispatchEvent(new Event("hse-notifs-loaded"))}catch(e){}}catch(e){}}
@@ -11473,7 +11502,7 @@ async function ptwQuick(id){const p=S.permits.find(x=>x.id===id);if(!p)return;co
   return pages}}
 /* توقيع الإغلاق/التمديد في خانة المهندس: للمهندس المحدد فقط */
 {const _r=ptwStageRoles;ptwStageRoles=function(p,stage){let r=_r.apply(this,arguments);
-  if(p&&p.engUid&&(stage==="close"||stage==="extension")){r=r.filter(x=>x!=="site");if(ME.id===p.engUid&&PTW_SIG_CELLS?.[p.type]?.[stage]?.site)r.push("site")}return r}}
+  if(p&&p.engUid&&(stage==="close"||stage==="extension")){r=r.filter(x=>x!=="site");if(ME.id===p.engUid&&(PTW_SIG_CELLS?.[p.type]?.[stage]?.site||(stage==="extension"&&p.type==="HEIGHT")))r.push("site")}return r}}
 
 /* 8.9.1 — تصريح الأماكن المغلقة: قايمة الفحص + معدات الوقاية + الأدوات بنفس بنود النموذج، وتعديل المقاول والعمالة للمشرف والمهندس قبل الاعتماد */
 const CONF_CHECKS=(()=>{const A={pg:0,W:1150,H:1680,x:{yes:[525,1043],no:[585,1103]}},B={pg:1,W:1137,H:1683,x:{yes:[519,1035],no:[577.5,1094.5]}};
