@@ -783,7 +783,8 @@ const hasClearance=e=>!!(e&&e.clearance&&e.clearance.date);
 const isLeft=e=>!!e&&e.active!==false&&(!!e.mpFlag||hasClearance(e));
 const CLEAR_WHY={resign:"استقالة",contract:"انتهاء عقد",transfer:"نقل لموقع تاني",end:"إنهاء خدمة",other:"أخرى"};
 /* ليه الشخص في المغادرون */
-function leftWhy(e){if(hasClearance(e))return "إخلاء طرف"+(CLEAR_WHY[e.clearance.why]?" — "+CLEAR_WHY[e.clearance.why]:"");
+const isTransfer=e=>hasClearance(e)&&e.clearance.why==="transfer";
+function leftWhy(e){if(hasClearance(e))return isTransfer(e)?"نقل لموقع تاني":"إخلاء طرف"+(CLEAR_WHY[e.clearance.why]?" — "+CLEAR_WHY[e.clearance.why]:"");
   return "مش في آخر تحديث"}
 const isVisitor=e=>!!e&&e.group==="visit";
 /* العدد الإحصائي = الكشف الفعلي من آخر تحديث بس:
@@ -2239,7 +2240,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.172";
+const APP_VER="8.9.173";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -2334,7 +2335,7 @@ async function buildXlBlob(){
     "الإجراءات التصحيحية":deriveActions().map(a=>({"النوع":a.kind||"","البند":a.title,"التفاصيل":a.detail||"","المكان":a.place||"","المصدر":a.form||"","التاريخ":a.date||"","المسؤول":actOwner(a),"الميعاد":a.due||"","الحالة":a.status==="closed"?"مقفول":a.late?"متأخر":"مفتوح","تاريخ الإغلاق":a.closedAt||"","اللي اتعمل":a.closeNote||""})),
     "السجلات":S.records.map(r=>({"النموذج":r.form,"الاسم":F2[r.form]?.title||"","رقم":r.serial||"","التاريخ":r.date||"","عدد الصفوف":(r.rows||[]).filter(Boolean).length,"موقّع ومرفوع":hasSigned(r)?"نعم":""})),
     "الإجازات والأذونات":S.leaves.map(l=>({"الموظف":empName(l.empId),"النوع":l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||""),"من":l.date||"","إلى":l.to||"","أيام":num(l.days)||"","السبب":l.reason||l.note||""})),
-    "المغادرون":leftEmps().map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","المجموعة":GROUPS[e.group]||e.group||"","المقاول":ctr(e.contractorId),"سبب المغادرة":hasClearance(e)?"إخلاء طرف":"مش موجود في آخر تحديث مان باور","تاريخ إخلاء الطرف":e.clearance?.date||"","ملاحظات إخلاء الطرف":e.clearance?.note||"","الموبايل":e.phone||""})),
+    "المغادرون":leftEmps().map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","المجموعة":GROUPS[e.group]||e.group||"","المقاول":ctr(e.contractorId),"سبب المغادرة":leftWhy(e),"تاريخ المغادرة":e.clearance?.date||"","ملاحظات":e.clearance?.note||"","الموبايل":e.phone||""})),
     "التدريب والزائرين":visitorEmps().map(e=>({"الاسم":e.name,"الكود":e.code||"","الوظيفة":e.job||"","الجهة":ctr(e.contractorId)||e.org||"","الموبايل":e.phone||"","البطاقة مرفوعة":hasID(e)?"نعم":"لا"})),
     "تيم ديوتي والتكليفات":S.leaves.filter(l=>l.kind).map(l=>({"النوع":DUTY_K[l.kind]||l.kind,"الموظف":empName(l.empId),"الكود":emp(l.empId)?.code||"","التاريخ":l.date||"","وقت الخروج":l.out||l.time||"","العمل المكلف به":l.purpose||l.reason||l.note||"","المعتمد":l.approverName||(l.approverId?empName(l.approverId):""),"موقّع":hasSigned(l)?"نعم":""})),
     "إخلاء الطرف":S.employees.filter(e=>hasClearance(e)).map(e=>({"الاسم":e.name,"الكود":e.code||"","التاريخ":e.clearance?.date||"","السبب":e.clearance?.reason||"","سلّم العهدة":e.clearance?.returned?"نعم":"","ملاحظات":e.clearance?.note||""}))};
@@ -3115,16 +3116,16 @@ function personBack(){ui.personSel="";const b=ui.personBack;ui.personBack="";sho
 function clearanceForm(id){
   const e=emp(id);if(!e){toast("الموظف مش موجود");return}
   const c=e.clearance||{};
-  openSheet("إخلاء طرف · "+e.name,`<div class="form">
-    ${f("تاريخ إخلاء الطرف","date",{type:"date",value:c.date||today(),req:true})}
-    ${f("سبب ترك الخدمة","why",{value:c.why||"resign",opts:Object.entries(CLEAR_WHY)})}
+  openSheet("مغادرة الموقع · "+e.name,`<div class="form">
+    ${f("تاريخ المغادرة","date",{type:"date",value:c.date||today(),req:true})}
+    ${f("نوع المغادرة / السبب","why",{value:c.why||"resign",opts:Object.entries(CLEAR_WHY)})}
     ${f("ملاحظات","note",{value:c.note||"",full:true})}</div>
-    <p class="muted" style="font-size:13px;margin:10px 0 0">أول ما تحفظ، الموظف هيتنقل لقائمة <b>🚪 المغادرون</b> و<b>مايتحسبش في أي إحصائية</b> — من غير حذف ولا إيقاف. صورة إخلاء الطرف ترفعها من <b>📎 مرفقات</b> ← <b>إخلاء الطرف</b>.</p>`,
+    <p class="muted" style="font-size:13px;margin:10px 0 0">أول ما تحفظ، الموظف هيتنقل لقائمة <b>🚪 المغادرون</b> و<b>مايتحسبش في أي إحصائية</b> — من غير حذف ولا إيقاف. لو اخترت <b>«نقل لموقع تاني»</b> هيظهر بحالة <b>🔁 منقول</b> مش «إخلاء طرف». المستند ترفعه من <b>📎 مرفقات</b> ← <b>إخلاء الطرف</b>.</p>`,
   async fd=>{
-    if(!fd.date)return "اكتب تاريخ إخلاء الطرف";
+    if(!fd.date)return "اكتب تاريخ المغادرة";
     const data={clearance:{date:fd.date,why:fd.why,note:(fd.note||"").trim(),by:ME.id||"",at:Date.now()}};
-    return (await write(()=>upsert("employees",id,data),"اتسجل إخلاء الطرف"))?null:"الحفظ فشل";
-  },"سجّل إخلاء الطرف");
+    return (await write(()=>upsert("employees",id,data),fd.why==="transfer"?"اتسجّل النقل لموقع تاني":"اتسجل إخلاء الطرف"))?null:"الحفظ فشل";
+  },"سجّل المغادرة");
 }
 function clearanceUndo(id){
   const e=emp(id);if(!e)return;
@@ -3155,7 +3156,7 @@ function personFileHTML(e){
   ${LV.length?sec("الإجازات والأذونات والتكليفات","",`<div class="list">${LV.slice(0,30).map(l=>`<div class="li"><div class="grow"><div class="t">${l.kind?DUTY_K[l.kind]||l.kind:"إجازة "+(LEAVE_T[l.leaveType]||"")}</div><div class="s">${fmtDate(l.date)}${l.to&&l.to!==l.date?" ← "+fmtDate(l.to):""}${l.days?" · "+num(l.days)+" يوم":""}${l.reason?" · "+esc(l.reason):""}</div></div>${hasSigned(l)?'<span class="pill p-appr">موقّع</span>':""}</div>`).join("")}</div>`):""}
   ${PT.length?sec(`تصاريح شارك فيها (${PT.length})`,"",`<div class="list">${PT.slice(0,20).map(p=>`<div class="li"><span class="num">${esc(p.number)}</span><div class="grow"><div class="t">${fmtDate(p.date)} · ${esc(PTW_TYPES[p.type]?.ar||p.type)}</div><div class="s">${esc(p.location||"")}</div></div>${statusPill(p.status)}</div>`).join("")}</div>`):""}
   ${personInspSec(e)}
-  ${sec("إخلاء الطرف",tabLevel("manpower")!=="view"?`<button class="btn sm" onclick="clearanceForm('${id}')">${hasClearance(e)?"تعديل":"+ تسجيل إخلاء طرف"}</button>${hasClearance(e)?`<button class="btn sm danger" onclick="clearanceUndo('${id}')">إلغاء</button>`:""}`:"",hasClearance(e)?`<div class="li"><div class="grow"><div class="t">${fmtDate(e.clearance.date)}${e.clearance.why?" · "+esc(CLEAR_WHY[e.clearance.why]||e.clearance.why):""}</div><div class="s">${esc(e.clearance.note||"")}</div></div><span class="pill p-susp">🚪 مغادر</span></div>${thumbs(attOf(e,"clearance"))}`:'<p class="muted" style="margin:0">مفيش إخلاء طرف مسجّل — الموظف لسه على رأس العمل.</p>')}
+  ${sec(isTransfer(e)?"النقل لموقع تاني":"إخلاء الطرف / النقل",tabLevel("manpower")!=="view"?`<button class="btn sm" onclick="clearanceForm('${id}')">${hasClearance(e)?"تعديل":"+ تسجيل مغادرة (إخلاء طرف أو نقل)"}</button>${hasClearance(e)?`<button class="btn sm danger" onclick="clearanceUndo('${id}')">إلغاء</button>`:""}`:"",hasClearance(e)?`<div class="li"><div class="grow"><div class="t">${fmtDate(e.clearance.date)}${e.clearance.why?" · "+esc(CLEAR_WHY[e.clearance.why]||e.clearance.why):""}</div><div class="s">${esc(e.clearance.note||"")}</div></div><span class="pill p-susp">${isTransfer(e)?"🔁 منقول":"🚪 مغادر"}</span></div>${thumbs(attOf(e,"clearance"))}`:'<p class="muted" style="margin:0">مفيش مغادرة مسجّلة — الموظف لسه على رأس العمل.</p>')}
   ${sec("مستندات تانية","",thumbs(attOf(e,"other"))||none)}`;
 }
 function newLect(W){recordForm('F-HSE-24-02',null,{rows:W.filter(Boolean).slice(0,25).map(w=>({name:w.name,name_id:w.id,pos:w.job||""}))})}
@@ -7064,7 +7065,7 @@ function mpFlaggedSheet(){
   openSheet(`🚪 المغادرون — مش في آخر تحديث (${L.length})`,L.length?`
     <p class="muted" style="margin-top:0;font-size:13.5px">دول مكانوش في آخر كشف اترفع، فاتحطوا في قائمة المغادرين و<b>مش داخلين في أي عدد إحصائي</b>. راجعهم: لو لسه بيشتغلوا شيل العلامة فيرجعوا للكشف، ولو سابوا الشغل وقّفهم خالص.</p>
     <div class="list">${L.map(e=>`<div class="li"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${[e.code,e.job,GROUPS[e.group]].filter(Boolean).map(esc).join(" · ")} · <b>${esc(leftWhy(e))}</b>${e.mpFlag?.file?" · من ملف "+esc(e.mpFlag.file):""}${hasClearance(e)?" · "+fmtDate(e.clearance.date):""}</div></div>
-      <div class="row-actions">${hasClearance(e)?`<button class="btn ghost sm" onclick="clearanceUndo('${e.id}')">↩ ألغِ إخلاء الطرف</button>`:`<button class="btn ghost sm" onclick="mpUnflag('${e.id}')">✔ لسه شغّال</button>`}<button class="btn ghost sm danger" onclick="mpStopEmp('${e.id}')">وقّفه</button></div></div>`).join("")}</div>`
+      <div class="row-actions">${hasClearance(e)?`<button class="btn ghost sm" onclick="clearanceUndo('${e.id}')">↩ ${isTransfer(e)?"ألغِ النقل":"ألغِ إخلاء الطرف"}</button>`:`<button class="btn ghost sm" onclick="mpUnflag('${e.id}')">✔ لسه شغّال</button>`}<button class="btn ghost sm danger" onclick="mpStopEmp('${e.id}')">وقّفه</button></div></div>`).join("")}</div>`
     :'<p class="muted">مفيش حد مميّز. 👍</p>',null,null);
 }
 async function mpUnflag(id){if(await write(()=>upsert("employees",id,{mpFlag:null}),"اتشالت العلامة"))setTimeout(mpFlaggedSheet,250)}
@@ -7080,7 +7081,7 @@ async function mpStopEmp(id){if(await write(()=>upsert("employees",id,{active:fa
 }}
 /* علامة على سطر الشخص */
 {const _prF=personRow;personRow=function(e){const h=_prF(e);
-  return isLeft(e)?h.replace('<div class="row-actions">',`<span class="pill p-susp" title="${esc(leftWhy(e))} — مش محسوب في الإحصائيات">🚪 ${hasClearance(e)?"إخلاء طرف":"مغادر"}</span><div class="row-actions">`):h}}
+  return isLeft(e)?h.replace('<div class="row-actions">',`<span class="pill p-susp" title="${esc(leftWhy(e))} — مش محسوب في الإحصائيات">${isTransfer(e)?"🔁 منقول":"🚪 "+(hasClearance(e)?"إخلاء طرف":"مغادر")}</span><div class="row-actions">`):h}}
 
 /* ---------- استيراد بطاقات الموظفين بالجملة ----------
    بيقرا فولدر فيه مجلدات باسم «الكود - الاسم» وجواها صورة/PDF البطاقة،
