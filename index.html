@@ -2240,7 +2240,7 @@ function hseFinal(){const a=myAccess();return !!a&&(HSE_FINAL_ROLES.includes(a.r
 /* ================= نسخة المنظومة =================
    الرقم ده بيتقرا من الملف المرفوع برضه، فالمنظومة بتعرف لوحدها
    لو اللي شغال عندك أقدم من اللي على السيرفر وتقولّك تحدّث. */
-const APP_VER="8.9.173";
+const APP_VER="8.9.174";
 const APP_BUILD="2026-11-10";
 function appVerLine(){return `v${APP_VER} · ${APP_BUILD}`}
 let VER_LATEST=null;
@@ -3083,7 +3083,7 @@ VIEWS.manpower={
     const all=countedEmps();
     const cnt=g=>all.filter(e=>e.group===g).length;
     const nLeft=leftEmps().length,nVisit=visitorEmps().length;
-    el.innerHTML=`<div class="grid g4" style="margin-bottom:14px">${[["hse","فريق السلامة"],["sup","فريق الإشراف"],["worker","موظفين الشركة"],["ctr","عمالة المقاولين"],["visit","التدريب والزائرين"],["__left","المغادرون"]].map(([g,l])=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit;${ui.mpG===g?"outline:2px solid var(--ink)":""}" onclick="ui.mpG=ui.mpG==='${g}'?'':'${g}';refresh()"><span class="lbl">${l}</span><b class="val">${cnt(g)}</b></button>`).join("")}</div>
+    el.innerHTML=`<div class="grid g4" style="margin-bottom:14px">${[["hse","فريق السلامة"],["sup","فريق الإشراف"],["worker","موظفين الشركة"],["ctr","عمالة المقاولين"],["visit","التدريب والزائرين"],["__left","المغادرون"]].map(([g,l])=>`<button class="card tile" style="text-align:right;cursor:pointer;font:inherit;color:inherit;${ui.mpG===g?"outline:2px solid var(--ink)":""}" onclick="ui.mpG=ui.mpG==='${g}'?'':'${g}';refresh()"><span class="lbl">${l}</span><b class="val">${g==="__left"?nLeft:g==="visit"?nVisit:cnt(g)}</b></button>`).join("")}</div>
     <div class="filters" style="flex-wrap:wrap"><input type="search" id="mpQ" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" value="${esc(ui.mpQ)}" class="grow">
       <select id="mpG"><option value="">كل المجموعات</option>${Object.entries(GROUPS).map(([k,v])=>`<option value="${k}" ${ui.mpG===k?"selected":""}>${v}</option>`).join("")}<option value="__left" ${ui.mpG==="__left"?"selected":""}>المغادرون (مش في آخر تحديث)</option></select>
       <select id="mpCtr"><option value="">كل المقاولين</option>${S.contractors.map(c=>`<option value="${c.id}" ${ui.mpCtr===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select>
